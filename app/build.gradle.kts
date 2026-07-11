@@ -6,11 +6,11 @@ plugins {
 
 android {
     namespace = "com.dewijones92.uniapp"
-    compileSdk = 36
+    compileSdk = 37
     defaultConfig {
         applicationId = "com.dewijones92.uniapp"
         minSdk = 34
-        targetSdk = 36
+        targetSdk = 37
         versionCode = 1
         versionName = "1.0"
     }
@@ -36,6 +36,14 @@ android {
       resources {
         excludes += "/META-INF/{AL2.0,LGPL2.1}"
       }
+    }
+
+    lint {
+        warningsAsErrors = true
+        abortOnError = true
+        // Version-freshness nags break CI on every upstream release, not on code changes.
+        // Dependency updates are handled deliberately, not by lint.
+        disable += listOf("AndroidGradlePluginVersion", "GradleDependency", "NewerVersionAvailable")
     }
 }
 

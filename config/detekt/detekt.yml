@@ -1,0 +1,16 @@
+# Overrides on top of detekt's default config (buildUponDefaultConfig = true).
+
+naming:
+  FunctionNaming:
+    ignoreAnnotated: ['Composable']
+
+style:
+  UnusedPrivateMember:
+    ignoreAnnotated: ['Preview']
+  MagicNumber:
+    # Named property declarations (e.g. Compose colour palettes) are already well named.
+    ignorePropertyDeclaration: true
+
+formatting:
+  active: true
+  android: true
