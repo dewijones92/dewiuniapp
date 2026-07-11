@@ -1,0 +1,25 @@
+i like these apps
+git@github.com:dewijones92/PipePipeClient.git
+and 
+antennapod
+
+
+but these are 2 separate apps, and the code isn't great
+
+maybe we could build a single app from scratch using best practices???
+ci/cd  with great quality catchers ??? DRY??? etc etc 
+you have access to my gh (GitHub cli)
+make good descitions, e.g. make good use of the testing pyramid etc etc etc
+
+SOLID
+dependant types if possible etc etc etc 
+
+
+any questions???
+
+
+
+
+make sure to use this fork thing also
+    implementation 'com.github.dewijones92.youtubedl-android:ytdlp-kt:v2026.07.09.234832-api23.2'
+
