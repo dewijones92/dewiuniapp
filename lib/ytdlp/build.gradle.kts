@@ -1,17 +1,10 @@
+// compileSdk/minSdk, Java level, and lint policy come from the root build's androidDefaults.
 plugins {
     alias(libs.plugins.android.library)
 }
 
 android {
     namespace = "com.dewijones92.uniapp.ytdlp"
-    compileSdk = 37
-    defaultConfig {
-        minSdk = 34
-    }
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-    }
 }
 
 kotlin {
@@ -20,6 +13,7 @@ kotlin {
 }
 
 dependencies {
+    api(project(":lib:common"))
     implementation(libs.kotlinx.coroutines.core)
 
     testImplementation(libs.junit)

@@ -1,5 +1,9 @@
 <libraries>
   <library
+      name=":@@:lib:common"
+      jars="/home/dewi/code/dewiuniapp/lib/common/build/libs/common.jar"
+      resolved="::"/>
+  <library
       name="org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.10.2@jar"
       jars="/home/dewi/.gradle/caches/modules-2/files-2.1/org.jetbrains.kotlinx/kotlinx-coroutines-core-jvm/1.10.2/4a9f78ef49483748e2c129f3d124b8fa249dafbf/kotlinx-coroutines-core-jvm-1.10.2.jar"
       resolved="org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.10.2"/>

@@ -1,12 +1,12 @@
 package com.dewijones92.uniapp.ytdlp.fake
 
+import com.dewijones92.uniapp.common.HttpUrl
 import com.dewijones92.uniapp.ytdlp.DownloadEvent
 import com.dewijones92.uniapp.ytdlp.DownloadRequest
 import com.dewijones92.uniapp.ytdlp.EngineVersions
 import com.dewijones92.uniapp.ytdlp.ExtractionResult
 import com.dewijones92.uniapp.ytdlp.MediaFormat
 import com.dewijones92.uniapp.ytdlp.MediaMetadata
-import com.dewijones92.uniapp.ytdlp.MediaUrl
 import com.dewijones92.uniapp.ytdlp.YtDlpEngine
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -19,17 +19,17 @@ import kotlinx.coroutines.flow.flow
  */
 public class FakeYtDlpEngine : YtDlpEngine {
 
-    private val mediaByUrl = mutableMapOf<MediaUrl, MediaMetadata>()
+    private val mediaByUrl = mutableMapOf<HttpUrl, MediaMetadata>()
 
     /** Makes [url] extractable, returning canned [metadata]. */
-    public fun registerMedia(url: MediaUrl, metadata: MediaMetadata) {
+    public fun registerMedia(url: HttpUrl, metadata: MediaMetadata) {
         mediaByUrl[url] = metadata
     }
 
     override suspend fun versions(): EngineVersions =
         EngineVersions(ytDlp = "fake", python = "fake")
 
-    override suspend fun extract(url: MediaUrl): ExtractionResult =
+    override suspend fun extract(url: HttpUrl): ExtractionResult =
         mediaByUrl[url]
             ?.let { ExtractionResult.Success(it) }
             ?: ExtractionResult.Failure.UnsupportedUrl(url)

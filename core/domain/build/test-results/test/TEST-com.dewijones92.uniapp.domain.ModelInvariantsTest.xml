@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="com.dewijones92.uniapp.domain.ModelInvariantsTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-07-12T06:30:15.379Z" hostname="APTEM-D61QB54" time="0.067">
+<testsuite name="com.dewijones92.uniapp.domain.ModelInvariantsTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-07-12T06:49:46.533Z" hostname="APTEM-D61QB54" time="0.044">
   <properties/>
-  <testcase name="media item duration must be positive when present" classname="com.dewijones92.uniapp.domain.ModelInvariantsTest" time="0.051"/>
+  <testcase name="media item duration must be positive when present" classname="com.dewijones92.uniapp.domain.ModelInvariantsTest" time="0.037"/>
   <testcase name="media item allows unknown duration" classname="com.dewijones92.uniapp.domain.ModelInvariantsTest" time="0.0"/>
   <testcase name="source id must not be blank" classname="com.dewijones92.uniapp.domain.ModelInvariantsTest" time="0.001"/>
   <testcase name="media item id must not be blank" classname="com.dewijones92.uniapp.domain.ModelInvariantsTest" time="0.001"/>

@@ -1,5 +1,6 @@
 package com.dewijones92.uniapp.ytdlp
 
+import com.dewijones92.uniapp.common.HttpUrl
 import com.dewijones92.uniapp.ytdlp.fake.FakeYtDlpEngine
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
@@ -11,7 +12,7 @@ import java.io.File
 class FakeYtDlpEngineTest {
 
     private val engine = FakeYtDlpEngine()
-    private val knownUrl = MediaUrl.of("https://example.com/watch?v=known")
+    private val knownUrl = HttpUrl.of("https://example.com/watch?v=known")
 
     @Test
     fun `extract returns registered metadata`() = runTest {
@@ -23,7 +24,7 @@ class FakeYtDlpEngineTest {
 
     @Test
     fun `extract reports unsupported url as a value`() = runTest {
-        val unknown = MediaUrl.of("https://example.com/unknown")
+        val unknown = HttpUrl.of("https://example.com/unknown")
 
         assertEquals(ExtractionResult.Failure.UnsupportedUrl(unknown), engine.extract(unknown))
     }
@@ -44,7 +45,7 @@ class FakeYtDlpEngineTest {
 
     @Test
     fun `download of unknown url fails without progress`() = runTest {
-        val unknown = MediaUrl.of("https://example.com/unknown")
+        val unknown = HttpUrl.of("https://example.com/unknown")
 
         val events = engine.download(DownloadRequest(unknown, File("/tmp"))).toList()
 

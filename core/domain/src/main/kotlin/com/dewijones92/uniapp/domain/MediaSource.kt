@@ -1,5 +1,7 @@
 package com.dewijones92.uniapp.domain
 
+import com.dewijones92.uniapp.common.HttpUrl
+
 /** Stable identity of a [MediaSource]; never blank. */
 @JvmInline
 public value class SourceId(public val value: String) {
@@ -20,13 +22,13 @@ public sealed interface MediaSource {
     public data class VideoChannel(
         override val id: SourceId,
         override val title: String,
-        val channelUrl: WebUrl,
+        val channelUrl: HttpUrl,
     ) : MediaSource
 
     public data class PodcastFeed(
         override val id: SourceId,
         override val title: String,
-        val feedUrl: WebUrl,
-        val websiteUrl: WebUrl? = null,
+        val feedUrl: HttpUrl,
+        val websiteUrl: HttpUrl? = null,
     ) : MediaSource
 }

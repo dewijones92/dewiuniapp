@@ -26,7 +26,13 @@ in favour of a from-scratch library — see Decisions).
 
 - **Testing pyramid**: many fast unit tests; fewer integration tests; few instrumented/UI
   tests. New behaviour lands with tests.
-- **SOLID + DRY**: small focused types, dependencies point inward, no copy-paste logic.
+- **Strictly DRY** — this matters a lot to Dewi. Knowledge lives in exactly one
+  place: versions and SDK levels only in `gradle/libs.versions.toml`; Android
+  build defaults (compileSdk/minSdk/Java level/lint policy) only in the root
+  build's `androidDefaults`; shared code in a shared module (`:lib:common`),
+  never copy-pasted. Before writing similar code twice, factor it — and if a
+  duplication is ever deliberate, it must be recorded here with its reason.
+- **SOLID**: small focused types, dependencies point inward.
 - **Maximum compile-time safety** (the brief's "dependent types" translated to Kotlin):
   sealed hierarchies, value classes over primitives, exhaustive `when`, no platform types
   leaking, illegal states unrepresentable.
@@ -63,16 +69,13 @@ in favour of a from-scratch library — see Decisions).
   yt-dlp itself (pure Python) *can* be self-updated at runtime; the
   interpreter and ffmpeg cannot. Deliberately independent of `:core:domain`
   (standalone, reusable); the app maps between their types.
-- detekt and the Android lint policy apply to every module automatically
-  (root `subprojects` block) — never configure them per module.
-- **Deliberate duplication:** `domain.WebUrl` and `ytdlp.MediaUrl` share the
-  same ~20 lines of URL validation. This is a boundary decision, not an
-  oversight: `:lib:ytdlp` must stay standalone (publishable/extractable to
-  its own repo like the old fork), so it cannot depend on an app module, and
-  the two types represent different contracts that may diverge (e.g.
-  engine-supported schemes). Do not "fix" this by coupling the library to
-  the app; revisit only if a shared library published alongside ytdlp makes
-  sense.
+- `:lib:common` — pure-Kotlin utility module with no app dependencies, shared
+  by app modules and standalone libraries alike (it would be published
+  alongside `:lib:ytdlp`, like the old youtubedl-android's `common` module).
+  Home of `HttpUrl`, the single validated URL type used everywhere.
+- detekt, the Android lint policy, and Android build defaults
+  (compileSdk/minSdk/Java level) apply to every module automatically from the
+  root build — never configure them per module.
 - Package root: `com.dewijones92.uniapp`.
 
 ## Working agreements

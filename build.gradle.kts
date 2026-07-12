@@ -24,6 +24,19 @@ val lintPolicy: Lint.() -> Unit = {
   disable += listOf("AndroidGradlePluginVersion", "GradleDependency", "NewerVersionAvailable")
 }
 
+// One set of Android build defaults; modules declare only what is theirs
+// (namespace, dependencies, features).
+val projectCompileSdk = libs.versions.compileSdk.get().toInt()
+val projectMinSdk = libs.versions.minSdk.get().toInt()
+
+val androidDefaults: com.android.build.api.dsl.CommonExtension.() -> Unit = {
+  compileSdk = projectCompileSdk
+  defaultConfig.minSdk = projectMinSdk
+  compileOptions.sourceCompatibility = JavaVersion.VERSION_17
+  compileOptions.targetCompatibility = JavaVersion.VERSION_17
+  lint.lintPolicy()
+}
+
 // Every module gets the same static-analysis gate; adding a module adds its gate.
 subprojects {
   apply(plugin = "io.gitlab.arturbosch.detekt")
@@ -48,9 +61,9 @@ subprojects {
   }
 
   plugins.withId("com.android.application") {
-    extensions.configure<ApplicationExtension> { lint(lintPolicy) }
+    extensions.configure<ApplicationExtension> { androidDefaults() }
   }
   plugins.withId("com.android.library") {
-    extensions.configure<LibraryExtension> { lint(lintPolicy) }
+    extensions.configure<LibraryExtension> { androidDefaults() }
   }
 }

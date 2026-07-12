@@ -1,4 +1,7 @@
 [versions]
+compileSdk = "37"
+minSdk = "34"
+targetSdk = "37"
 androidGradlePlugin = "9.0.1"
 androidxCore = "1.18.0"
 androidxLifecycle = "2.10.0"

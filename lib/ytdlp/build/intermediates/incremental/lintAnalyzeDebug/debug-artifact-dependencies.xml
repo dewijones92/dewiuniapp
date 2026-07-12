@@ -1,6 +1,9 @@
 <dependencies>
   <compile
-      roots="org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.10.2@jar,org.jetbrains.kotlin:kotlin-stdlib:2.3.20@jar,org.jetbrains:annotations:23.0.0@jar">
+      roots=":@@:lib:common,org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.10.2@jar,org.jetbrains.kotlin:kotlin-stdlib:2.3.20@jar,org.jetbrains:annotations:23.0.0@jar">
+    <dependency
+        name=":@@:lib:common"
+        simpleName=":"/>
     <dependency
         name="org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.10.2@jar"
         simpleName="org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm"/>
@@ -12,7 +15,10 @@
         simpleName="org.jetbrains:annotations"/>
   </compile>
   <package
-      roots="org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.10.2@jar,org.jetbrains.kotlin:kotlin-stdlib:2.3.20@jar,org.jetbrains:annotations:23.0.0@jar">
+      roots=":@@:lib:common,org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.10.2@jar,org.jetbrains.kotlin:kotlin-stdlib:2.3.20@jar,org.jetbrains:annotations:23.0.0@jar">
+    <dependency
+        name=":@@:lib:common"
+        simpleName=":"/>
     <dependency
         name="org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.10.2@jar"
         simpleName="org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm"/>

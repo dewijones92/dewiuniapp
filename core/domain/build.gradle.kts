@@ -8,5 +8,7 @@ kotlin {
 }
 
 dependencies {
+    api(project(":lib:common"))
+
     testImplementation(libs.junit)
 }

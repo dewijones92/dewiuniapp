@@ -4,13 +4,12 @@ plugins {
   alias(libs.plugins.kotlin.serialization)
 }
 
+// compileSdk/minSdk, Java level, and lint policy come from the root build's androidDefaults.
 android {
     namespace = "com.dewijones92.uniapp"
-    compileSdk = 37
     defaultConfig {
         applicationId = "com.dewijones92.uniapp"
-        minSdk = 34
-        targetSdk = 37
+        targetSdk = libs.versions.targetSdk.get().toInt()
         versionCode = 1
         versionName = "1.0"
     }
@@ -20,10 +19,6 @@ android {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
-    }
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
     }
     buildFeatures {
       compose = true

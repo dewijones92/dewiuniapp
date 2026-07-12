@@ -1,5 +1,6 @@
 package com.dewijones92.uniapp.ytdlp
 
+import com.dewijones92.uniapp.common.HttpUrl
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -19,7 +20,7 @@ public interface YtDlpEngine {
      * Extracts metadata (title, formats, …) for [url] without downloading.
      * Expected failures are values — see [ExtractionResult.Failure].
      */
-    public suspend fun extract(url: MediaUrl): ExtractionResult
+    public suspend fun extract(url: HttpUrl): ExtractionResult
 
     /**
      * Downloads media described by [request]. The returned flow is cold:

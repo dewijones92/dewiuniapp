@@ -1,5 +1,6 @@
 package com.dewijones92.uniapp.domain
 
+import com.dewijones92.uniapp.common.HttpUrl
 import java.time.Instant
 import kotlin.time.Duration
 
@@ -23,7 +24,7 @@ public data class MediaItem(
     val publishedAt: Instant?,
     val duration: Duration?,
     val description: String? = null,
-    val thumbnailUrl: WebUrl? = null,
+    val thumbnailUrl: HttpUrl? = null,
 ) {
     init {
         require(duration == null || duration.isPositive()) { "duration must be positive when present" }

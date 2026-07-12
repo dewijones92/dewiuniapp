@@ -1,5 +1,7 @@
 package com.dewijones92.uniapp.ytdlp
 
+import com.dewijones92.uniapp.common.HttpUrl
+
 /** Result of asking the engine to extract [MediaMetadata] for a URL. */
 public sealed interface ExtractionResult {
 
@@ -8,7 +10,7 @@ public sealed interface ExtractionResult {
     /** Expected, recoverable failures — modelled as values, not exceptions. */
     public sealed interface Failure : ExtractionResult {
         /** No extractor recognises this URL. */
-        public data class UnsupportedUrl(val url: MediaUrl) : Failure
+        public data class UnsupportedUrl(val url: HttpUrl) : Failure
 
         /** The network was unreachable or the request timed out. */
         public data class Network(val detail: String) : Failure

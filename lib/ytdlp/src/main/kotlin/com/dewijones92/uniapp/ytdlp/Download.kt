@@ -1,10 +1,11 @@
 package com.dewijones92.uniapp.ytdlp
 
+import com.dewijones92.uniapp.common.HttpUrl
 import java.io.File
 
 /** What to download and where to put it. */
 public data class DownloadRequest(
-    val url: MediaUrl,
+    val url: HttpUrl,
     val targetDirectory: File,
     /** A [MediaFormat.formatId] from a prior [YtDlpEngine.extract]; null lets yt-dlp choose the best. */
     val formatId: String? = null,
@@ -16,7 +17,7 @@ public data class DownloadRequest(
  */
 public sealed interface DownloadEvent {
 
-    public data class Started(val url: MediaUrl) : DownloadEvent
+    public data class Started(val url: HttpUrl) : DownloadEvent
 
     public data class Progress(
         val bytesDownloaded: Long,
