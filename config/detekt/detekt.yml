@@ -4,6 +4,11 @@ naming:
   FunctionNaming:
     ignoreAnnotated: ['Composable']
 
+complexity:
+  LongParameterList:
+    # Parameters with defaults are opt-in, builder-style; they don't add call-site burden.
+    ignoreDefaultParameters: true
+
 style:
   UnusedPrivateMember:
     ignoreAnnotated: ['Preview']

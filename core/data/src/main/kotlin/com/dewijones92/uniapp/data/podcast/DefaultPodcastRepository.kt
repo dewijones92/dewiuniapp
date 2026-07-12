@@ -1,6 +1,8 @@
 package com.dewijones92.uniapp.data.podcast
 
 import com.dewijones92.uniapp.common.HttpUrl
+import com.dewijones92.uniapp.data.net.FetchResult
+import com.dewijones92.uniapp.data.net.HttpTextFetcher
 import com.dewijones92.uniapp.data.rss.ParsedEpisode
 import com.dewijones92.uniapp.data.rss.ParsedFeed
 import com.dewijones92.uniapp.data.rss.RssParseResult
@@ -14,7 +16,7 @@ import kotlinx.coroutines.flow.Flow
 import java.time.Clock
 
 public class DefaultPodcastRepository(
-    private val fetcher: FeedFetcher,
+    private val fetcher: HttpTextFetcher,
     private val store: PodcastStore,
     private val parser: RssParser = RssParser(),
     private val clock: Clock = Clock.systemUTC(),

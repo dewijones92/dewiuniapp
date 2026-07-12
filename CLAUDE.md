@@ -63,8 +63,11 @@ when driven on the emulator. Verify real flows on a device, not just via tests.
   (VideoChannel | PodcastFeed), `MediaItem`, `Subscription`, `SourceId`. No
   Android dependency — leakage is a compile error. `explicitApi()` is on.
 - `:core:data` — pure-Kotlin (JVM): `RssParser` (hardened DOM), the
-  `PodcastRepository` and its `FeedFetcher`/`PodcastStore` ports, OkHttp
-  fetcher. Business logic lives here, testably, off Android.
+  `PodcastRepository` with its `HttpTextFetcher`/`PodcastStore` ports, OkHttp
+  fetcher, and the unified search seam: `SearchSource` port returning sealed
+  `SearchHit`s (Podcast | Video), implemented by `ItunesPodcastSearchSource`
+  (iTunes directory API) and `YtDlpVideoSearchSource` (engine `ytsearch`).
+  Business logic lives here, testably, off Android.
 - `:core:database` — Android library (Room via KSP): entities, DAO, and
   `RoomPodcastStore` implementing `:core:data`'s `PodcastStore` port. The only
   place entities meet domain types. Verified by instrumented tests; exempt from
@@ -81,12 +84,12 @@ when driven on the emulator. Verify real flows on a device, not just via tests.
   podcast enclosures in the wild are frequently plain http (BBC media hosts
   included); refusing them breaks playback of legitimate feeds. Same policy
   as AntennaPod.
-- `:lib:ytdlp` — from-scratch yt-dlp Android library (replaces the
-  youtubedl-android fork). Public API: `YtDlpEngine` (suspend `extract`,
-  cold-`Flow` `download`, sealed `ExtractionResult`/`DownloadEvent`);
-  `fake.FakeYtDlpEngine` implements it for tests/previews. Deliberately
-  independent of `:core:domain` (standalone, reusable); the app maps between
-  their types.
+- `:lib:ytdlp` — from-scratch yt-dlp library (replaces the youtubedl-android
+  fork). **Pure JVM on purpose** — it is the platform-neutral API (types,
+  port, fake); only the real engine module needs Android. Public API:
+  `YtDlpEngine` (suspend `extract`, `searchVideos`, cold-`Flow` `download`,
+  sealed results), `bestPlayableFormat()` selection. Deliberately independent
+  of `:core:domain` (standalone, reusable).
 - `:lib:ytdlp-chaquopy` — the real engine: yt-dlp on embedded CPython 3.12
   via Chaquopy 17 (MIT). `uniapp_ytdlp.py` is a thin JSON-in/JSON-out bridge;
   `BridgeJson.kt` parses it (JVM unit-tested); `ChaquopyYtDlpEngine`

@@ -8,6 +8,7 @@ import com.dewijones92.uniapp.ytdlp.DownloadEvent
 import com.dewijones92.uniapp.ytdlp.DownloadRequest
 import com.dewijones92.uniapp.ytdlp.EngineVersions
 import com.dewijones92.uniapp.ytdlp.ExtractionResult
+import com.dewijones92.uniapp.ytdlp.VideoSearchResult
 import com.dewijones92.uniapp.ytdlp.YtDlpEngine
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -41,6 +42,11 @@ public class ChaquopyYtDlpEngine(
     override suspend fun extract(url: HttpUrl): ExtractionResult = withContext(dispatcher) {
         parseExtraction(url, bridge.callAttr("extract", url.value).toString())
     }
+
+    override suspend fun searchVideos(query: String, maxResults: Int): VideoSearchResult =
+        withContext(dispatcher) {
+            parseSearch(bridge.callAttr("search", query, maxResults).toString())
+        }
 
     override fun download(request: DownloadRequest): Flow<DownloadEvent> = flow {
         emit(DownloadEvent.Started(request.url))

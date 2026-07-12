@@ -1,4 +1,4 @@
-package com.dewijones92.uniapp.data.podcast
+package com.dewijones92.uniapp.data.net
 
 import com.dewijones92.uniapp.common.HttpUrl
 import kotlinx.coroutines.Dispatchers
@@ -7,8 +7,11 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.IOException
 
-/** Port for fetching feed documents; the repository never talks HTTP directly. */
-public fun interface FeedFetcher {
+/**
+ * Port for fetching a text document over HTTP (feeds, search APIs, …);
+ * nothing above this layer talks HTTP directly.
+ */
+public fun interface HttpTextFetcher {
     public suspend fun fetch(url: HttpUrl): FetchResult
 }
 
@@ -17,8 +20,8 @@ public sealed interface FetchResult {
     public data class Failure(val detail: String) : FetchResult
 }
 
-/** OkHttp-backed [FeedFetcher]. */
-public class OkHttpFeedFetcher(private val client: OkHttpClient) : FeedFetcher {
+/** OkHttp-backed [HttpTextFetcher]. */
+public class OkHttpTextFetcher(private val client: OkHttpClient) : HttpTextFetcher {
 
     override suspend fun fetch(url: HttpUrl): FetchResult = withContext(Dispatchers.IO) {
         val request = Request.Builder().url(url.value).build()

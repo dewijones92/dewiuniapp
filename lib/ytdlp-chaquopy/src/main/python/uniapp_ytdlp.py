@@ -27,6 +27,39 @@ def extract(url):
         return json.dumps({"ok": False, "kind": _classify(e), "detail": str(e)})
 
 
+def search(query, max_results):
+    options = {
+        "quiet": True,
+        "no_warnings": True,
+        "skip_download": True,
+        "extract_flat": "in_playlist",
+    }
+    try:
+        with yt_dlp.YoutubeDL(options) as ydl:
+            info = ydl.sanitize_info(
+                ydl.extract_info(f"ytsearch{int(max_results)}:{query}", download=False)
+            )
+            entries = [
+                {
+                    "id": entry.get("id"),
+                    "title": entry.get("title"),
+                    "uploader": entry.get("uploader") or entry.get("channel"),
+                    "duration": entry.get("duration"),
+                    "url": entry.get("url") or entry.get("webpage_url"),
+                    "thumbnail": _first_thumbnail(entry),
+                }
+                for entry in (info.get("entries") or [])
+            ]
+            return json.dumps({"ok": True, "entries": entries})
+    except yt_dlp.utils.DownloadError as e:
+        return json.dumps({"ok": False, "kind": _classify(e), "detail": str(e)})
+
+
+def _first_thumbnail(entry):
+    thumbnails = entry.get("thumbnails") or []
+    return thumbnails[-1].get("url") if thumbnails else entry.get("thumbnail")
+
+
 def download(url, target_dir, format_id, listener):
     def hook(d):
         if d.get("status") == "downloading":

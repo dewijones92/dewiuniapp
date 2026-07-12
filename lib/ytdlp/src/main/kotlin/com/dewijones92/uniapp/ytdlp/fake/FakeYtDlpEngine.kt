@@ -7,6 +7,8 @@ import com.dewijones92.uniapp.ytdlp.EngineVersions
 import com.dewijones92.uniapp.ytdlp.ExtractionResult
 import com.dewijones92.uniapp.ytdlp.MediaFormat
 import com.dewijones92.uniapp.ytdlp.MediaMetadata
+import com.dewijones92.uniapp.ytdlp.VideoSearchEntry
+import com.dewijones92.uniapp.ytdlp.VideoSearchResult
 import com.dewijones92.uniapp.ytdlp.YtDlpEngine
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -20,10 +22,16 @@ import kotlinx.coroutines.flow.flow
 public class FakeYtDlpEngine : YtDlpEngine {
 
     private val mediaByUrl = mutableMapOf<HttpUrl, MediaMetadata>()
+    private val searchResults = mutableMapOf<String, List<VideoSearchEntry>>()
 
     /** Makes [url] extractable, returning canned [metadata]. */
     public fun registerMedia(url: HttpUrl, metadata: MediaMetadata) {
         mediaByUrl[url] = metadata
+    }
+
+    /** Makes [query] return canned [entries]; unregistered queries return no hits. */
+    public fun registerSearch(query: String, entries: List<VideoSearchEntry>) {
+        searchResults[query] = entries
     }
 
     override suspend fun versions(): EngineVersions =
@@ -33,6 +41,9 @@ public class FakeYtDlpEngine : YtDlpEngine {
         mediaByUrl[url]
             ?.let { ExtractionResult.Success(it) }
             ?: ExtractionResult.Failure.UnsupportedUrl(url)
+
+    override suspend fun searchVideos(query: String, maxResults: Int): VideoSearchResult =
+        VideoSearchResult.Success(searchResults[query].orEmpty().take(maxResults))
 
     override fun download(request: DownloadRequest): Flow<DownloadEvent> = flow {
         emit(DownloadEvent.Started(request.url))
@@ -67,18 +78,33 @@ public class FakeYtDlpEngine : YtDlpEngine {
                     container = "mp4",
                     width = 1280,
                     height = 720,
-                    isAudioOnly = false,
+                    hasVideo = true,
+                    hasAudio = true,
                     fileSizeBytes = 1_000_000,
+                    url = "https://cdn.example.com/$id.mp4",
                 ),
                 MediaFormat(
                     formatId = "140",
                     container = "m4a",
                     width = null,
                     height = null,
-                    isAudioOnly = true,
+                    hasVideo = false,
+                    hasAudio = true,
                     fileSizeBytes = 250_000,
+                    url = "https://cdn.example.com/$id.m4a",
                 ),
             ),
         )
+
+        /** A ready-made search entry for previews and tests. */
+        public fun sampleSearchEntry(id: String = "vid-1", title: String = "Sample result"): VideoSearchEntry =
+            VideoSearchEntry(
+                id = id,
+                title = title,
+                uploader = "Sample channel",
+                durationSeconds = 90,
+                watchUrl = HttpUrl.of("https://example.com/watch?v=$id"),
+                thumbnailUrl = null,
+            )
     }
 }

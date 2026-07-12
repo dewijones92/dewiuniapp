@@ -24,6 +24,7 @@ import com.dewijones92.uniapp.theme.UniAppTheme
 import com.dewijones92.uniapp.ui.common.MiniPlayerBar
 import com.dewijones92.uniapp.ui.library.LibraryScreen
 import com.dewijones92.uniapp.ui.podcasts.PodcastsScreen
+import com.dewijones92.uniapp.ui.search.SearchScreen
 import com.dewijones92.uniapp.ui.videos.VideosScreen
 
 /**
@@ -73,6 +74,7 @@ fun AppShell(container: AppContainer, modifier: Modifier = Modifier) {
                     repository = container.podcastRepository,
                     onPlayEpisode = container.playbackController::play,
                 )
+                TopLevelDestination.Search -> SearchScreen(container)
                 TopLevelDestination.Library -> LibraryScreen()
             }
         }

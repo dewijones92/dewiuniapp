@@ -3,6 +3,7 @@ package com.dewijones92.uniapp.ytdlp.chaquopy
 import com.dewijones92.uniapp.common.HttpUrl
 import com.dewijones92.uniapp.ytdlp.DownloadEvent
 import com.dewijones92.uniapp.ytdlp.ExtractionResult
+import com.dewijones92.uniapp.ytdlp.VideoSearchResult
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -28,9 +29,11 @@ class BridgeJsonTest {
                 "duration": 90.5, "thumbnail": "https://i.example.com/t.jpg",
                 "formats": [
                     {"format_id": "22", "ext": "mp4", "vcodec": "avc1", "acodec": "mp4a",
-                     "width": 1280, "height": 720, "filesize": 1000},
+                     "width": 1280, "height": 720, "filesize": 1000,
+                     "url": "https://cdn.example.com/22.mp4"},
                     {"format_id": "140", "ext": "m4a", "vcodec": "none", "acodec": "mp4a",
                      "width": null, "height": null, "filesize_approx": 250},
+                    {"format_id": "sb0", "ext": "mhtml", "vcodec": "none", "acodec": "none"},
                     {"ext": "mp4", "vcodec": "avc1"}
                 ]
             }}
@@ -40,15 +43,44 @@ class BridgeJsonTest {
 
         assertEquals("abc", metadata.id)
         assertEquals(90L, metadata.durationSeconds)
-        // The format with no format_id is dropped, not crashed on.
+        // Formats with no format_id or no codecs at all (storyboards) are dropped, not crashed on.
         assertEquals(2, metadata.formats.size)
         val (video, audio) = metadata.formats
         assertEquals(1280, video.width)
         assertEquals(false, video.isAudioOnly)
         assertEquals(1000L, video.fileSizeBytes)
+        assertEquals("https://cdn.example.com/22.mp4", video.url)
         assertTrue(audio.isAudioOnly)
         assertNull(audio.width)
+        assertNull(audio.url)
         assertEquals(250L, audio.fileSizeBytes)
+    }
+
+    @Test
+    fun `parses search entries, dropping ones without id or url`() {
+        val text = """
+            {"ok": true, "entries": [
+                {"id": "v1", "title": "First", "uploader": "Chan", "duration": 61.0,
+                 "url": "https://www.youtube.com/watch?v=v1",
+                 "thumbnail": "https://i.example.com/v1.jpg"},
+                {"id": "v2", "url": "not a url"},
+                {"title": "no id", "url": "https://example.com/x"}
+            ]}
+        """.trimIndent()
+
+        val entries = (parseSearch(text) as VideoSearchResult.Success).entries
+
+        assertEquals(1, entries.size)
+        assertEquals("v1", entries[0].id)
+        assertEquals("First", entries[0].title)
+        assertEquals(61L, entries[0].durationSeconds)
+        assertEquals("https://www.youtube.com/watch?v=v1", entries[0].watchUrl.value)
+    }
+
+    @Test
+    fun `search failure maps to a value`() {
+        val result = parseSearch("""{"ok": false, "kind": "network", "detail": "offline"}""")
+        assertEquals(VideoSearchResult.Failure("offline"), result)
     }
 
     @Test

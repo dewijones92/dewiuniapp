@@ -1,0 +1,244 @@
+package com.dewijones92.uniapp.ui.search
+
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.dewijones92.uniapp.R
+import com.dewijones92.uniapp.data.search.SearchHit
+import com.dewijones92.uniapp.di.AppContainer
+import com.dewijones92.uniapp.di.fake.FakeAppContainer
+import com.dewijones92.uniapp.theme.UniAppTheme
+import com.dewijones92.uniapp.ui.common.EmptyState
+import com.dewijones92.uniapp.ui.search.SearchViewModel.Results
+import com.dewijones92.uniapp.ui.search.SearchViewModel.UiState
+
+@Composable
+fun SearchScreen(container: AppContainer, modifier: Modifier = Modifier) {
+    val viewModel: SearchViewModel = viewModel(factory = SearchViewModel.factory(container))
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+
+    SearchContent(
+        state = state,
+        onSearch = viewModel::search,
+        onSubscribe = viewModel::subscribe,
+        onPlayVideo = viewModel::playVideo,
+        modifier = modifier,
+    )
+}
+
+@Composable
+internal fun SearchContent(
+    state: UiState,
+    onSearch: (String) -> Unit,
+    onSubscribe: (SearchHit.Podcast) -> Unit,
+    onPlayVideo: (SearchHit.Video) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var query by rememberSaveable { mutableStateOf("") }
+
+    Column(modifier = modifier.fillMaxSize()) {
+        OutlinedTextField(
+            value = query,
+            onValueChange = { query = it },
+            label = { Text(stringResource(R.string.search_hint)) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            keyboardActions = KeyboardActions(onSearch = { onSearch(query) }),
+            trailingIcon = {
+                IconButton(onClick = { onSearch(query) }) {
+                    Icon(Icons.Filled.Search, contentDescription = stringResource(R.string.search_action))
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+        )
+
+        when (val results = state.results) {
+            Results.Idle -> EmptyState(
+                icon = Icons.Outlined.Search,
+                headline = stringResource(R.string.search_empty_headline),
+                supportingText = stringResource(R.string.search_empty_supporting),
+            )
+            Results.Searching -> LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            is Results.Loaded -> ResultsList(results, state, onSubscribe, onPlayVideo)
+        }
+    }
+}
+
+@Composable
+private fun ResultsList(
+    results: Results.Loaded,
+    state: UiState,
+    onSubscribe: (SearchHit.Podcast) -> Unit,
+    onPlayVideo: (SearchHit.Video) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    LazyColumn(modifier = modifier.fillMaxSize()) {
+        if (results.podcasts.isNotEmpty() || results.podcastsFailed) {
+            item { SectionHeader(stringResource(R.string.destination_podcasts)) }
+        }
+        if (results.podcastsFailed) {
+            item { SectionError() }
+        }
+        items(results.podcasts.size) { index ->
+            val hit = results.podcasts[index]
+            PodcastHitRow(
+                hit = hit,
+                subscribed = hit.feedUrl.value in state.subscribedFeeds,
+                onSubscribe = { onSubscribe(hit) },
+            )
+        }
+
+        if (results.videos.isNotEmpty() || results.videosFailed) {
+            item { SectionHeader(stringResource(R.string.destination_videos)) }
+        }
+        if (results.videosFailed) {
+            item { SectionError() }
+        }
+        items(results.videos.size) { index ->
+            val hit = results.videos[index]
+            VideoHitRow(
+                hit = hit,
+                resolving = state.resolving == hit.watchUrl.value,
+                onPlay = { onPlayVideo(hit) },
+            )
+        }
+
+        if (state.resolveFailed) {
+            item {
+                Text(
+                    text = stringResource(R.string.error_extraction),
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(16.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SectionHeader(title: String, modifier: Modifier = Modifier) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.titleMedium,
+        modifier = modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+    )
+}
+
+@Composable
+private fun SectionError(modifier: Modifier = Modifier) {
+    Text(
+        text = stringResource(R.string.search_section_failed),
+        color = MaterialTheme.colorScheme.error,
+        style = MaterialTheme.typography.bodySmall,
+        modifier = modifier.padding(horizontal = 16.dp),
+    )
+}
+
+@Composable
+private fun PodcastHitRow(
+    hit: SearchHit.Podcast,
+    subscribed: Boolean,
+    onSubscribe: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+    ) {
+        HitTitles(hit.title, hit.subtitle, Modifier.weight(1f))
+        TextButton(onClick = onSubscribe, enabled = !subscribed) {
+            Text(stringResource(if (subscribed) R.string.subscribed else R.string.subscribe))
+        }
+    }
+}
+
+@Composable
+private fun VideoHitRow(
+    hit: SearchHit.Video,
+    resolving: Boolean,
+    onPlay: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(enabled = !resolving, onClick = onPlay)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+    ) {
+        val subtitle = listOfNotNull(
+            hit.subtitle,
+            hit.durationSeconds?.let { stringResource(R.string.duration_minutes, it / SECONDS_PER_MINUTE) },
+        ).joinToString(" · ").ifBlank { null }
+        HitTitles(hit.title, subtitle, Modifier.weight(1f))
+        if (resolving) {
+            CircularProgressIndicator(modifier = Modifier.size(20.dp))
+        }
+    }
+}
+
+@Composable
+private fun HitTitles(title: String, subtitle: String?, modifier: Modifier = Modifier) {
+    Column(modifier = modifier) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodyLarge,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        subtitle?.let {
+            Text(
+                text = it,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+private const val SECONDS_PER_MINUTE = 60L
+
+@Preview(showBackground = true)
+@Composable
+private fun SearchScreenPreview() {
+    UniAppTheme { SearchScreen(FakeAppContainer()) }
+}

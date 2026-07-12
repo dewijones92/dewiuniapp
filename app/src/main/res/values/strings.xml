@@ -3,6 +3,7 @@
 
     <string name="destination_videos">Videos</string>
     <string name="destination_podcasts">Podcasts</string>
+    <string name="destination_search">Search</string>
     <string name="destination_library">Library</string>
 
     <string name="videos_empty_headline">No videos yet</string>
@@ -35,4 +36,11 @@
 
     <string name="play">Play</string>
     <string name="pause">Pause</string>
+
+    <string name="search_hint">Search podcasts and videos</string>
+    <string name="search_action">Search</string>
+    <string name="search_empty_headline">Search everything</string>
+    <string name="search_empty_supporting">Podcasts and videos, one search box.</string>
+    <string name="search_section_failed">This search source couldn\'t be reached.</string>
+    <string name="subscribed">Subscribed</string>
 </resources>

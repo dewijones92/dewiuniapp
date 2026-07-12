@@ -1,9 +1,12 @@
 package com.dewijones92.uniapp.di
 
 import android.content.Context
+import com.dewijones92.uniapp.data.net.OkHttpTextFetcher
 import com.dewijones92.uniapp.data.podcast.DefaultPodcastRepository
-import com.dewijones92.uniapp.data.podcast.OkHttpFeedFetcher
 import com.dewijones92.uniapp.data.podcast.PodcastRepository
+import com.dewijones92.uniapp.data.search.ItunesPodcastSearchSource
+import com.dewijones92.uniapp.data.search.SearchSource
+import com.dewijones92.uniapp.data.search.YtDlpVideoSearchSource
 import com.dewijones92.uniapp.database.RoomPodcastStore
 import com.dewijones92.uniapp.database.UniAppDatabase
 import com.dewijones92.uniapp.playback.Media3PlaybackController
@@ -21,6 +24,8 @@ interface AppContainer {
     val podcastRepository: PodcastRepository
     val ytDlpEngine: YtDlpEngine
     val playbackController: PlaybackController
+    val podcastSearchSource: SearchSource
+    val videoSearchSource: SearchSource
 }
 
 class DefaultAppContainer(private val context: Context) : AppContainer {
@@ -34,7 +39,7 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
 
     override val podcastRepository: PodcastRepository by lazy {
         DefaultPodcastRepository(
-            fetcher = OkHttpFeedFetcher(httpClient),
+            fetcher = OkHttpTextFetcher(httpClient),
             store = RoomPodcastStore(database.podcastDao()),
         )
     }
@@ -45,6 +50,14 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
 
     override val playbackController: PlaybackController by lazy {
         Media3PlaybackController(context, applicationScope)
+    }
+
+    override val podcastSearchSource: SearchSource by lazy {
+        ItunesPodcastSearchSource(OkHttpTextFetcher(httpClient))
+    }
+
+    override val videoSearchSource: SearchSource by lazy {
+        YtDlpVideoSearchSource(ytDlpEngine)
     }
 
     private companion object {

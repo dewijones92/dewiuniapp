@@ -22,6 +22,9 @@ public interface YtDlpEngine {
      */
     public suspend fun extract(url: HttpUrl): ExtractionResult
 
+    /** Searches for videos (yt-dlp `ytsearch`), returning at most [maxResults] entries. */
+    public suspend fun searchVideos(query: String, maxResults: Int): VideoSearchResult
+
     /**
      * Downloads media described by [request]. The returned flow is cold:
      * collecting starts the download, cancelling the collection cancels it.

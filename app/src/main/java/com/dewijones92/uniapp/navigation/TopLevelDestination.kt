@@ -4,9 +4,11 @@ import androidx.annotation.StringRes
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CollectionsBookmark
 import androidx.compose.material.icons.filled.Podcasts
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SmartDisplay
 import androidx.compose.material.icons.outlined.CollectionsBookmark
 import androidx.compose.material.icons.outlined.Podcasts
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.SmartDisplay
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.dewijones92.uniapp.R
@@ -28,6 +30,11 @@ enum class TopLevelDestination(
         labelRes = R.string.destination_podcasts,
         selectedIcon = Icons.Filled.Podcasts,
         unselectedIcon = Icons.Outlined.Podcasts,
+    ),
+    Search(
+        labelRes = R.string.destination_search,
+        selectedIcon = Icons.Filled.Search,
+        unselectedIcon = Icons.Outlined.Search,
     ),
     Library(
         labelRes = R.string.destination_library,

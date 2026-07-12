@@ -6,6 +6,8 @@ import com.dewijones92.uniapp.ytdlp.EngineVersions
 import com.dewijones92.uniapp.ytdlp.ExtractionResult
 import com.dewijones92.uniapp.ytdlp.MediaFormat
 import com.dewijones92.uniapp.ytdlp.MediaMetadata
+import com.dewijones92.uniapp.ytdlp.VideoSearchEntry
+import com.dewijones92.uniapp.ytdlp.VideoSearchResult
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.booleanOrNull
@@ -70,16 +72,40 @@ private fun JsonObject.toMediaFormatOrNull(): MediaFormat? {
     val formatId = stringOrNull("format_id") ?: return null
     val hasVideo = stringOrNull("vcodec").let { it != null && it != "none" }
     val hasAudio = stringOrNull("acodec").let { it != null && it != "none" }
-    val isAudioOnly = hasAudio && !hasVideo
+    // Storyboards and other codec-less pseudo-formats are not media.
+    if (!hasVideo && !hasAudio) return null
     return MediaFormat(
         formatId = formatId,
         container = stringOrNull("ext") ?: "unknown",
-        width = if (isAudioOnly) null else this["width"]?.jsonPrimitive?.longOrNull?.toInt(),
-        height = if (isAudioOnly) null else this["height"]?.jsonPrimitive?.longOrNull?.toInt(),
-        isAudioOnly = isAudioOnly,
+        width = if (hasVideo) this["width"]?.jsonPrimitive?.longOrNull?.toInt() else null,
+        height = if (hasVideo) this["height"]?.jsonPrimitive?.longOrNull?.toInt() else null,
+        hasVideo = hasVideo,
+        hasAudio = hasAudio,
         fileSizeBytes = this["filesize"]?.jsonPrimitive?.longOrNull
             ?: this["filesize_approx"]?.jsonPrimitive?.longOrNull,
+        url = stringOrNull("url"),
     )
+}
+
+internal fun parseSearch(text: String): VideoSearchResult {
+    val obj = json.parseToJsonElement(text).jsonObject
+    if (!obj.isOk()) {
+        return VideoSearchResult.Failure(obj.stringOrNull("detail") ?: "unknown error")
+    }
+    val entries = obj["entries"]?.jsonArray.orEmpty().mapNotNull { element ->
+        val entry = element.jsonObject
+        val id = entry.stringOrNull("id") ?: return@mapNotNull null
+        val watchUrl = entry.stringOrNull("url")?.let(HttpUrl::parse) ?: return@mapNotNull null
+        VideoSearchEntry(
+            id = id,
+            title = entry.stringOrNull("title") ?: "Untitled",
+            uploader = entry.stringOrNull("uploader"),
+            durationSeconds = entry["duration"]?.jsonPrimitive?.doubleOrNull?.toLong()?.takeIf { it > 0 },
+            watchUrl = watchUrl,
+            thumbnailUrl = entry.stringOrNull("thumbnail"),
+        )
+    }
+    return VideoSearchResult.Success(entries)
 }
 
 private fun JsonObject.stringOrNull(key: String): String? =

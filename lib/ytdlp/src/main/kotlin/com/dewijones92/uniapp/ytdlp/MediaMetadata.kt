@@ -35,19 +35,37 @@ public data class MediaMetadata(
     }
 }
 
-/** One downloadable representation of the media. */
+/** One downloadable/streamable representation of the media. */
 public data class MediaFormat(
     val formatId: String,
     val container: String,
     val width: Int?,
     val height: Int?,
-    val isAudioOnly: Boolean,
+    val hasVideo: Boolean,
+    val hasAudio: Boolean,
     val fileSizeBytes: Long?,
+    /** Direct stream URL when the extractor provides one. */
+    val url: String?,
 ) {
     init {
         require(formatId.isNotBlank()) { "formatId must not be blank" }
-        require(!isAudioOnly || (width == null && height == null)) {
+        require(hasVideo || hasAudio) { "a format must carry audio, video, or both" }
+        require(hasVideo || (width == null && height == null)) {
             "audio-only formats cannot have video dimensions"
         }
     }
+
+    public val isAudioOnly: Boolean
+        get() = hasAudio && !hasVideo
+}
+
+/**
+ * The format to hand to a player: pre-muxed audio+video at the highest
+ * resolution, else the best audio-only stream. Null when nothing is
+ * directly streamable.
+ */
+public fun MediaMetadata.bestPlayableFormat(): MediaFormat? {
+    val streamable = formats.filter { it.url != null }
+    return streamable.filter { it.hasVideo && it.hasAudio }.maxByOrNull { it.height ?: 0 }
+        ?: streamable.filter { it.isAudioOnly }.maxByOrNull { it.fileSizeBytes ?: 0 }
 }

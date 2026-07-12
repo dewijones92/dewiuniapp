@@ -1,6 +1,7 @@
 package com.dewijones92.uniapp.data.podcast
 
 import com.dewijones92.uniapp.common.HttpUrl
+import com.dewijones92.uniapp.data.net.FetchResult
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.SourceId
 import com.dewijones92.uniapp.domain.Subscription

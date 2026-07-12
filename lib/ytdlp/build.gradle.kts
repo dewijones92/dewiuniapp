@@ -1,10 +1,7 @@
-// compileSdk/minSdk, Java level, and lint policy come from the root build's androidDefaults.
+// Pure JVM on purpose: this is the platform-neutral engine API (types, port,
+// fake). Only the real engine (:lib:ytdlp-chaquopy) needs Android.
 plugins {
-    alias(libs.plugins.android.library)
-}
-
-android {
-    namespace = "com.dewijones92.uniapp.ytdlp"
+    alias(libs.plugins.kotlin.jvm)
 }
 
 kotlin {
