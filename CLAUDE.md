@@ -112,8 +112,9 @@ when driven on the emulator. Verify real flows on a device, not just via tests.
 - Remote: `github.com/dewijones92/dewiuniapp` (public). Default branch is
   `main`; pushing to it is fine and CI (GitHub Actions) must stay green.
 - Every push to main publishes a signed APK to the rolling `latest`
-  prerelease (consumed by Dewi's Obtainium). Release signing key lives at
-  `/home/dewi/code/dewiuniapp-signing/` (NOT in the repo — back it up;
-  losing it breaks in-place updates) and in the repo's Actions secrets.
-  versionCode is `100 + run number`, so it only ever increases.
+  prerelease (consumed by Dewi's Obtainium). Release signing key lives in
+  three places, never this repo: locally at `/home/dewi/code/dewiuniapp-signing/`,
+  in this repo's Actions secrets (CI signing; write-only), and backed up in
+  the PRIVATE repo `dewijones92/uniapp-signing-backup` (survives laptop
+  loss). versionCode is `100 + run number`, so it only ever increases.
 - Temporary debug logging must be prefixed `dewidebug` and never committed.
