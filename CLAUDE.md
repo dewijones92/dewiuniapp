@@ -93,9 +93,24 @@ when driven on the emulator. Verify real flows on a device, not just via tests.
   no segments). Business logic lives here, testably, off Android.
 - Skip segments (`SkipSegment` + `skipTargetFor` in `:core:domain`) are
   enforced in exactly one place — `Media3PlaybackController`'s position
-  ticker — so any pillar's playback skips them. Download-side SponsorBlock
-  (yt-dlp `--sponsorblock-remove`, needs ffmpeg) is deferred until downloads
-  exist.
+  ticker — so any pillar's playback skips them.
+- **Downloads** (`DownloadManager` port in `:core:data`, `RoomDownloadStore`
+  in `:core:database`): one seam for both pillars. Key DRY insight — a
+  resolved video stream URL is a directly-fetchable HTTP URL exactly like a
+  podcast enclosure, so ONE `HttpDownloadStrategy` serves both (videos just
+  resolve through the engine first). `DownloadState` in `:core:domain`;
+  playback prefers the local file via `play(..., localPath=)`; the Library
+  tab lists downloads (shared `MediaItemRow`). Interrupted downloads (a
+  `Downloading` row at startup) reset to NotDownloaded. Strategy IO must run
+  off the main thread (`flowOn(Dispatchers.IO)`). Verified offline in
+  airplane mode.
+- **ffmpeg is still NOT bundled.** Investigated: PyPI ffmpeg packages ship
+  desktop binaries only (no `aarch64-linux-android` wheels), so Chaquopy
+  can't pip it. The real path is bundling an Android-built ffmpeg binary in
+  jniLibs and pointing yt-dlp at it via `ffmpeg_location` — a scoped native
+  sub-project. Until then: podcast downloads are complete; video downloads
+  work at pre-muxed quality (no merge). ffmpeg unblocks merged best-quality
+  streams AND download-side SponsorBlock removal (`--sponsorblock-remove`).
 - `:core:database` — Android library (Room via KSP): entities, DAO, and
   `RoomPodcastStore` implementing `:core:data`'s `PodcastStore` port. The only
   place entities meet domain types. Verified by instrumented tests; exempt from

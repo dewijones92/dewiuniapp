@@ -6,10 +6,15 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.dewijones92.uniapp.common.HttpUrl
+import com.dewijones92.uniapp.data.download.DownloadManager
 import com.dewijones92.uniapp.data.podcast.PodcastRepository
 import com.dewijones92.uniapp.data.podcast.SubscribeResult
+import com.dewijones92.uniapp.di.AppContainer
+import com.dewijones92.uniapp.domain.DownloadState
 import com.dewijones92.uniapp.domain.MediaItem
+import com.dewijones92.uniapp.domain.MediaItemId
 import com.dewijones92.uniapp.domain.Subscription
+import com.dewijones92.uniapp.playback.PlaybackController
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -18,12 +23,17 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-class PodcastsViewModel(private val repository: PodcastRepository) : ViewModel() {
+class PodcastsViewModel(
+    private val repository: PodcastRepository,
+    private val playback: PlaybackController,
+    private val downloads: DownloadManager,
+) : ViewModel() {
 
     data class UiState(
         val subscriptions: List<Subscription> = emptyList(),
         val episodes: List<MediaItem> = emptyList(),
         val subscribing: Subscribing = Subscribing.Idle,
+        val downloadStates: Map<MediaItemId, DownloadState> = emptyMap(),
     )
 
     /** State of the current subscribe attempt; the dialog renders from this. */
@@ -46,8 +56,24 @@ class PodcastsViewModel(private val repository: PodcastRepository) : ViewModel()
         repository.observeSubscriptions(),
         repository.observeEpisodes(),
         subscribing,
-        ::UiState,
-    ).stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), UiState())
+        downloads.observeDownloads(),
+    ) { subs, episodes, subscribing, downloadStates ->
+        UiState(subs, episodes, subscribing, downloadStates)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), UiState())
+
+    /** Plays the downloaded file when available, else streams. One decision, one place. */
+    fun play(episode: MediaItem) {
+        val local = (uiState.value.downloadStates[episode.id] as? DownloadState.Downloaded)?.localPath
+        playback.play(episode, localPath = local)
+    }
+
+    fun download(episode: MediaItem) {
+        viewModelScope.launch { downloads.download(episode) }
+    }
+
+    fun deleteDownload(episode: MediaItem) {
+        viewModelScope.launch { downloads.delete(episode.id) }
+    }
 
     fun subscribe(rawUrl: String) {
         val url = HttpUrl.parse(rawUrl)
@@ -74,8 +100,14 @@ class PodcastsViewModel(private val repository: PodcastRepository) : ViewModel()
     companion object {
         private const val STOP_TIMEOUT_MILLIS = 5_000L
 
-        fun factory(repository: PodcastRepository): ViewModelProvider.Factory = viewModelFactory {
-            initializer { PodcastsViewModel(repository) }
+        fun factory(container: AppContainer): ViewModelProvider.Factory = viewModelFactory {
+            initializer {
+                PodcastsViewModel(
+                    repository = container.podcastRepository,
+                    playback = container.playbackController,
+                    downloads = container.downloadManager,
+                )
+            }
         }
     }
 }

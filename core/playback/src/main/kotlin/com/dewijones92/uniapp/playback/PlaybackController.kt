@@ -16,10 +16,15 @@ public interface PlaybackController {
     public val state: StateFlow<PlaybackState?>
 
     /**
-     * Starts (or restarts) playback of [item]. Requires [MediaItem.mediaUrl].
-     * Any [skipSegments] (e.g. SponsorBlock) are jumped over automatically.
+     * Starts (or restarts) playback of [item]. Plays [localPath] when given
+     * (offline download), else streams [MediaItem.mediaUrl]. Any [skipSegments]
+     * (e.g. SponsorBlock) are jumped over automatically.
      */
-    public fun play(item: MediaItem, skipSegments: List<SkipSegment> = emptyList())
+    public fun play(
+        item: MediaItem,
+        skipSegments: List<SkipSegment> = emptyList(),
+        localPath: String? = null,
+    )
 
     /** Toggles play/pause of the current item; no-op when nothing is queued. */
     public fun togglePlayPause()

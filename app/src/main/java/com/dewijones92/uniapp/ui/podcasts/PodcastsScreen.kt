@@ -1,12 +1,9 @@
 package com.dewijones92.uniapp.ui.podcasts
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -34,33 +31,29 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dewijones92.uniapp.R
 import com.dewijones92.uniapp.common.HttpUrl
-import com.dewijones92.uniapp.data.podcast.PodcastRepository
-import com.dewijones92.uniapp.data.podcast.fake.FakePodcastRepository
+import com.dewijones92.uniapp.di.AppContainer
+import com.dewijones92.uniapp.domain.DownloadState
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.MediaSource
 import com.dewijones92.uniapp.domain.SourceId
 import com.dewijones92.uniapp.domain.Subscription
 import com.dewijones92.uniapp.theme.UniAppTheme
 import com.dewijones92.uniapp.ui.common.EmptyState
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
+import com.dewijones92.uniapp.ui.common.MediaItemRow
+import com.dewijones92.uniapp.ui.common.mediaItemSubtitle
 
 @Composable
-fun PodcastsScreen(
-    repository: PodcastRepository,
-    onPlayEpisode: (MediaItem) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val viewModel: PodcastsViewModel = viewModel(factory = PodcastsViewModel.factory(repository))
+fun PodcastsScreen(container: AppContainer, modifier: Modifier = Modifier) {
+    val viewModel: PodcastsViewModel = viewModel(factory = PodcastsViewModel.factory(container))
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
     PodcastsContent(
         state = state,
         onSubscribe = viewModel::subscribe,
         onDialogClosed = viewModel::resetSubscribing,
-        onPlayEpisode = onPlayEpisode,
+        onPlayEpisode = viewModel::play,
+        onDownload = viewModel::download,
+        onDeleteDownload = viewModel::deleteDownload,
         modifier = modifier,
     )
 }
@@ -71,6 +64,8 @@ internal fun PodcastsContent(
     onSubscribe: (String) -> Unit,
     onDialogClosed: () -> Unit,
     onPlayEpisode: (MediaItem) -> Unit,
+    onDownload: (MediaItem) -> Unit,
+    onDeleteDownload: (MediaItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
@@ -83,7 +78,7 @@ internal fun PodcastsContent(
                 supportingText = stringResource(R.string.podcasts_empty_supporting),
             )
         } else {
-            SubscriptionsAndEpisodes(state.subscriptions, state.episodes, onPlayEpisode)
+            SubscriptionsAndEpisodes(state, onPlayEpisode, onDownload, onDeleteDownload)
         }
 
         FloatingActionButton(
@@ -110,22 +105,20 @@ internal fun PodcastsContent(
 
 @Composable
 private fun SubscriptionsAndEpisodes(
-    subscriptions: List<Subscription>,
-    episodes: List<MediaItem>,
+    state: PodcastsViewModel.UiState,
     onPlayEpisode: (MediaItem) -> Unit,
+    onDownload: (MediaItem) -> Unit,
+    onDeleteDownload: (MediaItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(modifier = modifier.fillMaxSize()) {
         item {
             LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp),
             ) {
-                items(subscriptions) { subscription ->
-                    AssistChip(
-                        onClick = {},
-                        label = { Text(subscription.source.title) },
-                    )
+                items(state.subscriptions) { subscription ->
+                    AssistChip(onClick = {}, label = { Text(subscription.source.title) })
                 }
             }
         }
@@ -136,50 +129,19 @@ private fun SubscriptionsAndEpisodes(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
             )
         }
-        items(episodes, key = { it.id.value }) { episode ->
-            EpisodeRow(episode = episode, onClick = { onPlayEpisode(episode) })
+        items(state.episodes, key = { it.id.value }) { episode ->
+            MediaItemRow(
+                item = episode,
+                subtitle = mediaItemSubtitle(episode),
+                downloadState = state.downloadStates[episode.id] ?: DownloadState.NotDownloaded,
+                onPlay = { onPlayEpisode(episode) },
+                onDownload = { onDownload(episode) },
+                onDeleteDownload = { onDeleteDownload(episode) },
+            )
             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
         }
     }
 }
-
-@Composable
-private fun EpisodeRow(
-    episode: MediaItem,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            // Playable only when the feed provided an enclosure.
-            .clickable(enabled = episode.mediaUrl != null, onClick = onClick)
-            .padding(16.dp),
-    ) {
-        Text(
-            text = episode.title,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            val details = listOfNotNull(
-                episode.author,
-                episode.publishedAt?.let(::formatDate),
-                episode.duration?.let { stringResource(R.string.duration_minutes, it.inWholeMinutes) },
-            )
-            Text(
-                text = details.joinToString(" · "),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
-
-private fun formatDate(instant: Instant): String =
-    DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
-        .withZone(ZoneId.systemDefault())
-        .format(instant)
 
 @Preview(showBackground = true)
 @Composable
@@ -193,13 +155,20 @@ private fun PodcastsContentPreview() {
                     title = "Preview podcast",
                     feedUrl = HttpUrl.of("https://example.com/feed.xml"),
                 ),
-                subscribedAt = Instant.EPOCH,
+                subscribedAt = java.time.Instant.EPOCH,
             ),
         ),
-        episodes = listOf(FakePodcastRepository.sampleEpisode(sourceId)),
+        episodes = listOf(com.dewijones92.uniapp.data.podcast.fake.FakePodcastRepository.sampleEpisode(sourceId)),
     )
     UniAppTheme {
-        PodcastsContent(state = state, onSubscribe = {}, onDialogClosed = {}, onPlayEpisode = {})
+        PodcastsContent(
+            state = state,
+            onSubscribe = {},
+            onDialogClosed = {},
+            onPlayEpisode = {},
+            onDownload = {},
+            onDeleteDownload = {},
+        )
     }
 }
 
@@ -212,6 +181,8 @@ private fun PodcastsEmptyPreview() {
             onSubscribe = {},
             onDialogClosed = {},
             onPlayEpisode = {},
+            onDownload = {},
+            onDeleteDownload = {},
         )
     }
 }

@@ -73,12 +73,9 @@ fun AppShell(container: AppContainer, modifier: Modifier = Modifier) {
         ) { destination ->
             when (destination) {
                 TopLevelDestination.Videos -> VideosScreen(container.ytDlpEngine)
-                TopLevelDestination.Podcasts -> PodcastsScreen(
-                    repository = container.podcastRepository,
-                    onPlayEpisode = { container.playbackController.play(it) },
-                )
+                TopLevelDestination.Podcasts -> PodcastsScreen(container)
                 TopLevelDestination.Search -> SearchScreen(container)
-                TopLevelDestination.Library -> LibraryScreen()
+                TopLevelDestination.Library -> LibraryScreen(container)
             }
         }
     }

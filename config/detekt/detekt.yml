@@ -8,6 +8,8 @@ complexity:
   LongParameterList:
     # Parameters with defaults are opt-in, builder-style; they don't add call-site burden.
     ignoreDefaultParameters: true
+    # Composables idiomatically take state + several event callbacks.
+    ignoreAnnotated: ['Composable']
 
 style:
   UnusedPrivateMember:

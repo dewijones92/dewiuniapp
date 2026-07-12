@@ -1,6 +1,8 @@
 package com.dewijones92.uniapp.ui.podcasts
 
+import com.dewijones92.uniapp.data.download.fake.FakeDownloadManager
 import com.dewijones92.uniapp.data.podcast.fake.FakePodcastRepository
+import com.dewijones92.uniapp.playback.fake.FakePlaybackController
 import com.dewijones92.uniapp.ui.podcasts.PodcastsViewModel.Subscribing
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -24,7 +26,11 @@ class PodcastsViewModelTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
-        viewModel = PodcastsViewModel(FakePodcastRepository())
+        viewModel = PodcastsViewModel(
+            FakePodcastRepository(),
+            FakePlaybackController(),
+            FakeDownloadManager(),
+        )
     }
 
     @After

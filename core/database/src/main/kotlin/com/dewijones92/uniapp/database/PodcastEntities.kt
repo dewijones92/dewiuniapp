@@ -14,6 +14,20 @@ public data class FeedEntity(
     val subscribedAtEpochMs: Long,
 )
 
+/**
+ * A download record, keyed by media item id. Status is a small string enum;
+ * localPath is set only when status == "downloaded".
+ */
+@Entity(tableName = "downloads")
+public data class DownloadEntity(
+    @PrimaryKey val mediaItemId: String,
+    val status: String,
+    val downloadedBytes: Long,
+    val totalBytes: Long?,
+    val localPath: String?,
+    val failureReason: String?,
+)
+
 @Entity(
     tableName = "podcast_episodes",
     foreignKeys = [

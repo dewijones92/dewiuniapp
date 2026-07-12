@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.io.File
 import kotlin.time.Duration.Companion.milliseconds
 import androidx.media3.common.MediaItem as Media3MediaItem
 
@@ -59,14 +60,15 @@ public class Media3PlaybackController(
         )
     }
 
-    override fun play(item: MediaItem, skipSegments: List<SkipSegment>) {
-        val url = requireNotNull(item.mediaUrl) { "MediaItem ${item.id.value} has no mediaUrl" }
+    override fun play(item: MediaItem, skipSegments: List<SkipSegment>, localPath: String?) {
+        val uri = localPath?.let { File(it).toURI().toString() }
+            ?: requireNotNull(item.mediaUrl) { "MediaItem ${item.id.value} has no mediaUrl" }.value
         activeSkipSegments = skipSegments
         withController { controller ->
             controller.setMediaItem(
                 Media3MediaItem.Builder()
                     .setMediaId(item.id.value)
-                    .setUri(url.value)
+                    .setUri(uri)
                     .setMediaMetadata(
                         MediaMetadata.Builder()
                             .setTitle(item.title)

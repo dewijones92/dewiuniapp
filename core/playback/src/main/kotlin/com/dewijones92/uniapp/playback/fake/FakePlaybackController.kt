@@ -18,8 +18,13 @@ public class FakePlaybackController : PlaybackController {
     public var lastSkipSegments: List<SkipSegment> = emptyList()
         private set
 
-    override fun play(item: MediaItem, skipSegments: List<SkipSegment>) {
+    /** localPath handed to the most recent [play] call, for assertions. */
+    public var lastLocalPath: String? = null
+        private set
+
+    override fun play(item: MediaItem, skipSegments: List<SkipSegment>, localPath: String?) {
         lastSkipSegments = skipSegments
+        lastLocalPath = localPath
         _state.value = PlaybackState(
             itemId = item.id,
             title = item.title,
