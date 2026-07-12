@@ -109,6 +109,11 @@ when driven on the emulator. Verify real flows on a device, not just via tests.
 ## Working agreements
 
 - Commit as you go — small, coherent commits at each green state.
-- Remote: `github.com/dewijones92/dewiuniapp` (private). Push to master is fine;
-  CI (GitHub Actions) must stay green.
+- Remote: `github.com/dewijones92/dewiuniapp` (private). Default branch is
+  `main`; pushing to it is fine and CI (GitHub Actions) must stay green.
+- Every push to main publishes a signed APK to the rolling `latest`
+  prerelease (consumed by Dewi's Obtainium). Release signing key lives at
+  `/home/dewi/code/dewiuniapp-signing/` (NOT in the repo — back it up;
+  losing it breaks in-place updates) and in the repo's Actions secrets.
+  versionCode is `100 + run number`, so it only ever increases.
 - Temporary debug logging must be prefixed `dewidebug` and never committed.

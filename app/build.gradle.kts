@@ -10,14 +10,31 @@ android {
     defaultConfig {
         applicationId = "com.dewijones92.uniapp"
         targetSdk = libs.versions.targetSdk.get().toInt()
-        versionCode = 1
-        versionName = "1.0"
+        // CI passes monotonically increasing values (-PversionCode / -PversionName)
+        // so Obtainium sees every main-tip build as an upgrade.
+        versionCode = (project.findProperty("versionCode") as String?)?.toIntOrNull() ?: 1
+        versionName = (project.findProperty("versionName") as String?) ?: "0.1.0-dev"
+    }
+
+    signingConfigs {
+        // Real key in CI (from secrets); local release builds fall back to the
+        // debug key so they remain installable without the keystore.
+        val keystorePath = System.getenv("SIGNING_KEYSTORE_PATH")
+        if (keystorePath != null) {
+            create("release") {
+                storeFile = file(keystorePath)
+                storePassword = System.getenv("SIGNING_STORE_PASSWORD")
+                keyAlias = System.getenv("SIGNING_KEY_ALIAS")
+                keyPassword = System.getenv("SIGNING_KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
     }
     buildFeatures {
