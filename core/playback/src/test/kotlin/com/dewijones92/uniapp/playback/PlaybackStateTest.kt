@@ -8,12 +8,15 @@ import org.junit.Test
 
 class PlaybackStateTest {
 
-    private fun state(positionMs: Long = 0, durationMs: Long? = null) = PlaybackState(
+    private fun state(positionMs: Long = 0, durationMs: Long? = null, speed: Float = 1.0f) = PlaybackState(
         itemId = MediaItemId("item"),
         title = "Title",
+        artist = null,
+        artworkUrl = null,
         isPlaying = true,
         positionMs = positionMs,
         durationMs = durationMs,
+        speed = speed,
     )
 
     @Test
@@ -31,5 +34,6 @@ class PlaybackStateTest {
     fun `invalid values are unrepresentable`() {
         assertThrows(IllegalArgumentException::class.java) { state(positionMs = -1) }
         assertThrows(IllegalArgumentException::class.java) { state(durationMs = 0) }
+        assertThrows(IllegalArgumentException::class.java) { state(speed = 0f) }
     }
 }

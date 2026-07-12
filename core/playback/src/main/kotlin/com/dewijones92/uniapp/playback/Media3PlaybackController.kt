@@ -87,6 +87,35 @@ public class Media3PlaybackController(
         withController { if (it.isPlaying) it.pause() else it.play() }
     }
 
+    override fun seekTo(positionMs: Long) {
+        withController { controller ->
+            val max = controller.duration.takeIf { it > 0 } ?: Long.MAX_VALUE
+            controller.seekTo(positionMs.coerceIn(0, max))
+            _state.value = controller.currentPlaybackState()
+        }
+    }
+
+    override fun seekBackward() {
+        withController {
+            it.seekBack()
+            _state.value = it.currentPlaybackState()
+        }
+    }
+
+    override fun seekForward() {
+        withController {
+            it.seekForward()
+            _state.value = it.currentPlaybackState()
+        }
+    }
+
+    override fun setSpeed(speed: Float) {
+        withController {
+            it.setPlaybackSpeed(speed.coerceIn(MIN_SPEED, MAX_SPEED))
+            _state.value = it.currentPlaybackState()
+        }
+    }
+
     private fun withController(command: (MediaController) -> Unit) {
         controller?.let(command) ?: pendingCommands.add(command)
     }
@@ -114,13 +143,18 @@ public class Media3PlaybackController(
         return PlaybackState(
             itemId = MediaItemId(current.mediaId),
             title = current.mediaMetadata.title?.toString().orEmpty(),
+            artist = current.mediaMetadata.artist?.toString(),
+            artworkUrl = current.mediaMetadata.artworkUri?.toString(),
             isPlaying = isPlaying,
             positionMs = currentPosition.coerceAtLeast(0),
             durationMs = duration.takeIf { it > 0 },
+            speed = playbackParameters.speed,
         )
     }
 
     private companion object {
         const val POSITION_TICK_MS = 500L
+        const val MIN_SPEED = 0.5f
+        const val MAX_SPEED = 3.0f
     }
 }

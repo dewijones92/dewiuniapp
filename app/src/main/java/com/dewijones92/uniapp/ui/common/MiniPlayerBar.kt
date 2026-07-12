@@ -1,5 +1,6 @@
 package com.dewijones92.uniapp.ui.common
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -30,10 +31,13 @@ import com.dewijones92.uniapp.playback.PlaybackState
 fun MiniPlayerBar(
     state: PlaybackState,
     onTogglePlayPause: () -> Unit,
+    onExpand: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Surface(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onExpand),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
     ) {
         Column {

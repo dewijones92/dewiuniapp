@@ -36,6 +36,9 @@
 
     <string name="play">Play</string>
     <string name="pause">Pause</string>
+    <string name="close">Close</string>
+    <string name="seek_back">Skip back 10 seconds</string>
+    <string name="seek_forward">Skip forward 30 seconds</string>
     <string name="download">Download</string>
     <string name="downloaded_delete">Downloaded — tap to remove</string>
     <string name="library_downloads">Downloads</string>

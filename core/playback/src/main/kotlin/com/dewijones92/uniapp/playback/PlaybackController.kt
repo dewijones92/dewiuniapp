@@ -28,19 +28,35 @@ public interface PlaybackController {
 
     /** Toggles play/pause of the current item; no-op when nothing is queued. */
     public fun togglePlayPause()
+
+    /** Seeks the current item to [positionMs] (clamped to [0, duration]). */
+    public fun seekTo(positionMs: Long)
+
+    /** Jumps back by the configured increment (10s). */
+    public fun seekBackward()
+
+    /** Jumps forward by the configured increment (30s). */
+    public fun seekForward()
+
+    /** Sets playback speed (e.g. 1.0, 1.5, 2.0); clamped to a sensible range. */
+    public fun setSpeed(speed: Float)
 }
 
 /** What the UI needs to render a player for the current item. */
 public data class PlaybackState(
     val itemId: MediaItemId,
     val title: String,
+    val artist: String?,
+    val artworkUrl: String?,
     val isPlaying: Boolean,
     val positionMs: Long,
     val durationMs: Long?,
+    val speed: Float,
 ) {
     init {
         require(positionMs >= 0) { "positionMs must not be negative" }
         require(durationMs == null || durationMs > 0) { "durationMs must be positive when known" }
+        require(speed > 0) { "speed must be positive" }
     }
 
     /** 0.0–1.0 when duration is known, else null. */

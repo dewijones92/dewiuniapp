@@ -24,6 +24,7 @@ import com.dewijones92.uniapp.theme.UniAppTheme
 import com.dewijones92.uniapp.ui.common.MiniPlayerBar
 import com.dewijones92.uniapp.ui.common.RequestNotificationPermissionOnFirstPlay
 import com.dewijones92.uniapp.ui.library.LibraryScreen
+import com.dewijones92.uniapp.ui.player.FullPlayerDialog
 import com.dewijones92.uniapp.ui.podcasts.PodcastsScreen
 import com.dewijones92.uniapp.ui.search.SearchScreen
 import com.dewijones92.uniapp.ui.videos.VideosScreen
@@ -35,9 +36,23 @@ import com.dewijones92.uniapp.ui.videos.VideosScreen
 @Composable
 fun AppShell(container: AppContainer, modifier: Modifier = Modifier) {
     var selected by rememberSaveable { mutableStateOf(TopLevelDestination.Videos) }
+    var showFullPlayer by rememberSaveable { mutableStateOf(false) }
     val playbackState by container.playbackController.state.collectAsStateWithLifecycle()
+    val controller = container.playbackController
 
     RequestNotificationPermissionOnFirstPlay(playbackActive = playbackState != null)
+
+    playbackState?.takeIf { showFullPlayer }?.let { state ->
+        FullPlayerDialog(
+            state = state,
+            onDismiss = { showFullPlayer = false },
+            onTogglePlayPause = controller::togglePlayPause,
+            onSeekTo = controller::seekTo,
+            onSeekBackward = controller::seekBackward,
+            onSeekForward = controller::seekForward,
+            onSetSpeed = controller::setSpeed,
+        )
+    }
 
     Scaffold(
         modifier = modifier,
@@ -46,7 +61,8 @@ fun AppShell(container: AppContainer, modifier: Modifier = Modifier) {
                 playbackState?.let { state ->
                     MiniPlayerBar(
                         state = state,
-                        onTogglePlayPause = container.playbackController::togglePlayPause,
+                        onTogglePlayPause = controller::togglePlayPause,
+                        onExpand = { showFullPlayer = true },
                     )
                 }
                 NavigationBar {
