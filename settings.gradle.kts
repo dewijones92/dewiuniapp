@@ -31,6 +31,8 @@ plugins {
 
 rootProject.name = "UniApp"
 include(":app")
+include(":core:data")
+include(":core:database")
 include(":core:domain")
 include(":lib:common")
 include(":lib:ytdlp")

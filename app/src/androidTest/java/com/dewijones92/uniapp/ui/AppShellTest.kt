@@ -4,6 +4,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import com.dewijones92.uniapp.data.podcast.fake.FakePodcastRepository
 import com.dewijones92.uniapp.theme.UniAppTheme
 import org.junit.Before
 import org.junit.Rule
@@ -17,7 +18,7 @@ class AppShellTest {
     @Before
     fun setUp() {
         composeTestRule.setContent {
-            UniAppTheme { AppShell() }
+            UniAppTheme { AppShell(FakePodcastRepository()) }
         }
     }
 

@@ -11,4 +11,15 @@
     <string name="podcasts_empty_supporting">Follow podcasts and new episodes will appear here.</string>
     <string name="library_empty_headline">Your library is empty</string>
     <string name="library_empty_supporting">Downloads, playlists and history will live here.</string>
+
+    <string name="add_podcast">Add podcast</string>
+    <string name="feed_url_label">Feed URL</string>
+    <string name="subscribe">Subscribe</string>
+    <string name="cancel">Cancel</string>
+    <string name="latest_episodes">Latest episodes</string>
+    <string name="duration_minutes">%1$d min</string>
+    <string name="error_invalid_url">That doesn\'t look like a valid URL.</string>
+    <string name="error_network">Couldn\'t reach that feed. Check your connection and try again.</string>
+    <string name="error_invalid_feed">That URL doesn\'t point to a podcast feed.</string>
+    <string name="error_already_subscribed">You\'re already subscribed to this podcast.</string>
 </resources>

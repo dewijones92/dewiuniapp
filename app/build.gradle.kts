@@ -39,6 +39,9 @@ kotlin {
 }
 
 dependencies {
+  implementation(project(":core:data"))
+  implementation(project(":core:database"))
+
   val composeBom = platform(libs.androidx.compose.bom)
   implementation(composeBom)
   androidTestImplementation(composeBom)
@@ -62,6 +65,8 @@ dependencies {
   // Instrumented tests
   androidTestImplementation(libs.androidx.compose.ui.test.junit4)
   debugImplementation(libs.androidx.compose.ui.test.manifest)
+
+  implementation(libs.okhttp)
 
   // Local tests: jUnit, coroutines, Android runner
   testImplementation(libs.junit)

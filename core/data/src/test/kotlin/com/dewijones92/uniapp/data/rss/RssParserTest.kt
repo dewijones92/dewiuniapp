@@ -1,0 +1,82 @@
+package com.dewijones92.uniapp.data.rss
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import java.time.Instant
+import kotlin.time.Duration.Companion.hours
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
+
+class RssParserTest {
+
+    private val parser = RssParser()
+
+    private fun parseSampleFeed(): ParsedFeed {
+        val xml = checkNotNull(javaClass.getResource("/sample-feed.xml")).readText()
+        return (parser.parse(xml) as RssParseResult.Success).feed
+    }
+
+    @Test
+    fun `parses channel metadata`() {
+        val feed = parseSampleFeed()
+        assertEquals("The Test Podcast", feed.title)
+        assertEquals("A podcast used in tests.", feed.description)
+        assertEquals("https://podcast.example.com", feed.websiteUrl)
+        assertEquals(3, feed.episodes.size)
+    }
+
+    @Test
+    fun `parses a fully specified episode`() {
+        val episode = parseSampleFeed().episodes[0]
+        assertEquals("ep-2-guid", episode.guid)
+        assertEquals("Episode two: the reckoning", episode.title)
+        assertEquals("https://cdn.example.com/ep2.mp3", episode.enclosureUrl)
+        assertEquals(Instant.parse("2026-07-10T06:00:00Z"), episode.publishedAt)
+        assertEquals(1.hours + 2.minutes + 3.seconds, episode.duration)
+        assertEquals("https://podcast.example.com/ep2.jpg", episode.imageUrl)
+    }
+
+    @Test
+    fun `parses minute-second durations and offset dates`() {
+        val episode = parseSampleFeed().episodes[1]
+        assertNull(episode.guid)
+        assertEquals(42.minutes + 30.seconds, episode.duration)
+        assertEquals(Instant.parse("2026-07-01T06:00:00Z"), episode.publishedAt)
+    }
+
+    @Test
+    fun `broken dates and durations degrade to null, not failure`() {
+        val episode = parseSampleFeed().episodes[2]
+        assertNull(episode.publishedAt)
+        assertNull(episode.duration)
+        assertNull(episode.enclosureUrl)
+    }
+
+    @Test
+    fun `rejects non-xml input`() {
+        assertTrue(parser.parse("this is not xml <<<") is RssParseResult.Failure)
+    }
+
+    @Test
+    fun `rejects xml that is not rss`() {
+        assertTrue(parser.parse("""<?xml version="1.0"?><atomish/>""") is RssParseResult.Failure)
+    }
+
+    @Test
+    fun `rejects a feed without a channel title`() {
+        val xml = """<?xml version="1.0"?><rss version="2.0"><channel><item/></channel></rss>"""
+        assertTrue(parser.parse(xml) is RssParseResult.Failure)
+    }
+
+    @Test
+    fun `rejects doctype declarations (XXE hardening)`() {
+        val xml = """
+            <?xml version="1.0"?>
+            <!DOCTYPE rss [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>
+            <rss version="2.0"><channel><title>&xxe;</title></channel></rss>
+        """.trimIndent()
+        assertTrue(parser.parse(xml) is RssParseResult.Failure)
+    }
+}

@@ -15,6 +15,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
+import com.dewijones92.uniapp.data.podcast.PodcastRepository
+import com.dewijones92.uniapp.data.podcast.fake.FakePodcastRepository
 import com.dewijones92.uniapp.navigation.TopLevelDestination
 import com.dewijones92.uniapp.theme.UniAppTheme
 import com.dewijones92.uniapp.ui.library.LibraryScreen
@@ -26,7 +28,7 @@ import com.dewijones92.uniapp.ui.videos.VideosScreen
  * animated transitions between them.
  */
 @Composable
-fun AppShell(modifier: Modifier = Modifier) {
+fun AppShell(podcastRepository: PodcastRepository, modifier: Modifier = Modifier) {
     var selected by rememberSaveable { mutableStateOf(TopLevelDestination.Videos) }
 
     Scaffold(
@@ -57,7 +59,7 @@ fun AppShell(modifier: Modifier = Modifier) {
         ) { destination ->
             when (destination) {
                 TopLevelDestination.Videos -> VideosScreen()
-                TopLevelDestination.Podcasts -> PodcastsScreen()
+                TopLevelDestination.Podcasts -> PodcastsScreen(podcastRepository)
                 TopLevelDestination.Library -> LibraryScreen()
             }
         }
@@ -67,5 +69,5 @@ fun AppShell(modifier: Modifier = Modifier) {
 @Preview(showBackground = true)
 @Composable
 private fun AppShellPreview() {
-    UniAppTheme { AppShell() }
+    UniAppTheme { AppShell(FakePodcastRepository()) }
 }

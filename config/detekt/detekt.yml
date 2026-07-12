@@ -7,6 +7,10 @@ naming:
 style:
   UnusedPrivateMember:
     ignoreAnnotated: ['Preview']
+  ReturnCount:
+    # Railway-style early returns on failure paths are house style.
+    max: 4
+    excludeGuardClauses: true
   MagicNumber:
     # Named property declarations (e.g. Compose colour palettes) are already well named.
     ignorePropertyDeclaration: true

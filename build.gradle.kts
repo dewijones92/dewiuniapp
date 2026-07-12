@@ -72,7 +72,9 @@ subprojects {
   }
 
   // Coverage gate on logic modules; :app is report-only (Compose UI distorts numbers).
-  if (path.startsWith(":core") || path.startsWith(":lib")) {
+  // :core:database is exempt: it is a thin Room adapter verified by instrumented
+  // tests, whose coverage Kover's JVM gate cannot see.
+  if ((path.startsWith(":core") || path.startsWith(":lib")) && path != ":core:database") {
     apply(plugin = "org.jetbrains.kotlinx.kover")
     extensions.configure<kotlinx.kover.gradle.plugin.dsl.KoverProjectExtension> {
       reports {
