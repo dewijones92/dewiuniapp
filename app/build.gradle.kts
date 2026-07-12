@@ -38,6 +38,7 @@ android {
       }
     }
 
+    // Lint policy: keep identical in every Android module (see lib/ytdlp).
     lint {
         warningsAsErrors = true
         abortOnError = true

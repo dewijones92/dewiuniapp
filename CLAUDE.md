@@ -47,16 +47,29 @@ in favour of a from-scratch library — see Decisions).
 
 ## Architecture
 
-- `:app` — Compose UI, navigation (Navigation 3), ViewModels.
-- `:lib:ytdlp` (planned) — from-scratch yt-dlp Android library: embedded CPython
-  runtime, Kotlin coroutines/Flow API, strict public API boundary. Key constraint:
-  Android W^X — executables/native code must ship in the APK's native-lib dir or run
-  in-process; nothing downloaded can be executed. yt-dlp itself (pure Python) *can* be
-  self-updated at runtime; the interpreter and ffmpeg cannot.
+- `:app` — Compose UI: `AppShell` bottom navigation across the pillars
+  (Videos / Podcasts / Library), theme, screens.
+- `:core:domain` — pure-Kotlin (JVM) unified media model: `MediaSource`
+  (VideoChannel | PodcastFeed), `MediaItem`, `Subscription`, validated value
+  classes (`WebUrl`, `SourceId`, …). No Android dependency — leakage is a
+  compile error. `explicitApi()` is on.
+- `:lib:ytdlp` — from-scratch yt-dlp Android library (replaces the
+  youtubedl-android fork). Public API: `YtDlpEngine` (suspend `extract`,
+  cold-`Flow` `download`, sealed `ExtractionResult`/`DownloadEvent`);
+  `fake.FakeYtDlpEngine` implements it for tests/previews. The real engine
+  (embedded CPython 3.13+ via JNI running actual yt-dlp) is the next phase.
+  Key constraint: Android W^X — executables/native code must ship in the
+  APK's native-lib dir or run in-process; nothing downloaded can be executed.
+  yt-dlp itself (pure Python) *can* be self-updated at runtime; the
+  interpreter and ffmpeg cannot. Deliberately independent of `:core:domain`
+  (standalone, reusable); the app maps between their types.
+- detekt applies to every module automatically (root `subprojects` block);
+  Android lint policy is copied verbatim into each Android module.
 - Package root: `com.dewijones92.uniapp`.
 
 ## Working agreements
 
 - Commit as you go — small, coherent commits at each green state.
-- Local-only repo for now: no remote configured; do not create/push one unprompted.
+- Remote: `github.com/dewijones92/dewiuniapp` (private). Push to master is fine;
+  CI (GitHub Actions) must stay green.
 - Temporary debug logging must be prefixed `dewidebug` and never committed.
