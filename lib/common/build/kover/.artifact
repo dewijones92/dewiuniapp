@@ -1,8 +1,0 @@
-:lib:common
-lib/common/src/main/kotlin
-lib/common/src/main/java
-
-lib/common/build/classes/kotlin/main
-lib/common/build/classes/java/main
-
-lib/common/build/kover/bin-reports/test.ic

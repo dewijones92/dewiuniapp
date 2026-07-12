@@ -1,4 +1,0 @@
-report.file=/home/dewi/code/dewiuniapp/lib/ytdlp/build/kover/bin-reports/testDebugUnitTest.ic
-exclude=android.*
-exclude=com.android.*
-exclude=jdk.internal.*

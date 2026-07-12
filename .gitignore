@@ -1,15 +1,14 @@
 *.iml
-.gradle
-/local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
+.gradle/
+.idea/
 .DS_Store
-/build
+.kotlin/
+
+# Build outputs in any module (not just the root)
+build/
 /captures
 .externalNativeBuild
 .cxx
+
+# Local machine config (SDK path)
 local.properties

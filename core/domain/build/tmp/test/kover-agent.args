@@ -1,4 +1,0 @@
-report.file=/home/dewi/code/dewiuniapp/core/domain/build/kover/bin-reports/test.ic
-exclude=android.*
-exclude=com.android.*
-exclude=jdk.internal.*

@@ -1,9 +1,0 @@
-:lib:ytdlp
-lib/ytdlp/src/main/java
-lib/ytdlp/src/main/kotlin
-lib/ytdlp/src/release/java
-lib/ytdlp/src/release/kotlin
-
-lib/ytdlp/build/intermediates/built_in_kotlinc/release/compileReleaseKotlin/classes
-lib/ytdlp/build/intermediates/javac/release/compileReleaseJavaWithJavac/classes
-

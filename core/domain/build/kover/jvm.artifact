@@ -1,8 +1,0 @@
-:core:domain
-core/domain/src/main/kotlin
-core/domain/src/main/java
-
-core/domain/build/classes/kotlin/main
-core/domain/build/classes/java/main
-
-core/domain/build/kover/bin-reports/test.ic
