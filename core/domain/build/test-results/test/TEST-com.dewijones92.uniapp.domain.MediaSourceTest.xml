@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dewijones92.uniapp.domain.MediaSourceTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-07-12T07:02:48.433Z" hostname="APTEM-D61QB54" time="0.224">
+  <properties/>
+  <testcase name="both pillars are handled exhaustively as MediaSource" classname="com.dewijones92.uniapp.domain.MediaSourceTest" time="0.216"/>
+  <testcase name="sources with different ids are not equal" classname="com.dewijones92.uniapp.domain.MediaSourceTest" time="0.0"/>
+  <testcase name="podcast feed website is optional" classname="com.dewijones92.uniapp.domain.MediaSourceTest" time="0.0"/>
+  <testcase name="sources with the same data are equal" classname="com.dewijones92.uniapp.domain.MediaSourceTest" time="0.0"/>
+  <testcase name="subscription carries its source and time" classname="com.dewijones92.uniapp.domain.MediaSourceTest" time="0.004"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

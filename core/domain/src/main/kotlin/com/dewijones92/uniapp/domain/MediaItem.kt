@@ -25,6 +25,8 @@ public data class MediaItem(
     val duration: Duration?,
     val description: String? = null,
     val thumbnailUrl: HttpUrl? = null,
+    /** Where the playable media lives (podcast enclosure, resolved stream); null until known. */
+    val mediaUrl: HttpUrl? = null,
 ) {
     init {
         require(duration == null || duration.isPositive()) { "duration must be positive when present" }

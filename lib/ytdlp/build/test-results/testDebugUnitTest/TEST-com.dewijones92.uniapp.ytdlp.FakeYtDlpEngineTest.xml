@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="com.dewijones92.uniapp.ytdlp.FakeYtDlpEngineTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-07-12T06:49:48.775Z" hostname="APTEM-D61QB54" time="0.141">
+<testsuite name="com.dewijones92.uniapp.ytdlp.FakeYtDlpEngineTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-07-12T07:01:55.337Z" hostname="APTEM-D61QB54" time="0.493">
   <properties/>
-  <testcase name="extract returns registered metadata" classname="com.dewijones92.uniapp.ytdlp.FakeYtDlpEngineTest" time="0.122"/>
-  <testcase name="download emits started then monotonic progress then completed" classname="com.dewijones92.uniapp.ytdlp.FakeYtDlpEngineTest" time="0.011"/>
-  <testcase name="extract reports unsupported url as a value" classname="com.dewijones92.uniapp.ytdlp.FakeYtDlpEngineTest" time="0.002"/>
-  <testcase name="download of unknown url fails without progress" classname="com.dewijones92.uniapp.ytdlp.FakeYtDlpEngineTest" time="0.003"/>
+  <testcase name="extract returns registered metadata" classname="com.dewijones92.uniapp.ytdlp.FakeYtDlpEngineTest" time="0.449"/>
+  <testcase name="download emits started then monotonic progress then completed" classname="com.dewijones92.uniapp.ytdlp.FakeYtDlpEngineTest" time="0.032"/>
+  <testcase name="extract reports unsupported url as a value" classname="com.dewijones92.uniapp.ytdlp.FakeYtDlpEngineTest" time="0.005"/>
+  <testcase name="download of unknown url fails without progress" classname="com.dewijones92.uniapp.ytdlp.FakeYtDlpEngineTest" time="0.004"/>
   <system-out><![CDATA[]]></system-out>
   <system-err><![CDATA[]]></system-err>
 </testsuite>

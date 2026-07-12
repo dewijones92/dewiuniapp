@@ -34,6 +34,9 @@ jobs:
       - name: Unit tests
         run: ./gradlew test --no-daemon
 
+      - name: Coverage gate (logic modules)
+        run: ./gradlew koverVerify --no-daemon
+
       - name: Assemble debug APK
         run: ./gradlew assembleDebug --no-daemon
 

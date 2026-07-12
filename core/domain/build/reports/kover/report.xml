@@ -1,0 +1,134 @@
+<?xml version="1.0" ?>
+<report name="Kover Gradle Plugin XML report for :core:domain">
+<package name="com/dewijones92/uniapp/domain">
+<class name="com/dewijones92/uniapp/domain/MediaItem" sourcefilename="MediaItem.kt">
+<method name="&lt;init&gt;" desc="(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/time/Instant;Lkotlin/time/Duration;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V">
+<counter type="INSTRUCTION" missed="0" covered="92"/>
+<counter type="BRANCH" missed="0" covered="4"/>
+<counter type="LINE" missed="0" covered="12"/>
+</method>
+<counter type="INSTRUCTION" missed="0" covered="92"/>
+<counter type="BRANCH" missed="0" covered="4"/>
+<counter type="LINE" missed="0" covered="12"/>
+<counter type="METHOD" missed="0" covered="1"/>
+</class>
+<class name="com/dewijones92/uniapp/domain/MediaItemId" sourcefilename="MediaItem.kt">
+<method name="getValue" desc="()Ljava/lang/String;">
+<counter type="INSTRUCTION" missed="0" covered="12"/>
+<counter type="BRANCH" missed="0" covered="0"/>
+<counter type="LINE" missed="0" covered="1"/>
+</method>
+<method name="constructor-impl" desc="(Ljava/lang/String;)Ljava/lang/String;">
+<counter type="INSTRUCTION" missed="0" covered="14"/>
+<counter type="BRANCH" missed="0" covered="2"/>
+<counter type="LINE" missed="0" covered="1"/>
+</method>
+<counter type="INSTRUCTION" missed="0" covered="26"/>
+<counter type="BRANCH" missed="0" covered="2"/>
+<counter type="LINE" missed="0" covered="2"/>
+<counter type="METHOD" missed="0" covered="2"/>
+</class>
+<class name="com/dewijones92/uniapp/domain/MediaSource$PodcastFeed" sourcefilename="MediaSource.kt">
+<method name="&lt;init&gt;" desc="(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V">
+<counter type="INSTRUCTION" missed="0" covered="35"/>
+<counter type="BRANCH" missed="0" covered="0"/>
+<counter type="LINE" missed="0" covered="5"/>
+</method>
+<counter type="INSTRUCTION" missed="0" covered="35"/>
+<counter type="BRANCH" missed="0" covered="0"/>
+<counter type="LINE" missed="0" covered="5"/>
+<counter type="METHOD" missed="0" covered="1"/>
+</class>
+<class name="com/dewijones92/uniapp/domain/MediaSource$VideoChannel" sourcefilename="MediaSource.kt">
+<method name="&lt;init&gt;" desc="(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V">
+<counter type="INSTRUCTION" missed="0" covered="17"/>
+<counter type="BRANCH" missed="0" covered="0"/>
+<counter type="LINE" missed="0" covered="4"/>
+</method>
+<counter type="INSTRUCTION" missed="0" covered="17"/>
+<counter type="BRANCH" missed="0" covered="0"/>
+<counter type="LINE" missed="0" covered="4"/>
+<counter type="METHOD" missed="0" covered="1"/>
+</class>
+<class name="com/dewijones92/uniapp/domain/SourceId" sourcefilename="MediaSource.kt">
+<method name="getValue" desc="()Ljava/lang/String;">
+<counter type="INSTRUCTION" missed="0" covered="12"/>
+<counter type="BRANCH" missed="0" covered="0"/>
+<counter type="LINE" missed="0" covered="1"/>
+</method>
+<method name="constructor-impl" desc="(Ljava/lang/String;)Ljava/lang/String;">
+<counter type="INSTRUCTION" missed="0" covered="14"/>
+<counter type="BRANCH" missed="0" covered="2"/>
+<counter type="LINE" missed="0" covered="1"/>
+</method>
+<counter type="INSTRUCTION" missed="0" covered="26"/>
+<counter type="BRANCH" missed="0" covered="2"/>
+<counter type="LINE" missed="0" covered="2"/>
+<counter type="METHOD" missed="0" covered="2"/>
+</class>
+<class name="com/dewijones92/uniapp/domain/Subscription" sourcefilename="Subscription.kt">
+<method name="&lt;init&gt;" desc="(Lcom/dewijones92/uniapp/domain/MediaSource;Ljava/time/Instant;)V">
+<counter type="INSTRUCTION" missed="0" covered="12"/>
+<counter type="BRANCH" missed="0" covered="0"/>
+<counter type="LINE" missed="0" covered="3"/>
+</method>
+<counter type="INSTRUCTION" missed="0" covered="12"/>
+<counter type="BRANCH" missed="0" covered="0"/>
+<counter type="LINE" missed="0" covered="3"/>
+<counter type="METHOD" missed="0" covered="1"/>
+</class>
+<sourcefile name="Subscription.kt">
+<line nr="6" mi="0" ci="2" mb="0" cb="0"/>
+<line nr="7" mi="0" ci="5" mb="0" cb="0"/>
+<line nr="8" mi="0" ci="5" mb="0" cb="0"/>
+<counter type="INSTRUCTION" missed="0" covered="12"/>
+<counter type="BRANCH" missed="0" covered="0"/>
+<counter type="LINE" missed="0" covered="3"/>
+</sourcefile>
+<sourcefile name="MediaItem.kt">
+<line nr="9" mi="0" ci="12" mb="0" cb="0"/>
+<line nr="11" mi="0" ci="14" mb="0" cb="2"/>
+<line nr="20" mi="0" ci="25" mb="0" cb="0"/>
+<line nr="21" mi="0" ci="5" mb="0" cb="0"/>
+<line nr="22" mi="0" ci="5" mb="0" cb="0"/>
+<line nr="23" mi="0" ci="5" mb="0" cb="0"/>
+<line nr="24" mi="0" ci="5" mb="0" cb="0"/>
+<line nr="25" mi="0" ci="5" mb="0" cb="0"/>
+<line nr="26" mi="0" ci="7" mb="0" cb="0"/>
+<line nr="27" mi="0" ci="7" mb="0" cb="0"/>
+<line nr="29" mi="0" ci="7" mb="0" cb="0"/>
+<line nr="31" mi="0" ci="1" mb="0" cb="0"/>
+<line nr="32" mi="0" ci="19" mb="0" cb="4"/>
+<line nr="33" mi="0" ci="1" mb="0" cb="0"/>
+<counter type="INSTRUCTION" missed="0" covered="118"/>
+<counter type="BRANCH" missed="0" covered="6"/>
+<counter type="LINE" missed="0" covered="14"/>
+</sourcefile>
+<sourcefile name="MediaSource.kt">
+<line nr="7" mi="0" ci="12" mb="0" cb="0"/>
+<line nr="9" mi="0" ci="14" mb="0" cb="2"/>
+<line nr="22" mi="0" ci="2" mb="0" cb="0"/>
+<line nr="23" mi="0" ci="5" mb="0" cb="0"/>
+<line nr="24" mi="0" ci="5" mb="0" cb="0"/>
+<line nr="25" mi="0" ci="5" mb="0" cb="0"/>
+<line nr="28" mi="0" ci="13" mb="0" cb="0"/>
+<line nr="29" mi="0" ci="5" mb="0" cb="0"/>
+<line nr="30" mi="0" ci="5" mb="0" cb="0"/>
+<line nr="31" mi="0" ci="5" mb="0" cb="0"/>
+<line nr="32" mi="0" ci="7" mb="0" cb="0"/>
+<counter type="INSTRUCTION" missed="0" covered="78"/>
+<counter type="BRANCH" missed="0" covered="2"/>
+<counter type="LINE" missed="0" covered="11"/>
+</sourcefile>
+<counter type="INSTRUCTION" missed="0" covered="208"/>
+<counter type="BRANCH" missed="0" covered="8"/>
+<counter type="LINE" missed="0" covered="28"/>
+<counter type="METHOD" missed="0" covered="8"/>
+<counter type="CLASS" missed="0" covered="6"/>
+</package>
+<counter type="INSTRUCTION" missed="0" covered="208"/>
+<counter type="BRANCH" missed="0" covered="8"/>
+<counter type="LINE" missed="0" covered="28"/>
+<counter type="METHOD" missed="0" covered="8"/>
+<counter type="CLASS" missed="0" covered="6"/>
+</report>

@@ -1,0 +1,58 @@
+<?xml version="1.0" ?>
+<report name="Kover Gradle Plugin XML report for :lib:common">
+<package name="com/dewijones92/uniapp/common">
+<class name="com/dewijones92/uniapp/common/HttpUrl" sourcefilename="HttpUrl.kt">
+<method name="getValue" desc="()Ljava/lang/String;">
+<counter type="INSTRUCTION" missed="0" covered="8"/>
+<counter type="BRANCH" missed="0" covered="0"/>
+<counter type="LINE" missed="0" covered="1"/>
+</method>
+<method name="toString-impl" desc="(Ljava/lang/String;)Ljava/lang/String;">
+<counter type="INSTRUCTION" missed="4" covered="0"/>
+<counter type="BRANCH" missed="0" covered="0"/>
+<counter type="LINE" missed="1" covered="0"/>
+</method>
+<counter type="INSTRUCTION" missed="4" covered="8"/>
+<counter type="BRANCH" missed="0" covered="0"/>
+<counter type="LINE" missed="1" covered="1"/>
+<counter type="METHOD" missed="1" covered="1"/>
+</class>
+<class name="com/dewijones92/uniapp/common/HttpUrl$Companion" sourcefilename="HttpUrl.kt">
+<method name="of-f0GEnnY" desc="(Ljava/lang/String;)Ljava/lang/String;">
+<counter type="INSTRUCTION" missed="3" covered="19"/>
+<counter type="BRANCH" missed="2" covered="2"/>
+<counter type="LINE" missed="0" covered="1"/>
+</method>
+<method name="parse-Xd27ECM" desc="(Ljava/lang/String;)Ljava/lang/String;">
+<counter type="INSTRUCTION" missed="3" covered="71"/>
+<counter type="BRANCH" missed="2" covered="10"/>
+<counter type="LINE" missed="0" covered="3"/>
+</method>
+<counter type="INSTRUCTION" missed="6" covered="90"/>
+<counter type="BRANCH" missed="4" covered="12"/>
+<counter type="LINE" missed="0" covered="4"/>
+<counter type="METHOD" missed="0" covered="2"/>
+</class>
+<sourcefile name="HttpUrl.kt">
+<line nr="14" mi="0" ci="8" mb="0" cb="0"/>
+<line nr="16" mi="4" ci="0" mb="0" cb="0"/>
+<line nr="21" mi="0" ci="39" mb="0" cb="4"/>
+<line nr="22" mi="0" ci="13" mb="0" cb="2"/>
+<line nr="23" mi="3" ci="19" mb="2" cb="4"/>
+<line nr="28" mi="3" ci="19" mb="2" cb="2"/>
+<counter type="INSTRUCTION" missed="10" covered="98"/>
+<counter type="BRANCH" missed="4" covered="12"/>
+<counter type="LINE" missed="1" covered="5"/>
+</sourcefile>
+<counter type="INSTRUCTION" missed="10" covered="98"/>
+<counter type="BRANCH" missed="4" covered="12"/>
+<counter type="LINE" missed="1" covered="5"/>
+<counter type="METHOD" missed="1" covered="3"/>
+<counter type="CLASS" missed="0" covered="2"/>
+</package>
+<counter type="INSTRUCTION" missed="10" covered="98"/>
+<counter type="BRANCH" missed="4" covered="12"/>
+<counter type="LINE" missed="1" covered="5"/>
+<counter type="METHOD" missed="1" covered="3"/>
+<counter type="CLASS" missed="0" covered="2"/>
+</report>

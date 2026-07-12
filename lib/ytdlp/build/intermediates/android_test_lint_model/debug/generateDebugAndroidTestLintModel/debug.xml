@@ -23,6 +23,6 @@
   <artifact
       type="INSTRUMENTATION_TEST"
       applicationId="com.dewijones92.uniapp.ytdlp.test"
-      desugaredMethodsFiles="/home/dewi/.gradle/caches/9.6.1/transforms/12993085e6f77cb7f8ff785a89dc86f4/transformed/D8BackportedDesugaredMethods.txt">
+      desugaredMethodsFiles="/home/dewi/.gradle/caches/9.6.1/transforms/84b195b0e3b3a440430360ccf7e1692d/transformed/D8BackportedDesugaredMethods.txt">
   </artifact>
 </variant>

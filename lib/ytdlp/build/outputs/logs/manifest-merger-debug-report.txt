@@ -1,16 +1,16 @@
 -- Merging decision tree log ---
 manifest
-ADDED from /home/dewi/code/dewiuniapp/lib/ytdlp/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest6645740432024063452.xml:2:13-83
-INJECTED from /home/dewi/code/dewiuniapp/lib/ytdlp/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest6645740432024063452.xml:2:13-83
+ADDED from /home/dewi/code/dewiuniapp/lib/ytdlp/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest15322026566491894862.xml:2:13-83
+INJECTED from /home/dewi/code/dewiuniapp/lib/ytdlp/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest15322026566491894862.xml:2:13-83
 	package
-		INJECTED from /home/dewi/code/dewiuniapp/lib/ytdlp/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest6645740432024063452.xml
+		INJECTED from /home/dewi/code/dewiuniapp/lib/ytdlp/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest15322026566491894862.xml
 	xmlns:android
-		ADDED from /home/dewi/code/dewiuniapp/lib/ytdlp/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest6645740432024063452.xml:2:23-81
+		ADDED from /home/dewi/code/dewiuniapp/lib/ytdlp/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest15322026566491894862.xml:2:23-81
 uses-sdk
-INJECTED from /home/dewi/code/dewiuniapp/lib/ytdlp/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest6645740432024063452.xml reason: use-sdk injection requested
-INJECTED from /home/dewi/code/dewiuniapp/lib/ytdlp/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest6645740432024063452.xml
-INJECTED from /home/dewi/code/dewiuniapp/lib/ytdlp/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest6645740432024063452.xml
+INJECTED from /home/dewi/code/dewiuniapp/lib/ytdlp/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest15322026566491894862.xml reason: use-sdk injection requested
+INJECTED from /home/dewi/code/dewiuniapp/lib/ytdlp/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest15322026566491894862.xml
+INJECTED from /home/dewi/code/dewiuniapp/lib/ytdlp/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest15322026566491894862.xml
 	android:targetSdkVersion
-		INJECTED from /home/dewi/code/dewiuniapp/lib/ytdlp/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest6645740432024063452.xml
+		INJECTED from /home/dewi/code/dewiuniapp/lib/ytdlp/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest15322026566491894862.xml
 	android:minSdkVersion
-		INJECTED from /home/dewi/code/dewiuniapp/lib/ytdlp/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest6645740432024063452.xml
+		INJECTED from /home/dewi/code/dewiuniapp/lib/ytdlp/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest15322026566491894862.xml

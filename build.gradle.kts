@@ -11,9 +11,13 @@ plugins {
   alias(libs.plugins.compose.compiler) apply false
   alias(libs.plugins.kotlin.serialization) apply false
   alias(libs.plugins.detekt) apply false
+  alias(libs.plugins.kover) apply false
 }
 
 val detektFormatting = libs.detekt.formatting
+
+// Ratchet upwards as coverage grows; never downwards without a recorded reason.
+val MIN_LOGIC_MODULE_COVERAGE_PERCENT = 75
 
 // One lint policy for every Android module, current and future.
 val lintPolicy: Lint.() -> Unit = {
@@ -65,5 +69,19 @@ subprojects {
   }
   plugins.withId("com.android.library") {
     extensions.configure<LibraryExtension> { androidDefaults() }
+  }
+
+  // Coverage gate on logic modules; :app is report-only (Compose UI distorts numbers).
+  if (path.startsWith(":core") || path.startsWith(":lib")) {
+    apply(plugin = "org.jetbrains.kotlinx.kover")
+    extensions.configure<kotlinx.kover.gradle.plugin.dsl.KoverProjectExtension> {
+      reports {
+        verify {
+          rule {
+            minBound(MIN_LOGIC_MODULE_COVERAGE_PERCENT)
+          }
+        }
+      }
+    }
   }
 }

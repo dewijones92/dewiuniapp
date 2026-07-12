@@ -1,9 +1,9 @@
 <libraries>
   <library
       name=":@@:lib:ytdlp::debug"
-      jars="/home/dewi/.gradle/caches/9.6.1/transforms/2e54c91beb826b3e4cd64c0c48562835/transformed/out/jars/classes.jar:/home/dewi/.gradle/caches/9.6.1/transforms/2e54c91beb826b3e4cd64c0c48562835/transformed/out/jars/libs/R.jar"
+      jars="/home/dewi/.gradle/caches/9.6.1/transforms/c458c0fd78dcb08f35669c42cc2abb9a/transformed/out/jars/classes.jar:/home/dewi/.gradle/caches/9.6.1/transforms/c458c0fd78dcb08f35669c42cc2abb9a/transformed/out/jars/libs/R.jar"
       resolved="UniApp.lib:ytdlp:unspecified"
-      folder="/home/dewi/.gradle/caches/9.6.1/transforms/2e54c91beb826b3e4cd64c0c48562835/transformed/out"
+      folder="/home/dewi/.gradle/caches/9.6.1/transforms/c458c0fd78dcb08f35669c42cc2abb9a/transformed/out"
       manifest="AndroidManifest.xml"
       resFolder="res"
       assetsFolder="assets"
