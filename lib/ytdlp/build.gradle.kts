@@ -12,15 +12,6 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-
-    // Lint policy: keep identical in every Android module (see app).
-    lint {
-        warningsAsErrors = true
-        abortOnError = true
-        // Version-freshness nags break CI on every upstream release, not on code changes.
-        // Dependency updates are handled deliberately, not by lint.
-        disable += listOf("AndroidGradlePluginVersion", "GradleDependency", "NewerVersionAvailable")
-    }
 }
 
 kotlin {

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- Dark counterpart of the base platform theme; Compose draws everything
+         else, but system-rendered surfaces (dialogs, selection handles,
+         window background before first frame) must follow the system theme. -->
+    <style name="Theme.UniApp" parent="android:Theme.Material.NoActionBar" />
+</resources>

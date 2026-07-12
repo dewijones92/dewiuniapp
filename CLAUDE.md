@@ -63,8 +63,16 @@ in favour of a from-scratch library — see Decisions).
   yt-dlp itself (pure Python) *can* be self-updated at runtime; the
   interpreter and ffmpeg cannot. Deliberately independent of `:core:domain`
   (standalone, reusable); the app maps between their types.
-- detekt applies to every module automatically (root `subprojects` block);
-  Android lint policy is copied verbatim into each Android module.
+- detekt and the Android lint policy apply to every module automatically
+  (root `subprojects` block) — never configure them per module.
+- **Deliberate duplication:** `domain.WebUrl` and `ytdlp.MediaUrl` share the
+  same ~20 lines of URL validation. This is a boundary decision, not an
+  oversight: `:lib:ytdlp` must stay standalone (publishable/extractable to
+  its own repo like the old fork), so it cannot depend on an app module, and
+  the two types represent different contracts that may diverge (e.g.
+  engine-supported schemes). Do not "fix" this by coupling the library to
+  the app; revisit only if a shared library published alongside ytdlp makes
+  sense.
 - Package root: `com.dewijones92.uniapp`.
 
 ## Working agreements

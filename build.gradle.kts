@@ -1,4 +1,7 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
+import com.android.build.api.dsl.ApplicationExtension
+import com.android.build.api.dsl.LibraryExtension
+import com.android.build.api.dsl.Lint
 import io.gitlab.arturbosch.detekt.extensions.DetektExtension
 
 plugins {
@@ -11,6 +14,15 @@ plugins {
 }
 
 val detektFormatting = libs.detekt.formatting
+
+// One lint policy for every Android module, current and future.
+val lintPolicy: Lint.() -> Unit = {
+  warningsAsErrors = true
+  abortOnError = true
+  // Version-freshness nags break CI on every upstream release, not on code changes.
+  // Dependency updates are handled deliberately, not by lint.
+  disable += listOf("AndroidGradlePluginVersion", "GradleDependency", "NewerVersionAvailable")
+}
 
 // Every module gets the same static-analysis gate; adding a module adds its gate.
 subprojects {
@@ -33,5 +45,12 @@ subprojects {
 
   dependencies {
     add("detektPlugins", detektFormatting)
+  }
+
+  plugins.withId("com.android.application") {
+    extensions.configure<ApplicationExtension> { lint(lintPolicy) }
+  }
+  plugins.withId("com.android.library") {
+    extensions.configure<LibraryExtension> { lint(lintPolicy) }
   }
 }

@@ -37,15 +37,6 @@ android {
         excludes += "/META-INF/{AL2.0,LGPL2.1}"
       }
     }
-
-    // Lint policy: keep identical in every Android module (see lib/ytdlp).
-    lint {
-        warningsAsErrors = true
-        abortOnError = true
-        // Version-freshness nags break CI on every upstream release, not on code changes.
-        // Dependency updates are handled deliberately, not by lint.
-        disable += listOf("AndroidGradlePluginVersion", "GradleDependency", "NewerVersionAvailable")
-    }
 }
 
 kotlin {
