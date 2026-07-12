@@ -17,8 +17,8 @@ in favour of a from-scratch library — see Decisions).
 | Stack | Kotlin + Jetpack Compose, single Gradle project | Native fit, strongest type safety |
 | minSdk | **34** (Android 14) | Personal modern devices; simplifies stack. Deliberate — drops the API-23 floor of the original apps |
 | Extraction | **From-scratch library in this repo** (`:lib:ytdlp`), replacing dewijones92/youtubedl-android fork | Own a clean, tested Kotlin API around the real yt-dlp |
-| Python runtime | Official CPython Android build (3.13+), embedded in-process via JNI | Upstream-maintained; no subprocess, no W^X issues |
-| ffmpeg | Bundled from day one | Needed for merged best-quality streams and audio extraction |
+| Python runtime | Chaquopy 17 (revised from "official CPython" once that proved tier-3/no artifact) | Mature drop-in embed, MIT, pip support |
+| ffmpeg | Wanted from day one; **not yet bundled** | Needed for merged best-quality streams and audio extraction |
 | CI/CD | GitHub Actions; signed APKs on GitHub Releases | No Play Store (yt-dlp app) |
 | UI bar | Genuinely nice, modern | Material 3 expressive, dynamic colour, dark/light, edge-to-edge, considered motion — never template-default |
 
@@ -109,7 +109,7 @@ when driven on the emulator. Verify real flows on a device, not just via tests.
 ## Working agreements
 
 - Commit as you go — small, coherent commits at each green state.
-- Remote: `github.com/dewijones92/dewiuniapp` (private). Default branch is
+- Remote: `github.com/dewijones92/dewiuniapp` (public). Default branch is
   `main`; pushing to it is fine and CI (GitHub Actions) must stay green.
 - Every push to main publishes a signed APK to the rolling `latest`
   prerelease (consumed by Dewi's Obtainium). Release signing key lives at
