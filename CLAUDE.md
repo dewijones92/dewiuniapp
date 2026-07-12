@@ -24,6 +24,14 @@ in favour of a from-scratch library — see Decisions).
 
 ## Quality bar (from the brief, non-negotiable)
 
+- **Unified, always** — this and DRY are the project's twin laws. The app has two
+  pillars but every capability gets ONE seam that serves both: one domain model
+  (`MediaItem` is a podcast episode *and* a video), one playback path
+  (`PlaybackController` + one mini player), one search port (`SearchSource` →
+  sealed `SearchHit`), one HTTP text port, one URL type. Before building any
+  feature, ask "what is the pillar-agnostic seam?" and build that; pillar
+  specifics live in small adapters behind it. A feature implemented twice —
+  once per pillar — is a design failure even if neither copy shares a line.
 - **Testing pyramid**: many fast unit tests; fewer integration tests; few instrumented/UI
   tests. New behaviour lands with tests.
 - **Strictly DRY** — this matters a lot to Dewi. Knowledge lives in exactly one
