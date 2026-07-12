@@ -14,6 +14,14 @@ android {
         // so Obtainium sees every main-tip build as an upgrade.
         versionCode = (project.findProperty("versionCode") as String?)?.toIntOrNull() ?: 1
         versionName = (project.findProperty("versionName") as String?) ?: "0.1.0-dev"
+        // Short git SHA of the build, shown in-app so the running build is
+        // unambiguous. CI passes -PgitSha; local builds resolve it or say "local".
+        val gitSha = (project.findProperty("gitSha") as String?)
+            ?: runCatching {
+                ProcessBuilder("git", "rev-parse", "--short", "HEAD")
+                    .directory(rootDir).start().inputStream.bufferedReader().readLine()?.trim()
+            }.getOrNull().takeUnless { it.isNullOrBlank() } ?: "local"
+        buildConfigField("String", "GIT_SHA", "\"$gitSha\"")
     }
 
     signingConfigs {
@@ -51,7 +59,7 @@ android {
     buildFeatures {
       compose = true
       aidl = false
-      buildConfig = false
+      buildConfig = true
       shaders = false
     }
 

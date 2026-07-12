@@ -64,7 +64,8 @@ jobs:
         run: |
           ./gradlew assembleRelease --no-daemon \
             -PversionCode=$((100 + GITHUB_RUN_NUMBER)) \
-            -PversionName="0.1.${GITHUB_RUN_NUMBER}"
+            -PversionName="0.1.${GITHUB_RUN_NUMBER}" \
+            -PgitSha="${GITHUB_SHA:0:7}"
 
       - name: Publish rolling 'latest' release
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
