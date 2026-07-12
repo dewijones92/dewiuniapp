@@ -3,6 +3,8 @@
      frequently plain http (e.g. BBC's open.live.bbc.co.uk media hosts), and
      refusing them would break playback of legitimate feeds. AntennaPod ships
      the same policy. Our own API/feed fetches should still prefer https. -->
-<network-security-config>
-    <base-config cleartextTrafficPermitted="true" />
+<network-security-config xmlns:tools="http://schemas.android.com/tools">
+    <base-config
+        cleartextTrafficPermitted="true"
+        tools:ignore="InsecureBaseConfiguration" />
 </network-security-config>
