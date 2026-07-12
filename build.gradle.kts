@@ -73,9 +73,9 @@ subprojects {
 
   // Coverage gate on logic modules; :app is report-only (Compose UI distorts numbers).
   // Adapter modules are exempt: they are thin bridges to on-device machinery (Room,
-  // embedded Python) verified by instrumented tests, whose coverage the JVM gate
-  // cannot see.
-  val koverExemptAdapters = setOf(":core:database", ":lib:ytdlp-chaquopy")
+  // embedded Python, Media3) verified by instrumented tests, whose coverage the JVM
+  // gate cannot see.
+  val koverExemptAdapters = setOf(":core:database", ":lib:ytdlp-chaquopy", ":core:playback")
   if ((path.startsWith(":core") || path.startsWith(":lib")) && path !in koverExemptAdapters) {
     apply(plugin = "org.jetbrains.kotlinx.kover")
     extensions.configure<kotlinx.kover.gradle.plugin.dsl.KoverProjectExtension> {

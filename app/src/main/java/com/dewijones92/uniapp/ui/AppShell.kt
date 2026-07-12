@@ -1,6 +1,7 @@
 package com.dewijones92.uniapp.ui
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -15,10 +16,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dewijones92.uniapp.di.AppContainer
 import com.dewijones92.uniapp.di.fake.FakeAppContainer
 import com.dewijones92.uniapp.navigation.TopLevelDestination
 import com.dewijones92.uniapp.theme.UniAppTheme
+import com.dewijones92.uniapp.ui.common.MiniPlayerBar
 import com.dewijones92.uniapp.ui.library.LibraryScreen
 import com.dewijones92.uniapp.ui.podcasts.PodcastsScreen
 import com.dewijones92.uniapp.ui.videos.VideosScreen
@@ -30,24 +33,31 @@ import com.dewijones92.uniapp.ui.videos.VideosScreen
 @Composable
 fun AppShell(container: AppContainer, modifier: Modifier = Modifier) {
     var selected by rememberSaveable { mutableStateOf(TopLevelDestination.Videos) }
+    val playbackState by container.playbackController.state.collectAsStateWithLifecycle()
 
     Scaffold(
         modifier = modifier,
         bottomBar = {
-            NavigationBar {
-                TopLevelDestination.entries.forEach { destination ->
-                    val isSelected = destination == selected
-                    NavigationBarItem(
-                        selected = isSelected,
-                        onClick = { selected = destination },
-                        icon = {
-                            Icon(
-                                imageVector = if (isSelected) destination.selectedIcon else destination.unselectedIcon,
-                                contentDescription = null,
-                            )
-                        },
-                        label = { Text(stringResource(destination.labelRes)) },
+            Column {
+                playbackState?.let { state ->
+                    MiniPlayerBar(
+                        state = state,
+                        onTogglePlayPause = container.playbackController::togglePlayPause,
                     )
+                }
+                NavigationBar {
+                    TopLevelDestination.entries.forEach { destination ->
+                        val isSelected = destination == selected
+                        NavigationBarItem(
+                            selected = isSelected,
+                            onClick = { selected = destination },
+                            icon = {
+                                val icon = if (isSelected) destination.selectedIcon else destination.unselectedIcon
+                                Icon(imageVector = icon, contentDescription = null)
+                            },
+                            label = { Text(stringResource(destination.labelRes)) },
+                        )
+                    }
                 }
             }
         },
@@ -59,7 +69,10 @@ fun AppShell(container: AppContainer, modifier: Modifier = Modifier) {
         ) { destination ->
             when (destination) {
                 TopLevelDestination.Videos -> VideosScreen(container.ytDlpEngine)
-                TopLevelDestination.Podcasts -> PodcastsScreen(container.podcastRepository)
+                TopLevelDestination.Podcasts -> PodcastsScreen(
+                    repository = container.podcastRepository,
+                    onPlayEpisode = container.playbackController::play,
+                )
                 TopLevelDestination.Library -> LibraryScreen()
             }
         }

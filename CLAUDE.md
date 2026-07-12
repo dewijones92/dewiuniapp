@@ -69,8 +69,18 @@ when driven on the emulator. Verify real flows on a device, not just via tests.
   `RoomPodcastStore` implementing `:core:data`'s `PodcastStore` port. The only
   place entities meet domain types. Verified by instrumented tests; exempt from
   the Kover JVM gate.
+- `:core:playback` — the unified playback seam: `PlaybackController` port +
+  `PlaybackState`, implemented by `Media3PlaybackController` connected to a
+  `MediaSessionService` (`PlaybackService`, foreground, Media3-managed
+  notification). Both pillars play through it — anything with a
+  `MediaItem.mediaUrl` is playable. `fake.FakePlaybackController` for
+  tests/previews. Kover-exempt adapter (Media3 glue; instrumented-verified).
 - Manual DI: `AppContainer` (in `:app`) wires the graph; construction is code,
   errors are compile-time. No Hilt/Koin.
+- **Cleartext HTTP is deliberately permitted** (network_security_config):
+  podcast enclosures in the wild are frequently plain http (BBC media hosts
+  included); refusing them breaks playback of legitimate feeds. Same policy
+  as AntennaPod.
 - `:lib:ytdlp` — from-scratch yt-dlp Android library (replaces the
   youtubedl-android fork). Public API: `YtDlpEngine` (suspend `extract`,
   cold-`Flow` `download`, sealed `ExtractionResult`/`DownloadEvent`);

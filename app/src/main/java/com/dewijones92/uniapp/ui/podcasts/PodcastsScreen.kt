@@ -1,5 +1,6 @@
 package com.dewijones92.uniapp.ui.podcasts
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -47,7 +48,11 @@ import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
 @Composable
-fun PodcastsScreen(repository: PodcastRepository, modifier: Modifier = Modifier) {
+fun PodcastsScreen(
+    repository: PodcastRepository,
+    onPlayEpisode: (MediaItem) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val viewModel: PodcastsViewModel = viewModel(factory = PodcastsViewModel.factory(repository))
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
@@ -55,6 +60,7 @@ fun PodcastsScreen(repository: PodcastRepository, modifier: Modifier = Modifier)
         state = state,
         onSubscribe = viewModel::subscribe,
         onDialogClosed = viewModel::resetSubscribing,
+        onPlayEpisode = onPlayEpisode,
         modifier = modifier,
     )
 }
@@ -64,6 +70,7 @@ internal fun PodcastsContent(
     state: PodcastsViewModel.UiState,
     onSubscribe: (String) -> Unit,
     onDialogClosed: () -> Unit,
+    onPlayEpisode: (MediaItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
@@ -76,7 +83,7 @@ internal fun PodcastsContent(
                 supportingText = stringResource(R.string.podcasts_empty_supporting),
             )
         } else {
-            SubscriptionsAndEpisodes(state.subscriptions, state.episodes)
+            SubscriptionsAndEpisodes(state.subscriptions, state.episodes, onPlayEpisode)
         }
 
         FloatingActionButton(
@@ -105,6 +112,7 @@ internal fun PodcastsContent(
 private fun SubscriptionsAndEpisodes(
     subscriptions: List<Subscription>,
     episodes: List<MediaItem>,
+    onPlayEpisode: (MediaItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val feedTitles = subscriptions.associate { it.source.id to it.source.title }
@@ -131,15 +139,30 @@ private fun SubscriptionsAndEpisodes(
             )
         }
         items(episodes, key = { it.id.value }) { episode ->
-            EpisodeRow(episode = episode, feedTitle = feedTitles[episode.sourceId])
+            EpisodeRow(
+                episode = episode,
+                feedTitle = feedTitles[episode.sourceId],
+                onClick = { onPlayEpisode(episode) },
+            )
             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
         }
     }
 }
 
 @Composable
-private fun EpisodeRow(episode: MediaItem, feedTitle: String?, modifier: Modifier = Modifier) {
-    Column(modifier = modifier.fillMaxWidth().padding(16.dp)) {
+private fun EpisodeRow(
+    episode: MediaItem,
+    feedTitle: String?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            // Playable only when the feed provided an enclosure.
+            .clickable(enabled = episode.mediaUrl != null, onClick = onClick)
+            .padding(16.dp),
+    ) {
         Text(
             text = episode.title,
             style = MaterialTheme.typography.bodyLarge,
@@ -182,13 +205,20 @@ private fun PodcastsContentPreview() {
         ),
         episodes = listOf(FakePodcastRepository.sampleEpisode(sourceId)),
     )
-    UniAppTheme { PodcastsContent(state = state, onSubscribe = {}, onDialogClosed = {}) }
+    UniAppTheme {
+        PodcastsContent(state = state, onSubscribe = {}, onDialogClosed = {}, onPlayEpisode = {})
+    }
 }
 
 @Preview(showBackground = true)
 @Composable
 private fun PodcastsEmptyPreview() {
     UniAppTheme {
-        PodcastsContent(state = PodcastsViewModel.UiState(), onSubscribe = {}, onDialogClosed = {})
+        PodcastsContent(
+            state = PodcastsViewModel.UiState(),
+            onSubscribe = {},
+            onDialogClosed = {},
+            onPlayEpisode = {},
+        )
     }
 }

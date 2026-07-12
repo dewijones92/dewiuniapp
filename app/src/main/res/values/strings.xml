@@ -32,4 +32,7 @@
     </plurals>
     <string name="error_unsupported_url">No extractor recognises that link.</string>
     <string name="error_extraction">That link was recognised but couldn\'t be read (it may be private, removed or geo-blocked).</string>
+
+    <string name="play">Play</string>
+    <string name="pause">Pause</string>
 </resources>

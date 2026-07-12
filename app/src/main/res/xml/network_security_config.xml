@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Cleartext is deliberately permitted: podcast enclosures in the wild are
+     frequently plain http (e.g. BBC's open.live.bbc.co.uk media hosts), and
+     refusing them would break playback of legitimate feeds. AntennaPod ships
+     the same policy. Our own API/feed fetches should still prefer https. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

@@ -6,8 +6,13 @@ import com.dewijones92.uniapp.data.podcast.OkHttpFeedFetcher
 import com.dewijones92.uniapp.data.podcast.PodcastRepository
 import com.dewijones92.uniapp.database.RoomPodcastStore
 import com.dewijones92.uniapp.database.UniAppDatabase
+import com.dewijones92.uniapp.playback.Media3PlaybackController
+import com.dewijones92.uniapp.playback.PlaybackController
 import com.dewijones92.uniapp.ytdlp.YtDlpEngine
 import com.dewijones92.uniapp.ytdlp.chaquopy.ChaquopyYtDlpEngine
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
 
@@ -15,6 +20,7 @@ import java.util.concurrent.TimeUnit
 interface AppContainer {
     val podcastRepository: PodcastRepository
     val ytDlpEngine: YtDlpEngine
+    val playbackController: PlaybackController
 }
 
 class DefaultAppContainer(private val context: Context) : AppContainer {
@@ -34,6 +40,12 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
     }
 
     override val ytDlpEngine: YtDlpEngine by lazy { ChaquopyYtDlpEngine(context) }
+
+    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
+    override val playbackController: PlaybackController by lazy {
+        Media3PlaybackController(context, applicationScope)
+    }
 
     private companion object {
         const val HTTP_TIMEOUT_SECONDS = 20L
