@@ -46,6 +46,20 @@ in favour of a from-scratch library — see Decisions).
   leaking, illegal states unrepresentable.
 - CI must stay green; quality gates (lint, static analysis, tests) block merges.
 
+## Performance (measured 2026-07-12, API-35 emulator)
+
+- **Cold start** ~1.5s warm / ~3.3s first-ever. The embedded Python engine is
+  lazy (constructed on first Videos/Search use, never at launch) — confirmed:
+  startup pays nothing for it. Keep it that way.
+- **Memory**: ~115MB idle; ~196MB once the Python interpreter is resident.
+  Reasonable for an embedded CPython; watch it if it climbs.
+- **APK**: release is **arm64-v8a only + R8 (minify + resource shrink)** →
+  **~33MB**, down from 94MB. Debug stays multi-ABL/unminified for the emulator.
+  Build a release for the emulator with `-PemulatorAbis` (adds x86_64).
+- R8 verified end-to-end on-device (podcasts, Room, Media3, Chaquopy/Python
+  search all survive minification). App keep-rules: `app/proguard-rules.pro`
+  (kept minimal — library consumer rules handle Room/Media3/Chaquopy/Compose).
+
 ## Build & test
 
 ```bash

@@ -32,9 +32,20 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
+            // Real devices only (Dewi's phone is arm64); debug keeps x86_64 for the
+            // emulator. Pass -PemulatorAbis to smoke-test a release build on the emulator.
+            ndk {
+                abiFilters.clear()
+                abiFilters += if (project.hasProperty("emulatorAbis")) {
+                    listOf("arm64-v8a", "x86_64")
+                } else {
+                    listOf("arm64-v8a")
+                }
+            }
         }
     }
     buildFeatures {
