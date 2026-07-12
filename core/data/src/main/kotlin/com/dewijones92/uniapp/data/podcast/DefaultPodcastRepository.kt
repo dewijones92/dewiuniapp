@@ -43,7 +43,9 @@ public class DefaultPodcastRepository(
         val source = parsed.toMediaSource(id, feedUrl)
         store.saveFeed(
             subscription = Subscription(source = source, subscribedAt = clock.instant()),
-            episodes = parsed.episodes.mapIndexed { index, episode -> episode.toMediaItem(id, feedUrl, index) },
+            episodes = parsed.episodes.mapIndexed { index, episode ->
+                episode.toMediaItem(id, feedUrl, index, feedTitle = parsed.title)
+            },
         )
         return SubscribeResult.Subscribed(source)
     }
@@ -59,13 +61,19 @@ public class DefaultPodcastRepository(
         websiteUrl = websiteUrl?.let(HttpUrl::parse),
     )
 
-    private fun ParsedEpisode.toMediaItem(sourceId: SourceId, feedUrl: HttpUrl, index: Int) = MediaItem(
+    private fun ParsedEpisode.toMediaItem(
+        sourceId: SourceId,
+        feedUrl: HttpUrl,
+        index: Int,
+        feedTitle: String,
+    ) = MediaItem(
         // Stable per feed: guid, else enclosure, else position — in that order of trust.
         id = MediaItemId(guid ?: enclosureUrl ?: "${feedUrl.value}#$index"),
         sourceId = sourceId,
         title = title,
         publishedAt = publishedAt,
         duration = duration,
+        author = author ?: feedTitle,
         description = description,
         thumbnailUrl = imageUrl?.let(HttpUrl::parse),
         mediaUrl = enclosureUrl?.let(HttpUrl::parse),

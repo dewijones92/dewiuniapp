@@ -23,6 +23,8 @@ public data class MediaItem(
     val title: String,
     val publishedAt: Instant?,
     val duration: Duration?,
+    /** Who made it: podcast/feed name or channel/uploader. Shown as the artist line. */
+    val author: String? = null,
     val description: String? = null,
     val thumbnailUrl: HttpUrl? = null,
     /** Where the playable media lives (podcast enclosure, resolved stream); null until known. */

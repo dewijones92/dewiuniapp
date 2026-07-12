@@ -30,6 +30,7 @@ class RssParserTest {
     @Test
     fun `parses a fully specified episode`() {
         val episode = parseSampleFeed().episodes[0]
+        assertEquals("A Guest Author", episode.author)
         assertEquals("ep-2-guid", episode.guid)
         assertEquals("Episode two: the reckoning", episode.title)
         assertEquals("https://cdn.example.com/ep2.mp3", episode.enclosureUrl)

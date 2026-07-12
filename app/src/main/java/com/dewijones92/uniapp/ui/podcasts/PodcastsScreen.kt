@@ -115,8 +115,6 @@ private fun SubscriptionsAndEpisodes(
     onPlayEpisode: (MediaItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val feedTitles = subscriptions.associate { it.source.id to it.source.title }
-
     LazyColumn(modifier = modifier.fillMaxSize()) {
         item {
             LazyRow(
@@ -139,11 +137,7 @@ private fun SubscriptionsAndEpisodes(
             )
         }
         items(episodes, key = { it.id.value }) { episode ->
-            EpisodeRow(
-                episode = episode,
-                feedTitle = feedTitles[episode.sourceId],
-                onClick = { onPlayEpisode(episode) },
-            )
+            EpisodeRow(episode = episode, onClick = { onPlayEpisode(episode) })
             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
         }
     }
@@ -152,7 +146,6 @@ private fun SubscriptionsAndEpisodes(
 @Composable
 private fun EpisodeRow(
     episode: MediaItem,
-    feedTitle: String?,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -170,7 +163,7 @@ private fun EpisodeRow(
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             val details = listOfNotNull(
-                feedTitle,
+                episode.author,
                 episode.publishedAt?.let(::formatDate),
                 episode.duration?.let { stringResource(R.string.duration_minutes, it.inWholeMinutes) },
             )

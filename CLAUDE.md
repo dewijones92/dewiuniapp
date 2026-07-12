@@ -83,9 +83,14 @@ when driven on the emulator. Verify real flows on a device, not just via tests.
 - `:core:playback` — the unified playback seam: `PlaybackController` port +
   `PlaybackState`, implemented by `Media3PlaybackController` connected to a
   `MediaSessionService` (`PlaybackService`, foreground, Media3-managed
-  notification). Both pillars play through it — anything with a
-  `MediaItem.mediaUrl` is playable. `fake.FakePlaybackController` for
-  tests/previews. Kover-exempt adapter (Media3 glue; instrumented-verified).
+  notification with title/artist/artwork, seek back 10s / forward 30s, audio
+  focus + becoming-noisy handling). Both pillars play through it — anything
+  with a `MediaItem.mediaUrl` is playable, and every system surface
+  (notification, lock screen, Bluetooth/headset media keys, Assistant)
+  controls that one session. `POST_NOTIFICATIONS` is requested at first play
+  (`RequestNotificationPermissionOnFirstPlay`) — required on API 33+ or the
+  notification never shows. `fake.FakePlaybackController` for tests/previews.
+  Kover-exempt adapter (Media3 glue; instrumented-verified).
 - Manual DI: `AppContainer` (in `:app`) wires the graph; construction is code,
   errors are compile-time. No Hilt/Koin.
 - **Cleartext HTTP is deliberately permitted** (network_security_config):

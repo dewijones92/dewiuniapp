@@ -111,6 +111,7 @@ class SearchViewModel(
                     title = metadata.title,
                     publishedAt = null,
                     duration = metadata.durationSeconds?.seconds,
+                    author = metadata.uploader,
                     thumbnailUrl = metadata.thumbnailUrl?.let(HttpUrl::parse),
                     mediaUrl = streamUrl,
                 ),

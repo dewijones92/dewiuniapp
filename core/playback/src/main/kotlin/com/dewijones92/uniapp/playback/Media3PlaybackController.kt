@@ -62,7 +62,13 @@ public class Media3PlaybackController(
                 Media3MediaItem.Builder()
                     .setMediaId(item.id.value)
                     .setUri(url.value)
-                    .setMediaMetadata(MediaMetadata.Builder().setTitle(item.title).build())
+                    .setMediaMetadata(
+                        MediaMetadata.Builder()
+                            .setTitle(item.title)
+                            .setArtist(item.author)
+                            .setArtworkUri(item.thumbnailUrl?.value?.let(android.net.Uri::parse))
+                            .build(),
+                    )
                     .build(),
             )
             controller.prepare()

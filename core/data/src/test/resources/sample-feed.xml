@@ -6,6 +6,7 @@
     <description>A podcast used in tests.</description>
     <item>
       <title>Episode two: the reckoning</title>
+      <itunes:author>A Guest Author</itunes:author>
       <guid>ep-2-guid</guid>
       <pubDate>Fri, 10 Jul 2026 06:00:00 GMT</pubDate>
       <itunes:duration>01:02:03</itunes:duration>

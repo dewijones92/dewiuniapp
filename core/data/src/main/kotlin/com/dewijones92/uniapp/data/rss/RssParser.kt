@@ -25,6 +25,7 @@ public data class ParsedFeed(
 public data class ParsedEpisode(
     val guid: String?,
     val title: String,
+    val author: String?,
     val enclosureUrl: String?,
     val publishedAt: Instant?,
     val duration: Duration?,
@@ -70,6 +71,7 @@ public class RssParser {
     private fun Element.toEpisode(): ParsedEpisode = ParsedEpisode(
         guid = firstChildText("guid"),
         title = firstChildText("title") ?: UNTITLED_EPISODE,
+        author = firstChildText("itunes:author") ?: firstChildText("author"),
         enclosureUrl = firstChildElement("enclosure")?.getAttribute("url")?.ifBlank { null },
         publishedAt = firstChildText("pubDate")?.let(::parseRfc1123OrNull),
         duration = firstChildText("itunes:duration")?.let(::parseItunesDurationOrNull),

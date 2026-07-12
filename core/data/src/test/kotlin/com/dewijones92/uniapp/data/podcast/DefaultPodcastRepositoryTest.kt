@@ -45,6 +45,9 @@ class DefaultPodcastRepositoryTest {
         // No guid or enclosure -> positional fallback.
         assertEquals("${feedUrl.value}#2", stored.second[2].id.value)
         assertEquals("https://cdn.example.com/ep2.mp3", stored.second[0].mediaUrl?.value)
+        // Episode author when present; feed title as the fallback.
+        assertEquals("A Guest Author", stored.second[0].author)
+        assertEquals("The Test Podcast", stored.second[1].author)
     }
 
     @Test

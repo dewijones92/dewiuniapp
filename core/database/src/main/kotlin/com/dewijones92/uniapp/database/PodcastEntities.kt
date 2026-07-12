@@ -30,6 +30,7 @@ public data class EpisodeEntity(
     @PrimaryKey val id: String,
     val feedId: String,
     val title: String,
+    val author: String?,
     val publishedAtEpochMs: Long?,
     val durationSeconds: Long?,
     val description: String?,

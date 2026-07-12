@@ -22,6 +22,7 @@ import com.dewijones92.uniapp.di.fake.FakeAppContainer
 import com.dewijones92.uniapp.navigation.TopLevelDestination
 import com.dewijones92.uniapp.theme.UniAppTheme
 import com.dewijones92.uniapp.ui.common.MiniPlayerBar
+import com.dewijones92.uniapp.ui.common.RequestNotificationPermissionOnFirstPlay
 import com.dewijones92.uniapp.ui.library.LibraryScreen
 import com.dewijones92.uniapp.ui.podcasts.PodcastsScreen
 import com.dewijones92.uniapp.ui.search.SearchScreen
@@ -35,6 +36,8 @@ import com.dewijones92.uniapp.ui.videos.VideosScreen
 fun AppShell(container: AppContainer, modifier: Modifier = Modifier) {
     var selected by rememberSaveable { mutableStateOf(TopLevelDestination.Videos) }
     val playbackState by container.playbackController.state.collectAsStateWithLifecycle()
+
+    RequestNotificationPermissionOnFirstPlay(playbackActive = playbackState != null)
 
     Scaffold(
         modifier = modifier,

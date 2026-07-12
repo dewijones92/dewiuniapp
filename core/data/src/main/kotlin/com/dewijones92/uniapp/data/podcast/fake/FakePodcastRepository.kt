@@ -56,6 +56,7 @@ public class FakePodcastRepository(
             title = title,
             publishedAt = Instant.parse("2026-07-01T09:00:00Z"),
             duration = 42.minutes,
+            author = "Sample author",
             description = "A sample episode.",
         )
     }
