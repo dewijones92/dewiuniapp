@@ -5,6 +5,7 @@ import com.dewijones92.uniapp.data.podcast.fake.FakePodcastRepository
 import com.dewijones92.uniapp.data.search.SearchOutcome
 import com.dewijones92.uniapp.data.search.SearchSource
 import com.dewijones92.uniapp.data.search.YtDlpVideoSearchSource
+import com.dewijones92.uniapp.data.sponsorblock.SkipSegmentSource
 import com.dewijones92.uniapp.di.AppContainer
 import com.dewijones92.uniapp.playback.PlaybackController
 import com.dewijones92.uniapp.playback.fake.FakePlaybackController
@@ -20,4 +21,5 @@ class FakeAppContainer(
         SearchOutcome.Success(emptyList())
     },
     override val videoSearchSource: SearchSource = YtDlpVideoSearchSource(ytDlpEngine),
+    override val skipSegmentSource: SkipSegmentSource = SkipSegmentSource { emptyList() },
 ) : AppContainer

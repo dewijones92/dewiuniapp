@@ -7,6 +7,8 @@ import com.dewijones92.uniapp.data.podcast.PodcastRepository
 import com.dewijones92.uniapp.data.search.ItunesPodcastSearchSource
 import com.dewijones92.uniapp.data.search.SearchSource
 import com.dewijones92.uniapp.data.search.YtDlpVideoSearchSource
+import com.dewijones92.uniapp.data.sponsorblock.SkipSegmentSource
+import com.dewijones92.uniapp.data.sponsorblock.SponsorBlockSegmentSource
 import com.dewijones92.uniapp.database.RoomPodcastStore
 import com.dewijones92.uniapp.database.UniAppDatabase
 import com.dewijones92.uniapp.playback.Media3PlaybackController
@@ -26,6 +28,7 @@ interface AppContainer {
     val playbackController: PlaybackController
     val podcastSearchSource: SearchSource
     val videoSearchSource: SearchSource
+    val skipSegmentSource: SkipSegmentSource
 }
 
 class DefaultAppContainer(private val context: Context) : AppContainer {
@@ -52,12 +55,18 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
         Media3PlaybackController(context, applicationScope)
     }
 
+    private val textFetcher by lazy { OkHttpTextFetcher(httpClient) }
+
     override val podcastSearchSource: SearchSource by lazy {
-        ItunesPodcastSearchSource(OkHttpTextFetcher(httpClient))
+        ItunesPodcastSearchSource(textFetcher)
     }
 
     override val videoSearchSource: SearchSource by lazy {
         YtDlpVideoSearchSource(ytDlpEngine)
+    }
+
+    override val skipSegmentSource: SkipSegmentSource by lazy {
+        SponsorBlockSegmentSource(textFetcher)
     }
 
     private companion object {

@@ -11,6 +11,7 @@ import com.dewijones92.uniapp.data.search.SearchHit
 import com.dewijones92.uniapp.data.search.SearchOutcome
 import com.dewijones92.uniapp.data.search.SearchQuery
 import com.dewijones92.uniapp.data.search.SearchSource
+import com.dewijones92.uniapp.data.sponsorblock.SkipSegmentSource
 import com.dewijones92.uniapp.di.AppContainer
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.MediaItemId
@@ -36,6 +37,7 @@ class SearchViewModel(
     private val podcastRepository: PodcastRepository,
     private val engine: YtDlpEngine,
     private val playback: PlaybackController,
+    private val skipSegments: SkipSegmentSource,
 ) : ViewModel() {
 
     data class UiState(
@@ -115,6 +117,7 @@ class SearchViewModel(
                     thumbnailUrl = metadata.thumbnailUrl?.let(HttpUrl::parse),
                     mediaUrl = streamUrl,
                 ),
+                skipSegments = skipSegments.segmentsFor(metadata.id),
             )
             playAttempt.value = PlayAttempt()
         }
@@ -142,6 +145,7 @@ class SearchViewModel(
                     podcastRepository = container.podcastRepository,
                     engine = container.ytDlpEngine,
                     playback = container.playbackController,
+                    skipSegments = container.skipSegmentSource,
                 )
             }
         }

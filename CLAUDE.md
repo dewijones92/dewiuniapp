@@ -75,7 +75,13 @@ when driven on the emulator. Verify real flows on a device, not just via tests.
   fetcher, and the unified search seam: `SearchSource` port returning sealed
   `SearchHit`s (Podcast | Video), implemented by `ItunesPodcastSearchSource`
   (iTunes directory API) and `YtDlpVideoSearchSource` (engine `ytsearch`).
-  Business logic lives here, testably, off Android.
+  Also `SkipSegmentSource` (SponsorBlock-backed, fail-open: lookup failure =
+  no segments). Business logic lives here, testably, off Android.
+- Skip segments (`SkipSegment` + `skipTargetFor` in `:core:domain`) are
+  enforced in exactly one place — `Media3PlaybackController`'s position
+  ticker — so any pillar's playback skips them. Download-side SponsorBlock
+  (yt-dlp `--sponsorblock-remove`, needs ffmpeg) is deferred until downloads
+  exist.
 - `:core:database` — Android library (Room via KSP): entities, DAO, and
   `RoomPodcastStore` implementing `:core:data`'s `PodcastStore` port. The only
   place entities meet domain types. Verified by instrumented tests; exempt from

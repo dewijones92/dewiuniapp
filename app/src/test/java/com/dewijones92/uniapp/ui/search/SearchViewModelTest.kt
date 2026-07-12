@@ -6,6 +6,8 @@ import com.dewijones92.uniapp.data.search.SearchHit
 import com.dewijones92.uniapp.data.search.SearchOutcome
 import com.dewijones92.uniapp.data.search.SearchSource
 import com.dewijones92.uniapp.data.search.YtDlpVideoSearchSource
+import com.dewijones92.uniapp.data.sponsorblock.SkipSegmentSource
+import com.dewijones92.uniapp.domain.SkipSegment
 import com.dewijones92.uniapp.playback.fake.FakePlaybackController
 import com.dewijones92.uniapp.ui.search.SearchViewModel.Results
 import com.dewijones92.uniapp.ytdlp.fake.FakeYtDlpEngine
@@ -23,6 +25,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import kotlin.time.Duration.Companion.seconds
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SearchViewModelTest {
@@ -39,6 +42,8 @@ class SearchViewModelTest {
         feedUrl = HttpUrl.of("https://podcasts.files.bbci.co.uk/b006qykl.rss"),
     )
 
+    private var cannedSegments: List<SkipSegment> = emptyList()
+
     private fun viewModel(
         podcastSearch: SearchSource = SearchSource { _, _ -> SearchOutcome.Success(listOf(podcastHit)) },
     ) = SearchViewModel(
@@ -47,6 +52,7 @@ class SearchViewModelTest {
         podcastRepository = repository,
         engine = engine,
         playback = playback,
+        skipSegments = SkipSegmentSource { cannedSegments },
     )
 
     @Before
@@ -100,9 +106,10 @@ class SearchViewModelTest {
     }
 
     @Test
-    fun `playing a video hit resolves the stream through the engine`() = runTest(dispatcher) {
+    fun `playing a video hit resolves the stream and its skip segments`() = runTest(dispatcher) {
         val entry = FakeYtDlpEngine.sampleSearchEntry(id = "v9", title = "Playable")
         engine.registerMedia(entry.watchUrl, FakeYtDlpEngine.sampleMetadata(id = "v9"))
+        cannedSegments = listOf(SkipSegment(10.seconds, 25.seconds))
         val viewModel = viewModel()
         backgroundScope.launch { viewModel.uiState.collect {} }
 
@@ -120,6 +127,7 @@ class SearchViewModelTest {
         val playing = playback.state.value
         assertNotNull(playing)
         assertEquals("Sample video", playing?.title)
+        assertEquals(cannedSegments, playback.lastSkipSegments)
         assertEquals(false, viewModel.uiState.value.resolveFailed)
     }
 

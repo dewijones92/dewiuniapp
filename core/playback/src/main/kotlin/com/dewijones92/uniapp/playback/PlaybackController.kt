@@ -2,6 +2,7 @@ package com.dewijones92.uniapp.playback
 
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.MediaItemId
+import com.dewijones92.uniapp.domain.SkipSegment
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -14,8 +15,11 @@ public interface PlaybackController {
     /** Null when nothing has been queued this session. */
     public val state: StateFlow<PlaybackState?>
 
-    /** Starts (or restarts) playback of [item]. Requires [MediaItem.mediaUrl]. */
-    public fun play(item: MediaItem)
+    /**
+     * Starts (or restarts) playback of [item]. Requires [MediaItem.mediaUrl].
+     * Any [skipSegments] (e.g. SponsorBlock) are jumped over automatically.
+     */
+    public fun play(item: MediaItem, skipSegments: List<SkipSegment> = emptyList())
 
     /** Toggles play/pause of the current item; no-op when nothing is queued. */
     public fun togglePlayPause()

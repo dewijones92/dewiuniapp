@@ -9,12 +9,15 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.MediaItemId
+import com.dewijones92.uniapp.domain.SkipSegment
+import com.dewijones92.uniapp.domain.skipTargetFor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlin.time.Duration.Companion.milliseconds
 import androidx.media3.common.MediaItem as Media3MediaItem
 
 /**
@@ -32,6 +35,7 @@ public class Media3PlaybackController(
 
     private var controller: MediaController? = null
     private val pendingCommands = mutableListOf<(MediaController) -> Unit>()
+    private var activeSkipSegments: List<SkipSegment> = emptyList()
 
     init {
         val token = SessionToken(context, ComponentName(context, PlaybackService::class.java))
@@ -55,8 +59,9 @@ public class Media3PlaybackController(
         )
     }
 
-    override fun play(item: MediaItem) {
+    override fun play(item: MediaItem, skipSegments: List<SkipSegment>) {
         val url = requireNotNull(item.mediaUrl) { "MediaItem ${item.id.value} has no mediaUrl" }
+        activeSkipSegments = skipSegments
         withController { controller ->
             controller.setMediaItem(
                 Media3MediaItem.Builder()
@@ -87,10 +92,19 @@ public class Media3PlaybackController(
     private fun startPositionTicker(controller: MediaController) {
         scope.launch {
             while (isActive) {
-                if (controller.isPlaying) _state.value = controller.currentPlaybackState()
+                if (controller.isPlaying) {
+                    applySkipSegments(controller)
+                    _state.value = controller.currentPlaybackState()
+                }
                 delay(POSITION_TICK_MS)
             }
         }
+    }
+
+    /** The one place segment-skipping happens, for every pillar. */
+    private fun applySkipSegments(controller: MediaController) {
+        val target = activeSkipSegments.skipTargetFor(controller.currentPosition.milliseconds) ?: return
+        controller.seekTo(target.inWholeMilliseconds)
     }
 
     private fun MediaController.currentPlaybackState(): PlaybackState? {

@@ -1,6 +1,7 @@
 package com.dewijones92.uniapp.playback.fake
 
 import com.dewijones92.uniapp.domain.MediaItem
+import com.dewijones92.uniapp.domain.SkipSegment
 import com.dewijones92.uniapp.playback.PlaybackController
 import com.dewijones92.uniapp.playback.PlaybackState
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -13,7 +14,12 @@ public class FakePlaybackController : PlaybackController {
     private val _state = MutableStateFlow<PlaybackState?>(null)
     override val state: StateFlow<PlaybackState?> = _state
 
-    override fun play(item: MediaItem) {
+    /** Segments handed to the most recent [play] call, for assertions. */
+    public var lastSkipSegments: List<SkipSegment> = emptyList()
+        private set
+
+    override fun play(item: MediaItem, skipSegments: List<SkipSegment>) {
+        lastSkipSegments = skipSegments
         _state.value = PlaybackState(
             itemId = item.id,
             title = item.title,
