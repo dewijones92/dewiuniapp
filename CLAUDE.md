@@ -74,13 +74,19 @@ when driven on the emulator. Verify real flows on a device, not just via tests.
 - `:lib:ytdlp` — from-scratch yt-dlp Android library (replaces the
   youtubedl-android fork). Public API: `YtDlpEngine` (suspend `extract`,
   cold-`Flow` `download`, sealed `ExtractionResult`/`DownloadEvent`);
-  `fake.FakeYtDlpEngine` implements it for tests/previews. The real engine
-  (embedded CPython 3.13+ via JNI running actual yt-dlp) is the next phase.
-  Key constraint: Android W^X — executables/native code must ship in the
-  APK's native-lib dir or run in-process; nothing downloaded can be executed.
-  yt-dlp itself (pure Python) *can* be self-updated at runtime; the
-  interpreter and ffmpeg cannot. Deliberately independent of `:core:domain`
-  (standalone, reusable); the app maps between their types.
+  `fake.FakeYtDlpEngine` implements it for tests/previews. Deliberately
+  independent of `:core:domain` (standalone, reusable); the app maps between
+  their types.
+- `:lib:ytdlp-chaquopy` — the real engine: yt-dlp on embedded CPython 3.12
+  via Chaquopy 17 (MIT). `uniapp_ytdlp.py` is a thin JSON-in/JSON-out bridge;
+  `BridgeJson.kt` parses it (JVM unit-tested); `ChaquopyYtDlpEngine`
+  implements the API. Chaquopy constraints: exactly ONE module per app may
+  apply the plugin; build-host Python minor version must match the target
+  (3.12 here); NOT configuration-cache compatible (config cache disabled in
+  gradle.properties because of this). ABIs: arm64-v8a + x86_64. Adds ~80MB
+  to the APK (Python runtime per ABI). yt-dlp itself (pure Python) can be
+  self-updated at runtime; the interpreter and ffmpeg cannot (Android W^X).
+  ffmpeg is not yet bundled — needed later for merged best-quality streams.
 - `:lib:common` — pure-Kotlin utility module with no app dependencies, shared
   by app modules and standalone libraries alike (it would be published
   alongside `:lib:ytdlp`, like the old youtubedl-android's `common` module).

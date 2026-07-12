@@ -6,15 +6,18 @@ import com.dewijones92.uniapp.data.podcast.OkHttpFeedFetcher
 import com.dewijones92.uniapp.data.podcast.PodcastRepository
 import com.dewijones92.uniapp.database.RoomPodcastStore
 import com.dewijones92.uniapp.database.UniAppDatabase
+import com.dewijones92.uniapp.ytdlp.YtDlpEngine
+import com.dewijones92.uniapp.ytdlp.chaquopy.ChaquopyYtDlpEngine
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
 
 /** The app's dependency graph. Manual DI: construction is code, errors are compile-time. */
 interface AppContainer {
     val podcastRepository: PodcastRepository
+    val ytDlpEngine: YtDlpEngine
 }
 
-class DefaultAppContainer(context: Context) : AppContainer {
+class DefaultAppContainer(private val context: Context) : AppContainer {
 
     private val httpClient: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(HTTP_TIMEOUT_SECONDS, TimeUnit.SECONDS)
@@ -29,6 +32,8 @@ class DefaultAppContainer(context: Context) : AppContainer {
             store = RoomPodcastStore(database.podcastDao()),
         )
     }
+
+    override val ytDlpEngine: YtDlpEngine by lazy { ChaquopyYtDlpEngine(context) }
 
     private companion object {
         const val HTTP_TIMEOUT_SECONDS = 20L

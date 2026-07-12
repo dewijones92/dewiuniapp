@@ -22,4 +22,14 @@
     <string name="error_network">Couldn\'t reach that feed. Check your connection and try again.</string>
     <string name="error_invalid_feed">That URL doesn\'t point to a podcast feed.</string>
     <string name="error_already_subscribed">You\'re already subscribed to this podcast.</string>
+
+    <string name="check_video">Check a video link</string>
+    <string name="video_url_label">Video URL</string>
+    <string name="check">Check</string>
+    <plurals name="formats_available">
+        <item quantity="one">%1$d format available</item>
+        <item quantity="other">%1$d formats available</item>
+    </plurals>
+    <string name="error_unsupported_url">No extractor recognises that link.</string>
+    <string name="error_extraction">That link was recognised but couldn\'t be read (it may be private, removed or geo-blocked).</string>
 </resources>

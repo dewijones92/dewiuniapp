@@ -41,6 +41,7 @@ kotlin {
 dependencies {
   implementation(project(":core:data"))
   implementation(project(":core:database"))
+  implementation(project(":lib:ytdlp-chaquopy"))
 
   val composeBom = platform(libs.androidx.compose.bom)
   implementation(composeBom)

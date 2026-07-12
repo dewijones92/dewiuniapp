@@ -14,7 +14,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         val container = (application as UniAppApplication).container
         setContent {
-            UniAppTheme { AppShell(container.podcastRepository) }
+            UniAppTheme { AppShell(container) }
         }
     }
 }
