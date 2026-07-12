@@ -42,9 +42,13 @@ in favour of a from-scratch library — see Decisions).
 
 ```bash
 ./gradlew assembleDebug          # build debug APK
-./gradlew testDebugUnitTest      # unit tests
+./gradlew detekt lint test koverVerify   # the full local gate (matches CI)
 ./gradlew connectedDebugAndroidTest  # instrumented tests (device/emulator needed)
 ```
+
+On-device testing matters: the podcast RSS bug (Android's Expat parser rejecting
+`DocumentBuilder` bean-property toggles) passed every JVM test and only surfaced
+when driven on the emulator. Verify real flows on a device, not just via tests.
 
 - JDK 21 lives at `/home/dewi/code/jdk/`; Android SDK at `/home/dewi/code/android-sdk`
   (see `local.properties`, not committed).
@@ -56,9 +60,17 @@ in favour of a from-scratch library — see Decisions).
 - `:app` — Compose UI: `AppShell` bottom navigation across the pillars
   (Videos / Podcasts / Library), theme, screens.
 - `:core:domain` — pure-Kotlin (JVM) unified media model: `MediaSource`
-  (VideoChannel | PodcastFeed), `MediaItem`, `Subscription`, validated value
-  classes (`WebUrl`, `SourceId`, …). No Android dependency — leakage is a
-  compile error. `explicitApi()` is on.
+  (VideoChannel | PodcastFeed), `MediaItem`, `Subscription`, `SourceId`. No
+  Android dependency — leakage is a compile error. `explicitApi()` is on.
+- `:core:data` — pure-Kotlin (JVM): `RssParser` (hardened DOM), the
+  `PodcastRepository` and its `FeedFetcher`/`PodcastStore` ports, OkHttp
+  fetcher. Business logic lives here, testably, off Android.
+- `:core:database` — Android library (Room via KSP): entities, DAO, and
+  `RoomPodcastStore` implementing `:core:data`'s `PodcastStore` port. The only
+  place entities meet domain types. Verified by instrumented tests; exempt from
+  the Kover JVM gate.
+- Manual DI: `AppContainer` (in `:app`) wires the graph; construction is code,
+  errors are compile-time. No Hilt/Koin.
 - `:lib:ytdlp` — from-scratch yt-dlp Android library (replaces the
   youtubedl-android fork). Public API: `YtDlpEngine` (suspend `extract`,
   cold-`Flow` `download`, sealed `ExtractionResult`/`DownloadEvent`);
