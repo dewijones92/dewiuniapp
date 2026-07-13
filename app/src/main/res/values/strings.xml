@@ -34,6 +34,14 @@
     <string name="feed_history">History</string>
     <string name="feed_error">Couldn\'t load this feed. Check your connection and try again.</string>
     <string name="feed_empty">Nothing here yet.</string>
+
+    <string name="comments_title">Comments</string>
+    <string name="comments_loading">Loading comments…</string>
+    <string name="comments_empty">No comments.</string>
+    <string name="comments_disabled">Comments are turned off for this video.</string>
+    <string name="comments_error">Couldn\'t load comments.</string>
+    <!-- Compact reply count next to a comment; English-only app. -->
+    <string name="comments_replies" tools:ignore="PluralsCandidate">%1$d replies</string>
     <string name="error_not_a_channel">That URL doesn\'t look like a channel.</string>
     <string name="error_already_subscribed_channel">You\'re already subscribed to this channel.</string>
     <string name="error_extraction">That link was recognised but couldn\'t be read (it may be private, removed or geo-blocked).</string>

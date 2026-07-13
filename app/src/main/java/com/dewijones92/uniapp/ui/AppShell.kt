@@ -9,6 +9,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -17,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dewijones92.uniapp.di.AppContainer
 import com.dewijones92.uniapp.di.fake.FakeAppContainer
 import com.dewijones92.uniapp.navigation.TopLevelDestination
@@ -27,6 +29,7 @@ import com.dewijones92.uniapp.ui.account.AccountScreen
 import com.dewijones92.uniapp.ui.common.MiniPlayerBar
 import com.dewijones92.uniapp.ui.common.RequestNotificationPermissionOnFirstPlay
 import com.dewijones92.uniapp.ui.library.LibraryScreen
+import com.dewijones92.uniapp.ui.player.CommentsViewModel
 import com.dewijones92.uniapp.ui.player.FullPlayerDialog
 import com.dewijones92.uniapp.ui.podcasts.PodcastsScreen
 import com.dewijones92.uniapp.ui.search.SearchScreen
@@ -46,7 +49,7 @@ fun AppShell(container: AppContainer, modifier: Modifier = Modifier) {
     RequestNotificationPermissionOnFirstPlay(playbackActive = playbackState != null)
 
     playbackState?.takeIf { showFullPlayer }?.let { state ->
-        FullPlayerHost(state, controller) { showFullPlayer = false }
+        FullPlayerHost(state, controller, container) { showFullPlayer = false }
     }
 
     Scaffold(
@@ -98,11 +101,20 @@ fun AppShell(container: AppContainer, modifier: Modifier = Modifier) {
 private fun FullPlayerHost(
     state: PlaybackState,
     controller: PlaybackController,
+    container: AppContainer,
     onDismiss: () -> Unit,
 ) {
+    val commentsViewModel: CommentsViewModel = viewModel(factory = CommentsViewModel.factory(container))
+    // For YouTube videos the item id IS the video id; load comments when it's a video.
+    LaunchedEffect(state.itemId, state.hasVideo) {
+        if (state.hasVideo) commentsViewModel.load(state.itemId.value)
+    }
+    val comments by commentsViewModel.state.collectAsStateWithLifecycle()
+
     FullPlayerDialog(
         state = state,
         player = controller.player,
+        comments = comments,
         onDismiss = onDismiss,
         onTogglePlayPause = controller::togglePlayPause,
         onSeekTo = controller::seekTo,

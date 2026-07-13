@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Forward30
@@ -46,6 +48,7 @@ import androidx.media3.ui.compose.PlayerSurface
 import androidx.media3.ui.compose.SURFACE_TYPE_TEXTURE_VIEW
 import com.dewijones92.uniapp.R
 import com.dewijones92.uniapp.playback.PlaybackState
+import com.dewijones92.uniapp.ui.player.CommentsViewModel.UiState
 import java.util.concurrent.TimeUnit
 
 /**
@@ -57,6 +60,7 @@ import java.util.concurrent.TimeUnit
 fun FullPlayerDialog(
     state: PlaybackState,
     player: Player?,
+    comments: UiState,
     onDismiss: () -> Unit,
     onTogglePlayPause: () -> Unit,
     onSeekTo: (Long) -> Unit,
@@ -70,6 +74,7 @@ fun FullPlayerDialog(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
                     .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
@@ -110,9 +115,82 @@ fun FullPlayerDialog(
 
                 Spacer(Modifier.height(24.dp))
                 SpeedControl(state.speed, onSetSpeed)
+
+                // Comments live under the video, YouTube-style; audio items have none.
+                if (state.hasVideo) {
+                    Spacer(Modifier.height(32.dp))
+                    CommentsSection(comments)
+                }
             }
         }
     }
+}
+
+@Composable
+private fun CommentsSection(comments: UiState, modifier: Modifier = Modifier) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        Text(
+            text = stringResource(R.string.comments_title),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(bottom = 12.dp),
+        )
+        when (comments) {
+            UiState.Loading -> CommentsNote(stringResource(R.string.comments_loading))
+            UiState.Disabled -> CommentsNote(stringResource(R.string.comments_disabled))
+            UiState.Error -> CommentsNote(stringResource(R.string.comments_error))
+            is UiState.Loaded ->
+                if (comments.comments.isEmpty()) {
+                    CommentsNote(stringResource(R.string.comments_empty))
+                } else {
+                    comments.comments.forEach { comment -> CommentRow(comment) }
+                }
+        }
+    }
+}
+
+@Composable
+private fun CommentRow(comment: com.dewijones92.uniapp.innertube.comments.Comment) {
+    Column(modifier = Modifier.padding(bottom = 16.dp)) {
+        val author = buildString {
+            append(comment.author)
+            comment.publishedTime?.let { append("  ·  ").append(it) }
+        }
+        Text(
+            text = author,
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(text = comment.text, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 2.dp))
+        val repliesLabel = if (comment.replyCount > 0) {
+            stringResource(R.string.comments_replies, comment.replyCount)
+        } else {
+            null
+        }
+        val meta = buildString {
+            comment.likeCount?.let { append("👍 ").append(it) }
+            repliesLabel?.let {
+                if (isNotEmpty()) append("   ")
+                append(it)
+            }
+        }
+        if (meta.isNotEmpty()) {
+            Text(
+                text = meta,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun CommentsNote(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])

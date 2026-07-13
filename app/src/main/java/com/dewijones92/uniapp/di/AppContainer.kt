@@ -25,6 +25,8 @@ import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.innertube.auth.HttpYouTubeAuth
 import com.dewijones92.uniapp.innertube.auth.YouTubeAccount
 import com.dewijones92.uniapp.innertube.browse.InnerTubeClient
+import com.dewijones92.uniapp.innertube.comments.HttpYouTubeComments
+import com.dewijones92.uniapp.innertube.comments.YouTubeComments
 import com.dewijones92.uniapp.innertube.feeds.HttpYouTubeFeeds
 import com.dewijones92.uniapp.innertube.feeds.YouTubeFeeds
 import com.dewijones92.uniapp.innertube.subscriptions.HttpYouTubeSubscriptions
@@ -62,6 +64,9 @@ interface AppContainer {
 
     /** The signed-in account's video feeds (home, subs, watch later, history). */
     val youTubeFeeds: YouTubeFeeds
+
+    /** A video's comments (public; no sign-in needed). */
+    val youTubeComments: YouTubeComments
 
     /**
      * Kick off background upkeep on app start (currently: fetch the latest
@@ -169,6 +174,10 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
 
     override val youTubeFeeds: YouTubeFeeds by lazy {
         HttpYouTubeFeeds(youTubeAccount, innerTubeClient)
+    }
+
+    override val youTubeComments: YouTubeComments by lazy {
+        HttpYouTubeComments(innerTubeClient)
     }
 
     private companion object {
