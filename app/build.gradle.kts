@@ -87,6 +87,7 @@ dependencies {
   implementation(project(":core:playback"))
   implementation(project(":core:domain"))
   implementation(project(":lib:ytdlp-chaquopy"))
+  implementation(project(":lib:innertube"))
 
   val composeBom = platform(libs.androidx.compose.bom)
   implementation(composeBom)

@@ -23,6 +23,7 @@ import com.dewijones92.uniapp.navigation.TopLevelDestination
 import com.dewijones92.uniapp.playback.PlaybackController
 import com.dewijones92.uniapp.playback.PlaybackState
 import com.dewijones92.uniapp.theme.UniAppTheme
+import com.dewijones92.uniapp.ui.account.AccountScreen
 import com.dewijones92.uniapp.ui.common.MiniPlayerBar
 import com.dewijones92.uniapp.ui.common.RequestNotificationPermissionOnFirstPlay
 import com.dewijones92.uniapp.ui.library.LibraryScreen
@@ -86,6 +87,7 @@ fun AppShell(container: AppContainer, modifier: Modifier = Modifier) {
                 TopLevelDestination.Podcasts -> PodcastsScreen(container)
                 TopLevelDestination.Search -> SearchScreen(container)
                 TopLevelDestination.Library -> LibraryScreen(container)
+                TopLevelDestination.Account -> AccountScreen(container)
             }
         }
     }

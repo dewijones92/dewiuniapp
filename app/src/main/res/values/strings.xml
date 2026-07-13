@@ -5,6 +5,7 @@
     <string name="destination_podcasts">Podcasts</string>
     <string name="destination_search">Search</string>
     <string name="destination_library">Library</string>
+    <string name="destination_account">Account</string>
 
     <string name="videos_empty_headline">No videos yet</string>
     <string name="videos_empty_supporting">Subscribe to channels and their latest videos will appear here.</string>
@@ -46,4 +47,17 @@
     <string name="search_empty_supporting">Podcasts and videos, one search box.</string>
     <string name="search_section_failed">This search source couldn\'t be reached.</string>
     <string name="subscribed">Subscribed</string>
+
+    <string name="account_signed_out_headline">Sign in to YouTube</string>
+    <string name="account_signed_out_supporting">Bring in your subscriptions, history and Watch Later — and comment, like and subscribe from here.</string>
+    <string name="account_sign_in">Sign in</string>
+    <string name="account_pairing_instructions">On any device, open this page and enter the code:</string>
+    <string name="account_pairing_waiting">Waiting for you to approve the sign-in…</string>
+    <string name="account_signed_in_headline">Signed in to YouTube</string>
+    <string name="account_signed_in_supporting">Your account is connected. Your subscriptions and feeds are available across the app.</string>
+    <string name="account_sign_out">Sign out</string>
+    <string name="account_try_again">Try again</string>
+    <string name="account_failed_denied">Sign-in was declined. You can try again whenever you like.</string>
+    <string name="account_failed_expired">That code expired before it was approved. Start again for a fresh one.</string>
+    <string name="account_failed_network">Couldn\'t reach YouTube. Check your connection and try again.</string>
 </resources>

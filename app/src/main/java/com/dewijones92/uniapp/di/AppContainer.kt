@@ -1,6 +1,7 @@
 package com.dewijones92.uniapp.di
 
 import android.content.Context
+import com.dewijones92.uniapp.account.SharedPrefsTokenStore
 import com.dewijones92.uniapp.data.channel.ChannelRepository
 import com.dewijones92.uniapp.data.channel.DefaultChannelRepository
 import com.dewijones92.uniapp.data.download.DefaultDownloadManager
@@ -20,6 +21,8 @@ import com.dewijones92.uniapp.database.RoomDownloadStore
 import com.dewijones92.uniapp.database.RoomSubscriptionStore
 import com.dewijones92.uniapp.database.UniAppDatabase
 import com.dewijones92.uniapp.domain.MediaItem
+import com.dewijones92.uniapp.innertube.auth.HttpYouTubeAuth
+import com.dewijones92.uniapp.innertube.auth.YouTubeAccount
 import com.dewijones92.uniapp.playback.Media3PlaybackController
 import com.dewijones92.uniapp.playback.PlaybackController
 import com.dewijones92.uniapp.video.VideoResolver
@@ -45,6 +48,9 @@ interface AppContainer {
     val skipSegmentSource: SkipSegmentSource
     val downloadManager: DownloadManager
     val videoResolver: VideoResolver
+
+    /** The signed-in YouTube account seam (device-code login, token upkeep). */
+    val youTubeAccount: YouTubeAccount
 
     /**
      * Kick off background upkeep on app start (currently: fetch the latest
@@ -132,6 +138,13 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
 
     override val videoResolver: VideoResolver by lazy {
         VideoResolver(ytDlpEngine, skipSegmentSource)
+    }
+
+    override val youTubeAccount: YouTubeAccount by lazy {
+        YouTubeAccount(
+            auth = HttpYouTubeAuth(httpClient),
+            store = SharedPrefsTokenStore(context),
+        )
     }
 
     private companion object {
