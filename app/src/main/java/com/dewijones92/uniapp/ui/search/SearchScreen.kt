@@ -55,6 +55,7 @@ fun SearchScreen(container: AppContainer, modifier: Modifier = Modifier) {
     SearchContent(
         state = state,
         onSearch = viewModel::search,
+        onQueryChange = viewModel::onQueryChange,
         onSubscribe = viewModel::subscribe,
         onPlayVideo = viewModel::playVideo,
         modifier = modifier,
@@ -65,6 +66,7 @@ fun SearchScreen(container: AppContainer, modifier: Modifier = Modifier) {
 internal fun SearchContent(
     state: UiState,
     onSearch: (String) -> Unit,
+    onQueryChange: (String) -> Unit,
     onSubscribe: (SearchHit.Podcast) -> Unit,
     onPlayVideo: (SearchHit.Video) -> Unit,
     modifier: Modifier = Modifier,
@@ -74,7 +76,10 @@ internal fun SearchContent(
     Column(modifier = modifier.fillMaxSize()) {
         OutlinedTextField(
             value = query,
-            onValueChange = { query = it },
+            onValueChange = {
+                query = it
+                onQueryChange(it)
+            },
             label = { Text(stringResource(R.string.search_hint)) },
             singleLine = true,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),

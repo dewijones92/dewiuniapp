@@ -81,6 +81,25 @@ class SearchViewModelTest {
     }
 
     @Test
+    fun `typing drives a debounced search once the query is long enough`() = runTest(dispatcher) {
+        engine.registerSearch("time", listOf(FakeYtDlpEngine.sampleSearchEntry()))
+        val viewModel = viewModel()
+        backgroundScope.launch { viewModel.uiState.collect {} }
+
+        // A single character stays Idle — we don't hammer the backends per keystroke.
+        viewModel.onQueryChange("t")
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.results is Results.Idle)
+
+        // Enough characters: after the debounce, results load without an explicit submit.
+        viewModel.onQueryChange("time")
+        advanceUntilIdle()
+        val results = viewModel.uiState.value.results as Results.Loaded
+        assertEquals(listOf(podcastHit), results.podcasts)
+        assertEquals(1, results.videos.size)
+    }
+
+    @Test
     fun `one backend failing does not hide the other`() = runTest(dispatcher) {
         engine.registerSearch("time", listOf(FakeYtDlpEngine.sampleSearchEntry()))
         val viewModel = viewModel(podcastSearch = SearchSource { _, _ -> SearchOutcome.Failure("down") })
