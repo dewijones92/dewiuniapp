@@ -29,8 +29,9 @@ import com.dewijones92.uniapp.ui.account.AccountScreen
 import com.dewijones92.uniapp.ui.common.MiniPlayerBar
 import com.dewijones92.uniapp.ui.common.RequestNotificationPermissionOnFirstPlay
 import com.dewijones92.uniapp.ui.library.LibraryScreen
-import com.dewijones92.uniapp.ui.player.CommentsViewModel
 import com.dewijones92.uniapp.ui.player.FullPlayerDialog
+import com.dewijones92.uniapp.ui.player.WatchActions
+import com.dewijones92.uniapp.ui.player.WatchViewModel
 import com.dewijones92.uniapp.ui.podcasts.PodcastsScreen
 import com.dewijones92.uniapp.ui.search.SearchScreen
 import com.dewijones92.uniapp.ui.videos.VideosScreen
@@ -104,17 +105,28 @@ private fun FullPlayerHost(
     container: AppContainer,
     onDismiss: () -> Unit,
 ) {
-    val commentsViewModel: CommentsViewModel = viewModel(factory = CommentsViewModel.factory(container))
-    // For YouTube videos the item id IS the video id; load comments when it's a video.
+    val watchViewModel: WatchViewModel = viewModel(factory = WatchViewModel.factory(container))
+    // For YouTube videos the item id IS the video id; bind when it's a video.
     LaunchedEffect(state.itemId, state.hasVideo) {
-        if (state.hasVideo) commentsViewModel.load(state.itemId.value)
+        if (state.hasVideo) watchViewModel.bind(state.itemId.value)
     }
-    val comments by commentsViewModel.state.collectAsStateWithLifecycle()
+    val comments by watchViewModel.comments.collectAsStateWithLifecycle()
+    val signedIn by watchViewModel.signedIn.collectAsStateWithLifecycle()
+    val liked by watchViewModel.liked.collectAsStateWithLifecycle()
+    val postState by watchViewModel.postState.collectAsStateWithLifecycle()
 
     FullPlayerDialog(
         state = state,
         player = controller.player,
         comments = comments,
+        watchActions = WatchActions(
+            canAct = signedIn,
+            liked = liked,
+            onToggleLike = watchViewModel::toggleLike,
+            postState = postState,
+            onPostComment = watchViewModel::postComment,
+            onPostHandled = watchViewModel::clearPostState,
+        ),
         onDismiss = onDismiss,
         onTogglePlayPause = controller::togglePlayPause,
         onSeekTo = controller::seekTo,

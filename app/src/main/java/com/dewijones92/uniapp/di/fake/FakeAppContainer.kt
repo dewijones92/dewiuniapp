@@ -12,6 +12,8 @@ import com.dewijones92.uniapp.data.search.SearchSource
 import com.dewijones92.uniapp.data.search.YtDlpVideoSearchSource
 import com.dewijones92.uniapp.data.sponsorblock.SkipSegmentSource
 import com.dewijones92.uniapp.di.AppContainer
+import com.dewijones92.uniapp.innertube.actions.YouTubeActions
+import com.dewijones92.uniapp.innertube.actions.fake.FakeYouTubeActions
 import com.dewijones92.uniapp.innertube.auth.YouTubeAccount
 import com.dewijones92.uniapp.innertube.auth.fake.FakeYouTubeAuth
 import com.dewijones92.uniapp.innertube.auth.fake.InMemoryTokenStore
@@ -44,6 +46,7 @@ class FakeAppContainer(
         SubscriptionImporter(FakeYouTubeSubscriptions(), channelRepository),
     override val youTubeFeeds: YouTubeFeeds = FakeYouTubeFeeds(),
     override val youTubeComments: YouTubeComments = FakeYouTubeComments(),
+    override val youTubeActions: YouTubeActions = FakeYouTubeActions(),
 ) : AppContainer {
     override fun refreshExtractorEngine() = Unit
 }

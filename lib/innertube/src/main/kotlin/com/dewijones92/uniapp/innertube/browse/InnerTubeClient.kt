@@ -29,13 +29,8 @@ public class InnerTubeClient(
     private val webClientVersion: String = WEB_CLIENT_VERSION,
 ) {
 
-    public suspend fun browse(browseId: String, accessToken: AccessToken): InnerTubeResponse {
-        val payload = """
-            {"context":{"client":{"clientName":"TVHTML5","clientVersion":"$tvClientVersion"}},
-             "browseId":"$browseId"}
-        """.trimIndent()
-        return execute(browseUrl, payload, accessToken)
-    }
+    public suspend fun browse(browseId: String, accessToken: AccessToken): InnerTubeResponse =
+        execute(browseUrl, tvContext(""" "browseId":"$browseId" """), accessToken)
 
     /** Watch-page data for a video (WEB client, no auth). */
     public suspend fun next(videoId: String): InnerTubeResponse =
@@ -44,6 +39,17 @@ public class InnerTubeClient(
     /** Follows a continuation token (e.g. loading comments; WEB client, no auth). */
     public suspend fun nextContinuation(continuation: String): InnerTubeResponse =
         execute(nextUrl, webContext(""" "continuation":"$continuation" """), bearer = null)
+
+    /**
+     * Authenticated write action (like, subscribe, comment, …) as the TV
+     * client. [fieldsJson] is the request body minus the context (e.g.
+     * `"target":{"videoId":"…"}`).
+     */
+    public suspend fun action(url: String, fieldsJson: String, accessToken: AccessToken): InnerTubeResponse =
+        execute(url, tvContext(fieldsJson), accessToken)
+
+    private fun tvContext(fields: String): String =
+        """{"context":{"client":{"clientName":"TVHTML5","clientVersion":"$tvClientVersion"}},$fields}"""
 
     private fun webContext(field: String): String =
         """{"context":{"client":{"clientName":"WEB","clientVersion":"$webClientVersion"}},$field}"""
@@ -71,8 +77,14 @@ public class InnerTubeClient(
         }
 
     public companion object {
-        public const val BROWSE_URL: String = "https://www.youtube.com/youtubei/v1/browse?prettyPrint=false"
-        public const val NEXT_URL: String = "https://www.youtube.com/youtubei/v1/next?prettyPrint=false"
+        private const val BASE: String = "https://www.youtube.com/youtubei/v1"
+        public const val BROWSE_URL: String = "$BASE/browse?prettyPrint=false"
+        public const val NEXT_URL: String = "$BASE/next?prettyPrint=false"
+        public const val LIKE_URL: String = "$BASE/like/like?prettyPrint=false"
+        public const val REMOVE_LIKE_URL: String = "$BASE/like/removelike?prettyPrint=false"
+        public const val SUBSCRIBE_URL: String = "$BASE/subscription/subscribe?prettyPrint=false"
+        public const val UNSUBSCRIBE_URL: String = "$BASE/subscription/unsubscribe?prettyPrint=false"
+        public const val CREATE_COMMENT_URL: String = "$BASE/comment/create_comment?prettyPrint=false"
         public const val TV_CLIENT_VERSION: String = "7.20240401.10.00"
         public const val WEB_CLIENT_VERSION: String = "2.20240726.00.00"
         private const val HTTP_UNAUTHORIZED = 401

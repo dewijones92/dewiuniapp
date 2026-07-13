@@ -18,17 +18,21 @@ import androidx.compose.material.icons.filled.Forward30
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay10
+import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material.icons.outlined.Speed
+import androidx.compose.material.icons.outlined.ThumbUp
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -47,8 +51,10 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.compose.PlayerSurface
 import androidx.media3.ui.compose.SURFACE_TYPE_TEXTURE_VIEW
 import com.dewijones92.uniapp.R
+import com.dewijones92.uniapp.innertube.comments.Comment
 import com.dewijones92.uniapp.playback.PlaybackState
-import com.dewijones92.uniapp.ui.player.CommentsViewModel.UiState
+import com.dewijones92.uniapp.ui.player.WatchViewModel.CommentsState
+import com.dewijones92.uniapp.ui.player.WatchViewModel.PostState
 import java.util.concurrent.TimeUnit
 
 /**
@@ -60,7 +66,8 @@ import java.util.concurrent.TimeUnit
 fun FullPlayerDialog(
     state: PlaybackState,
     player: Player?,
-    comments: UiState,
+    comments: CommentsState,
+    watchActions: WatchActions,
     onDismiss: () -> Unit,
     onTogglePlayPause: () -> Unit,
     onSeekTo: (Long) -> Unit,
@@ -116,29 +123,68 @@ fun FullPlayerDialog(
                 Spacer(Modifier.height(24.dp))
                 SpeedControl(state.speed, onSetSpeed)
 
+                // Like — signed-in write action, keyed by the current video.
+                if (state.hasVideo && watchActions.canAct) {
+                    Spacer(Modifier.height(16.dp))
+                    LikeButton(watchActions.liked, watchActions.onToggleLike)
+                }
+
                 // Comments live under the video, YouTube-style; audio items have none.
                 if (state.hasVideo) {
                     Spacer(Modifier.height(32.dp))
-                    CommentsSection(comments)
+                    CommentsSection(comments, watchActions)
                 }
             }
         }
     }
 }
 
+/** The signed-in write actions available on the watch page. */
+data class WatchActions(
+    val canAct: Boolean,
+    val liked: Boolean,
+    val onToggleLike: () -> Unit,
+    val postState: PostState,
+    val onPostComment: (String) -> Unit,
+    val onPostHandled: () -> Unit,
+) {
+    companion object {
+        /** No account connected: reading only. */
+        val ReadOnly: WatchActions = WatchActions(false, false, {}, PostState.Idle, {}, {})
+    }
+}
+
 @Composable
-private fun CommentsSection(comments: UiState, modifier: Modifier = Modifier) {
+private fun LikeButton(liked: Boolean, onToggleLike: () -> Unit) {
+    TextButton(onClick = onToggleLike) {
+        Icon(
+            imageVector = if (liked) Icons.Filled.ThumbUp else Icons.Outlined.ThumbUp,
+            contentDescription = stringResource(R.string.like),
+            tint = if (liked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = stringResource(if (liked) R.string.liked else R.string.like),
+            modifier = Modifier.padding(start = 8.dp),
+        )
+    }
+}
+
+@Composable
+private fun CommentsSection(comments: CommentsState, watchActions: WatchActions, modifier: Modifier = Modifier) {
     Column(modifier = modifier.fillMaxWidth()) {
         Text(
             text = stringResource(R.string.comments_title),
             style = MaterialTheme.typography.titleMedium,
             modifier = Modifier.padding(bottom = 12.dp),
         )
+        if (watchActions.canAct) {
+            CommentComposer(watchActions)
+        }
         when (comments) {
-            UiState.Loading -> CommentsNote(stringResource(R.string.comments_loading))
-            UiState.Disabled -> CommentsNote(stringResource(R.string.comments_disabled))
-            UiState.Error -> CommentsNote(stringResource(R.string.comments_error))
-            is UiState.Loaded ->
+            CommentsState.Loading -> CommentsNote(stringResource(R.string.comments_loading))
+            CommentsState.Disabled -> CommentsNote(stringResource(R.string.comments_disabled))
+            CommentsState.Error -> CommentsNote(stringResource(R.string.comments_error))
+            is CommentsState.Loaded ->
                 if (comments.comments.isEmpty()) {
                     CommentsNote(stringResource(R.string.comments_empty))
                 } else {
@@ -149,7 +195,48 @@ private fun CommentsSection(comments: UiState, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun CommentRow(comment: com.dewijones92.uniapp.innertube.comments.Comment) {
+private fun CommentComposer(watchActions: WatchActions) {
+    var text by remember { mutableStateOf("") }
+    // Clear the box once a post lands, then reset the state (as an effect, not in composition).
+    LaunchedEffect(watchActions.postState) {
+        if (watchActions.postState == PostState.Posted) {
+            text = ""
+            watchActions.onPostHandled()
+        }
+    }
+    Column(modifier = Modifier.padding(bottom = 20.dp)) {
+        OutlinedTextField(
+            value = text,
+            onValueChange = { text = it },
+            placeholder = { Text(stringResource(R.string.comment_hint)) },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = watchActions.postState != PostState.Posting,
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 4.dp),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (watchActions.postState == PostState.Failed) {
+                Text(
+                    text = stringResource(R.string.comment_failed),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(end = 12.dp),
+                )
+            }
+            TextButton(
+                onClick = { watchActions.onPostComment(text) },
+                enabled = text.isNotBlank() && watchActions.postState != PostState.Posting,
+            ) { Text(stringResource(R.string.comment_post)) }
+        }
+    }
+}
+
+@Composable
+private fun CommentRow(comment: Comment) {
     Column(modifier = Modifier.padding(bottom = 16.dp)) {
         val author = buildString {
             append(comment.author)

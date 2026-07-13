@@ -22,6 +22,8 @@ import com.dewijones92.uniapp.database.RoomDownloadStore
 import com.dewijones92.uniapp.database.RoomSubscriptionStore
 import com.dewijones92.uniapp.database.UniAppDatabase
 import com.dewijones92.uniapp.domain.MediaItem
+import com.dewijones92.uniapp.innertube.actions.HttpYouTubeActions
+import com.dewijones92.uniapp.innertube.actions.YouTubeActions
 import com.dewijones92.uniapp.innertube.auth.HttpYouTubeAuth
 import com.dewijones92.uniapp.innertube.auth.YouTubeAccount
 import com.dewijones92.uniapp.innertube.browse.InnerTubeClient
@@ -67,6 +69,9 @@ interface AppContainer {
 
     /** A video's comments (public; no sign-in needed). */
     val youTubeComments: YouTubeComments
+
+    /** Authenticated write actions (like, subscribe, comment). */
+    val youTubeActions: YouTubeActions
 
     /**
      * Kick off background upkeep on app start (currently: fetch the latest
@@ -178,6 +183,10 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
 
     override val youTubeComments: YouTubeComments by lazy {
         HttpYouTubeComments(innerTubeClient)
+    }
+
+    override val youTubeActions: YouTubeActions by lazy {
+        HttpYouTubeActions(youTubeAccount, innerTubeClient)
     }
 
     private companion object {
