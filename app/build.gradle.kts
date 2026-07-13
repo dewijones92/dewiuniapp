@@ -118,6 +118,10 @@ dependencies {
 
   implementation(libs.okhttp)
 
+  // Image loading (thumbnails/artwork) — Coil over the OkHttp network layer
+  implementation(libs.coil.compose)
+  implementation(libs.coil.network.okhttp)
+
   // Local tests: jUnit, coroutines, Android runner
   testImplementation(libs.junit)
   testImplementation(libs.kotlinx.coroutines.test)

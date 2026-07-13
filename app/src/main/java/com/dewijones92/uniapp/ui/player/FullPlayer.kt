@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -51,8 +52,10 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.compose.PlayerSurface
 import androidx.media3.ui.compose.SURFACE_TYPE_TEXTURE_VIEW
 import com.dewijones92.uniapp.R
+import com.dewijones92.uniapp.common.HttpUrl
 import com.dewijones92.uniapp.innertube.comments.Comment
 import com.dewijones92.uniapp.playback.PlaybackState
+import com.dewijones92.uniapp.ui.common.MediaThumbnail
 import com.dewijones92.uniapp.ui.player.WatchViewModel.CommentsState
 import com.dewijones92.uniapp.ui.player.WatchViewModel.PostState
 import java.util.concurrent.TimeUnit
@@ -89,13 +92,7 @@ fun FullPlayerDialog(
                     Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.close))
                 }
 
-                // The one place video is shown: the shared player's stage. Shown
-                // as soon as a video track exists (before the first frame, so
-                // decoding can start), defaulting to 16:9 until the real aspect
-                // ratio is reported. Audio items (podcasts) skip it entirely.
-                if (player != null && state.hasVideo) {
-                    VideoStage(player, state.videoAspectRatio ?: DEFAULT_VIDEO_ASPECT_RATIO)
-                }
+                PlayerStage(state, player)
 
                 Spacer(Modifier.height(if (state.hasVideo) 24.dp else 48.dp))
                 Text(
@@ -280,6 +277,29 @@ private fun CommentsNote(text: String) {
     )
 }
 
+/**
+ * The one stage at the top of the player. A video track shows the shared
+ * player's surface (as soon as the track exists — before the first frame — so
+ * decoding can start, defaulting to 16:9 until the real aspect ratio arrives);
+ * an audio item (a podcast) shows its artwork through the same [MediaThumbnail]
+ * every list uses. Two pillars, one stage.
+ */
+@Composable
+private fun PlayerStage(state: PlaybackState, player: Player?) {
+    if (player != null && state.hasVideo) {
+        VideoStage(player, state.videoAspectRatio ?: DEFAULT_VIDEO_ASPECT_RATIO)
+    } else {
+        MediaThumbnail(
+            url = HttpUrl.parse(state.artworkUrl.orEmpty()),
+            contentDescription = state.title,
+            modifier = Modifier
+                .widthIn(max = ARTWORK_MAX_WIDTH)
+                .fillMaxWidth()
+                .aspectRatio(1f),
+        )
+    }
+}
+
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @Composable
 private fun VideoStage(player: Player, aspectRatio: Float, modifier: Modifier = Modifier) {
@@ -415,3 +435,4 @@ private fun formatTime(millis: Long): String {
 private val SPEEDS = listOf(0.8f, 1.0f, 1.25f, 1.5f, 2.0f)
 private const val SECONDS_PER_MINUTE = 60L
 private const val DEFAULT_VIDEO_ASPECT_RATIO = 16f / 9f
+private val ARTWORK_MAX_WIDTH = 320.dp

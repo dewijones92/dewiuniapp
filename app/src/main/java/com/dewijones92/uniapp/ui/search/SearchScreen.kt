@@ -3,10 +3,12 @@ package com.dewijones92.uniapp.ui.search
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -41,6 +43,7 @@ import com.dewijones92.uniapp.di.AppContainer
 import com.dewijones92.uniapp.di.fake.FakeAppContainer
 import com.dewijones92.uniapp.theme.UniAppTheme
 import com.dewijones92.uniapp.ui.common.EmptyState
+import com.dewijones92.uniapp.ui.common.MediaThumbnail
 import com.dewijones92.uniapp.ui.search.SearchViewModel.Results
 import com.dewijones92.uniapp.ui.search.SearchViewModel.UiState
 
@@ -182,6 +185,12 @@ private fun PodcastHitRow(
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),
     ) {
+        MediaThumbnail(
+            url = hit.artworkUrl,
+            contentDescription = hit.title,
+            modifier = Modifier.size(HIT_THUMBNAIL_SIZE),
+        )
+        Spacer(Modifier.width(12.dp))
         HitTitles(hit.title, hit.subtitle, Modifier.weight(1f))
         TextButton(onClick = onSubscribe, enabled = !subscribed) {
             Text(stringResource(if (subscribed) R.string.subscribed else R.string.subscribe))
@@ -203,6 +212,12 @@ private fun VideoHitRow(
             .clickable(enabled = !resolving, onClick = onPlay)
             .padding(horizontal = 16.dp, vertical = 8.dp),
     ) {
+        MediaThumbnail(
+            url = hit.artworkUrl,
+            contentDescription = hit.title,
+            modifier = Modifier.size(width = VIDEO_HIT_THUMBNAIL_WIDTH, height = VIDEO_HIT_THUMBNAIL_HEIGHT),
+        )
+        Spacer(Modifier.width(12.dp))
         val subtitle = listOfNotNull(
             hit.subtitle,
             hit.durationSeconds?.let { stringResource(R.string.duration_minutes, it / SECONDS_PER_MINUTE) },
@@ -236,6 +251,12 @@ private fun HitTitles(title: String, subtitle: String?, modifier: Modifier = Mod
 }
 
 private const val SECONDS_PER_MINUTE = 60L
+
+// Search hits carry their source's natural artwork shape: podcast art is
+// square, a video still is 16:9.
+private val HIT_THUMBNAIL_SIZE = 56.dp
+private val VIDEO_HIT_THUMBNAIL_WIDTH = 96.dp
+private val VIDEO_HIT_THUMBNAIL_HEIGHT = 54.dp
 
 @Preview(showBackground = true)
 @Composable

@@ -3,9 +3,11 @@ package com.dewijones92.uniapp.ui.common
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.outlined.Download
@@ -24,10 +26,16 @@ import com.dewijones92.uniapp.R
 import com.dewijones92.uniapp.domain.DownloadState
 import com.dewijones92.uniapp.domain.MediaItem
 
+// A 16:9 leading thumbnail — the shape video stills want; square podcast art
+// centre-crops into it cleanly.
+private val THUMBNAIL_WIDTH = 96.dp
+private val THUMBNAIL_HEIGHT = 54.dp
+
 /**
  * One media item in a list — used identically for podcast episodes and any
- * other [MediaItem]. Tapping the row plays it; the trailing control reflects
- * and drives its offline [DownloadState].
+ * other [MediaItem]. Tapping the row plays it; the leading [MediaThumbnail]
+ * shows its artwork; the trailing control reflects and drives its offline
+ * [DownloadState].
  */
 @Composable
 fun MediaItemRow(
@@ -46,6 +54,12 @@ fun MediaItemRow(
             .clickable(enabled = item.mediaUrl != null, onClick = onPlay)
             .padding(16.dp),
     ) {
+        MediaThumbnail(
+            url = item.thumbnailUrl,
+            contentDescription = item.title,
+            modifier = Modifier.size(width = THUMBNAIL_WIDTH, height = THUMBNAIL_HEIGHT),
+        )
+        Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = item.title,
