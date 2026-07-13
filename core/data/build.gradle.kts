@@ -10,6 +10,7 @@ kotlin {
 dependencies {
     api(project(":core:domain"))
     api(project(":lib:ytdlp"))
+    api(project(":lib:innertube"))
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.okhttp)

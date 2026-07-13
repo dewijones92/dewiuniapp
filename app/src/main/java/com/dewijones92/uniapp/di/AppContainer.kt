@@ -4,6 +4,7 @@ import android.content.Context
 import com.dewijones92.uniapp.account.SharedPrefsTokenStore
 import com.dewijones92.uniapp.data.channel.ChannelRepository
 import com.dewijones92.uniapp.data.channel.DefaultChannelRepository
+import com.dewijones92.uniapp.data.channel.SubscriptionImporter
 import com.dewijones92.uniapp.data.download.DefaultDownloadManager
 import com.dewijones92.uniapp.data.download.DownloadManager
 import com.dewijones92.uniapp.data.download.EngineDownloadStrategy
@@ -23,6 +24,8 @@ import com.dewijones92.uniapp.database.UniAppDatabase
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.innertube.auth.HttpYouTubeAuth
 import com.dewijones92.uniapp.innertube.auth.YouTubeAccount
+import com.dewijones92.uniapp.innertube.browse.InnerTubeClient
+import com.dewijones92.uniapp.innertube.subscriptions.HttpYouTubeSubscriptions
 import com.dewijones92.uniapp.playback.Media3PlaybackController
 import com.dewijones92.uniapp.playback.PlaybackController
 import com.dewijones92.uniapp.video.VideoResolver
@@ -51,6 +54,9 @@ interface AppContainer {
 
     /** The signed-in YouTube account seam (device-code login, token upkeep). */
     val youTubeAccount: YouTubeAccount
+
+    /** Imports the signed-in account's subscriptions into the unified model. */
+    val subscriptionImporter: SubscriptionImporter
 
     /**
      * Kick off background upkeep on app start (currently: fetch the latest
@@ -144,6 +150,13 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
         YouTubeAccount(
             auth = HttpYouTubeAuth(httpClient),
             store = SharedPrefsTokenStore(context),
+        )
+    }
+
+    override val subscriptionImporter: SubscriptionImporter by lazy {
+        SubscriptionImporter(
+            subscriptions = HttpYouTubeSubscriptions(youTubeAccount, InnerTubeClient(httpClient)),
+            channels = channelRepository,
         )
     }
 

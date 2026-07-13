@@ -17,6 +17,15 @@ public interface ChannelRepository {
     public fun observeVideos(): Flow<List<MediaItem>>
     public suspend fun subscribe(channelUrl: HttpUrl): SubscribeChannelResult
     public suspend fun unsubscribe(id: SourceId)
+
+    /**
+     * Bulk-adds already-resolved channels (e.g. imported from a signed-in
+     * YouTube account), skipping any already subscribed. Unlike [subscribe],
+     * this does NOT re-extract each channel — the identity is already known —
+     * so importing hundreds costs one store write each, not one network fetch.
+     * Videos populate lazily on later refresh. Returns the count newly added.
+     */
+    public suspend fun importChannels(sources: List<MediaSource.VideoChannel>): Int
 }
 
 /** Outcome of subscribing to a channel; expected failures are values. */

@@ -41,12 +41,15 @@ import com.dewijones92.uniapp.ui.common.EmptyState
 fun AccountScreen(container: AppContainer, modifier: Modifier = Modifier) {
     val viewModel: AccountViewModel = viewModel(factory = AccountViewModel.factory(container))
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val importState by viewModel.importState.collectAsStateWithLifecycle()
 
     AccountContent(
         state = state,
+        importState = importState,
         onSignIn = viewModel::signIn,
         onCancel = viewModel::cancel,
         onSignOut = viewModel::signOut,
+        onImport = viewModel::importSubscriptions,
         modifier = modifier,
     )
 }
@@ -54,9 +57,11 @@ fun AccountScreen(container: AppContainer, modifier: Modifier = Modifier) {
 @Composable
 internal fun AccountContent(
     state: UiState,
+    importState: AccountViewModel.ImportState,
     onSignIn: () -> Unit,
     onCancel: () -> Unit,
     onSignOut: () -> Unit,
+    onImport: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxSize()) {
@@ -64,7 +69,7 @@ internal fun AccountContent(
             UiState.SignedOut -> SignedOut(onSignIn)
             UiState.Starting -> Centered { CircularProgressIndicator() }
             is UiState.AwaitingUser -> Pairing(state, onCancel)
-            UiState.SignedIn -> SignedIn(onSignOut)
+            UiState.SignedIn -> SignedIn(importState, onImport, onSignOut)
             is UiState.Failed -> Failed(state.reason, onSignIn)
         }
     }
@@ -96,14 +101,50 @@ private fun ColumnScope.SignedOut(onSignIn: () -> Unit) {
 }
 
 @Composable
-private fun ColumnScope.SignedIn(onSignOut: () -> Unit) {
-    EmptyState(
-        icon = Icons.Outlined.AccountCircle,
-        headline = stringResource(R.string.account_signed_in_headline),
-        supportingText = stringResource(R.string.account_signed_in_supporting),
-        modifier = Modifier.weight(1f),
-    )
+private fun ColumnScope.SignedIn(
+    importState: AccountViewModel.ImportState,
+    onImport: () -> Unit,
+    onSignOut: () -> Unit,
+) {
+    Centered {
+        EmptyState(
+            icon = Icons.Outlined.AccountCircle,
+            headline = stringResource(R.string.account_signed_in_headline),
+            supportingText = stringResource(R.string.account_signed_in_supporting),
+        )
+        ImportStatus(importState)
+    }
+    val importing = importState is AccountViewModel.ImportState.Running
+    Button(
+        onClick = onImport,
+        enabled = !importing,
+        modifier = Modifier
+            .align(Alignment.CenterHorizontally)
+            .padding(bottom = 12.dp),
+    ) { Text(stringResource(R.string.account_import_subscriptions)) }
     OutlinedActionButton(stringResource(R.string.account_sign_out), onSignOut)
+}
+
+@Composable
+private fun ImportStatus(importState: AccountViewModel.ImportState) {
+    when (importState) {
+        AccountViewModel.ImportState.Idle -> Unit
+        AccountViewModel.ImportState.Running ->
+            CircularProgressIndicator(modifier = Modifier.padding(top = 24.dp))
+        is AccountViewModel.ImportState.Done -> Text(
+            text = stringResource(R.string.account_import_done, importState.added, importState.total),
+            style = MaterialTheme.typography.bodyLarge,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 24.dp),
+        )
+        AccountViewModel.ImportState.Failed -> Text(
+            text = stringResource(R.string.account_import_failed),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.error,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 24.dp),
+        )
+    }
 }
 
 @Composable
@@ -182,7 +223,7 @@ private fun ColumnScope.OutlinedActionButton(label: String, onClick: () -> Unit)
 @androidx.compose.ui.tooling.preview.Preview(showBackground = true)
 @Composable
 private fun AccountSignedOutPreview() {
-    UniAppTheme { AccountContent(UiState.SignedOut, {}, {}, {}) }
+    UniAppTheme { AccountContent(UiState.SignedOut, AccountViewModel.ImportState.Idle, {}, {}, {}, {}) }
 }
 
 @androidx.compose.ui.tooling.preview.Preview(showBackground = true)
@@ -191,6 +232,23 @@ private fun AccountPairingPreview() {
     UniAppTheme {
         AccountContent(
             UiState.AwaitingUser("BWM-XHD-XJBG", HttpUrl.of("https://www.google.com/device")),
+            AccountViewModel.ImportState.Idle,
+            {},
+            {},
+            {},
+            {},
+        )
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(showBackground = true)
+@Composable
+private fun AccountSignedInPreview() {
+    UniAppTheme {
+        AccountContent(
+            UiState.SignedIn,
+            AccountViewModel.ImportState.Done(added = 42, total = 50),
+            {},
             {},
             {},
             {},

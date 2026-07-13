@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.dewijones92.uniapp.common.HttpUrl
+import com.dewijones92.uniapp.data.channel.ImportResult
+import com.dewijones92.uniapp.data.channel.SubscriptionImporter
 import com.dewijones92.uniapp.di.AppContainer
 import com.dewijones92.uniapp.innertube.auth.DeviceLoginEvent
 import com.dewijones92.uniapp.innertube.auth.LoginFailure
@@ -21,7 +23,10 @@ import kotlinx.coroutines.launch
  * device-code login is a cold flow; this maps its events to a small sealed
  * UI state and lets the user cancel or retry.
  */
-class AccountViewModel(private val account: YouTubeAccount) : ViewModel() {
+class AccountViewModel(
+    private val account: YouTubeAccount,
+    private val importer: SubscriptionImporter,
+) : ViewModel() {
 
     sealed interface UiState {
         data object SignedOut : UiState
@@ -33,10 +38,22 @@ class AccountViewModel(private val account: YouTubeAccount) : ViewModel() {
 
     enum class FailureReason { DENIED, EXPIRED, NETWORK }
 
+    /** Progress of a subscriptions import, shown beneath the signed-in state. */
+    sealed interface ImportState {
+        data object Idle : ImportState
+        data object Running : ImportState
+        data class Done(val added: Int, val total: Int) : ImportState
+        data object Failed : ImportState
+    }
+
     private val _state = MutableStateFlow<UiState>(UiState.SignedOut)
     val state: StateFlow<UiState> = _state.asStateFlow()
 
+    private val _importState = MutableStateFlow<ImportState>(ImportState.Idle)
+    val importState: StateFlow<ImportState> = _importState.asStateFlow()
+
     private var loginJob: Job? = null
+    private var importJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -60,9 +77,26 @@ class AccountViewModel(private val account: YouTubeAccount) : ViewModel() {
 
     fun signOut() {
         loginJob?.cancel()
+        importJob?.cancel()
         viewModelScope.launch {
             account.signOut()
+            _importState.value = ImportState.Idle
             _state.value = UiState.SignedOut
+        }
+    }
+
+    fun importSubscriptions() {
+        if (importJob?.isActive == true) return
+        _importState.value = ImportState.Running
+        importJob = viewModelScope.launch {
+            _importState.value = when (val result = importer.import()) {
+                is ImportResult.Imported -> ImportState.Done(result.added, result.total)
+                ImportResult.SignedOut -> {
+                    _state.value = UiState.SignedOut
+                    ImportState.Idle
+                }
+                is ImportResult.Failure -> ImportState.Failed
+            }
         }
     }
 
@@ -80,7 +114,7 @@ class AccountViewModel(private val account: YouTubeAccount) : ViewModel() {
 
     companion object {
         fun factory(container: AppContainer): ViewModelProvider.Factory = viewModelFactory {
-            initializer { AccountViewModel(container.youTubeAccount) }
+            initializer { AccountViewModel(container.youTubeAccount, container.subscriptionImporter) }
         }
     }
 }

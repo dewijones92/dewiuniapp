@@ -48,6 +48,19 @@ public class DefaultChannelRepository(
         store.removeSource(id)
     }
 
+    override suspend fun importChannels(sources: List<MediaSource.VideoChannel>): Int {
+        var added = 0
+        for (source in sources) {
+            if (store.contains(source.id)) continue
+            store.saveSource(
+                subscription = Subscription(source = source, subscribedAt = clock.instant()),
+                items = emptyList(),
+            )
+            added++
+        }
+        return added
+    }
+
     private fun VideoSearchEntry.toMediaItem(sourceId: SourceId) = MediaItem(
         id = MediaItemId(id),
         sourceId = sourceId,

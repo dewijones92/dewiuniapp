@@ -46,4 +46,11 @@ public class FakeChannelRepository : ChannelRepository {
         subscriptions.update { list -> list.filterNot { it.source.id == id } }
         videos.update { list -> list.filterNot { it.sourceId == id } }
     }
+
+    override suspend fun importChannels(sources: List<MediaSource.VideoChannel>): Int {
+        val existing = subscriptions.value.map { it.source.id }.toSet()
+        val fresh = sources.filter { it.id !in existing }
+        subscriptions.update { it + fresh.map { source -> Subscription(source, Instant.EPOCH) } }
+        return fresh.size
+    }
 }
