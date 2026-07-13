@@ -106,7 +106,7 @@ def channel(url, max_videos):
         return json.dumps({"ok": False, "kind": kind, "detail": str(e)})
 
 
-def download(url, target_dir, format_id, listener):
+def download(url, target_dir, format_id, listener, ffmpeg_location, sponsorblock_categories):
     def hook(d):
         if d.get("status") == "downloading":
             listener.onProgress(
@@ -123,10 +123,24 @@ def download(url, target_dir, format_id, listener):
     }
     if format_id:
         options["format"] = format_id
+    # A directory holding an executable named `ffmpeg`; lets yt-dlp merge
+    # separate video+audio streams and cut SponsorBlock segments.
+    if ffmpeg_location:
+        options["ffmpeg_location"] = ffmpeg_location
+    # `sponsorblock_categories` arrives as a comma-separated string from Kotlin
+    # (Chaquopy marshals primitives, not sets).
+    categories = [c for c in (sponsorblock_categories or "").split(",") if c]
+    if categories:
+        options["sponsorblock_remove"] = set(categories)
+        options["postprocessors"] = [
+            {"key": "SponsorBlock", "categories": set(categories), "when": "after_filter"},
+            {"key": "ModifyChapters", "remove_sponsor_segments": set(categories)},
+        ]
     try:
         with yt_dlp.YoutubeDL(options) as ydl:
             info = ydl.sanitize_info(ydl.extract_info(url, download=True))
-            path = (info.get("requested_downloads") or [{}])[0].get("filepath")
+            requested = info.get("requested_downloads") or [{}]
+            path = requested[0].get("filepath")
             return json.dumps({"ok": True, "filepath": path})
     except yt_dlp.utils.DownloadError as e:
         return json.dumps({"ok": False, "kind": _classify(e), "detail": str(e)})

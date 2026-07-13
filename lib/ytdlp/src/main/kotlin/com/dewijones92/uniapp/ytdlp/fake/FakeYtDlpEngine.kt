@@ -69,7 +69,10 @@ public class FakeYtDlpEngine : YtDlpEngine {
             downloaded = (downloaded + totalBytes / PROGRESS_STEPS).coerceAtMost(totalBytes)
             emit(DownloadEvent.Progress(downloaded, totalBytes, etaSeconds = 0))
         }
-        emit(DownloadEvent.Completed(request.targetDirectory.resolve("${metadata.id}.mp4")))
+        // Write a real file so download consumers can move/inspect the result.
+        val file = request.targetDirectory.apply { mkdirs() }.resolve("${metadata.id}.mp4")
+        file.writeBytes(ByteArray(1))
+        emit(DownloadEvent.Completed(file))
     }
 
     public companion object {

@@ -47,8 +47,12 @@ public class SponsorBlockSegmentSource(private val fetcher: HttpTextFetcher) : S
         }.getOrDefault(emptyList())
     }
 
-    private companion object {
-        // The unambiguous "not the content" categories.
-        val CATEGORIES = listOf("sponsor", "selfpromo", "interaction")
+    public companion object {
+        /**
+         * The unambiguous "not the content" categories. The single source of
+         * truth for what the app treats as skippable — used both to fetch
+         * segments for playback-time skipping and to remove them from downloads.
+         */
+        public val CATEGORIES: List<String> = listOf("sponsor", "selfpromo", "interaction")
     }
 }

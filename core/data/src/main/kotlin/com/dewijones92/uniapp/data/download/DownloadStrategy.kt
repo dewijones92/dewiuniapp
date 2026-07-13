@@ -13,9 +13,4 @@ import java.io.File
  */
 public fun interface DownloadStrategy {
     public fun download(item: MediaItem, target: File): Flow<DownloadState>
-
-    public companion object {
-        /** Whether this strategy can handle [item]; the manager routes accordingly. */
-        public fun handlesPodcast(item: MediaItem): Boolean = item.mediaUrl != null
-    }
 }

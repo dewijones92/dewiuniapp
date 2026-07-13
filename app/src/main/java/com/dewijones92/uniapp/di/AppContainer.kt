@@ -5,7 +5,9 @@ import com.dewijones92.uniapp.data.channel.ChannelRepository
 import com.dewijones92.uniapp.data.channel.DefaultChannelRepository
 import com.dewijones92.uniapp.data.download.DefaultDownloadManager
 import com.dewijones92.uniapp.data.download.DownloadManager
+import com.dewijones92.uniapp.data.download.EngineDownloadStrategy
 import com.dewijones92.uniapp.data.download.HttpDownloadStrategy
+import com.dewijones92.uniapp.data.download.RoutedDownloadStrategy
 import com.dewijones92.uniapp.data.net.OkHttpTextFetcher
 import com.dewijones92.uniapp.data.podcast.DefaultPodcastRepository
 import com.dewijones92.uniapp.data.podcast.PodcastRepository
@@ -17,6 +19,7 @@ import com.dewijones92.uniapp.data.sponsorblock.SponsorBlockSegmentSource
 import com.dewijones92.uniapp.database.RoomDownloadStore
 import com.dewijones92.uniapp.database.RoomSubscriptionStore
 import com.dewijones92.uniapp.database.UniAppDatabase
+import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.playback.Media3PlaybackController
 import com.dewijones92.uniapp.playback.PlaybackController
 import com.dewijones92.uniapp.video.VideoResolver
@@ -91,7 +94,17 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
         DefaultDownloadManager(
             downloadDir = File(context.filesDir, "downloads"),
             store = RoomDownloadStore(database.downloadDao()),
-            strategy = HttpDownloadStrategy(httpClient),
+            // Videos resolve+merge through the engine (bundled ffmpeg) and drop
+            // SponsorBlock segments; podcast enclosures are a plain HTTP fetch.
+            strategy = RoutedDownloadStrategy(
+                routes = listOf(
+                    { item: MediaItem -> EngineDownloadStrategy.handles(item) } to EngineDownloadStrategy(
+                        engine = ytDlpEngine,
+                        sponsorBlockCategories = SponsorBlockSegmentSource.CATEGORIES.toSet(),
+                    ),
+                ),
+                fallback = HttpDownloadStrategy(httpClient),
+            ),
             scope = applicationScope,
         )
     }

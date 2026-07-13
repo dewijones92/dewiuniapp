@@ -7,8 +7,19 @@ import java.io.File
 public data class DownloadRequest(
     val url: HttpUrl,
     val targetDirectory: File,
-    /** A [MediaFormat.formatId] from a prior [YtDlpEngine.extract]; null lets yt-dlp choose the best. */
+    /**
+     * A yt-dlp format selector (e.g. a [MediaFormat.formatId], or `"bv*+ba/b"`
+     * for best video+audio merged). null lets yt-dlp choose the best. A
+     * selector that merges two streams needs the engine's bundled ffmpeg.
+     */
     val formatId: String? = null,
+    /**
+     * SponsorBlock categories to cut out of the finished file (needs ffmpeg to
+     * remux), e.g. `"sponsor"`, `"selfpromo"`. Empty means keep the whole file.
+     * A generic passthrough to yt-dlp's `--sponsorblock-remove`; the caller
+     * owns the category policy.
+     */
+    val sponsorBlockCategories: Set<String> = emptySet(),
 )
 
 /**

@@ -67,6 +67,13 @@ android {
       resources {
         excludes += "/META-INF/{AL2.0,LGPL2.1}"
       }
+      jniLibs {
+        // Extract native libs to nativeLibraryDir on install. Required so the
+        // bundled ffmpeg (shipped as libffmpeg.so) lands as a real file in the
+        // one app-private location that stays executable under Android 14 W^X;
+        // yt-dlp execs it via ffmpeg_location.
+        useLegacyPackaging = true
+      }
     }
 }
 

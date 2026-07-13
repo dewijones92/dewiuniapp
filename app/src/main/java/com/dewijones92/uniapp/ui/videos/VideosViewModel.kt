@@ -8,8 +8,11 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.dewijones92.uniapp.common.HttpUrl
 import com.dewijones92.uniapp.data.channel.ChannelRepository
 import com.dewijones92.uniapp.data.channel.SubscribeChannelResult
+import com.dewijones92.uniapp.data.download.DownloadManager
 import com.dewijones92.uniapp.di.AppContainer
+import com.dewijones92.uniapp.domain.DownloadState
 import com.dewijones92.uniapp.domain.MediaItem
+import com.dewijones92.uniapp.domain.MediaItemId
 import com.dewijones92.uniapp.domain.Subscription
 import com.dewijones92.uniapp.playback.PlaybackController
 import com.dewijones92.uniapp.video.VideoResolver
@@ -25,6 +28,7 @@ class VideosViewModel(
     private val channels: ChannelRepository,
     private val playback: PlaybackController,
     private val resolver: VideoResolver,
+    private val downloads: DownloadManager,
 ) : ViewModel() {
 
     data class UiState(
@@ -33,6 +37,7 @@ class VideosViewModel(
         val subscribing: Subscribing = Subscribing.Idle,
         /** watchUrl currently being resolved for playback, if any. */
         val resolving: String? = null,
+        val downloadStates: Map<MediaItemId, DownloadState> = emptyMap(),
     )
 
     sealed interface Subscribing {
@@ -56,8 +61,9 @@ class VideosViewModel(
         channels.observeVideos(),
         subscribing,
         resolving,
-    ) { subs, videos, subscribing, resolving ->
-        UiState(subs, videos, subscribing, resolving)
+        downloads.observeDownloads(),
+    ) { subs, videos, subscribing, resolving, downloadStates ->
+        UiState(subs, videos, subscribing, resolving, downloadStates)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), UiState())
 
     fun subscribe(rawUrl: String) {
@@ -81,8 +87,17 @@ class VideosViewModel(
         subscribing.update { Subscribing.Idle }
     }
 
-    /** Resolves the channel video's stream, then plays it in the shared player. */
+    /**
+     * Plays the merged download when it exists (already SponsorBlock-clean, no
+     * resolution needed), else resolves the stream and plays it. One decision,
+     * one place — mirrors the podcasts pillar.
+     */
     fun play(video: MediaItem) {
+        val local = (uiState.value.downloadStates[video.id] as? DownloadState.Downloaded)?.localPath
+        if (local != null) {
+            playback.play(video, localPath = local)
+            return
+        }
         val watchUrl = video.mediaUrl ?: return
         viewModelScope.launch {
             resolving.value = watchUrl.value
@@ -94,6 +109,14 @@ class VideosViewModel(
         }
     }
 
+    fun download(video: MediaItem) {
+        viewModelScope.launch { downloads.download(video) }
+    }
+
+    fun deleteDownload(video: MediaItem) {
+        viewModelScope.launch { downloads.delete(video.id) }
+    }
+
     companion object {
         private const val STOP_TIMEOUT_MILLIS = 5_000L
 
@@ -103,6 +126,7 @@ class VideosViewModel(
                     channels = container.channelRepository,
                     playback = container.playbackController,
                     resolver = container.videoResolver,
+                    downloads = container.downloadManager,
                 )
             }
         }

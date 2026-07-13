@@ -48,6 +48,8 @@ fun VideosScreen(container: AppContainer, modifier: Modifier = Modifier) {
         onSubscribe = viewModel::subscribe,
         onDialogClosed = viewModel::resetSubscribing,
         onPlay = viewModel::play,
+        onDownload = viewModel::download,
+        onDeleteDownload = viewModel::deleteDownload,
         modifier = modifier,
     )
 }
@@ -58,6 +60,8 @@ internal fun VideosContent(
     onSubscribe: (String) -> Unit,
     onDialogClosed: () -> Unit,
     onPlay: (MediaItem) -> Unit,
+    onDownload: (MediaItem) -> Unit,
+    onDeleteDownload: (MediaItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
@@ -70,7 +74,7 @@ internal fun VideosContent(
                 supportingText = stringResource(R.string.videos_empty_supporting),
             )
         } else {
-            ChannelsAndVideos(state, onPlay)
+            ChannelsAndVideos(state, onPlay, onDownload, onDeleteDownload)
         }
 
         FloatingActionButton(
@@ -99,6 +103,8 @@ internal fun VideosContent(
 private fun ChannelsAndVideos(
     state: VideosViewModel.UiState,
     onPlay: (MediaItem) -> Unit,
+    onDownload: (MediaItem) -> Unit,
+    onDeleteDownload: (MediaItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(modifier = modifier.fillMaxSize()) {
@@ -123,11 +129,10 @@ private fun ChannelsAndVideos(
             MediaItemRow(
                 item = video,
                 subtitle = mediaItemSubtitle(video),
-                // Channel-video downloads need stream resolution first; not offered yet.
-                downloadState = DownloadState.NotDownloaded,
+                downloadState = state.downloadStates[video.id] ?: DownloadState.NotDownloaded,
                 onPlay = { onPlay(video) },
-                onDownload = {},
-                onDeleteDownload = {},
+                onDownload = { onDownload(video) },
+                onDeleteDownload = { onDeleteDownload(video) },
             )
             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
         }
@@ -143,6 +148,8 @@ private fun VideosContentPreview() {
             onSubscribe = {},
             onDialogClosed = {},
             onPlay = {},
+            onDownload = {},
+            onDeleteDownload = {},
         )
     }
 }

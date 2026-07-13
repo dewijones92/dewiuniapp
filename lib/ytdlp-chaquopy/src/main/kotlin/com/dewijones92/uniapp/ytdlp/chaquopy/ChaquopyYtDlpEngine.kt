@@ -13,10 +13,11 @@ import com.dewijones92.uniapp.ytdlp.VideoSearchResult
 import com.dewijones92.uniapp.ytdlp.YtDlpEngine
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.buffer
+import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import java.io.File
 
@@ -29,12 +30,17 @@ public class ChaquopyYtDlpEngine(
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : YtDlpEngine {
 
+    private val appContext = context.applicationContext
+
     private val python: Python by lazy {
-        if (!Python.isStarted()) Python.start(AndroidPlatform(context.applicationContext))
+        if (!Python.isStarted()) Python.start(AndroidPlatform(appContext))
         Python.getInstance()
     }
 
     private val bridge by lazy { python.getModule("uniapp_ytdlp") }
+
+    /** Directory yt-dlp is pointed at for ffmpeg; null if not bundled for this ABI. */
+    private val ffmpegLocation: String? by lazy { FfmpegBinary.locationDir(appContext) }
 
     override suspend fun versions(): EngineVersions = withContext(dispatcher) {
         parseVersions(bridge.callAttr("versions").toString())
@@ -54,22 +60,20 @@ public class ChaquopyYtDlpEngine(
             parseChannel(url, bridge.callAttr("channel", url.value, maxVideos).toString())
         }
 
-    override fun download(request: DownloadRequest): Flow<DownloadEvent> = flow {
-        emit(DownloadEvent.Started(request.url))
-        // yt-dlp's hook fires on the Python thread; hand events to the flow
-        // through the collector's channel via runBlocking on this emitter.
-        val collector = this
+    override fun download(request: DownloadRequest): Flow<DownloadEvent> = channelFlow {
+        trySend(DownloadEvent.Started(request.url))
+        // yt-dlp calls the hook synchronously on the download thread. A plain
+        // flow{} would reject emissions from there ("flow invariant violated"),
+        // so the channel — safe to send to from any thread — carries them out.
         val listener = object : ProgressListener {
             override fun onProgress(downloadedBytes: Long, totalBytes: Long, etaSeconds: Long) {
-                runBlocking {
-                    collector.emit(
-                        DownloadEvent.Progress(
-                            bytesDownloaded = downloadedBytes,
-                            totalBytes = totalBytes.takeIf { it > 0 },
-                            etaSeconds = etaSeconds,
-                        ),
-                    )
-                }
+                trySend(
+                    DownloadEvent.Progress(
+                        bytesDownloaded = downloadedBytes,
+                        totalBytes = totalBytes.takeIf { it > 0 },
+                        etaSeconds = etaSeconds,
+                    ),
+                )
             }
         }
         val resultJson = bridge.callAttr(
@@ -78,9 +82,11 @@ public class ChaquopyYtDlpEngine(
             request.targetDirectory.absolutePath,
             request.formatId,
             listener,
+            ffmpegLocation,
+            request.sponsorBlockCategories.joinToString(","),
         ).toString()
-        emit(parseDownloadCompletion(request.url, resultJson) { File(it) })
-    }.flowOn(dispatcher)
+        trySend(parseDownloadCompletion(request.url, resultJson) { File(it) })
+    }.buffer(Channel.UNLIMITED).flowOn(dispatcher)
 }
 
 /** Called from Python (yt-dlp progress hook) via Chaquopy's Java proxying. */

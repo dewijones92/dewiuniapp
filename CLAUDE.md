@@ -18,7 +18,7 @@ in favour of a from-scratch library — see Decisions).
 | minSdk | **34** (Android 14) | Personal modern devices; simplifies stack. Deliberate — drops the API-23 floor of the original apps |
 | Extraction | **From-scratch library in this repo** (`:lib:ytdlp`), replacing dewijones92/youtubedl-android fork | Own a clean, tested Kotlin API around the real yt-dlp |
 | Python runtime | Chaquopy 17 (revised from "official CPython" once that proved tier-3/no artifact) | Mature drop-in embed, MIT, pip support |
-| ffmpeg | Wanted from day one; **not yet bundled** | Needed for merged best-quality streams and audio extraction |
+| ffmpeg | **Bundled** — minimal static build in jniLibs | Merges best-quality DASH streams and removes SponsorBlock from downloads |
 | CI/CD | GitHub Actions; signed APKs on GitHub Releases | No Play Store (yt-dlp app) |
 | UI bar | Genuinely nice, modern | Material 3 expressive, dynamic colour, dark/light, edge-to-edge, considered motion — never template-default |
 
@@ -95,22 +95,29 @@ when driven on the emulator. Verify real flows on a device, not just via tests.
   enforced in exactly one place — `Media3PlaybackController`'s position
   ticker — so any pillar's playback skips them.
 - **Downloads** (`DownloadManager` port in `:core:data`, `RoomDownloadStore`
-  in `:core:database`): one seam for both pillars. Key DRY insight — a
-  resolved video stream URL is a directly-fetchable HTTP URL exactly like a
-  podcast enclosure, so ONE `HttpDownloadStrategy` serves both (videos just
-  resolve through the engine first). `DownloadState` in `:core:domain`;
-  playback prefers the local file via `play(..., localPath=)`; the Library
-  tab lists downloads (shared `MediaItemRow`). Interrupted downloads (a
-  `Downloading` row at startup) reset to NotDownloaded. Strategy IO must run
-  off the main thread (`flowOn(Dispatchers.IO)`). Verified offline in
-  airplane mode.
-- **ffmpeg is still NOT bundled.** Investigated: PyPI ffmpeg packages ship
-  desktop binaries only (no `aarch64-linux-android` wheels), so Chaquopy
-  can't pip it. The real path is bundling an Android-built ffmpeg binary in
-  jniLibs and pointing yt-dlp at it via `ffmpeg_location` — a scoped native
-  sub-project. Until then: podcast downloads are complete; video downloads
-  work at pre-muxed quality (no merge). ffmpeg unblocks merged best-quality
-  streams AND download-side SponsorBlock removal (`--sponsorblock-remove`).
+  in `:core:database`): one seam, one port. The manager takes a single
+  `DownloadStrategy`; `RoutedDownloadStrategy` (wired in `AppContainer`, the
+  only place pillar routing lives) picks per item — `EngineDownloadStrategy`
+  for video pages (yt-dlp fetches best video+audio and merges via the bundled
+  ffmpeg, then cuts SponsorBlock segments), `HttpDownloadStrategy` for podcast
+  enclosures (a plain HTTP GET). `DownloadState` in `:core:domain`; playback
+  prefers the local file via `play(..., localPath=)` (a downloaded video
+  needs no re-resolution); the Library tab lists downloads (shared
+  `MediaItemRow`). Interrupted downloads (a `Downloading` row at startup)
+  reset to NotDownloaded. Strategy IO runs off the main thread
+  (`flowOn(Dispatchers.IO)`). Verified offline in airplane mode; video merge
+  verified on-device (AV1 4K + Opus → one Matroska, played locally).
+- **ffmpeg IS bundled** as a minimal static binary (`libffmpeg.so` in
+  `app/src/main/jniLibs/<abi>`, ~7MB; built from FFmpeg 7.1.1 by
+  `tools/ffmpeg/build-ffmpeg-android.sh`, remux-only — no decoders/encoders/
+  ffprobe). PyPI has no `aarch64-linux-android` ffmpeg wheel, so it can't be
+  pip'd; a shipped binary is the only way. Under Android 14 W^X the only
+  app-private executable location is `nativeLibraryDir`, so the `.so` is
+  extracted there (`packaging { jniLibs { useLegacyPackaging = true } }`) and
+  `FfmpegBinary` symlinks it to the name yt-dlp expects; the engine passes
+  `ffmpeg_location`. This unblocks merged best-quality video and download-side
+  SponsorBlock removal. The interpreter and ffmpeg can't self-update (W^X);
+  yt-dlp itself (pure Python) still can.
 - `:core:database` — Android library (Room via KSP): entities, DAO, and
   `RoomPodcastStore` implementing `:core:data`'s `PodcastStore` port. The only
   place entities meet domain types. Verified by instrumented tests; exempt from
@@ -147,7 +154,7 @@ when driven on the emulator. Verify real flows on a device, not just via tests.
   gradle.properties because of this). ABIs: arm64-v8a + x86_64. Adds ~80MB
   to the APK (Python runtime per ABI). yt-dlp itself (pure Python) can be
   self-updated at runtime; the interpreter and ffmpeg cannot (Android W^X).
-  ffmpeg is not yet bundled — needed later for merged best-quality streams.
+  ffmpeg is bundled separately in `:app` jniLibs (see Downloads above).
 - `:lib:common` — pure-Kotlin utility module with no app dependencies, shared
   by app modules and standalone libraries alike (it would be published
   alongside `:lib:ytdlp`, like the old youtubedl-android's `common` module).
