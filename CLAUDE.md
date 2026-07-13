@@ -133,6 +133,13 @@ when driven on the emulator. Verify real flows on a device, not just via tests.
   (`RequestNotificationPermissionOnFirstPlay`) — required on API 33+ or the
   notification never shows. `fake.FakePlaybackController` for tests/previews.
   Kover-exempt adapter (Media3 glue; instrumented-verified).
+  **Video renders on the same seam**: `PlaybackState.hasVideo` (from the track
+  list) drives a `PlayerSurface` (media3-ui-compose) in the one `FullPlayer` —
+  podcasts show artwork/controls, videos show the picture; no separate video
+  player. The port exposes the `Player` so the UI binds a surface; the surface
+  must appear before the decoder reports a size, so `hasVideo` (not video size)
+  gates it, defaulting to 16:9 until `videoAspectRatio` is known. Streaming is
+  pre-muxed quality; merged best quality comes via downloads (ffmpeg).
 - Manual DI: `AppContainer` (in `:app`) wires the graph; construction is code,
   errors are compile-time. No Hilt/Koin.
 - **Cleartext HTTP is deliberately permitted** (network_security_config):
