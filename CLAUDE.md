@@ -152,8 +152,12 @@ when driven on the emulator. Verify real flows on a device, not just via tests.
   apply the plugin; build-host Python minor version must match the target
   (3.12 here); NOT configuration-cache compatible (config cache disabled in
   gradle.properties because of this). ABIs: arm64-v8a + x86_64. Adds ~80MB
-  to the APK (Python runtime per ABI). yt-dlp itself (pure Python) can be
-  self-updated at runtime; the interpreter and ffmpeg cannot (Android W^X).
+  to the APK (Python runtime per ABI). **yt-dlp self-updates at runtime**:
+  `YtDlpUpdater` fetches the latest wheel from PyPI on every launch (background,
+  SHA-256-verified, never starts Python) into a cache dir; `uniapp_bootstrap.py`
+  prepends it to `sys.path` before `import yt_dlp` so a YouTube-breaking fix
+  applies on the next start without an app update — a bad wheel is dropped and
+  the bundled copy used. The interpreter and ffmpeg can't self-update (W^X).
   ffmpeg is bundled separately in `:app` jniLibs (see Downloads above).
 - `:lib:common` — pure-Kotlin utility module with no app dependencies, shared
   by app modules and standalone libraries alike (it would be published
