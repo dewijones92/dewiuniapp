@@ -2,8 +2,8 @@ package com.dewijones92.uniapp.innertube.feeds
 
 import com.dewijones92.uniapp.innertube.auth.AccessTokenResult
 import com.dewijones92.uniapp.innertube.auth.YouTubeAccount
-import com.dewijones92.uniapp.innertube.browse.BrowseResult
 import com.dewijones92.uniapp.innertube.browse.InnerTubeClient
+import com.dewijones92.uniapp.innertube.browse.InnerTubeResponse
 
 /**
  * Fetches account video feeds by browsing the matching InnerTube id with a
@@ -27,9 +27,9 @@ public class HttpYouTubeFeeds(
             is AccessTokenResult.Failure -> return FeedResult.Failure(result.detail)
         }
         return when (val browsed = innerTube.browse(feed.browseId, token)) {
-            is BrowseResult.Success -> VideoTileParser.parse(browsed.body)
-            BrowseResult.Unauthorized -> FeedResult.SignedOut
-            is BrowseResult.Failure -> FeedResult.Failure(browsed.detail)
+            is InnerTubeResponse.Success -> VideoTileParser.parse(browsed.body)
+            InnerTubeResponse.Unauthorized -> FeedResult.SignedOut
+            is InnerTubeResponse.Failure -> FeedResult.Failure(browsed.detail)
         }
     }
 }

@@ -28,7 +28,7 @@ class HttpYouTubeSubscriptionsTest {
     private fun subscriptions(signedIn: Boolean = true): HttpYouTubeSubscriptions {
         val initial = if (signedIn) TOKENS else null
         val account = YouTubeAccount(FakeYouTubeAuth(), InMemoryTokenStore(initial), nowEpochSeconds = { 0 })
-        val innerTube = InnerTubeClient(OkHttpClient(), baseUrl = server.url("/browse").toString())
+        val innerTube = InnerTubeClient(OkHttpClient(), browseUrl = server.url("/browse").toString())
         return HttpYouTubeSubscriptions(account, innerTube)
     }
 

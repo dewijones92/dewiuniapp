@@ -28,7 +28,7 @@ class HttpYouTubeFeedsTest {
     private fun feeds(signedIn: Boolean = true): HttpYouTubeFeeds {
         val initial = if (signedIn) TOKENS else null
         val account = YouTubeAccount(FakeYouTubeAuth(), InMemoryTokenStore(initial), nowEpochSeconds = { 0 })
-        return HttpYouTubeFeeds(account, InnerTubeClient(OkHttpClient(), baseUrl = server.url("/b").toString()))
+        return HttpYouTubeFeeds(account, InnerTubeClient(OkHttpClient(), browseUrl = server.url("/b").toString()))
     }
 
     @Test

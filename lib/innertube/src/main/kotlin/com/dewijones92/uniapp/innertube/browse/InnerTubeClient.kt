@@ -10,59 +10,83 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
 
 /**
- * Minimal authenticated client for YouTube's private InnerTube `browse`
- * endpoint, impersonating the living-room TV app — the same client our
- * device-code OAuth authenticates as (the WEB client rejects a TV token,
- * verified against YouTube). One call shape serves every account feed
- * (subscriptions, history, watch later, …); callers pass the browse id.
+ * Minimal client for YouTube's private InnerTube API. Two shapes:
+ *
+ * - [browse] — authenticated, impersonating the living-room TV app (the same
+ *   client our device-code OAuth authenticates as; the WEB client rejects a TV
+ *   token, verified against YouTube). Serves every account feed.
+ * - [next] — the watch-page endpoint used unauthenticated with the WEB client
+ *   for public data like comments (no token needed, and the WEB comment format
+ *   is far simpler than the TV one).
+ *
+ * Both go through one [execute] so the HTTP + error mapping lives in one place.
  */
 public class InnerTubeClient(
     private val client: OkHttpClient,
-    private val baseUrl: String = BROWSE_URL,
-    private val clientVersion: String = TV_CLIENT_VERSION,
+    private val browseUrl: String = BROWSE_URL,
+    private val nextUrl: String = NEXT_URL,
+    private val tvClientVersion: String = TV_CLIENT_VERSION,
+    private val webClientVersion: String = WEB_CLIENT_VERSION,
 ) {
 
-    public suspend fun browse(browseId: String, accessToken: AccessToken): BrowseResult =
+    public suspend fun browse(browseId: String, accessToken: AccessToken): InnerTubeResponse {
+        val payload = """
+            {"context":{"client":{"clientName":"TVHTML5","clientVersion":"$tvClientVersion"}},
+             "browseId":"$browseId"}
+        """.trimIndent()
+        return execute(browseUrl, payload, accessToken)
+    }
+
+    /** Watch-page data for a video (WEB client, no auth). */
+    public suspend fun next(videoId: String): InnerTubeResponse =
+        execute(nextUrl, webContext(""" "videoId":"$videoId" """), bearer = null)
+
+    /** Follows a continuation token (e.g. loading comments; WEB client, no auth). */
+    public suspend fun nextContinuation(continuation: String): InnerTubeResponse =
+        execute(nextUrl, webContext(""" "continuation":"$continuation" """), bearer = null)
+
+    private fun webContext(field: String): String =
+        """{"context":{"client":{"clientName":"WEB","clientVersion":"$webClientVersion"}},$field}"""
+
+    private suspend fun execute(url: String, jsonBody: String, bearer: AccessToken?): InnerTubeResponse =
         withContext(Dispatchers.IO) {
-            val payload = """
-                {"context":{"client":{"clientName":"TVHTML5","clientVersion":"$clientVersion"}},
-                 "browseId":"$browseId"}
-            """.trimIndent().toRequestBody(JSON)
-            val request = Request.Builder()
-                .url(baseUrl)
-                .addHeader("Authorization", "Bearer ${accessToken.value}")
+            val builder = Request.Builder()
+                .url(url)
                 .addHeader("Content-Type", "application/json")
-                .post(payload)
-                .build()
+                .post(jsonBody.toRequestBody(JSON))
+            if (bearer != null) builder.addHeader("Authorization", "Bearer ${bearer.value}")
             try {
-                client.newCall(request).execute().use { response ->
+                client.newCall(builder.build()).execute().use { response ->
                     val body = response.body.string()
                     when {
-                        response.isSuccessful && body.isNotBlank() -> BrowseResult.Success(body)
+                        response.isSuccessful && body.isNotBlank() -> InnerTubeResponse.Success(body)
                         response.code == HTTP_UNAUTHORIZED || response.code == HTTP_FORBIDDEN ->
-                            BrowseResult.Unauthorized
-                        else -> BrowseResult.Failure("HTTP ${response.code}")
+                            InnerTubeResponse.Unauthorized
+                        else -> InnerTubeResponse.Failure("HTTP ${response.code}")
                     }
                 }
             } catch (e: IOException) {
-                BrowseResult.Failure(e.message ?: "network error")
+                InnerTubeResponse.Failure(e.message ?: "network error")
             }
         }
 
     public companion object {
         public const val BROWSE_URL: String = "https://www.youtube.com/youtubei/v1/browse?prettyPrint=false"
+        public const val NEXT_URL: String = "https://www.youtube.com/youtubei/v1/next?prettyPrint=false"
         public const val TV_CLIENT_VERSION: String = "7.20240401.10.00"
+        public const val WEB_CLIENT_VERSION: String = "2.20240726.00.00"
         private const val HTTP_UNAUTHORIZED = 401
         private const val HTTP_FORBIDDEN = 403
         private val JSON = "application/json".toMediaType()
     }
 }
 
-public sealed interface BrowseResult {
-    public data class Success(val body: String) : BrowseResult
+/** Result of an InnerTube POST (browse or next). */
+public sealed interface InnerTubeResponse {
+    public data class Success(val body: String) : InnerTubeResponse
 
     /** The token was rejected — treat as signed out. */
-    public data object Unauthorized : BrowseResult
+    public data object Unauthorized : InnerTubeResponse
 
-    public data class Failure(val detail: String) : BrowseResult
+    public data class Failure(val detail: String) : InnerTubeResponse
 }
