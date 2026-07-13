@@ -10,16 +10,16 @@ import com.dewijones92.uniapp.data.channel.ChannelRepository
 import com.dewijones92.uniapp.data.channel.SubscribeChannelResult
 import com.dewijones92.uniapp.data.download.DownloadManager
 import com.dewijones92.uniapp.di.AppContainer
+import com.dewijones92.uniapp.di.YouTubeAccountServices
 import com.dewijones92.uniapp.domain.DownloadState
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.MediaItemId
+import com.dewijones92.uniapp.domain.MediaSource
 import com.dewijones92.uniapp.domain.SourceId
 import com.dewijones92.uniapp.domain.Subscription
-import com.dewijones92.uniapp.innertube.auth.YouTubeAccount
 import com.dewijones92.uniapp.innertube.feeds.AccountFeed
 import com.dewijones92.uniapp.innertube.feeds.FeedResult
 import com.dewijones92.uniapp.innertube.feeds.FeedVideo
-import com.dewijones92.uniapp.innertube.feeds.YouTubeFeeds
 import com.dewijones92.uniapp.playback.PlaybackController
 import com.dewijones92.uniapp.video.VideoResolver
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,8 +36,7 @@ class VideosViewModel(
     private val playback: PlaybackController,
     private val resolver: VideoResolver,
     private val downloads: DownloadManager,
-    private val account: YouTubeAccount,
-    private val feeds: YouTubeFeeds,
+    private val youtube: YouTubeAccountServices,
 ) : ViewModel() {
 
     data class UiState(
@@ -86,7 +85,7 @@ class VideosViewModel(
         // Signed in, the subscriptions feed (recent uploads) is the useful
         // default; signed out, the screen keeps its local-channels behaviour.
         viewModelScope.launch {
-            if (account.isSignedIn()) {
+            if (youtube.account.isSignedIn()) {
                 signedIn.value = true
                 selectFeed(AccountFeed.SUBSCRIPTIONS)
             }
@@ -122,10 +121,10 @@ class VideosViewModel(
         viewModelScope.launch {
             feedState.update { it.copy(loading = true) }
             val result = when (feed) {
-                AccountFeed.RECOMMENDED -> feeds.recommended()
-                AccountFeed.SUBSCRIPTIONS -> feeds.subscriptionsFeed()
-                AccountFeed.WATCH_LATER -> feeds.watchLater()
-                AccountFeed.HISTORY -> feeds.history()
+                AccountFeed.RECOMMENDED -> youtube.feeds.recommended()
+                AccountFeed.SUBSCRIPTIONS -> youtube.feeds.subscriptionsFeed()
+                AccountFeed.WATCH_LATER -> youtube.feeds.watchLater()
+                AccountFeed.HISTORY -> youtube.feeds.history()
             }
             feedState.value = when (result) {
                 is FeedResult.Success ->
@@ -172,6 +171,19 @@ class VideosViewModel(
     }
 
     /**
+     * Subscribes/unsubscribes on YouTube (when signed in) and keeps the local
+     * store in step — the one action covers both the account and the app's
+     * unified subscription model. Re-adds without re-extracting (importChannels).
+     */
+    fun setChannelSubscribed(source: MediaSource.VideoChannel, subscribed: Boolean) {
+        val channelId = source.channelUrl.value.substringAfterLast("/channel/", "").ifBlank { null }
+        viewModelScope.launch {
+            if (channelId != null) youtube.actions.setSubscribed(channelId, subscribed)
+            if (subscribed) channels.importChannels(listOf(source)) else channels.unsubscribe(source.id)
+        }
+    }
+
+    /**
      * Plays the merged download when it exists (already SponsorBlock-clean, no
      * resolution needed), else resolves the stream and plays it. One decision,
      * one place — mirrors the podcasts pillar.
@@ -211,8 +223,11 @@ class VideosViewModel(
                     playback = container.playbackController,
                     resolver = container.videoResolver,
                     downloads = container.downloadManager,
-                    account = container.youTubeAccount,
-                    feeds = container.youTubeFeeds,
+                    youtube = YouTubeAccountServices(
+                        account = container.youTubeAccount,
+                        feeds = container.youTubeFeeds,
+                        actions = container.youTubeActions,
+                    ),
                 )
             }
         }
