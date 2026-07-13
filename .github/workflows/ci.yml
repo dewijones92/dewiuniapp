@@ -10,6 +10,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  verify-sponsorblock:
+    name: SponsorBlock removal (offline)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ffmpeg + yt-dlp
+        run: |
+          sudo apt-get update && sudo apt-get install -y ffmpeg
+          python3 -m pip install --upgrade yt-dlp
+      - name: Verify SponsorBlock segments are cut from downloads
+        run: python3 tools/sponsorblock-verify/verify_sponsorblock_cut.py
+
   build:
     name: Quality gates + build
     runs-on: ubuntu-latest
