@@ -1,0 +1,46 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticCommits"
+  ],
+  "labels": ["dependencies"],
+  "schedule": ["before 6am on monday"],
+  "prConcurrentLimit": 5,
+  "minimumReleaseAge": "3 days",
+  "packageRules": [
+    {
+      "description": "Auto-merge low-risk updates once CI (detekt/lint/test/kover/build) is green.",
+      "matchUpdateTypes": ["patch", "minor"],
+      "automerge": true
+    },
+    {
+      "description": "One grouped PR for routine Gradle library bumps (versions live in the catalog).",
+      "matchManagers": ["gradle"],
+      "matchUpdateTypes": ["patch", "minor"],
+      "groupName": "gradle dependencies"
+    },
+    {
+      "description": "Group and auto-merge GitHub Actions bumps (also clears the Node 20 deprecation warnings).",
+      "matchManagers": ["github-actions"],
+      "groupName": "github actions"
+    },
+    {
+      "description": "Kotlin and KSP must move in lockstep and can break builds — review manually.",
+      "matchPackageNames": ["org.jetbrains.kotlin**", "com.google.devtools.ksp**"],
+      "groupName": "kotlin + ksp",
+      "automerge": false
+    },
+    {
+      "description": "AGP updates gate on compileSdk compatibility — review manually.",
+      "matchPackageNames": ["com.android.**"],
+      "automerge": false
+    },
+    {
+      "description": "Chaquopy is pinned to the build-host Python minor (3.12) — review manually.",
+      "matchPackageNames": ["com.chaquo.python**"],
+      "automerge": false
+    }
+  ]
+}
