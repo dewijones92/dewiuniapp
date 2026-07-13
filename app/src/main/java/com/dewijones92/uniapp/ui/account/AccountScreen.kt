@@ -106,43 +106,47 @@ private fun ColumnScope.SignedIn(
     onImport: () -> Unit,
     onSignOut: () -> Unit,
 ) {
-    Centered {
-        EmptyState(
-            icon = Icons.Outlined.AccountCircle,
-            headline = stringResource(R.string.account_signed_in_headline),
-            supportingText = stringResource(R.string.account_signed_in_supporting),
-        )
-        ImportStatus(importState)
-    }
+    // EmptyState fills the top; the import status sits in its own row between
+    // it and the actions (nesting both in one centred box lets fillMaxSize
+    // squeeze the status out of view).
+    EmptyState(
+        icon = Icons.Outlined.AccountCircle,
+        headline = stringResource(R.string.account_signed_in_headline),
+        supportingText = stringResource(R.string.account_signed_in_supporting),
+        modifier = Modifier.weight(1f),
+    )
+    ImportStatus(importState)
     val importing = importState is AccountViewModel.ImportState.Running
     Button(
         onClick = onImport,
         enabled = !importing,
         modifier = Modifier
             .align(Alignment.CenterHorizontally)
-            .padding(bottom = 12.dp),
+            .padding(top = 16.dp, bottom = 12.dp),
     ) { Text(stringResource(R.string.account_import_subscriptions)) }
     OutlinedActionButton(stringResource(R.string.account_sign_out), onSignOut)
 }
 
 @Composable
-private fun ImportStatus(importState: AccountViewModel.ImportState) {
+private fun ColumnScope.ImportStatus(importState: AccountViewModel.ImportState) {
+    val modifier = Modifier
+        .align(Alignment.CenterHorizontally)
+        .padding(horizontal = 32.dp)
     when (importState) {
         AccountViewModel.ImportState.Idle -> Unit
-        AccountViewModel.ImportState.Running ->
-            CircularProgressIndicator(modifier = Modifier.padding(top = 24.dp))
+        AccountViewModel.ImportState.Running -> CircularProgressIndicator(modifier)
         is AccountViewModel.ImportState.Done -> Text(
             text = stringResource(R.string.account_import_done, importState.added, importState.total),
             style = MaterialTheme.typography.bodyLarge,
             textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = 24.dp),
+            modifier = modifier,
         )
         AccountViewModel.ImportState.Failed -> Text(
             text = stringResource(R.string.account_import_failed),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.error,
             textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = 24.dp),
+            modifier = modifier,
         )
     }
 }
