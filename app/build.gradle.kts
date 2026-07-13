@@ -106,6 +106,9 @@ dependencies {
   implementation(libs.androidx.compose.ui.tooling.preview)
   implementation(libs.androidx.compose.material3)
   implementation(libs.androidx.compose.material.icons.extended)
+  // Video surface for the shared player (podcasts show artwork, videos render here)
+  implementation(libs.media3.common)
+  implementation(libs.media3.ui.compose)
   // Tooling
   debugImplementation(libs.androidx.compose.ui.tooling)
   // Instrumented tests

@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -25,18 +26,24 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.ui.compose.PlayerSurface
+import androidx.media3.ui.compose.SURFACE_TYPE_TEXTURE_VIEW
 import com.dewijones92.uniapp.R
 import com.dewijones92.uniapp.playback.PlaybackState
 import java.util.concurrent.TimeUnit
@@ -49,6 +56,7 @@ import java.util.concurrent.TimeUnit
 @Composable
 fun FullPlayerDialog(
     state: PlaybackState,
+    player: Player?,
     onDismiss: () -> Unit,
     onTogglePlayPause: () -> Unit,
     onSeekTo: (Long) -> Unit,
@@ -56,6 +64,7 @@ fun FullPlayerDialog(
     onSeekForward: () -> Unit,
     onSetSpeed: (Float) -> Unit,
 ) {
+    KeepScreenOnWhilePlayingVideo(active = state.hasVideo && state.isPlaying)
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(modifier = Modifier.fillMaxSize()) {
             Column(
@@ -68,7 +77,15 @@ fun FullPlayerDialog(
                     Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.close))
                 }
 
-                Spacer(Modifier.height(48.dp))
+                // The one place video is shown: the shared player's stage. Shown
+                // as soon as a video track exists (before the first frame, so
+                // decoding can start), defaulting to 16:9 until the real aspect
+                // ratio is reported. Audio items (podcasts) skip it entirely.
+                if (player != null && state.hasVideo) {
+                    VideoStage(player, state.videoAspectRatio ?: DEFAULT_VIDEO_ASPECT_RATIO)
+                }
+
+                Spacer(Modifier.height(if (state.hasVideo) 24.dp else 48.dp))
                 Text(
                     text = state.title,
                     style = MaterialTheme.typography.headlineSmall,
@@ -95,6 +112,30 @@ fun FullPlayerDialog(
                 SpeedControl(state.speed, onSetSpeed)
             }
         }
+    }
+}
+
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+@Composable
+private fun VideoStage(player: Player, aspectRatio: Float, modifier: Modifier = Modifier) {
+    // A TextureView composes cleanly inside the dialog (no SurfaceView z-order
+    // punch-through); PlayerSurface attaches/detaches it to the player for us.
+    PlayerSurface(
+        player = player,
+        surfaceType = SURFACE_TYPE_TEXTURE_VIEW,
+        modifier = modifier
+            .fillMaxWidth()
+            .aspectRatio(aspectRatio),
+    )
+}
+
+/** Stops the screen dimming while a video is actually playing. */
+@Composable
+private fun KeepScreenOnWhilePlayingVideo(active: Boolean) {
+    val view = LocalView.current
+    DisposableEffect(active) {
+        view.keepScreenOn = active
+        onDispose { view.keepScreenOn = false }
     }
 }
 
@@ -208,3 +249,4 @@ private fun formatTime(millis: Long): String {
 
 private val SPEEDS = listOf(0.8f, 1.0f, 1.25f, 1.5f, 2.0f)
 private const val SECONDS_PER_MINUTE = 60L
+private const val DEFAULT_VIDEO_ASPECT_RATIO = 16f / 9f

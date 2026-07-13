@@ -2,7 +2,9 @@ package com.dewijones92.uniapp.playback
 
 import android.content.ComponentName
 import android.content.Context
+import android.util.Log
 import androidx.core.content.ContextCompat
+import androidx.media3.common.C
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
@@ -35,6 +37,7 @@ public class Media3PlaybackController(
     override val state: StateFlow<PlaybackState?> = _state
 
     private var controller: MediaController? = null
+    override val player: Player? get() = controller
     private val pendingCommands = mutableListOf<(MediaController) -> Unit>()
     private var activeSkipSegments: List<SkipSegment> = emptyList()
 
@@ -48,6 +51,19 @@ public class Media3PlaybackController(
                 connected.addListener(
                     object : Player.Listener {
                         override fun onEvents(player: Player, events: Player.Events) {
+                            if (events.containsAny(
+                                    Player.EVENT_VIDEO_SIZE_CHANGED,
+                                    Player.EVENT_TRACKS_CHANGED,
+                                )
+                            ) {
+                                Log.i(
+                                    "dewidebug",
+                                    "video size=${player.videoSize.width}x${player.videoSize.height} " +
+                                        "hasVideo=${player.currentTracks.groups.any {
+                                            it.type == C.TRACK_TYPE_VIDEO
+                                        }}",
+                                )
+                            }
                             _state.value = connected.currentPlaybackState()
                         }
                     },
@@ -149,6 +165,9 @@ public class Media3PlaybackController(
             positionMs = currentPosition.coerceAtLeast(0),
             durationMs = duration.takeIf { it > 0 },
             speed = playbackParameters.speed,
+            hasVideo = currentTracks.groups.any { it.type == C.TRACK_TYPE_VIDEO },
+            videoAspectRatio = videoSize.takeIf { it.width > 0 && it.height > 0 }
+                ?.let { it.width * it.pixelWidthHeightRatio / it.height },
         )
     }
 

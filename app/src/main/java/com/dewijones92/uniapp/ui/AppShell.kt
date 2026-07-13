@@ -20,6 +20,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dewijones92.uniapp.di.AppContainer
 import com.dewijones92.uniapp.di.fake.FakeAppContainer
 import com.dewijones92.uniapp.navigation.TopLevelDestination
+import com.dewijones92.uniapp.playback.PlaybackController
+import com.dewijones92.uniapp.playback.PlaybackState
 import com.dewijones92.uniapp.theme.UniAppTheme
 import com.dewijones92.uniapp.ui.common.MiniPlayerBar
 import com.dewijones92.uniapp.ui.common.RequestNotificationPermissionOnFirstPlay
@@ -43,15 +45,7 @@ fun AppShell(container: AppContainer, modifier: Modifier = Modifier) {
     RequestNotificationPermissionOnFirstPlay(playbackActive = playbackState != null)
 
     playbackState?.takeIf { showFullPlayer }?.let { state ->
-        FullPlayerDialog(
-            state = state,
-            onDismiss = { showFullPlayer = false },
-            onTogglePlayPause = controller::togglePlayPause,
-            onSeekTo = controller::seekTo,
-            onSeekBackward = controller::seekBackward,
-            onSeekForward = controller::seekForward,
-            onSetSpeed = controller::setSpeed,
-        )
+        FullPlayerHost(state, controller) { showFullPlayer = false }
     }
 
     Scaffold(
@@ -95,6 +89,25 @@ fun AppShell(container: AppContainer, modifier: Modifier = Modifier) {
             }
         }
     }
+}
+
+/** Hosts the full-player dialog, wiring it to the one playback controller. */
+@Composable
+private fun FullPlayerHost(
+    state: PlaybackState,
+    controller: PlaybackController,
+    onDismiss: () -> Unit,
+) {
+    FullPlayerDialog(
+        state = state,
+        player = controller.player,
+        onDismiss = onDismiss,
+        onTogglePlayPause = controller::togglePlayPause,
+        onSeekTo = controller::seekTo,
+        onSeekBackward = controller::seekBackward,
+        onSeekForward = controller::seekForward,
+        onSetSpeed = controller::setSpeed,
+    )
 }
 
 @Preview(showBackground = true)
