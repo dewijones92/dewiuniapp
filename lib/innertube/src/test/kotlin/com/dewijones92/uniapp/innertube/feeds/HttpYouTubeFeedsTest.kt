@@ -1,0 +1,64 @@
+package com.dewijones92.uniapp.innertube.feeds
+
+import com.dewijones92.uniapp.innertube.auth.AccessToken
+import com.dewijones92.uniapp.innertube.auth.OAuthTokens
+import com.dewijones92.uniapp.innertube.auth.RefreshToken
+import com.dewijones92.uniapp.innertube.auth.YouTubeAccount
+import com.dewijones92.uniapp.innertube.auth.fake.FakeYouTubeAuth
+import com.dewijones92.uniapp.innertube.auth.fake.InMemoryTokenStore
+import com.dewijones92.uniapp.innertube.browse.InnerTubeClient
+import kotlinx.coroutines.runBlocking
+import mockwebserver3.MockResponse
+import mockwebserver3.MockWebServer
+import okhttp3.OkHttpClient
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+
+class HttpYouTubeFeedsTest {
+
+    private val server = MockWebServer()
+
+    @Before fun setUp() = server.start()
+
+    @After fun tearDown() = server.close()
+
+    private fun feeds(signedIn: Boolean = true): HttpYouTubeFeeds {
+        val initial = if (signedIn) TOKENS else null
+        val account = YouTubeAccount(FakeYouTubeAuth(), InMemoryTokenStore(initial), nowEpochSeconds = { 0 })
+        return HttpYouTubeFeeds(account, InnerTubeClient(OkHttpClient(), baseUrl = server.url("/b").toString()))
+    }
+
+    @Test
+    fun `history browses FEhistory and parses videos`() = runBlocking {
+        server.enqueue(
+            MockResponse.Builder().code(200).body(
+                """{"contents":{"c":[{"tileRenderer":{"contentType":"TILE_CONTENT_TYPE_VIDEO",
+                   "onSelectCommand":{"watchEndpoint":{"videoId":"vvvvvvvvvvv"}},
+                   "metadata":{"tileMetadataRenderer":{"title":{"simpleText":"Watched"}}}}}]}}""",
+            ).build(),
+        )
+
+        val result = feeds().history()
+
+        assertEquals("vvvvvvvvvvv", (result as FeedResult.Success).videos.single().videoId)
+        assertTrue(server.takeRequest().body?.utf8().orEmpty().contains("FEhistory"))
+    }
+
+    @Test
+    fun `signed out without a token`() = runBlocking {
+        assertEquals(FeedResult.SignedOut, feeds(signedIn = false).recommended())
+    }
+
+    @Test
+    fun `403 is treated as signed out`() = runBlocking {
+        server.enqueue(MockResponse.Builder().code(403).body("no").build())
+        assertEquals(FeedResult.SignedOut, feeds().watchLater())
+    }
+
+    private companion object {
+        val TOKENS = OAuthTokens(AccessToken("at"), RefreshToken("rt"), expiresAtEpochSeconds = 3_600)
+    }
+}
