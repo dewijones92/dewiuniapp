@@ -28,6 +28,8 @@ public data class MediaMetadata(
     val durationSeconds: Long?,
     val thumbnailUrl: String?,
     val formats: List<MediaFormat>,
+    /** The uploader's description/notes for this media, when the extractor provides one. */
+    val description: String? = null,
 ) {
     init {
         require(id.isNotBlank()) { "id must not be blank" }

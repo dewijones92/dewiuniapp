@@ -34,6 +34,7 @@ class VideoResolver(
                 publishedAt = null,
                 duration = metadata.durationSeconds?.seconds,
                 author = metadata.uploader,
+                description = metadata.description,
                 thumbnailUrl = metadata.thumbnailUrl?.let(HttpUrl::parse),
                 mediaUrl = streamUrl,
             ),

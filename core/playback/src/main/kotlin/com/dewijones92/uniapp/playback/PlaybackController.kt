@@ -56,6 +56,8 @@ public data class PlaybackState(
     val title: String,
     val artist: String?,
     val artworkUrl: String?,
+    /** The item's description / show notes, when known. Shown on the full player. */
+    val description: String? = null,
     val isPlaying: Boolean,
     val positionMs: Long,
     val durationMs: Long?,

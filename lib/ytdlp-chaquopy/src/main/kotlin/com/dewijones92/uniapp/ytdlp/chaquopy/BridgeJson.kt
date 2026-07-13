@@ -67,6 +67,7 @@ private fun JsonObject.toMediaMetadata(url: HttpUrl): MediaMetadata = MediaMetad
     durationSeconds = this["duration"]?.jsonPrimitive?.doubleOrNull?.toLong()?.takeIf { it > 0 },
     thumbnailUrl = stringOrNull("thumbnail"),
     formats = this["formats"]?.jsonArray.orEmpty().mapNotNull { it.jsonObject.toMediaFormatOrNull() },
+    description = stringOrNull("description"),
 )
 
 private fun JsonObject.toMediaFormatOrNull(): MediaFormat? {

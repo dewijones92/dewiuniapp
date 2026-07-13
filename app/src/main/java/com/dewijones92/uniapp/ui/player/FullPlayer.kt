@@ -1,5 +1,6 @@
 package com.dewijones92.uniapp.ui.player
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -37,6 +38,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -124,6 +126,14 @@ fun FullPlayerDialog(
                 if (state.hasVideo && watchActions.canAct) {
                     Spacer(Modifier.height(16.dp))
                     LikeButton(watchActions.liked, watchActions.onToggleLike)
+                }
+
+                // Description / show notes — unified: a video's description and
+                // a podcast episode's notes are the same field, shown the same way.
+                val description = state.description
+                if (!description.isNullOrBlank()) {
+                    Spacer(Modifier.height(24.dp))
+                    DescriptionSection(description)
                 }
 
                 // Comments live under the video, YouTube-style; audio items have none.
@@ -275,6 +285,40 @@ private fun CommentsNote(text: String) {
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
+}
+
+/**
+ * Collapsible description / show-notes block. Starts clamped to a few lines
+ * with a "Show more" toggle, so a long description doesn't push the comments
+ * off-screen. Tapping the whole block toggles too.
+ */
+@Composable
+private fun DescriptionSection(description: String) {
+    var expanded by rememberSaveable(description) { mutableStateOf(false) }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { expanded = !expanded },
+    ) {
+        Text(
+            text = stringResource(R.string.description_title),
+            style = MaterialTheme.typography.titleMedium,
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = description,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = if (expanded) Int.MAX_VALUE else DESCRIPTION_COLLAPSED_LINES,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = stringResource(if (expanded) R.string.show_less else R.string.show_more),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.primary,
+        )
+    }
 }
 
 /**
@@ -436,3 +480,4 @@ private val SPEEDS = listOf(0.8f, 1.0f, 1.25f, 1.5f, 2.0f)
 private const val SECONDS_PER_MINUTE = 60L
 private const val DEFAULT_VIDEO_ASPECT_RATIO = 16f / 9f
 private val ARTWORK_MAX_WIDTH = 320.dp
+private const val DESCRIPTION_COLLAPSED_LINES = 4

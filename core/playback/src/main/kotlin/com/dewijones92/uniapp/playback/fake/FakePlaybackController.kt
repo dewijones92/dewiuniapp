@@ -34,6 +34,7 @@ public class FakePlaybackController : PlaybackController {
             title = item.title,
             artist = item.author,
             artworkUrl = item.thumbnailUrl?.value,
+            description = item.description,
             isPlaying = true,
             positionMs = 0,
             durationMs = item.duration?.inWholeMilliseconds,

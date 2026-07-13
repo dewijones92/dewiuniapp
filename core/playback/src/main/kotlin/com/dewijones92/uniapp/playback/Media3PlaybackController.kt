@@ -89,6 +89,7 @@ public class Media3PlaybackController(
                         MediaMetadata.Builder()
                             .setTitle(item.title)
                             .setArtist(item.author)
+                            .setDescription(item.description)
                             .setArtworkUri(item.thumbnailUrl?.value?.let(android.net.Uri::parse))
                             .build(),
                     )
@@ -161,6 +162,7 @@ public class Media3PlaybackController(
             title = current.mediaMetadata.title?.toString().orEmpty(),
             artist = current.mediaMetadata.artist?.toString(),
             artworkUrl = current.mediaMetadata.artworkUri?.toString(),
+            description = current.mediaMetadata.description?.toString(),
             isPlaying = isPlaying,
             positionMs = currentPosition.coerceAtLeast(0),
             durationMs = duration.takeIf { it > 0 },

@@ -28,6 +28,7 @@ class BridgeJsonTest {
             {"ok": true, "info": {
                 "id": "abc", "title": "A video", "uploader": "A channel",
                 "duration": 90.5, "thumbnail": "https://i.example.com/t.jpg",
+                "description": "Line one\nLine two",
                 "formats": [
                     {"format_id": "22", "ext": "mp4", "vcodec": "avc1", "acodec": "mp4a",
                      "width": 1280, "height": 720, "filesize": 1000,
@@ -44,6 +45,7 @@ class BridgeJsonTest {
 
         assertEquals("abc", metadata.id)
         assertEquals(90L, metadata.durationSeconds)
+        assertEquals("Line one\nLine two", metadata.description)
         // Formats with no format_id or no codecs at all (storyboards) are dropped, not crashed on.
         assertEquals(2, metadata.formats.size)
         val (video, audio) = metadata.formats
@@ -118,6 +120,7 @@ class BridgeJsonTest {
         assertEquals(url.value, metadata.id)
         assertEquals("Untitled", metadata.title)
         assertNull(metadata.durationSeconds)
+        assertNull(metadata.description)
         assertTrue(metadata.formats.isEmpty())
     }
 
