@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -12,6 +13,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.SmartDisplay
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -33,6 +36,7 @@ import com.dewijones92.uniapp.R
 import com.dewijones92.uniapp.di.AppContainer
 import com.dewijones92.uniapp.domain.DownloadState
 import com.dewijones92.uniapp.domain.MediaItem
+import com.dewijones92.uniapp.innertube.feeds.AccountFeed
 import com.dewijones92.uniapp.theme.UniAppTheme
 import com.dewijones92.uniapp.ui.common.EmptyState
 import com.dewijones92.uniapp.ui.common.MediaItemRow
@@ -50,6 +54,7 @@ fun VideosScreen(container: AppContainer, modifier: Modifier = Modifier) {
         onPlay = viewModel::play,
         onDownload = viewModel::download,
         onDeleteDownload = viewModel::deleteDownload,
+        onSelectFeed = viewModel::selectFeed,
         modifier = modifier,
     )
 }
@@ -62,19 +67,20 @@ internal fun VideosContent(
     onPlay: (MediaItem) -> Unit,
     onDownload: (MediaItem) -> Unit,
     onDeleteDownload: (MediaItem) -> Unit,
+    onSelectFeed: (AccountFeed?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
 
     Box(modifier.fillMaxSize()) {
-        if (state.subscriptions.isEmpty()) {
+        if (state.subscriptions.isEmpty() && !state.signedIn) {
             EmptyState(
                 icon = Icons.Outlined.SmartDisplay,
                 headline = stringResource(R.string.videos_empty_headline),
                 supportingText = stringResource(R.string.videos_empty_supporting),
             )
         } else {
-            ChannelsAndVideos(state, onPlay, onDownload, onDeleteDownload)
+            ChannelsAndVideos(state, onPlay, onDownload, onDeleteDownload, onSelectFeed)
         }
 
         FloatingActionButton(
@@ -105,38 +111,99 @@ private fun ChannelsAndVideos(
     onPlay: (MediaItem) -> Unit,
     onDownload: (MediaItem) -> Unit,
     onDeleteDownload: (MediaItem) -> Unit,
+    onSelectFeed: (AccountFeed?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(modifier = modifier.fillMaxSize()) {
-        item {
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(horizontal = 16.dp),
-            ) {
-                items(state.subscriptions) { subscription ->
-                    AssistChip(onClick = {}, label = { Text(subscription.source.title) })
+        if (state.subscriptions.isNotEmpty()) {
+            item {
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                ) {
+                    items(state.subscriptions) { subscription ->
+                        AssistChip(onClick = {}, label = { Text(subscription.source.title) })
+                    }
                 }
             }
         }
-        item {
-            Text(
-                text = stringResource(R.string.latest_videos),
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-            )
+        if (state.signedIn) {
+            item { FeedSelector(state.selectedFeed, onSelectFeed) }
         }
-        items(state.videos, key = { it.id.value }) { video ->
-            MediaItemRow(
-                item = video,
-                subtitle = mediaItemSubtitle(video),
-                downloadState = state.downloadStates[video.id] ?: DownloadState.NotDownloaded,
-                onPlay = { onPlay(video) },
-                onDownload = { onDownload(video) },
-                onDeleteDownload = { onDeleteDownload(video) },
-            )
-            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+        when {
+            state.feedLoading -> item { FeedLoading() }
+            state.feedError -> item { FeedMessage(stringResource(R.string.feed_error)) }
+            state.videos.isEmpty() -> item { FeedMessage(stringResource(R.string.feed_empty)) }
+            else -> {
+                item {
+                    Text(
+                        text = stringResource(feedTitleRes(state.selectedFeed)),
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    )
+                }
+                items(state.videos, key = { it.id.value }) { video ->
+                    MediaItemRow(
+                        item = video,
+                        subtitle = mediaItemSubtitle(video),
+                        downloadState = state.downloadStates[video.id] ?: DownloadState.NotDownloaded,
+                        onPlay = { onPlay(video) },
+                        onDownload = { onDownload(video) },
+                        onDeleteDownload = { onDeleteDownload(video) },
+                    )
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                }
+            }
         }
     }
+}
+
+@Composable
+private fun FeedSelector(selected: AccountFeed?, onSelectFeed: (AccountFeed?) -> Unit) {
+    LazyRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        modifier = Modifier.padding(top = 8.dp),
+    ) {
+        items(AccountFeed.entries) { feed ->
+            FilterChip(
+                selected = feed == selected,
+                onClick = { onSelectFeed(feed) },
+                label = { Text(stringResource(feedChipRes(feed))) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun FeedLoading() {
+    Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+        CircularProgressIndicator()
+    }
+}
+
+@Composable
+private fun FeedMessage(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodyLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(32.dp),
+    )
+}
+
+private fun feedChipRes(feed: AccountFeed): Int = when (feed) {
+    AccountFeed.RECOMMENDED -> R.string.feed_home
+    AccountFeed.SUBSCRIPTIONS -> R.string.feed_subscriptions
+    AccountFeed.WATCH_LATER -> R.string.feed_watch_later
+    AccountFeed.HISTORY -> R.string.feed_history
+}
+
+private fun feedTitleRes(feed: AccountFeed?): Int = when (feed) {
+    null -> R.string.latest_videos
+    else -> feedChipRes(feed)
 }
 
 @Preview(showBackground = true)
@@ -150,6 +217,7 @@ private fun VideosContentPreview() {
             onPlay = {},
             onDownload = {},
             onDeleteDownload = {},
+            onSelectFeed = {},
         )
     }
 }

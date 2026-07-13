@@ -15,6 +15,8 @@ import com.dewijones92.uniapp.di.AppContainer
 import com.dewijones92.uniapp.innertube.auth.YouTubeAccount
 import com.dewijones92.uniapp.innertube.auth.fake.FakeYouTubeAuth
 import com.dewijones92.uniapp.innertube.auth.fake.InMemoryTokenStore
+import com.dewijones92.uniapp.innertube.feeds.YouTubeFeeds
+import com.dewijones92.uniapp.innertube.feeds.fake.FakeYouTubeFeeds
 import com.dewijones92.uniapp.innertube.subscriptions.fake.FakeYouTubeSubscriptions
 import com.dewijones92.uniapp.playback.PlaybackController
 import com.dewijones92.uniapp.playback.fake.FakePlaybackController
@@ -38,6 +40,7 @@ class FakeAppContainer(
     override val youTubeAccount: YouTubeAccount = YouTubeAccount(FakeYouTubeAuth(), InMemoryTokenStore()),
     override val subscriptionImporter: SubscriptionImporter =
         SubscriptionImporter(FakeYouTubeSubscriptions(), channelRepository),
+    override val youTubeFeeds: YouTubeFeeds = FakeYouTubeFeeds(),
 ) : AppContainer {
     override fun refreshExtractorEngine() = Unit
 }

@@ -25,6 +25,8 @@ import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.innertube.auth.HttpYouTubeAuth
 import com.dewijones92.uniapp.innertube.auth.YouTubeAccount
 import com.dewijones92.uniapp.innertube.browse.InnerTubeClient
+import com.dewijones92.uniapp.innertube.feeds.HttpYouTubeFeeds
+import com.dewijones92.uniapp.innertube.feeds.YouTubeFeeds
 import com.dewijones92.uniapp.innertube.subscriptions.HttpYouTubeSubscriptions
 import com.dewijones92.uniapp.playback.Media3PlaybackController
 import com.dewijones92.uniapp.playback.PlaybackController
@@ -57,6 +59,9 @@ interface AppContainer {
 
     /** Imports the signed-in account's subscriptions into the unified model. */
     val subscriptionImporter: SubscriptionImporter
+
+    /** The signed-in account's video feeds (home, subs, watch later, history). */
+    val youTubeFeeds: YouTubeFeeds
 
     /**
      * Kick off background upkeep on app start (currently: fetch the latest
@@ -153,11 +158,17 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
         )
     }
 
+    private val innerTubeClient by lazy { InnerTubeClient(httpClient) }
+
     override val subscriptionImporter: SubscriptionImporter by lazy {
         SubscriptionImporter(
-            subscriptions = HttpYouTubeSubscriptions(youTubeAccount, InnerTubeClient(httpClient)),
+            subscriptions = HttpYouTubeSubscriptions(youTubeAccount, innerTubeClient),
             channels = channelRepository,
         )
+    }
+
+    override val youTubeFeeds: YouTubeFeeds by lazy {
+        HttpYouTubeFeeds(youTubeAccount, innerTubeClient)
     }
 
     private companion object {
