@@ -8,8 +8,13 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [FeedEntity::class, EpisodeEntity::class, DownloadEntity::class],
-    version = 4,
+    entities = [
+        FeedEntity::class,
+        EpisodeEntity::class,
+        DownloadEntity::class,
+        PlaybackProgressEntity::class,
+    ],
+    version = 5,
     exportSchema = false,
 )
 public abstract class UniAppDatabase : RoomDatabase() {
@@ -18,10 +23,12 @@ public abstract class UniAppDatabase : RoomDatabase() {
 
     public abstract fun downloadDao(): DownloadDao
 
+    public abstract fun playbackProgressDao(): PlaybackProgressDao
+
     public companion object {
         public fun build(context: Context): UniAppDatabase =
             Room.databaseBuilder(context, UniAppDatabase::class.java, "uniapp.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                 .build()
 
         /** v2: episodes gained an author column (notification artist line). */
@@ -50,6 +57,19 @@ public abstract class UniAppDatabase : RoomDatabase() {
         private val MIGRATION_3_4 = object : Migration(3, 4) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE podcast_feeds ADD COLUMN sourceType TEXT NOT NULL DEFAULT 'podcast'")
+            }
+        }
+
+        /** v5: playback_progress table (resume position per item). */
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS playback_progress (" +
+                        "mediaItemId TEXT NOT NULL PRIMARY KEY, " +
+                        "positionMs INTEGER NOT NULL, " +
+                        "durationMs INTEGER, " +
+                        "updatedAtEpochMs INTEGER NOT NULL)",
+                )
             }
         }
     }

@@ -28,9 +28,14 @@ import androidx.media3.common.MediaItem as Media3MediaItem
  * [PlaybackService]. Commands issued before the async connection completes
  * are queued and replayed on connect.
  */
+// The one adapter binding the app's PlaybackController seam to Media3; its
+// method count is the interface surface plus a few small private helpers, and
+// collapsing them to satisfy the counter would only duplicate logic.
+@Suppress("TooManyFunctions")
 public class Media3PlaybackController(
     context: Context,
     private val scope: CoroutineScope,
+    private val progressStore: PlaybackProgressStore = NoOpPlaybackProgressStore,
 ) : PlaybackController {
 
     private val _state = MutableStateFlow<PlaybackState?>(null)
@@ -40,6 +45,7 @@ public class Media3PlaybackController(
     override val player: Player? get() = controller
     private val pendingCommands = mutableListOf<(MediaController) -> Unit>()
     private var activeSkipSegments: List<SkipSegment> = emptyList()
+    private var ticksSinceSave = 0
 
     init {
         val token = SessionToken(context, ComponentName(context, PlaybackService::class.java))
@@ -80,28 +86,40 @@ public class Media3PlaybackController(
         val uri = localPath?.let { File(it).toURI().toString() }
             ?: requireNotNull(item.mediaUrl) { "MediaItem ${item.id.value} has no mediaUrl" }.value
         activeSkipSegments = skipSegments
-        withController { controller ->
-            controller.setMediaItem(
-                Media3MediaItem.Builder()
-                    .setMediaId(item.id.value)
-                    .setUri(uri)
-                    .setMediaMetadata(
-                        MediaMetadata.Builder()
-                            .setTitle(item.title)
-                            .setArtist(item.author)
-                            .setDescription(item.description)
-                            .setArtworkUri(item.thumbnailUrl?.value?.let(android.net.Uri::parse))
-                            .build(),
-                    )
+        val media3Item = Media3MediaItem.Builder()
+            .setMediaId(item.id.value)
+            .setUri(uri)
+            .setMediaMetadata(
+                MediaMetadata.Builder()
+                    .setTitle(item.title)
+                    .setArtist(item.author)
+                    .setDescription(item.description)
+                    .setArtworkUri(item.thumbnailUrl?.value?.let(android.net.Uri::parse))
                     .build(),
             )
-            controller.prepare()
-            controller.play()
+            .build()
+        // Resume where this item was left (both pillars). Fetched first so we
+        // can hand the start position straight to the player — no jump from 0.
+        scope.launch {
+            val resumeMs = progressStore.resumePositionMs(item.id) ?: 0L
+            ticksSinceSave = 0
+            withController { controller ->
+                controller.setMediaItem(media3Item, resumeMs)
+                controller.prepare()
+                controller.play()
+            }
         }
     }
 
     override fun togglePlayPause() {
-        withController { if (it.isPlaying) it.pause() else it.play() }
+        withController {
+            if (it.isPlaying) {
+                it.pause()
+                saveProgress(it) // capture where we paused straight away
+            } else {
+                it.play()
+            }
+        }
     }
 
     override fun seekTo(positionMs: Long) {
@@ -143,10 +161,22 @@ public class Media3PlaybackController(
                 if (controller.isPlaying) {
                     applySkipSegments(controller)
                     _state.value = controller.currentPlaybackState()
+                    if (++ticksSinceSave >= TICKS_PER_SAVE) {
+                        ticksSinceSave = 0
+                        saveProgress(controller)
+                    }
                 }
                 delay(POSITION_TICK_MS)
             }
         }
+    }
+
+    /** Persists the current item's position so it resumes there next time. */
+    private fun saveProgress(controller: MediaController) {
+        val id = controller.currentMediaItem?.mediaId ?: return
+        val position = controller.currentPosition.coerceAtLeast(0)
+        val duration = controller.duration.takeIf { it > 0 }
+        scope.launch { progressStore.save(MediaItemId(id), position, duration) }
     }
 
     /** The one place segment-skipping happens, for every pillar. */
@@ -177,5 +207,8 @@ public class Media3PlaybackController(
         const val POSITION_TICK_MS = 500L
         const val MIN_SPEED = 0.5f
         const val MAX_SPEED = 3.0f
+
+        /** Persist progress every ~5s of playback (10 ticks of 500ms). */
+        const val TICKS_PER_SAVE = 10
     }
 }

@@ -19,6 +19,7 @@ import com.dewijones92.uniapp.data.search.YtDlpVideoSearchSource
 import com.dewijones92.uniapp.data.sponsorblock.SkipSegmentSource
 import com.dewijones92.uniapp.data.sponsorblock.SponsorBlockSegmentSource
 import com.dewijones92.uniapp.database.RoomDownloadStore
+import com.dewijones92.uniapp.database.RoomPlaybackProgressStore
 import com.dewijones92.uniapp.database.RoomSubscriptionStore
 import com.dewijones92.uniapp.database.UniAppDatabase
 import com.dewijones92.uniapp.domain.MediaItem
@@ -125,7 +126,11 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     override val playbackController: PlaybackController by lazy {
-        Media3PlaybackController(context, applicationScope)
+        Media3PlaybackController(
+            context,
+            applicationScope,
+            RoomPlaybackProgressStore(database.playbackProgressDao()),
+        )
     }
 
     private val textFetcher by lazy { OkHttpTextFetcher(httpClient) }

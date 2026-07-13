@@ -34,6 +34,18 @@ public data class DownloadEntity(
     val failureReason: String?,
 )
 
+/**
+ * Resume position for an item, keyed by media item id. One row per item that
+ * has been played part-way; finished items are deleted so they restart.
+ */
+@Entity(tableName = "playback_progress")
+public data class PlaybackProgressEntity(
+    @PrimaryKey val mediaItemId: String,
+    val positionMs: Long,
+    val durationMs: Long?,
+    val updatedAtEpochMs: Long,
+)
+
 @Entity(
     tableName = "podcast_episodes",
     foreignKeys = [
