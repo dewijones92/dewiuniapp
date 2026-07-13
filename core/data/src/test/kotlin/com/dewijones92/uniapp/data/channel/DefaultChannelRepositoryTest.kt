@@ -60,6 +60,32 @@ class DefaultChannelRepositoryTest {
     }
 
     @Test
+    fun `fetchChannelVideos returns the channel's uploads without subscribing`() = runTest {
+        engine.registerChannel(
+            channelUrl,
+            ChannelResult.Success(
+                channelId = "UC123",
+                title = "Example Channel",
+                videos = listOf(FakeYtDlpEngine.sampleSearchEntry(id = "v1", title = "First video")),
+            ),
+        )
+
+        val result = repository().fetchChannelVideos(channelUrl) as ChannelVideosResult.Success
+
+        assertEquals("Example Channel", result.title)
+        assertEquals(1, result.videos.size)
+        assertEquals("v1", result.videos[0].id.value)
+        // Browsing must not persist a subscription.
+        assertTrue(store.saved == null)
+    }
+
+    @Test
+    fun `fetchChannelVideos reports not-a-channel as a value`() = runTest {
+        val result = repository().fetchChannelVideos(channelUrl)
+        assertTrue(result is ChannelVideosResult.Failure.NotAChannel)
+    }
+
+    @Test
     fun `subscribing to an already-stored channel reports AlreadySubscribed`() = runTest {
         engine.registerChannel(
             channelUrl,

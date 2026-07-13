@@ -34,6 +34,8 @@ import com.dewijones92.uniapp.innertube.feeds.YouTubeFeeds
 import com.dewijones92.uniapp.innertube.subscriptions.HttpYouTubeSubscriptions
 import com.dewijones92.uniapp.playback.Media3PlaybackController
 import com.dewijones92.uniapp.playback.PlaybackController
+import com.dewijones92.uniapp.video.ChannelSubscriptions
+import com.dewijones92.uniapp.video.VideoPlaybackLauncher
 import com.dewijones92.uniapp.video.VideoResolver
 import com.dewijones92.uniapp.ytdlp.YtDlpEngine
 import com.dewijones92.uniapp.ytdlp.chaquopy.ChaquopyYtDlpEngine
@@ -57,6 +59,8 @@ interface AppContainer {
     val skipSegmentSource: SkipSegmentSource
     val downloadManager: DownloadManager
     val videoResolver: VideoResolver
+    val videoPlaybackLauncher: VideoPlaybackLauncher
+    val channelSubscriptions: ChannelSubscriptions
 
     /** The signed-in YouTube account seam (device-code login, token upkeep). */
     val youTubeAccount: YouTubeAccount
@@ -159,6 +163,14 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
 
     override val videoResolver: VideoResolver by lazy {
         VideoResolver(ytDlpEngine, skipSegmentSource)
+    }
+
+    override val videoPlaybackLauncher: VideoPlaybackLauncher by lazy {
+        VideoPlaybackLauncher(videoResolver, playbackController)
+    }
+
+    override val channelSubscriptions: ChannelSubscriptions by lazy {
+        ChannelSubscriptions(channelRepository, youTubeActions)
     }
 
     override val youTubeAccount: YouTubeAccount by lazy {

@@ -61,6 +61,16 @@ public class DefaultChannelRepository(
         return added
     }
 
+    override suspend fun fetchChannelVideos(channelUrl: HttpUrl): ChannelVideosResult {
+        val id = SourceId(channelUrl.value)
+        return when (val result = engine.fetchChannel(channelUrl, maxVideos)) {
+            is ChannelResult.Success ->
+                ChannelVideosResult.Success(result.title, result.videos.map { it.toMediaItem(id) })
+            is ChannelResult.Failure.Network -> ChannelVideosResult.Failure.Network(result.detail)
+            is ChannelResult.Failure.NotAChannel -> ChannelVideosResult.Failure.NotAChannel(result.url.value)
+        }
+    }
+
     private fun VideoSearchEntry.toMediaItem(sourceId: SourceId) = MediaItem(
         id = MediaItemId(id),
         sourceId = sourceId,

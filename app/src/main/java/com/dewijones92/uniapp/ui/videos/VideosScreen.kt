@@ -12,7 +12,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.SmartDisplay
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
@@ -21,7 +20,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -42,6 +40,7 @@ import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.MediaSource
 import com.dewijones92.uniapp.innertube.feeds.AccountFeed
 import com.dewijones92.uniapp.theme.UniAppTheme
+import com.dewijones92.uniapp.ui.channel.ChannelScreen
 import com.dewijones92.uniapp.ui.common.EmptyState
 import com.dewijones92.uniapp.ui.common.MediaItemRow
 import com.dewijones92.uniapp.ui.common.mediaItemSubtitle
@@ -51,17 +50,25 @@ fun VideosScreen(container: AppContainer, modifier: Modifier = Modifier) {
     val viewModel: VideosViewModel = viewModel(factory = VideosViewModel.factory(container))
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
-    VideosContent(
-        state = state,
-        onSubscribe = viewModel::subscribe,
-        onDialogClosed = viewModel::resetSubscribing,
-        onPlay = viewModel::play,
-        onDownload = viewModel::download,
-        onDeleteDownload = viewModel::deleteDownload,
-        onSelectFeed = viewModel::selectFeed,
-        onSetChannelSubscribed = viewModel::setChannelSubscribed,
-        modifier = modifier,
-    )
+    // A tapped channel chip opens that channel's page over the feed.
+    var browsingChannel by remember { mutableStateOf<MediaSource.VideoChannel?>(null) }
+    val channel = browsingChannel
+
+    if (channel != null) {
+        ChannelScreen(container, channel, onBack = { browsingChannel = null }, modifier = modifier)
+    } else {
+        VideosContent(
+            state = state,
+            onSubscribe = viewModel::subscribe,
+            onDialogClosed = viewModel::resetSubscribing,
+            onPlay = viewModel::play,
+            onDownload = viewModel::download,
+            onDeleteDownload = viewModel::deleteDownload,
+            onSelectFeed = viewModel::selectFeed,
+            onChannelClick = { browsingChannel = it },
+            modifier = modifier,
+        )
+    }
 }
 
 @Composable
@@ -73,11 +80,10 @@ internal fun VideosContent(
     onDownload: (MediaItem) -> Unit,
     onDeleteDownload: (MediaItem) -> Unit,
     onSelectFeed: (AccountFeed?) -> Unit,
-    onSetChannelSubscribed: (MediaSource.VideoChannel, Boolean) -> Unit,
+    onChannelClick: (MediaSource.VideoChannel) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
-    var channelSheet by remember { mutableStateOf<MediaSource.VideoChannel?>(null) }
 
     Box(modifier.fillMaxSize()) {
         if (state.subscriptions.isEmpty() && !state.signedIn) {
@@ -93,20 +99,7 @@ internal fun VideosContent(
                 onDownload,
                 onDeleteDownload,
                 onSelectFeed,
-                onChannelClick = { channelSheet = it },
-            )
-        }
-
-        channelSheet?.let { source ->
-            val subscribed = state.subscriptions.any { it.source.id == source.id }
-            ChannelSheet(
-                source = source,
-                subscribed = subscribed,
-                onToggle = {
-                    onSetChannelSubscribed(source, !subscribed)
-                    channelSheet = null
-                },
-                onDismiss = { channelSheet = null },
+                onChannelClick = onChannelClick,
             )
         }
 
@@ -226,32 +219,6 @@ private fun FeedMessage(text: String) {
     )
 }
 
-@Composable
-private fun ChannelSheet(
-    source: MediaSource.VideoChannel,
-    subscribed: Boolean,
-    onToggle: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(source.title) },
-        text = {
-            Text(
-                stringResource(
-                    if (subscribed) R.string.channel_subscribed_note else R.string.channel_not_subscribed_note,
-                ),
-            )
-        },
-        confirmButton = {
-            TextButton(onClick = onToggle) {
-                Text(stringResource(if (subscribed) R.string.channel_unsubscribe else R.string.channel_subscribe))
-            }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
-    )
-}
-
 private fun feedChipRes(feed: AccountFeed): Int = when (feed) {
     AccountFeed.RECOMMENDED -> R.string.feed_home
     AccountFeed.SUBSCRIPTIONS -> R.string.feed_subscriptions
@@ -276,7 +243,7 @@ private fun VideosContentPreview() {
             onDownload = {},
             onDeleteDownload = {},
             onSelectFeed = {},
-            onSetChannelSubscribed = { _, _ -> },
+            onChannelClick = {},
         )
     }
 }

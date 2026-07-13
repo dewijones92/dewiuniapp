@@ -14,14 +14,12 @@ import com.dewijones92.uniapp.di.YouTubeAccountServices
 import com.dewijones92.uniapp.domain.DownloadState
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.MediaItemId
-import com.dewijones92.uniapp.domain.MediaSource
 import com.dewijones92.uniapp.domain.SourceId
 import com.dewijones92.uniapp.domain.Subscription
 import com.dewijones92.uniapp.innertube.feeds.AccountFeed
 import com.dewijones92.uniapp.innertube.feeds.FeedResult
 import com.dewijones92.uniapp.innertube.feeds.FeedVideo
-import com.dewijones92.uniapp.playback.PlaybackController
-import com.dewijones92.uniapp.video.VideoResolver
+import com.dewijones92.uniapp.video.VideoPlaybackLauncher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -33,8 +31,7 @@ import kotlin.time.Duration.Companion.seconds
 
 class VideosViewModel(
     private val channels: ChannelRepository,
-    private val playback: PlaybackController,
-    private val resolver: VideoResolver,
+    private val launcher: VideoPlaybackLauncher,
     private val downloads: DownloadManager,
     private val youtube: YouTubeAccountServices,
 ) : ViewModel() {
@@ -171,19 +168,6 @@ class VideosViewModel(
     }
 
     /**
-     * Subscribes/unsubscribes on YouTube (when signed in) and keeps the local
-     * store in step — the one action covers both the account and the app's
-     * unified subscription model. Re-adds without re-extracting (importChannels).
-     */
-    fun setChannelSubscribed(source: MediaSource.VideoChannel, subscribed: Boolean) {
-        val channelId = source.channelUrl.value.substringAfterLast("/channel/", "").ifBlank { null }
-        viewModelScope.launch {
-            if (channelId != null) youtube.actions.setSubscribed(channelId, subscribed)
-            if (subscribed) channels.importChannels(listOf(source)) else channels.unsubscribe(source.id)
-        }
-    }
-
-    /**
      * Plays the merged download when it exists (already SponsorBlock-clean, no
      * resolution needed), else resolves the stream and plays it. One decision,
      * one place — mirrors the podcasts pillar.
@@ -191,16 +175,13 @@ class VideosViewModel(
     fun play(video: MediaItem) {
         val local = (uiState.value.downloadStates[video.id] as? DownloadState.Downloaded)?.localPath
         if (local != null) {
-            playback.play(video, localPath = local)
+            launcher.playLocal(video, local)
             return
         }
         val watchUrl = video.mediaUrl ?: return
         viewModelScope.launch {
             resolving.value = watchUrl.value
-            val resolved = resolver.resolve(watchUrl, video.sourceId)
-            if (resolved != null) {
-                playback.play(resolved.item, skipSegments = resolved.skipSegments)
-            }
+            launcher.play(watchUrl, video.sourceId)
             resolving.value = null
         }
     }
@@ -220,8 +201,7 @@ class VideosViewModel(
             initializer {
                 VideosViewModel(
                     channels = container.channelRepository,
-                    playback = container.playbackController,
-                    resolver = container.videoResolver,
+                    launcher = container.videoPlaybackLauncher,
                     downloads = container.downloadManager,
                     youtube = YouTubeAccountServices(
                         account = container.youTubeAccount,

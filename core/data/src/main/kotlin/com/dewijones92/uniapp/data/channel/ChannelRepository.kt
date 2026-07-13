@@ -26,6 +26,23 @@ public interface ChannelRepository {
      * Videos populate lazily on later refresh. Returns the count newly added.
      */
     public suspend fun importChannels(sources: List<MediaSource.VideoChannel>): Int
+
+    /**
+     * Fetches a channel's recent uploads for browsing — read-only, does not
+     * subscribe or persist. Reuses the same extraction the subscribe path uses,
+     * so the browse view and the subscribed feed show the same videos.
+     */
+    public suspend fun fetchChannelVideos(channelUrl: HttpUrl): ChannelVideosResult
+}
+
+/** Outcome of fetching a channel's videos for browsing; expected failures are values. */
+public sealed interface ChannelVideosResult {
+    public data class Success(val title: String, val videos: List<MediaItem>) : ChannelVideosResult
+
+    public sealed interface Failure : ChannelVideosResult {
+        public data class Network(val detail: String) : Failure
+        public data class NotAChannel(val detail: String) : Failure
+    }
 }
 
 /** Outcome of subscribing to a channel; expected failures are values. */

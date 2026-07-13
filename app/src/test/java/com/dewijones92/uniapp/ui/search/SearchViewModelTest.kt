@@ -10,6 +10,7 @@ import com.dewijones92.uniapp.data.sponsorblock.SkipSegmentSource
 import com.dewijones92.uniapp.domain.SkipSegment
 import com.dewijones92.uniapp.playback.fake.FakePlaybackController
 import com.dewijones92.uniapp.ui.search.SearchViewModel.Results
+import com.dewijones92.uniapp.video.VideoPlaybackLauncher
 import com.dewijones92.uniapp.video.VideoResolver
 import com.dewijones92.uniapp.ytdlp.fake.FakeYtDlpEngine
 import kotlinx.coroutines.Dispatchers
@@ -51,8 +52,7 @@ class SearchViewModelTest {
         podcastSearch = podcastSearch,
         videoSearch = YtDlpVideoSearchSource(engine),
         podcastRepository = repository,
-        playback = playback,
-        resolver = VideoResolver(engine, SkipSegmentSource { cannedSegments }),
+        launcher = VideoPlaybackLauncher(VideoResolver(engine, SkipSegmentSource { cannedSegments }), playback),
     )
 
     @Before

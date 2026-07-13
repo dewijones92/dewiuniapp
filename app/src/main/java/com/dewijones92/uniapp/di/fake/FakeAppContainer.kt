@@ -24,6 +24,8 @@ import com.dewijones92.uniapp.innertube.feeds.fake.FakeYouTubeFeeds
 import com.dewijones92.uniapp.innertube.subscriptions.fake.FakeYouTubeSubscriptions
 import com.dewijones92.uniapp.playback.PlaybackController
 import com.dewijones92.uniapp.playback.fake.FakePlaybackController
+import com.dewijones92.uniapp.video.ChannelSubscriptions
+import com.dewijones92.uniapp.video.VideoPlaybackLauncher
 import com.dewijones92.uniapp.video.VideoResolver
 import com.dewijones92.uniapp.ytdlp.YtDlpEngine
 import com.dewijones92.uniapp.ytdlp.fake.FakeYtDlpEngine
@@ -41,7 +43,11 @@ class FakeAppContainer(
     override val skipSegmentSource: SkipSegmentSource = SkipSegmentSource { emptyList() },
     override val downloadManager: DownloadManager = FakeDownloadManager(),
     override val videoResolver: VideoResolver = VideoResolver(ytDlpEngine, skipSegmentSource),
+    override val videoPlaybackLauncher: VideoPlaybackLauncher =
+        VideoPlaybackLauncher(videoResolver, playbackController),
     override val youTubeAccount: YouTubeAccount = YouTubeAccount(FakeYouTubeAuth(), InMemoryTokenStore()),
+    override val channelSubscriptions: ChannelSubscriptions =
+        ChannelSubscriptions(channelRepository, FakeYouTubeActions()),
     override val subscriptionImporter: SubscriptionImporter =
         SubscriptionImporter(FakeYouTubeSubscriptions(), channelRepository),
     override val youTubeFeeds: YouTubeFeeds = FakeYouTubeFeeds(),

@@ -2,6 +2,7 @@ package com.dewijones92.uniapp.data.channel.fake
 
 import com.dewijones92.uniapp.common.HttpUrl
 import com.dewijones92.uniapp.data.channel.ChannelRepository
+import com.dewijones92.uniapp.data.channel.ChannelVideosResult
 import com.dewijones92.uniapp.data.channel.SubscribeChannelResult
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.MediaItemId
@@ -53,4 +54,20 @@ public class FakeChannelRepository : ChannelRepository {
         subscriptions.update { it + fresh.map { source -> Subscription(source, Instant.EPOCH) } }
         return fresh.size
     }
+
+    override suspend fun fetchChannelVideos(channelUrl: HttpUrl): ChannelVideosResult =
+        ChannelVideosResult.Success(
+            title = channelUrl.value,
+            videos = listOf(
+                MediaItem(
+                    id = MediaItemId("${channelUrl.value}/browse"),
+                    sourceId = SourceId(channelUrl.value),
+                    title = "Sample channel video",
+                    publishedAt = null,
+                    duration = null,
+                    author = channelUrl.value,
+                    mediaUrl = channelUrl,
+                ),
+            ),
+        )
 }

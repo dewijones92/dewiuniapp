@@ -13,8 +13,7 @@ import com.dewijones92.uniapp.data.search.SearchSource
 import com.dewijones92.uniapp.di.AppContainer
 import com.dewijones92.uniapp.domain.MediaSource
 import com.dewijones92.uniapp.domain.SourceId
-import com.dewijones92.uniapp.playback.PlaybackController
-import com.dewijones92.uniapp.video.VideoResolver
+import com.dewijones92.uniapp.video.VideoPlaybackLauncher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.async
@@ -35,8 +34,7 @@ class SearchViewModel(
     private val podcastSearch: SearchSource,
     private val videoSearch: SearchSource,
     private val podcastRepository: PodcastRepository,
-    private val playback: PlaybackController,
-    private val resolver: VideoResolver,
+    private val launcher: VideoPlaybackLauncher,
 ) : ViewModel() {
 
     data class UiState(
@@ -124,17 +122,12 @@ class SearchViewModel(
         }
     }
 
-    /** Resolves the hit's stream (shared [VideoResolver]) and hands it to the shared player. */
+    /** Resolves the hit's stream (shared launcher) and hands it to the shared player. */
     fun playVideo(hit: SearchHit.Video) {
         viewModelScope.launch {
             playAttempt.value = PlayAttempt(resolving = hit.watchUrl.value)
-            val resolved = resolver.resolve(hit.watchUrl, AD_HOC_VIDEO_SOURCE)
-            if (resolved == null) {
-                playAttempt.value = PlayAttempt(failed = true)
-                return@launch
-            }
-            playback.play(resolved.item, skipSegments = resolved.skipSegments)
-            playAttempt.value = PlayAttempt()
+            val played = launcher.play(hit.watchUrl, AD_HOC_VIDEO_SOURCE)
+            playAttempt.value = if (played) PlayAttempt() else PlayAttempt(failed = true)
         }
     }
 
@@ -160,8 +153,7 @@ class SearchViewModel(
                     podcastSearch = container.podcastSearchSource,
                     videoSearch = container.videoSearchSource,
                     podcastRepository = container.podcastRepository,
-                    playback = container.playbackController,
-                    resolver = container.videoResolver,
+                    launcher = container.videoPlaybackLauncher,
                 )
             }
         }
