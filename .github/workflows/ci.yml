@@ -22,6 +22,19 @@ jobs:
       - name: Verify SponsorBlock segments are cut from downloads
         run: python3 tools/sponsorblock-verify/verify_sponsorblock_cut.py
 
+  verify-mock-youtube:
+    name: Mock YouTube replay (offline)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install yt-dlp + mitmproxy
+        run: python3 -m pip install --upgrade yt-dlp mitmproxy
+      - name: Replay cassette and verify offline extraction
+        run: tools/mock-youtube/verify_replay.sh
+
   build:
     name: Quality gates + build
     runs-on: ubuntu-latest
