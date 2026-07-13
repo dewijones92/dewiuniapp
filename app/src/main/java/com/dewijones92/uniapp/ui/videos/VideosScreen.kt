@@ -1,13 +1,22 @@
 package com.dewijones92.uniapp.ui.videos
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.SmartDisplay
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -21,58 +30,106 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dewijones92.uniapp.R
+import com.dewijones92.uniapp.di.AppContainer
+import com.dewijones92.uniapp.domain.DownloadState
+import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.theme.UniAppTheme
 import com.dewijones92.uniapp.ui.common.EmptyState
-import com.dewijones92.uniapp.ytdlp.YtDlpEngine
-import com.dewijones92.uniapp.ytdlp.fake.FakeYtDlpEngine
+import com.dewijones92.uniapp.ui.common.MediaItemRow
+import com.dewijones92.uniapp.ui.common.mediaItemSubtitle
 
 @Composable
-fun VideosScreen(engine: YtDlpEngine, modifier: Modifier = Modifier) {
-    val viewModel: VideosViewModel = viewModel(factory = VideosViewModel.factory(engine))
-    val checkState by viewModel.checkState.collectAsStateWithLifecycle()
+fun VideosScreen(container: AppContainer, modifier: Modifier = Modifier) {
+    val viewModel: VideosViewModel = viewModel(factory = VideosViewModel.factory(container))
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
 
     VideosContent(
-        checkState = checkState,
-        onCheck = viewModel::check,
-        onDialogClosed = viewModel::reset,
+        state = state,
+        onSubscribe = viewModel::subscribe,
+        onDialogClosed = viewModel::resetSubscribing,
+        onPlay = viewModel::play,
         modifier = modifier,
     )
 }
 
 @Composable
 internal fun VideosContent(
-    checkState: VideosViewModel.CheckState,
-    onCheck: (String) -> Unit,
+    state: VideosViewModel.UiState,
+    onSubscribe: (String) -> Unit,
     onDialogClosed: () -> Unit,
+    onPlay: (MediaItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var showCheckDialog by rememberSaveable { mutableStateOf(false) }
+    var showAddDialog by rememberSaveable { mutableStateOf(false) }
 
     Box(modifier.fillMaxSize()) {
-        EmptyState(
-            icon = Icons.Outlined.SmartDisplay,
-            headline = stringResource(R.string.videos_empty_headline),
-            supportingText = stringResource(R.string.videos_empty_supporting),
-        )
+        if (state.subscriptions.isEmpty()) {
+            EmptyState(
+                icon = Icons.Outlined.SmartDisplay,
+                headline = stringResource(R.string.videos_empty_headline),
+                supportingText = stringResource(R.string.videos_empty_supporting),
+            )
+        } else {
+            ChannelsAndVideos(state, onPlay)
+        }
 
         FloatingActionButton(
-            onClick = { showCheckDialog = true },
+            onClick = { showAddDialog = true },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(24.dp),
         ) {
-            Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.check_video))
+            Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.add_channel))
         }
 
-        if (showCheckDialog) {
-            CheckVideoDialog(
-                checkState = checkState,
-                onCheck = onCheck,
+        if (showAddDialog) {
+            AddChannelDialog(
+                subscribing = state.subscribing,
+                onSubscribe = onSubscribe,
                 onDismiss = {
-                    showCheckDialog = false
+                    showAddDialog = false
                     onDialogClosed()
                 },
             )
+        }
+    }
+}
+
+@Composable
+private fun ChannelsAndVideos(
+    state: VideosViewModel.UiState,
+    onPlay: (MediaItem) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    LazyColumn(modifier = modifier.fillMaxSize()) {
+        item {
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp),
+            ) {
+                items(state.subscriptions) { subscription ->
+                    AssistChip(onClick = {}, label = { Text(subscription.source.title) })
+                }
+            }
+        }
+        item {
+            Text(
+                text = stringResource(R.string.latest_videos),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            )
+        }
+        items(state.videos, key = { it.id.value }) { video ->
+            MediaItemRow(
+                item = video,
+                subtitle = mediaItemSubtitle(video),
+                // Channel-video downloads need stream resolution first; not offered yet.
+                downloadState = DownloadState.NotDownloaded,
+                onPlay = { onPlay(video) },
+                onDownload = {},
+                onDeleteDownload = {},
+            )
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
         }
     }
 }
@@ -82,9 +139,10 @@ internal fun VideosContent(
 private fun VideosContentPreview() {
     UniAppTheme {
         VideosContent(
-            checkState = VideosViewModel.CheckState.Found(FakeYtDlpEngine.sampleMetadata()),
-            onCheck = {},
+            state = VideosViewModel.UiState(),
+            onSubscribe = {},
             onDialogClosed = {},
+            onPlay = {},
         )
     }
 }

@@ -5,22 +5,16 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import com.dewijones92.uniapp.common.HttpUrl
 import com.dewijones92.uniapp.data.podcast.PodcastRepository
 import com.dewijones92.uniapp.data.search.SearchHit
 import com.dewijones92.uniapp.data.search.SearchOutcome
 import com.dewijones92.uniapp.data.search.SearchQuery
 import com.dewijones92.uniapp.data.search.SearchSource
-import com.dewijones92.uniapp.data.sponsorblock.SkipSegmentSource
 import com.dewijones92.uniapp.di.AppContainer
-import com.dewijones92.uniapp.domain.MediaItem
-import com.dewijones92.uniapp.domain.MediaItemId
 import com.dewijones92.uniapp.domain.MediaSource
 import com.dewijones92.uniapp.domain.SourceId
 import com.dewijones92.uniapp.playback.PlaybackController
-import com.dewijones92.uniapp.ytdlp.ExtractionResult
-import com.dewijones92.uniapp.ytdlp.YtDlpEngine
-import com.dewijones92.uniapp.ytdlp.bestPlayableFormat
+import com.dewijones92.uniapp.video.VideoResolver
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -29,15 +23,13 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlin.time.Duration.Companion.seconds
 
 class SearchViewModel(
     private val podcastSearch: SearchSource,
     private val videoSearch: SearchSource,
     private val podcastRepository: PodcastRepository,
-    private val engine: YtDlpEngine,
     private val playback: PlaybackController,
-    private val skipSegments: SkipSegmentSource,
+    private val resolver: VideoResolver,
 ) : ViewModel() {
 
     data class UiState(
@@ -96,29 +88,16 @@ class SearchViewModel(
         }
     }
 
-    /** Resolves the hit's stream through the engine and hands it to the shared player. */
+    /** Resolves the hit's stream (shared [VideoResolver]) and hands it to the shared player. */
     fun playVideo(hit: SearchHit.Video) {
         viewModelScope.launch {
             playAttempt.value = PlayAttempt(resolving = hit.watchUrl.value)
-            val metadata = (engine.extract(hit.watchUrl) as? ExtractionResult.Success)?.metadata
-            val streamUrl = metadata?.bestPlayableFormat()?.url?.let(HttpUrl::parse)
-            if (streamUrl == null) {
+            val resolved = resolver.resolve(hit.watchUrl, AD_HOC_VIDEO_SOURCE)
+            if (resolved == null) {
                 playAttempt.value = PlayAttempt(failed = true)
                 return@launch
             }
-            playback.play(
-                MediaItem(
-                    id = MediaItemId(metadata.id),
-                    sourceId = AD_HOC_VIDEO_SOURCE,
-                    title = metadata.title,
-                    publishedAt = null,
-                    duration = metadata.durationSeconds?.seconds,
-                    author = metadata.uploader,
-                    thumbnailUrl = metadata.thumbnailUrl?.let(HttpUrl::parse),
-                    mediaUrl = streamUrl,
-                ),
-                skipSegments = skipSegments.segmentsFor(metadata.id),
-            )
+            playback.play(resolved.item, skipSegments = resolved.skipSegments)
             playAttempt.value = PlayAttempt()
         }
     }
@@ -143,9 +122,8 @@ class SearchViewModel(
                     podcastSearch = container.podcastSearchSource,
                     videoSearch = container.videoSearchSource,
                     podcastRepository = container.podcastRepository,
-                    engine = container.ytDlpEngine,
                     playback = container.playbackController,
-                    skipSegments = container.skipSegmentSource,
+                    resolver = container.videoResolver,
                 )
             }
         }

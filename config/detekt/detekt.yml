@@ -5,6 +5,10 @@ naming:
     ignoreAnnotated: ['Composable']
 
 complexity:
+  TooManyFunctions:
+    # Cohesive parser/mapper files (e.g. a JSON-contract boundary) legitimately
+    # gather many small private helpers.
+    thresholdInFiles: 15
   LongParameterList:
     # Parameters with defaults are opt-in, builder-style; they don't add call-site burden.
     ignoreDefaultParameters: true

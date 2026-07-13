@@ -1,6 +1,7 @@
 package com.dewijones92.uniapp.ytdlp.chaquopy
 
 import com.dewijones92.uniapp.common.HttpUrl
+import com.dewijones92.uniapp.ytdlp.ChannelResult
 import com.dewijones92.uniapp.ytdlp.DownloadEvent
 import com.dewijones92.uniapp.ytdlp.ExtractionResult
 import com.dewijones92.uniapp.ytdlp.VideoSearchResult
@@ -81,6 +82,34 @@ class BridgeJsonTest {
     fun `search failure maps to a value`() {
         val result = parseSearch("""{"ok": false, "kind": "network", "detail": "offline"}""")
         assertEquals(VideoSearchResult.Failure("offline"), result)
+    }
+
+    @Test
+    fun `parses channel with title and videos`() {
+        val text = """
+            {"ok": true, "channel_id": "UC1", "title": "My Channel", "videos": [
+                {"id": "v1", "title": "Vid 1", "url": "https://www.youtube.com/watch?v=v1"},
+                {"id": "v2", "url": "not a url"}
+            ]}
+        """.trimIndent()
+
+        val channel = parseChannel(url, text) as ChannelResult.Success
+
+        assertEquals("My Channel", channel.title)
+        assertEquals(1, channel.videos.size)
+        assertEquals("v1", channel.videos[0].id)
+    }
+
+    @Test
+    fun `channel failures map to values`() {
+        assertTrue(
+            parseChannel(url, """{"ok": false, "kind": "network", "detail": "x"}""")
+            is ChannelResult.Failure.Network,
+        )
+        assertTrue(
+            parseChannel(url, """{"ok": false, "kind": "not_channel", "detail": "x"}""")
+            is ChannelResult.Failure.NotAChannel,
+        )
     }
 
     @Test

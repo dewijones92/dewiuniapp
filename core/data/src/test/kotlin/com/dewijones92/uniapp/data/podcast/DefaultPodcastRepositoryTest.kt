@@ -2,6 +2,7 @@ package com.dewijones92.uniapp.data.podcast
 
 import com.dewijones92.uniapp.common.HttpUrl
 import com.dewijones92.uniapp.data.net.FetchResult
+import com.dewijones92.uniapp.data.subscription.SubscriptionStore
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.SourceId
 import com.dewijones92.uniapp.domain.Subscription
@@ -85,7 +86,7 @@ class DefaultPodcastRepositoryTest {
     }
 }
 
-private class InMemoryPodcastStore : PodcastStore {
+private class InMemoryPodcastStore : SubscriptionStore {
     var saved: Pair<Subscription, List<MediaItem>>? = null
     val removed = mutableListOf<SourceId>()
 
@@ -93,16 +94,16 @@ private class InMemoryPodcastStore : PodcastStore {
     private val episodes = MutableStateFlow<List<MediaItem>>(emptyList())
 
     override fun observeSubscriptions(): Flow<List<Subscription>> = subscriptions
-    override fun observeEpisodes(): Flow<List<MediaItem>> = episodes
+    override fun observeItems(): Flow<List<MediaItem>> = episodes
     override suspend fun contains(id: SourceId): Boolean =
         subscriptions.value.any { it.source.id == id }
 
-    override suspend fun saveFeed(subscription: Subscription, episodes: List<MediaItem>) {
-        saved = subscription to episodes
+    override suspend fun saveSource(subscription: Subscription, items: List<MediaItem>) {
+        saved = subscription to items
         subscriptions.value += subscription
     }
 
-    override suspend fun removeFeed(id: SourceId) {
+    override suspend fun removeSource(id: SourceId) {
         removed += id
         subscriptions.value = subscriptions.value.filterNot { it.source.id == id }
     }

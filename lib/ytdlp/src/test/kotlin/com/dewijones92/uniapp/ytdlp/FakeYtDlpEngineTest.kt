@@ -30,6 +30,34 @@ class FakeYtDlpEngineTest {
     }
 
     @Test
+    fun `search returns registered entries capped at maxResults`() = runTest {
+        engine.registerSearch(
+            "cats",
+            listOf(FakeYtDlpEngine.sampleSearchEntry("a"), FakeYtDlpEngine.sampleSearchEntry("b"))
+        )
+
+        val result = engine.searchVideos("cats", maxResults = 1) as VideoSearchResult.Success
+        assertEquals(1, result.entries.size)
+        assertTrue((engine.searchVideos("dogs", 5) as VideoSearchResult.Success).entries.isEmpty())
+    }
+
+    @Test
+    fun `fetchChannel returns a registered channel, else NotAChannel`() = runTest {
+        val channelUrl = HttpUrl.of("https://www.youtube.com/@chan")
+        engine.registerChannel(
+            channelUrl,
+            ChannelResult.Success("UC1", "Chan", listOf(FakeYtDlpEngine.sampleSearchEntry("v1"))),
+        )
+
+        val ok = engine.fetchChannel(channelUrl, maxVideos = 5) as ChannelResult.Success
+        assertEquals("Chan", ok.title)
+        assertEquals(1, ok.videos.size)
+
+        val missing = HttpUrl.of("https://www.youtube.com/@nope")
+        assertTrue(engine.fetchChannel(missing, 5) is ChannelResult.Failure.NotAChannel)
+    }
+
+    @Test
     fun `download emits started then monotonic progress then completed`() = runTest {
         engine.registerMedia(knownUrl, FakeYtDlpEngine.sampleMetadata())
 

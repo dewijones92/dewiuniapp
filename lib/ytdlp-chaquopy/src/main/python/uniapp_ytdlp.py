@@ -60,6 +60,52 @@ def _first_thumbnail(entry):
     return thumbnails[-1].get("url") if thumbnails else entry.get("thumbnail")
 
 
+def _uploads_tab_url(url):
+    # A bare channel URL resolves to its tab list (Videos/Shorts/Live); target the
+    # uploads tab directly so we get individual videos, not one entry per tab.
+    trimmed = url.rstrip("/")
+    if trimmed.endswith(("/videos", "/streams", "/shorts", "/featured")):
+        return trimmed
+    return trimmed + "/videos"
+
+
+def channel(url, max_videos):
+    options = {
+        "quiet": True,
+        "no_warnings": True,
+        "skip_download": True,
+        "extract_flat": "in_playlist",
+        "playlist_items": f"1:{int(max_videos)}",
+    }
+    try:
+        with yt_dlp.YoutubeDL(options) as ydl:
+            info = ydl.sanitize_info(ydl.extract_info(_uploads_tab_url(url), download=False))
+            if not info.get("entries"):
+                return json.dumps({"ok": False, "kind": "not_channel", "detail": "No uploads found"})
+            videos = [
+                {
+                    "id": entry.get("id"),
+                    "title": entry.get("title"),
+                    "uploader": entry.get("uploader") or info.get("channel") or info.get("uploader"),
+                    "duration": entry.get("duration"),
+                    "url": entry.get("url") or entry.get("webpage_url"),
+                    "thumbnail": _first_thumbnail(entry),
+                }
+                for entry in info["entries"]
+            ]
+            return json.dumps({
+                "ok": True,
+                "channel_id": info.get("channel_id") or info.get("id"),
+                "title": info.get("channel") or info.get("title") or "Channel",
+                "videos": videos,
+            })
+    except yt_dlp.utils.DownloadError as e:
+        kind = "network" if isinstance(
+            (e.exc_info[1] if e.exc_info else e), (OSError, yt_dlp.utils.network_exceptions),
+        ) else "not_channel"
+        return json.dumps({"ok": False, "kind": kind, "detail": str(e)})
+
+
 def download(url, target_dir, format_id, listener):
     def hook(d):
         if d.get("status") == "downloading":

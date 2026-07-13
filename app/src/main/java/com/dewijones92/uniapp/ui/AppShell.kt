@@ -88,7 +88,7 @@ fun AppShell(container: AppContainer, modifier: Modifier = Modifier) {
             label = "top-level-destination",
         ) { destination ->
             when (destination) {
-                TopLevelDestination.Videos -> VideosScreen(container.ytDlpEngine)
+                TopLevelDestination.Videos -> VideosScreen(container)
                 TopLevelDestination.Podcasts -> PodcastsScreen(container)
                 TopLevelDestination.Search -> SearchScreen(container)
                 TopLevelDestination.Library -> LibraryScreen(container)

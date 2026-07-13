@@ -1,6 +1,7 @@
 package com.dewijones92.uniapp.ytdlp.fake
 
 import com.dewijones92.uniapp.common.HttpUrl
+import com.dewijones92.uniapp.ytdlp.ChannelResult
 import com.dewijones92.uniapp.ytdlp.DownloadEvent
 import com.dewijones92.uniapp.ytdlp.DownloadRequest
 import com.dewijones92.uniapp.ytdlp.EngineVersions
@@ -23,6 +24,7 @@ public class FakeYtDlpEngine : YtDlpEngine {
 
     private val mediaByUrl = mutableMapOf<HttpUrl, MediaMetadata>()
     private val searchResults = mutableMapOf<String, List<VideoSearchEntry>>()
+    private val channels = mutableMapOf<HttpUrl, ChannelResult.Success>()
 
     /** Makes [url] extractable, returning canned [metadata]. */
     public fun registerMedia(url: HttpUrl, metadata: MediaMetadata) {
@@ -32,6 +34,11 @@ public class FakeYtDlpEngine : YtDlpEngine {
     /** Makes [query] return canned [entries]; unregistered queries return no hits. */
     public fun registerSearch(query: String, entries: List<VideoSearchEntry>) {
         searchResults[query] = entries
+    }
+
+    /** Makes [url] resolve as a channel; unregistered channel URLs are NotAChannel. */
+    public fun registerChannel(url: HttpUrl, channel: ChannelResult.Success) {
+        channels[url] = channel
     }
 
     override suspend fun versions(): EngineVersions =
@@ -44,6 +51,10 @@ public class FakeYtDlpEngine : YtDlpEngine {
 
     override suspend fun searchVideos(query: String, maxResults: Int): VideoSearchResult =
         VideoSearchResult.Success(searchResults[query].orEmpty().take(maxResults))
+
+    override suspend fun fetchChannel(url: HttpUrl, maxVideos: Int): ChannelResult =
+        channels[url]?.let { it.copy(videos = it.videos.take(maxVideos)) }
+            ?: ChannelResult.Failure.NotAChannel(url)
 
     override fun download(request: DownloadRequest): Flow<DownloadEvent> = flow {
         emit(DownloadEvent.Started(request.url))

@@ -4,6 +4,7 @@ import android.content.Context
 import com.chaquo.python.Python
 import com.chaquo.python.android.AndroidPlatform
 import com.dewijones92.uniapp.common.HttpUrl
+import com.dewijones92.uniapp.ytdlp.ChannelResult
 import com.dewijones92.uniapp.ytdlp.DownloadEvent
 import com.dewijones92.uniapp.ytdlp.DownloadRequest
 import com.dewijones92.uniapp.ytdlp.EngineVersions
@@ -46,6 +47,11 @@ public class ChaquopyYtDlpEngine(
     override suspend fun searchVideos(query: String, maxResults: Int): VideoSearchResult =
         withContext(dispatcher) {
             parseSearch(bridge.callAttr("search", query, maxResults).toString())
+        }
+
+    override suspend fun fetchChannel(url: HttpUrl, maxVideos: Int): ChannelResult =
+        withContext(dispatcher) {
+            parseChannel(url, bridge.callAttr("channel", url.value, maxVideos).toString())
         }
 
     override fun download(request: DownloadRequest): Flow<DownloadEvent> = flow {

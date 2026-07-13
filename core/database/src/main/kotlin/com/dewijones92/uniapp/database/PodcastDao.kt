@@ -9,11 +9,16 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 public interface PodcastDao {
 
-    @Query("SELECT * FROM podcast_feeds ORDER BY subscribedAtEpochMs DESC")
-    public fun observeFeeds(): Flow<List<FeedEntity>>
+    @Query("SELECT * FROM podcast_feeds WHERE sourceType = :sourceType ORDER BY subscribedAtEpochMs DESC")
+    public fun observeFeeds(sourceType: String): Flow<List<FeedEntity>>
 
-    @Query("SELECT * FROM podcast_episodes ORDER BY publishedAtEpochMs DESC NULLS LAST, id")
-    public fun observeEpisodes(): Flow<List<EpisodeEntity>>
+    @Query(
+        "SELECT e.* FROM podcast_episodes e " +
+            "JOIN podcast_feeds f ON e.feedId = f.id " +
+            "WHERE f.sourceType = :sourceType " +
+            "ORDER BY e.publishedAtEpochMs DESC NULLS LAST, e.id",
+    )
+    public fun observeEpisodes(sourceType: String): Flow<List<EpisodeEntity>>
 
     @Query("SELECT COUNT(*) FROM podcast_feeds WHERE id = :id")
     public suspend fun countFeeds(id: String): Int

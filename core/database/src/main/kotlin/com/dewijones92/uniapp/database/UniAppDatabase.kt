@@ -9,7 +9,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [FeedEntity::class, EpisodeEntity::class, DownloadEntity::class],
-    version = 3,
+    version = 4,
     exportSchema = false,
 )
 public abstract class UniAppDatabase : RoomDatabase() {
@@ -21,7 +21,7 @@ public abstract class UniAppDatabase : RoomDatabase() {
     public companion object {
         public fun build(context: Context): UniAppDatabase =
             Room.databaseBuilder(context, UniAppDatabase::class.java, "uniapp.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                 .build()
 
         /** v2: episodes gained an author column (notification artist line). */
@@ -43,6 +43,13 @@ public abstract class UniAppDatabase : RoomDatabase() {
                         "localPath TEXT, " +
                         "failureReason TEXT)",
                 )
+            }
+        }
+
+        /** v4: sources gained a sourceType ('podcast' | 'channel'); existing rows are podcasts. */
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE podcast_feeds ADD COLUMN sourceType TEXT NOT NULL DEFAULT 'podcast'")
             }
         }
     }

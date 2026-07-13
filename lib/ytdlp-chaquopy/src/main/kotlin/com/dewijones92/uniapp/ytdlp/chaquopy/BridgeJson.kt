@@ -1,6 +1,7 @@
 package com.dewijones92.uniapp.ytdlp.chaquopy
 
 import com.dewijones92.uniapp.common.HttpUrl
+import com.dewijones92.uniapp.ytdlp.ChannelResult
 import com.dewijones92.uniapp.ytdlp.DownloadEvent
 import com.dewijones92.uniapp.ytdlp.EngineVersions
 import com.dewijones92.uniapp.ytdlp.ExtractionResult
@@ -87,25 +88,43 @@ private fun JsonObject.toMediaFormatOrNull(): MediaFormat? {
     )
 }
 
+internal fun parseChannel(url: HttpUrl, text: String): ChannelResult {
+    val obj = json.parseToJsonElement(text).jsonObject
+    if (!obj.isOk()) {
+        val detail = obj.stringOrNull("detail") ?: "unknown error"
+        return when (obj.stringOrNull("kind")) {
+            "network" -> ChannelResult.Failure.Network(detail)
+            else -> ChannelResult.Failure.NotAChannel(url)
+        }
+    }
+    return ChannelResult.Success(
+        channelId = obj.stringOrNull("channel_id") ?: url.value,
+        title = obj.stringOrNull("title") ?: "Channel",
+        videos = obj["videos"]?.jsonArray.orEmpty().mapNotNull { it.jsonObject.toSearchEntryOrNull() },
+    )
+}
+
 internal fun parseSearch(text: String): VideoSearchResult {
     val obj = json.parseToJsonElement(text).jsonObject
     if (!obj.isOk()) {
         return VideoSearchResult.Failure(obj.stringOrNull("detail") ?: "unknown error")
     }
-    val entries = obj["entries"]?.jsonArray.orEmpty().mapNotNull { element ->
-        val entry = element.jsonObject
-        val id = entry.stringOrNull("id") ?: return@mapNotNull null
-        val watchUrl = entry.stringOrNull("url")?.let(HttpUrl::parse) ?: return@mapNotNull null
-        VideoSearchEntry(
-            id = id,
-            title = entry.stringOrNull("title") ?: "Untitled",
-            uploader = entry.stringOrNull("uploader"),
-            durationSeconds = entry["duration"]?.jsonPrimitive?.doubleOrNull?.toLong()?.takeIf { it > 0 },
-            watchUrl = watchUrl,
-            thumbnailUrl = entry.stringOrNull("thumbnail"),
-        )
-    }
+    val entries = obj["entries"]?.jsonArray.orEmpty().mapNotNull { it.jsonObject.toSearchEntryOrNull() }
     return VideoSearchResult.Success(entries)
+}
+
+/** Shared flat-entry → [VideoSearchEntry] mapping for search and channel results. */
+private fun JsonObject.toSearchEntryOrNull(): VideoSearchEntry? {
+    val id = stringOrNull("id") ?: return null
+    val watchUrl = stringOrNull("url")?.let(HttpUrl::parse) ?: return null
+    return VideoSearchEntry(
+        id = id,
+        title = stringOrNull("title") ?: "Untitled",
+        uploader = stringOrNull("uploader"),
+        durationSeconds = this["duration"]?.jsonPrimitive?.doubleOrNull?.toLong()?.takeIf { it > 0 },
+        watchUrl = watchUrl,
+        thumbnailUrl = stringOrNull("thumbnail"),
+    )
 }
 
 private fun JsonObject.stringOrNull(key: String): String? =

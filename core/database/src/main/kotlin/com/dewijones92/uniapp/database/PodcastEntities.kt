@@ -5,9 +5,15 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
+/**
+ * A subscribed source — a podcast feed or a video channel, distinguished by
+ * [sourceType] ("podcast" | "channel"). `url` holds the feed URL or channel
+ * URL; `websiteUrl` is podcast-only.
+ */
 @Entity(tableName = "podcast_feeds")
 public data class FeedEntity(
     @PrimaryKey val id: String,
+    val sourceType: String,
     val title: String,
     val feedUrl: String,
     val websiteUrl: String?,

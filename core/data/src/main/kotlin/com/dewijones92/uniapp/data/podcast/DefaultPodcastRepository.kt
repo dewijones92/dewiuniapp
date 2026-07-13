@@ -7,6 +7,7 @@ import com.dewijones92.uniapp.data.rss.ParsedEpisode
 import com.dewijones92.uniapp.data.rss.ParsedFeed
 import com.dewijones92.uniapp.data.rss.RssParseResult
 import com.dewijones92.uniapp.data.rss.RssParser
+import com.dewijones92.uniapp.data.subscription.SubscriptionStore
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.MediaItemId
 import com.dewijones92.uniapp.domain.MediaSource
@@ -17,14 +18,14 @@ import java.time.Clock
 
 public class DefaultPodcastRepository(
     private val fetcher: HttpTextFetcher,
-    private val store: PodcastStore,
+    private val store: SubscriptionStore,
     private val parser: RssParser = RssParser(),
     private val clock: Clock = Clock.systemUTC(),
 ) : PodcastRepository {
 
     override fun observeSubscriptions(): Flow<List<Subscription>> = store.observeSubscriptions()
 
-    override fun observeEpisodes(): Flow<List<MediaItem>> = store.observeEpisodes()
+    override fun observeEpisodes(): Flow<List<MediaItem>> = store.observeItems()
 
     override suspend fun subscribe(feedUrl: HttpUrl): SubscribeResult {
         val id = SourceId(feedUrl.value)
@@ -41,9 +42,9 @@ public class DefaultPodcastRepository(
         }
 
         val source = parsed.toMediaSource(id, feedUrl)
-        store.saveFeed(
+        store.saveSource(
             subscription = Subscription(source = source, subscribedAt = clock.instant()),
-            episodes = parsed.episodes.mapIndexed { index, episode ->
+            items = parsed.episodes.mapIndexed { index, episode ->
                 episode.toMediaItem(id, feedUrl, index, feedTitle = parsed.title)
             },
         )
@@ -51,7 +52,7 @@ public class DefaultPodcastRepository(
     }
 
     override suspend fun unsubscribe(id: SourceId) {
-        store.removeFeed(id)
+        store.removeSource(id)
     }
 
     private fun ParsedFeed.toMediaSource(id: SourceId, feedUrl: HttpUrl) = MediaSource.PodcastFeed(
