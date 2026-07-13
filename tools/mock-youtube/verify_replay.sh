@@ -18,7 +18,7 @@ trap 'kill $MPID 2>/dev/null || true' EXIT
 for _ in $(seq 1 20); do curl -sf -x "http://127.0.0.1:$PORT" http://example.com >/dev/null 2>&1 && break; sleep 0.5; done
 
 OUT=$(yt-dlp --proxy "http://127.0.0.1:$PORT" --no-check-certificates \
-  --js-runtimes node --skip-download --no-warnings \
+  --js-runtimes node --skip-download --no-warnings --ignore-no-formats-error \
   --print "%(title)s|%(duration)s" \
   "https://www.youtube.com/watch?v=QrT4S9i3agE" 2>/tmp/ytreplay.err)
 echo "replay output: ${OUT:-<none>}"

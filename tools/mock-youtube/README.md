@@ -37,6 +37,13 @@ only have come from the cassette, not the network.
   smoke tests are for. This exists to make our own pipeline testable
   deterministically, not to monitor YouTube.
 
+## Version coupling
+
+A cassette is tied to the yt-dlp version that recorded it (a newer yt-dlp
+requests the player differently and misses the recording). The committed
+cassette was recorded with **yt-dlp 2026.6.9 / mitmproxy 12.2.2 / node 24**, and
+CI pins those. Bump the pins and re-record together.
+
 ## Re-record (when extraction shape changes)
 
 ```bash
