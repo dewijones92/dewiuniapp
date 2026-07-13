@@ -20,6 +20,7 @@ in favour of a from-scratch library — see Decisions).
 | Python runtime | Chaquopy 17 (revised from "official CPython" once that proved tier-3/no artifact) | Mature drop-in embed, MIT, pip support |
 | ffmpeg | **Bundled** — minimal static build in jniLibs | Merges best-quality DASH streams and removes SponsorBlock from downloads |
 | CI/CD | GitHub Actions; signed APKs on GitHub Releases | No Play Store (yt-dlp app) |
+| YouTube account (July 2026) | Own minimal InnerTube client (`:lib:innertube`) + **TV device-code OAuth**, SmartTube-style; yt-dlp stays for extraction/playback | Signed-in features (subs, history, comments, likes) need auth + writes; yt-dlp is read-only and removed OAuth login; Google blocks WebView logins, and the device flow is the login it expects from TVs |
 | UI bar | Genuinely nice, modern | Material 3 expressive, dynamic colour, dark/light, edge-to-edge, considered motion — never template-default |
 
 ## Quality bar (from the brief, non-negotiable)
@@ -166,6 +167,19 @@ when driven on the emulator. Verify real flows on a device, not just via tests.
   applies on the next start without an app update — a bad wheel is dropped and
   the bundled copy used. The interpreter and ffmpeg can't self-update (W^X).
   ffmpeg is bundled separately in `:app` jniLibs (see Downloads above).
+- `:lib:innertube` — pure-JVM **YouTube account seam**, the second engine
+  beside `:lib:ytdlp` (which stays read-only): signed-in capabilities — subs
+  feed, history, comments, likes/actions — talk YouTube's private InnerTube
+  API here, authenticated SmartTube-style via Google's **TV device-code OAuth
+  flow** (user visits google.com/device and types a short code; no WebView —
+  Google blocks embedded logins; endpoints + public TV client identity
+  live-verified 2026-07-13). Auth layer: `YouTubeAuth` port +
+  `HttpYouTubeAuth` (OkHttp), `DeviceLogin` cold-flow driver owning all
+  protocol pacing (poll interval, slow_down backoff, expiry; transient poll
+  failures retried until the code expires), `TokenStore` port (app supplies
+  storage; access token ~1h, refresh token long-lived, `invalid_grant` on
+  refresh = signed out, re-login). Token value classes redact themselves in
+  `toString()` so credentials can't leak into logs. Fakes for tests/previews.
 - `:lib:common` — pure-Kotlin utility module with no app dependencies, shared
   by app modules and standalone libraries alike (it would be published
   alongside `:lib:ytdlp`, like the old youtubedl-android's `common` module).
