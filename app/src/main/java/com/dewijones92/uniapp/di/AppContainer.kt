@@ -25,9 +25,11 @@ import com.dewijones92.uniapp.playback.PlaybackController
 import com.dewijones92.uniapp.video.VideoResolver
 import com.dewijones92.uniapp.ytdlp.YtDlpEngine
 import com.dewijones92.uniapp.ytdlp.chaquopy.ChaquopyYtDlpEngine
+import com.dewijones92.uniapp.ytdlp.chaquopy.YtDlpUpdater
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import java.io.File
 import java.util.concurrent.TimeUnit
@@ -43,6 +45,13 @@ interface AppContainer {
     val skipSegmentSource: SkipSegmentSource
     val downloadManager: DownloadManager
     val videoResolver: VideoResolver
+
+    /**
+     * Kick off background upkeep on app start (currently: fetch the latest
+     * yt-dlp so YouTube-breaking changes get fixed without an app update).
+     * Safe to call on every launch; never blocks and never touches Python.
+     */
+    fun refreshExtractorEngine()
 }
 
 class DefaultAppContainer(private val context: Context) : AppContainer {
@@ -68,7 +77,19 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
         )
     }
 
-    override val ytDlpEngine: YtDlpEngine by lazy { ChaquopyYtDlpEngine(context) }
+    // Shared between the engine (activates a cached wheel) and the updater
+    // (downloads into it), so a downloaded yt-dlp takes effect next start.
+    private val ytDlpUpdateDir = File(context.filesDir, "ytdlp-update")
+
+    override val ytDlpEngine: YtDlpEngine by lazy {
+        ChaquopyYtDlpEngine(context, updateCacheDir = ytDlpUpdateDir)
+    }
+
+    private val ytDlpUpdater by lazy { YtDlpUpdater(httpClient, ytDlpUpdateDir) }
+
+    override fun refreshExtractorEngine() {
+        applicationScope.launch { ytDlpUpdater.ensureLatest() }
+    }
 
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 

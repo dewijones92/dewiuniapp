@@ -28,16 +28,26 @@ import java.io.File
 public class ChaquopyYtDlpEngine(
     context: Context,
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
+    updateCacheDir: File? = null,
 ) : YtDlpEngine {
 
     private val appContext = context.applicationContext
+    private val updateCache = updateCacheDir?.let { YtDlpUpdateCache(it) }
 
     private val python: Python by lazy {
         if (!Python.isStarted()) Python.start(AndroidPlatform(appContext))
         Python.getInstance()
     }
 
-    private val bridge by lazy { python.getModule("uniapp_ytdlp") }
+    private val bridge by lazy {
+        // Shadow the bundled yt-dlp with a runtime-downloaded wheel if one is
+        // cached, BEFORE uniapp_ytdlp does `import yt_dlp`. A wheel that fails to
+        // import is dropped so the bundled copy is used and not retried.
+        val wheel = updateCache?.activeWheelPath()
+        val used = python.getModule("uniapp_bootstrap").callAttr("activate", wheel).toString()
+        if (wheel != null && used != "true") updateCache?.delete(wheel)
+        python.getModule("uniapp_ytdlp")
+    }
 
     /** Directory yt-dlp is pointed at for ffmpeg; null if not bundled for this ABI. */
     private val ffmpegLocation: String? by lazy { FfmpegBinary.locationDir(appContext) }

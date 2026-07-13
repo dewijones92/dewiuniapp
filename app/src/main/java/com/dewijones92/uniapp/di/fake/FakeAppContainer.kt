@@ -30,4 +30,6 @@ class FakeAppContainer(
     override val skipSegmentSource: SkipSegmentSource = SkipSegmentSource { emptyList() },
     override val downloadManager: DownloadManager = FakeDownloadManager(),
     override val videoResolver: VideoResolver = VideoResolver(ytDlpEngine, skipSegmentSource),
-) : AppContainer
+) : AppContainer {
+    override fun refreshExtractorEngine() = Unit
+}
