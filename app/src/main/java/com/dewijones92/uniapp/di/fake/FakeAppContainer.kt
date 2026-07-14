@@ -58,4 +58,6 @@ class FakeAppContainer(
     override fun refreshExtractorEngine() = Unit
 
     override fun startWatchHistorySync() = Unit
+
+    override fun syncSubscriptions() = Unit
 }

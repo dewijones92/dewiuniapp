@@ -93,6 +93,13 @@ interface AppContainer {
      * advances (History + cross-device resume). No-ops while signed out.
      */
     fun startWatchHistorySync()
+
+    /**
+     * Pull the signed-in account's YouTube subscriptions into the unified store
+     * (so they appear as channels app-wide). Runs in the background on launch;
+     * no-ops while signed out. Additive — already-subscribed channels are kept.
+     */
+    fun syncSubscriptions()
 }
 
 class DefaultAppContainer(private val context: Context) : AppContainer {
@@ -193,6 +200,12 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
 
     override fun startWatchHistorySync() {
         watchHistorySync.start()
+    }
+
+    override fun syncSubscriptions() {
+        applicationScope.launch {
+            if (youTubeAccount.isSignedIn()) subscriptionImporter.import()
+        }
     }
 
     override val channelSubscriptions: ChannelSubscriptions by lazy {

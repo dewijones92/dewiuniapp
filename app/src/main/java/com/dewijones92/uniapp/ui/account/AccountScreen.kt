@@ -49,7 +49,6 @@ fun AccountScreen(container: AppContainer, modifier: Modifier = Modifier) {
         onSignIn = viewModel::signIn,
         onCancel = viewModel::cancel,
         onSignOut = viewModel::signOut,
-        onImport = viewModel::importSubscriptions,
         modifier = modifier,
     )
 }
@@ -61,7 +60,6 @@ internal fun AccountContent(
     onSignIn: () -> Unit,
     onCancel: () -> Unit,
     onSignOut: () -> Unit,
-    onImport: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxSize()) {
@@ -69,7 +67,7 @@ internal fun AccountContent(
             UiState.SignedOut -> SignedOut(onSignIn)
             UiState.Starting -> Centered { CircularProgressIndicator() }
             is UiState.AwaitingUser -> Pairing(state, onCancel)
-            UiState.SignedIn -> SignedIn(importState, onImport, onSignOut)
+            UiState.SignedIn -> SignedIn(importState, onSignOut)
             is UiState.Failed -> Failed(state.reason, onSignIn)
         }
     }
@@ -103,12 +101,10 @@ private fun ColumnScope.SignedOut(onSignIn: () -> Unit) {
 @Composable
 private fun ColumnScope.SignedIn(
     importState: AccountViewModel.ImportState,
-    onImport: () -> Unit,
     onSignOut: () -> Unit,
 ) {
-    // EmptyState fills the top; the import status sits in its own row between
-    // it and the actions (nesting both in one centred box lets fillMaxSize
-    // squeeze the status out of view).
+    // Subscriptions sync automatically (on sign-in and each launch); the status
+    // row just reflects that, sitting between the header and the sign-out action.
     EmptyState(
         icon = Icons.Outlined.AccountCircle,
         headline = stringResource(R.string.account_signed_in_headline),
@@ -116,14 +112,6 @@ private fun ColumnScope.SignedIn(
         modifier = Modifier.weight(1f),
     )
     ImportStatus(importState)
-    val importing = importState is AccountViewModel.ImportState.Running
-    Button(
-        onClick = onImport,
-        enabled = !importing,
-        modifier = Modifier
-            .align(Alignment.CenterHorizontally)
-            .padding(top = 16.dp, bottom = 12.dp),
-    ) { Text(stringResource(R.string.account_import_subscriptions)) }
     OutlinedActionButton(stringResource(R.string.account_sign_out), onSignOut)
 }
 
@@ -227,7 +215,7 @@ private fun ColumnScope.OutlinedActionButton(label: String, onClick: () -> Unit)
 @androidx.compose.ui.tooling.preview.Preview(showBackground = true)
 @Composable
 private fun AccountSignedOutPreview() {
-    UniAppTheme { AccountContent(UiState.SignedOut, AccountViewModel.ImportState.Idle, {}, {}, {}, {}) }
+    UniAppTheme { AccountContent(UiState.SignedOut, AccountViewModel.ImportState.Idle, {}, {}, {}) }
 }
 
 @androidx.compose.ui.tooling.preview.Preview(showBackground = true)
@@ -237,7 +225,6 @@ private fun AccountPairingPreview() {
         AccountContent(
             UiState.AwaitingUser("BWM-XHD-XJBG", HttpUrl.of("https://www.google.com/device")),
             AccountViewModel.ImportState.Idle,
-            {},
             {},
             {},
             {},
@@ -252,7 +239,6 @@ private fun AccountSignedInPreview() {
         AccountContent(
             UiState.SignedIn,
             AccountViewModel.ImportState.Done(added = 42, total = 50),
-            {},
             {},
             {},
             {},

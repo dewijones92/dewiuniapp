@@ -80,12 +80,11 @@
     <string name="account_pairing_instructions">On any device, open this page and enter the code:</string>
     <string name="account_pairing_waiting">Waiting for you to approve the sign-in…</string>
     <string name="account_signed_in_headline">Signed in to YouTube</string>
-    <string name="account_signed_in_supporting">Your account is connected. Your subscriptions and feeds are available across the app.</string>
+    <string name="account_signed_in_supporting">Your account is connected. Your subscriptions sync automatically and your feeds are available across the app.</string>
     <string name="account_sign_out">Sign out</string>
-    <string name="account_import_subscriptions">Import my subscriptions</string>
     <!-- Two independent counts (new, total); a single plural can't express both, and this app ships English only. -->
-    <string name="account_import_done" tools:ignore="PluralsCandidate">Imported %1$d new of %2$d subscriptions. Find them on the Videos tab.</string>
-    <string name="account_import_failed">Couldn\'t import subscriptions. Check your connection and try again.</string>
+    <string name="account_import_done" tools:ignore="PluralsCandidate">Synced %1$d new of %2$d subscriptions. Find them on the Videos tab.</string>
+    <string name="account_import_failed">Couldn\'t sync subscriptions. Check your connection and try again.</string>
     <string name="account_try_again">Try again</string>
     <string name="account_failed_denied">Sign-in was declined. You can try again whenever you like.</string>
     <string name="account_failed_expired">That code expired before it was approved. Start again for a fresh one.</string>

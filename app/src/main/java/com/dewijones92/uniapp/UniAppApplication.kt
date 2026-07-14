@@ -18,6 +18,8 @@ class UniAppApplication : Application(), SingletonImageLoader.Factory {
         container.refreshExtractorEngine()
         // Mirror video watch-progress to YouTube as playback advances.
         container.startWatchHistorySync()
+        // Keep the unified store in step with the account's YouTube subscriptions.
+        container.syncSubscriptions()
     }
 
     /**

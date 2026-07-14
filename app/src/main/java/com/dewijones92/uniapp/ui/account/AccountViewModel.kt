@@ -65,7 +65,12 @@ class AccountViewModel(
         if (loginJob?.isActive == true) return
         _state.value = UiState.Starting
         loginJob = viewModelScope.launch {
-            account.signIn().collect { event -> _state.value = event.toUiState() }
+            account.signIn().collect { event ->
+                _state.value = event.toUiState()
+                // Pull the account's subscriptions in as soon as sign-in lands —
+                // no separate "import" step for the user to find.
+                if (event is DeviceLoginEvent.Succeeded) syncSubscriptions()
+            }
         }
     }
 
@@ -85,7 +90,7 @@ class AccountViewModel(
         }
     }
 
-    fun importSubscriptions() {
+    private fun syncSubscriptions() {
         if (importJob?.isActive == true) return
         _importState.value = ImportState.Running
         importJob = viewModelScope.launch {
