@@ -99,6 +99,10 @@
     <string name="account_signed_in_headline">Signed in to YouTube</string>
     <string name="account_signed_in_supporting">Your account is connected. Your subscriptions, history and Watch Later are live from YouTube across the app.</string>
     <string name="account_sign_out">Sign out</string>
+    <string name="settings">Settings</string>
+    <string name="settings_quality_section">Default video quality</string>
+    <string name="settings_quality_wifi">On Wi-Fi</string>
+    <string name="settings_quality_cellular">On mobile data</string>
     <string name="account_try_again">Try again</string>
     <string name="account_failed_denied">Sign-in was declined. You can try again whenever you like.</string>
     <string name="account_failed_expired">That code expired before it was approved. Start again for a fresh one.</string>

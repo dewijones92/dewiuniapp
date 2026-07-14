@@ -21,6 +21,8 @@ class VideoPlaybackLauncher(
     private val resolver: VideoResolver,
     private val playback: PlaybackController,
     private val watchHistory: YouTubeWatchHistory,
+    /** Max video height to auto-pick for the current network (a cap); default: no cap. */
+    private val preferredMaxHeight: () -> Int = { Int.MAX_VALUE },
 ) {
     /** The current video's quality options and which one is playing. */
     data class QualityState(
@@ -51,7 +53,10 @@ class VideoPlaybackLauncher(
     suspend fun play(watchUrl: HttpUrl, sourceId: SourceId): Boolean {
         val resolved = resolver.resolve(watchUrl, sourceId) ?: return false
         current = resolved
-        val selected = resolved.qualities.firstOrNull { it.videoUrl == resolved.item.mediaUrl }?.id
+        // Auto-pick the best quality within the network's cap; fall back to the
+        // reliable muxed default when nothing qualifies (or there are no ladders).
+        val chosen = resolved.qualities.filter { it.height <= preferredMaxHeight() }.maxByOrNull { it.height }
+        val selected = chosen?.id ?: resolved.qualities.firstOrNull { it.videoUrl == resolved.item.mediaUrl }?.id
         _quality.value = QualityState(resolved.qualities, selected, canListen = resolved.audioOnlyUrl != null)
         // Register this video's tracking URLs so its progress can sync to YouTube.
         watchHistory.beginSession(
@@ -59,7 +64,15 @@ class VideoPlaybackLauncher(
             resolved.playbackTrackingUrl,
             resolved.watchtimeTrackingUrl,
         )
-        playback.play(resolved.item, skipSegments = resolved.skipSegments)
+        if (chosen != null) {
+            playback.play(
+                resolved.item.copy(mediaUrl = chosen.videoUrl),
+                skipSegments = resolved.skipSegments,
+                audioUrl = chosen.audioUrl,
+            )
+        } else {
+            playback.play(resolved.item, skipSegments = resolved.skipSegments)
+        }
         return true
     }
 

@@ -39,6 +39,9 @@ import com.dewijones92.uniapp.innertube.subscriptions.HttpYouTubeSubscriptions
 import com.dewijones92.uniapp.playback.Media3PlaybackController
 import com.dewijones92.uniapp.playback.PlaybackController
 import com.dewijones92.uniapp.playback.SleepTimer
+import com.dewijones92.uniapp.settings.AppPreferences
+import com.dewijones92.uniapp.settings.NetworkStatus
+import com.dewijones92.uniapp.settings.SharedPrefsAppPreferences
 import com.dewijones92.uniapp.video.AccountSubscriptions
 import com.dewijones92.uniapp.video.VideoPlaybackLauncher
 import com.dewijones92.uniapp.video.VideoResolver
@@ -69,6 +72,9 @@ interface AppContainer {
 
     /** Sleep timer that pauses playback after a chosen delay. */
     val sleepTimer: SleepTimer
+
+    /** User settings (per-network default quality, …). */
+    val appPreferences: AppPreferences
 
     /** The signed-in account's subscribed channels, read live (no local copy). */
     val accountSubscriptions: AccountSubscriptions
@@ -198,8 +204,20 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
         HttpYouTubeWatchHistory(youTubeAccount, httpClient)
     }
 
+    override val appPreferences: AppPreferences by lazy { SharedPrefsAppPreferences(context) }
+
+    private val networkStatus by lazy { NetworkStatus(context) }
+
     override val videoPlaybackLauncher: VideoPlaybackLauncher by lazy {
-        VideoPlaybackLauncher(videoResolver, playbackController, youTubeWatchHistory)
+        VideoPlaybackLauncher(
+            videoResolver,
+            playbackController,
+            youTubeWatchHistory,
+            preferredMaxHeight = {
+                val settings = appPreferences.settings.value
+                if (networkStatus.isMetered()) settings.cellularMaxHeight else settings.wifiMaxHeight
+            },
+        )
     }
 
     private val watchHistorySync: WatchHistorySync by lazy {

@@ -13,8 +13,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -30,6 +34,7 @@ import com.dewijones92.uniapp.theme.UniAppTheme
 import com.dewijones92.uniapp.ui.account.AccountViewModel.FailureReason
 import com.dewijones92.uniapp.ui.account.AccountViewModel.UiState
 import com.dewijones92.uniapp.ui.common.EmptyState
+import com.dewijones92.uniapp.ui.settings.SettingsScreen
 
 /**
  * YouTube sign-in — the SmartTube-style device pairing. Signed out, one
@@ -41,14 +46,20 @@ import com.dewijones92.uniapp.ui.common.EmptyState
 fun AccountScreen(container: AppContainer, modifier: Modifier = Modifier) {
     val viewModel: AccountViewModel = viewModel(factory = AccountViewModel.factory(container))
     val state by viewModel.state.collectAsStateWithLifecycle()
+    var showSettings by rememberSaveable { mutableStateOf(false) }
 
-    AccountContent(
-        state = state,
-        onSignIn = viewModel::signIn,
-        onCancel = viewModel::cancel,
-        onSignOut = viewModel::signOut,
-        modifier = modifier,
-    )
+    if (showSettings) {
+        SettingsScreen(container, onBack = { showSettings = false }, modifier = modifier)
+    } else {
+        AccountContent(
+            state = state,
+            onSignIn = viewModel::signIn,
+            onCancel = viewModel::cancel,
+            onSignOut = viewModel::signOut,
+            onOpenSettings = { showSettings = true },
+            modifier = modifier,
+        )
+    }
 }
 
 @Composable
@@ -57,6 +68,7 @@ internal fun AccountContent(
     onSignIn: () -> Unit,
     onCancel: () -> Unit,
     onSignOut: () -> Unit,
+    onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxSize()) {
@@ -67,6 +79,12 @@ internal fun AccountContent(
             UiState.SignedIn -> SignedIn(onSignOut)
             is UiState.Failed -> Failed(state.reason, onSignIn)
         }
+        TextButton(
+            onClick = onOpenSettings,
+            modifier = Modifier
+                .align(Alignment.CenterHorizontally)
+                .padding(bottom = 24.dp),
+        ) { Text(stringResource(R.string.settings)) }
     }
 }
 
@@ -184,7 +202,7 @@ private fun ColumnScope.OutlinedActionButton(label: String, onClick: () -> Unit)
 @androidx.compose.ui.tooling.preview.Preview(showBackground = true)
 @Composable
 private fun AccountSignedOutPreview() {
-    UniAppTheme { AccountContent(UiState.SignedOut, {}, {}, {}) }
+    UniAppTheme { AccountContent(UiState.SignedOut, {}, {}, {}, {}) }
 }
 
 @androidx.compose.ui.tooling.preview.Preview(showBackground = true)
@@ -193,6 +211,7 @@ private fun AccountPairingPreview() {
     UniAppTheme {
         AccountContent(
             UiState.AwaitingUser("BWM-XHD-XJBG", HttpUrl.of("https://www.google.com/device")),
+            {},
             {},
             {},
             {},
@@ -206,6 +225,7 @@ private fun AccountSignedInPreview() {
     UniAppTheme {
         AccountContent(
             UiState.SignedIn,
+            {},
             {},
             {},
             {},
