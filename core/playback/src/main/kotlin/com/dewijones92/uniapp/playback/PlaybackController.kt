@@ -83,6 +83,8 @@ public data class PlaybackState(
      * ended state). Drives "up next" autoplay; clears when the next item starts.
      */
     val hasEnded: Boolean = false,
+    /** True while the player is buffering (loading/re-buffering) — drives a spinner. */
+    val isBuffering: Boolean = false,
 ) {
     init {
         require(positionMs >= 0) { "positionMs must not be negative" }

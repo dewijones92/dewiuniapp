@@ -209,6 +209,7 @@ public class Media3PlaybackController(
             videoAspectRatio = videoSize.takeIf { it.width > 0 && it.height > 0 }
                 ?.let { it.width * it.pixelWidthHeightRatio / it.height },
             hasEnded = playbackState == Player.STATE_ENDED,
+            isBuffering = playbackState == Player.STATE_BUFFERING,
         )
     }
 

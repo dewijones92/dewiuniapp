@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
@@ -77,6 +78,15 @@ internal fun VideoStageWithControls(
             surfaceType = SURFACE_TYPE_TEXTURE_VIEW,
             modifier = Modifier.matchParentSize(),
         )
+        // A spinner over the frame whenever the player is buffering, so a stall
+        // reads as "loading" rather than a frozen picture. Sits above the surface
+        // but under the controls scrim.
+        if (state.isBuffering) {
+            CircularProgressIndicator(
+                color = Color.White,
+                modifier = Modifier.align(Alignment.Center),
+            )
+        }
         AnimatedVisibility(
             visible = controlsVisible,
             enter = fadeIn(),
