@@ -89,6 +89,8 @@
     <string name="account_sign_out">Sign out</string>
     <!-- Two independent counts (new, total); a single plural can't express both, and this app ships English only. -->
     <string name="account_import_done" tools:ignore="PluralsCandidate">Synced %1$d new of %2$d subscriptions. Find them on the Videos tab.</string>
+    <!-- Three independent counts (new, removed, total); shown only when some were removed. -->
+    <string name="account_import_done_pruned" tools:ignore="PluralsCandidate">Synced %1$d new and removed %2$d of %3$d subscriptions.</string>
     <string name="account_import_failed">Couldn\'t sync subscriptions. Check your connection and try again.</string>
     <string name="account_try_again">Try again</string>
     <string name="account_failed_denied">Sign-in was declined. You can try again whenever you like.</string>

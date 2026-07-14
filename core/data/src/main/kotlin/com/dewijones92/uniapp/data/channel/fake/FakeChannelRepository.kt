@@ -4,6 +4,7 @@ import com.dewijones92.uniapp.common.HttpUrl
 import com.dewijones92.uniapp.data.channel.ChannelRepository
 import com.dewijones92.uniapp.data.channel.ChannelVideosResult
 import com.dewijones92.uniapp.data.channel.SubscribeChannelResult
+import com.dewijones92.uniapp.data.subscription.ReconcileResult
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.MediaItemId
 import com.dewijones92.uniapp.domain.MediaSource
@@ -19,6 +20,9 @@ public class FakeChannelRepository : ChannelRepository {
 
     private val subscriptions = MutableStateFlow<List<Subscription>>(emptyList())
     private val videos = MutableStateFlow<List<MediaItem>>(emptyList())
+
+    /** Ids that arrived via [syncImportedChannels] — the only ones a sync may prune. */
+    private val importedIds = mutableSetOf<SourceId>()
 
     override fun observeSubscriptions(): Flow<List<Subscription>> = subscriptions
 
@@ -48,11 +52,25 @@ public class FakeChannelRepository : ChannelRepository {
         videos.update { list -> list.filterNot { it.sourceId == id } }
     }
 
-    override suspend fun importChannels(sources: List<MediaSource.VideoChannel>): Int {
+    override suspend fun addChannel(source: MediaSource.VideoChannel) {
+        if (subscriptions.value.any { it.source.id == source.id }) return
+        subscriptions.update { it + Subscription(source, Instant.EPOCH) }
+    }
+
+    override suspend fun syncImportedChannels(sources: List<MediaSource.VideoChannel>): ReconcileResult {
         val existing = subscriptions.value.map { it.source.id }.toSet()
         val fresh = sources.filter { it.id !in existing }
         subscriptions.update { it + fresh.map { source -> Subscription(source, Instant.EPOCH) } }
-        return fresh.size
+        importedIds += fresh.map { it.id }
+
+        // Prune previously-imported channels no longer in the account's list;
+        // manually-subscribed ones (not in importedIds) are left alone.
+        val keep = sources.map { it.id }.toSet()
+        val pruned = importedIds.filterNot { it in keep }.toSet()
+        subscriptions.update { list -> list.filterNot { it.source.id in pruned } }
+        videos.update { list -> list.filterNot { it.sourceId in pruned } }
+        importedIds -= pruned
+        return ReconcileResult(added = fresh.size, removed = pruned.size)
     }
 
     override suspend fun fetchChannelVideos(channelUrl: HttpUrl): ChannelVideosResult =

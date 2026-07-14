@@ -21,7 +21,8 @@ class ChannelSubscriptions(
         // (or handle URLs) just update locally.
         val channelId = source.channelUrl.value.substringAfterLast("/channel/", "").ifBlank { null }
         if (channelId != null) actions.setSubscribed(channelId, subscribed)
-        // Re-add without re-extracting (identity already known); remove on unsubscribe.
-        if (subscribed) channels.importChannels(listOf(source)) else channels.unsubscribe(source.id)
+        // Add without re-extracting (identity already known) and without pruning
+        // other channels; remove on unsubscribe.
+        if (subscribed) channels.addChannel(source) else channels.unsubscribe(source.id)
     }
 }

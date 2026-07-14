@@ -1,6 +1,7 @@
 package com.dewijones92.uniapp.data.channel
 
 import com.dewijones92.uniapp.common.HttpUrl
+import com.dewijones92.uniapp.data.subscription.ReconcileResult
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.MediaSource
 import com.dewijones92.uniapp.domain.SourceId
@@ -19,13 +20,23 @@ public interface ChannelRepository {
     public suspend fun unsubscribe(id: SourceId)
 
     /**
-     * Bulk-adds already-resolved channels (e.g. imported from a signed-in
-     * YouTube account), skipping any already subscribed. Unlike [subscribe],
-     * this does NOT re-extract each channel — the identity is already known —
-     * so importing hundreds costs one store write each, not one network fetch.
-     * Videos populate lazily on later refresh. Returns the count newly added.
+     * Adds a single already-resolved channel without re-extracting it (identity
+     * known) and without pruning anything — for an in-app subscribe, where the
+     * user deliberately added this one channel. No-op if already subscribed.
+     * Contrast [syncImportedChannels], which reconciles against a whole list.
      */
-    public suspend fun importChannels(sources: List<MediaSource.VideoChannel>): Int
+    public suspend fun addChannel(source: MediaSource.VideoChannel)
+
+    /**
+     * Reconciles the subscribed channels against [sources] — the authoritative
+     * list from the signed-in YouTube account. New channels are added (marked as
+     * imported) and channels previously imported but no longer subscribed on
+     * YouTube are pruned; channels added manually (by URL or in-app subscribe)
+     * are left alone. Unlike [subscribe], this does NOT re-extract each channel —
+     * the identity is already known — so hundreds cost one store write each, not
+     * a network fetch; videos populate lazily on later refresh. Returns the counts.
+     */
+    public suspend fun syncImportedChannels(sources: List<MediaSource.VideoChannel>): ReconcileResult
 
     /**
      * Fetches a channel's recent uploads for browsing — read-only, does not

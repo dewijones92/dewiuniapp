@@ -124,7 +124,16 @@ private fun ColumnScope.ImportStatus(importState: AccountViewModel.ImportState) 
         AccountViewModel.ImportState.Idle -> Unit
         AccountViewModel.ImportState.Running -> CircularProgressIndicator(modifier)
         is AccountViewModel.ImportState.Done -> Text(
-            text = stringResource(R.string.account_import_done, importState.added, importState.total),
+            text = if (importState.removed > 0) {
+                stringResource(
+                    R.string.account_import_done_pruned,
+                    importState.added,
+                    importState.removed,
+                    importState.total,
+                )
+            } else {
+                stringResource(R.string.account_import_done, importState.added, importState.total)
+            },
             style = MaterialTheme.typography.bodyLarge,
             textAlign = TextAlign.Center,
             modifier = modifier,
@@ -238,7 +247,7 @@ private fun AccountSignedInPreview() {
     UniAppTheme {
         AccountContent(
             UiState.SignedIn,
-            AccountViewModel.ImportState.Done(added = 42, total = 50),
+            AccountViewModel.ImportState.Done(added = 42, removed = 0, total = 50),
             {},
             {},
             {},

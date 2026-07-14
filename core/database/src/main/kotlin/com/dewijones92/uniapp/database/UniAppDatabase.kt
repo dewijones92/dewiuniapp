@@ -14,7 +14,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         DownloadEntity::class,
         PlaybackProgressEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = false,
 )
 public abstract class UniAppDatabase : RoomDatabase() {
@@ -28,7 +28,7 @@ public abstract class UniAppDatabase : RoomDatabase() {
     public companion object {
         public fun build(context: Context): UniAppDatabase =
             Room.databaseBuilder(context, UniAppDatabase::class.java, "uniapp.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                 .build()
 
         /** v2: episodes gained an author column (notification artist line). */
@@ -70,6 +70,17 @@ public abstract class UniAppDatabase : RoomDatabase() {
                         "durationMs INTEGER, " +
                         "updatedAtEpochMs INTEGER NOT NULL)",
                 )
+            }
+        }
+
+        /**
+         * v6: sources gained an `origin` ('manual' | 'youtube_import'). Existing
+         * rows default to 'manual' — the safe choice, since it means an account
+         * sync never prunes anything already here; new imports mark themselves.
+         */
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE podcast_feeds ADD COLUMN origin TEXT NOT NULL DEFAULT 'manual'")
             }
         }
     }

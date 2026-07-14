@@ -26,7 +26,8 @@ public class SubscriptionImporter(
                     channelUrl = it.channelUrl,
                 )
             }
-            ImportResult.Imported(added = channels.importChannels(sources), total = sources.size)
+            val outcome = channels.syncImportedChannels(sources)
+            ImportResult.Imported(added = outcome.added, removed = outcome.removed, total = sources.size)
         }
         SubscriptionsResult.SignedOut -> ImportResult.SignedOut
         is SubscriptionsResult.Failure -> ImportResult.Failure(result.detail)
@@ -35,7 +36,8 @@ public class SubscriptionImporter(
 
 /** Outcome of a subscription import; expected failures are values. */
 public sealed interface ImportResult {
-    public data class Imported(val added: Int, val total: Int) : ImportResult
+    /** [added] newly pulled in, [removed] pruned (left the account's subs), of [total] fetched. */
+    public data class Imported(val added: Int, val removed: Int, val total: Int) : ImportResult
     public data object SignedOut : ImportResult
     public data class Failure(val detail: String) : ImportResult
 }

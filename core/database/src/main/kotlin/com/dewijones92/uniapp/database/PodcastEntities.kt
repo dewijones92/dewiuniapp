@@ -8,7 +8,10 @@ import androidx.room.PrimaryKey
 /**
  * A subscribed source — a podcast feed or a video channel, distinguished by
  * [sourceType] ("podcast" | "channel"). `url` holds the feed URL or channel
- * URL; `websiteUrl` is podcast-only.
+ * URL; `websiteUrl` is podcast-only. [origin] records how the row got here —
+ * "manual" (added by URL) or "youtube_import" (pulled from the signed-in
+ * account); only imported rows are pruned when they leave the account's subs,
+ * so a manually-added channel is never removed by a sync.
  */
 @Entity(tableName = "podcast_feeds")
 public data class FeedEntity(
@@ -18,6 +21,7 @@ public data class FeedEntity(
     val feedUrl: String,
     val websiteUrl: String?,
     val subscribedAtEpochMs: Long,
+    val origin: String = "manual",
 )
 
 /**

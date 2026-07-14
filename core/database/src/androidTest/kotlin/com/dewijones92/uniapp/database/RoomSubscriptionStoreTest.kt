@@ -4,6 +4,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.dewijones92.uniapp.common.HttpUrl
 import com.dewijones92.uniapp.data.podcast.fake.FakePodcastRepository
+import com.dewijones92.uniapp.data.subscription.ReconcileResult
 import com.dewijones92.uniapp.domain.MediaSource
 import com.dewijones92.uniapp.domain.SourceId
 import com.dewijones92.uniapp.domain.Subscription
@@ -87,4 +88,35 @@ class RoomSubscriptionStoreTest {
         val roundTrippedChannel = channels.observeSubscriptions().first().single().source
         assertTrue(roundTrippedChannel is MediaSource.VideoChannel)
     }
+
+    @Test
+    fun reconcileImportedAddsPrunesAndProtectsManualSources() = runTest {
+        // A hand-added channel (saveSource) must survive every sync.
+        channels.saveSource(channelSub, emptyList())
+        val uc1 = channelSource(id = "UC1", handle = "one")
+        val uc2 = channelSource(id = "UC2", handle = "two")
+
+        val first = channels.reconcileImported(listOf(uc1, uc2), Instant.EPOCH)
+        assertEquals(ReconcileResult(added = 2, removed = 0), first)
+        assertEquals(setOf("chan-1", "UC1", "UC2"), storedChannelIds())
+
+        // UC2 leaves the account: pruned. UC1 kept, manual chan-1 untouched.
+        val second = channels.reconcileImported(listOf(uc1), Instant.EPOCH)
+        assertEquals(ReconcileResult(added = 0, removed = 1), second)
+        assertEquals(setOf("chan-1", "UC1"), storedChannelIds())
+
+        // Account emptied: every imported row goes, the manual one remains.
+        val third = channels.reconcileImported(emptyList(), Instant.EPOCH)
+        assertEquals(ReconcileResult(added = 0, removed = 1), third)
+        assertEquals(setOf("chan-1"), storedChannelIds())
+    }
+
+    private suspend fun storedChannelIds(): Set<String> =
+        channels.observeSubscriptions().first().map { it.source.id.value }.toSet()
+
+    private fun channelSource(id: String, handle: String) = MediaSource.VideoChannel(
+        id = SourceId(id),
+        title = handle,
+        channelUrl = HttpUrl.of("https://example.com/@$handle"),
+    )
 }

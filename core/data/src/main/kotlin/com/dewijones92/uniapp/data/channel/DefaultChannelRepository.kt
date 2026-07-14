@@ -1,6 +1,7 @@
 package com.dewijones92.uniapp.data.channel
 
 import com.dewijones92.uniapp.common.HttpUrl
+import com.dewijones92.uniapp.data.subscription.ReconcileResult
 import com.dewijones92.uniapp.data.subscription.SubscriptionStore
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.MediaItemId
@@ -48,18 +49,16 @@ public class DefaultChannelRepository(
         store.removeSource(id)
     }
 
-    override suspend fun importChannels(sources: List<MediaSource.VideoChannel>): Int {
-        var added = 0
-        for (source in sources) {
-            if (store.contains(source.id)) continue
-            store.saveSource(
-                subscription = Subscription(source = source, subscribedAt = clock.instant()),
-                items = emptyList(),
-            )
-            added++
-        }
-        return added
+    override suspend fun addChannel(source: MediaSource.VideoChannel) {
+        if (store.contains(source.id)) return
+        store.saveSource(
+            subscription = Subscription(source = source, subscribedAt = clock.instant()),
+            items = emptyList(),
+        )
     }
+
+    override suspend fun syncImportedChannels(sources: List<MediaSource.VideoChannel>): ReconcileResult =
+        store.reconcileImported(sources, clock.instant())
 
     override suspend fun fetchChannelVideos(channelUrl: HttpUrl): ChannelVideosResult {
         val id = SourceId(channelUrl.value)

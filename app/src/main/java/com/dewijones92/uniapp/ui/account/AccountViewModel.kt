@@ -42,7 +42,7 @@ class AccountViewModel(
     sealed interface ImportState {
         data object Idle : ImportState
         data object Running : ImportState
-        data class Done(val added: Int, val total: Int) : ImportState
+        data class Done(val added: Int, val removed: Int, val total: Int) : ImportState
         data object Failed : ImportState
     }
 
@@ -95,7 +95,7 @@ class AccountViewModel(
         _importState.value = ImportState.Running
         importJob = viewModelScope.launch {
             _importState.value = when (val result = importer.import()) {
-                is ImportResult.Imported -> ImportState.Done(result.added, result.total)
+                is ImportResult.Imported -> ImportState.Done(result.added, result.removed, result.total)
                 ImportResult.SignedOut -> {
                     _state.value = UiState.SignedOut
                     ImportState.Idle

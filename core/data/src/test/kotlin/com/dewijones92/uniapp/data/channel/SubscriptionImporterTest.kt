@@ -30,7 +30,7 @@ class SubscriptionImporterTest {
 
         val result = SubscriptionImporter(subs, channels).import()
 
-        assertEquals(ImportResult.Imported(added = 2, total = 2), result)
+        assertEquals(ImportResult.Imported(added = 2, removed = 0, total = 2), result)
         val stored = channels.observeSubscriptions().first()
         assertEquals(listOf("One", "Two"), stored.map { it.source.title })
     }
@@ -45,7 +45,37 @@ class SubscriptionImporterTest {
         val result = SubscriptionImporter(subs, channels).import()
 
         // UC1 already present -> only UC2 is new, but total reflects the full fetch.
-        assertEquals(ImportResult.Imported(added = 1, total = 2), result)
+        assertEquals(ImportResult.Imported(added = 1, removed = 0, total = 2), result)
+    }
+
+    @Test
+    fun `channels unsubscribed on YouTube are pruned on the next sync`() = runTest {
+        val importer = SubscriptionImporter(
+            FakeYouTubeSubscriptions(
+                SubscriptionsResult.Success(listOf(channel("UC1", "One"), channel("UC2", "Two"))),
+            ),
+            channels,
+        )
+        importer.import()
+
+        // Now UC2 is gone from the account; only UC1 comes back.
+        val onlyOne = FakeYouTubeSubscriptions(SubscriptionsResult.Success(listOf(channel("UC1", "One"))))
+        val result = SubscriptionImporter(onlyOne, channels).import()
+
+        assertEquals(ImportResult.Imported(added = 0, removed = 1, total = 1), result)
+        assertEquals(listOf("One"), channels.observeSubscriptions().first().map { it.source.title })
+    }
+
+    @Test
+    fun `a manually added channel is never pruned by a sync`() = runTest {
+        channels.subscribe(HttpUrl.of("https://www.youtube.com/channel/UCX"))
+        val subs = FakeYouTubeSubscriptions(SubscriptionsResult.Success(listOf(channel("UC1", "One"))))
+
+        SubscriptionImporter(subs, channels).import()
+
+        // UCX wasn't in the account's list, but it was added by hand, so it stays.
+        val ids = channels.observeSubscriptions().first().map { it.source.id.value }
+        assertTrue(ids.any { it.endsWith("UCX") })
     }
 
     @Test
