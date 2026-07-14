@@ -11,8 +11,11 @@ import com.dewijones92.uniapp.di.AppContainer
 import com.dewijones92.uniapp.domain.DownloadState
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.playback.PlaybackController
+import com.dewijones92.uniapp.ui.common.MediaSort
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -26,13 +29,22 @@ class LibraryViewModel(
 
     data class DownloadedItem(val item: MediaItem, val localPath: String)
 
+    private val sort = MutableStateFlow(MediaSort.DEFAULT)
+    val sortOrder: StateFlow<MediaSort> = sort.asStateFlow()
+
+    fun setSort(order: MediaSort) {
+        sort.value = order
+    }
+
     val downloaded: StateFlow<List<DownloadedItem>> = combine(
         repository.observeEpisodes(),
         downloads.observeDownloads(),
-    ) { episodes, states ->
-        episodes.mapNotNull { episode ->
+        sort,
+    ) { episodes, states, sort ->
+        val items = episodes.mapNotNull { episode ->
             (states[episode.id] as? DownloadState.Downloaded)?.let { DownloadedItem(episode, it.localPath) }
         }
+        sort.sortedBy(items) { it.item }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), emptyList())
 
     fun play(entry: DownloadedItem) {

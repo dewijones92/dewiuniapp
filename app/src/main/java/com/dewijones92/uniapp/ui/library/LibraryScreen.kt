@@ -8,8 +8,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CollectionsBookmark
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -26,6 +24,8 @@ import com.dewijones92.uniapp.theme.UniAppTheme
 import com.dewijones92.uniapp.ui.common.BuildInfoFooter
 import com.dewijones92.uniapp.ui.common.EmptyState
 import com.dewijones92.uniapp.ui.common.MediaItemRow
+import com.dewijones92.uniapp.ui.common.MediaSort
+import com.dewijones92.uniapp.ui.common.SectionHeaderWithSort
 import com.dewijones92.uniapp.ui.common.mediaItemSubtitle
 import com.dewijones92.uniapp.ui.library.LibraryViewModel.DownloadedItem
 
@@ -33,11 +33,14 @@ import com.dewijones92.uniapp.ui.library.LibraryViewModel.DownloadedItem
 fun LibraryScreen(container: AppContainer, modifier: Modifier = Modifier) {
     val viewModel: LibraryViewModel = viewModel(factory = LibraryViewModel.factory(container))
     val downloaded by viewModel.downloaded.collectAsStateWithLifecycle()
+    val sort by viewModel.sortOrder.collectAsStateWithLifecycle()
 
     LibraryContent(
         downloaded = downloaded,
+        sort = sort,
         onPlay = viewModel::play,
         onDelete = viewModel::delete,
+        onSetSort = viewModel::setSort,
         modifier = modifier,
     )
 }
@@ -45,8 +48,10 @@ fun LibraryScreen(container: AppContainer, modifier: Modifier = Modifier) {
 @Composable
 internal fun LibraryContent(
     downloaded: List<DownloadedItem>,
+    sort: MediaSort,
     onPlay: (DownloadedItem) -> Unit,
     onDelete: (DownloadedItem) -> Unit,
+    onSetSort: (MediaSort) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxSize()) {
@@ -60,10 +65,10 @@ internal fun LibraryContent(
         } else {
             LazyColumn(modifier = Modifier.weight(1f)) {
                 item {
-                    Text(
-                        text = stringResource(R.string.library_downloads),
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    SectionHeaderWithSort(
+                        title = stringResource(R.string.library_downloads),
+                        sort = sort,
+                        onSetSort = onSetSort,
                     )
                 }
                 items(downloaded, key = { it.item.id.value }) { entry ->

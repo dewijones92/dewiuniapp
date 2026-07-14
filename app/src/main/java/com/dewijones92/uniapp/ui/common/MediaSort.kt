@@ -40,14 +40,17 @@ enum class MediaSort(@StringRes val labelRes: Int) {
     SHORTEST(R.string.sort_shortest),
     ;
 
-    fun apply(items: List<MediaItem>): List<MediaItem> = when (this) {
+    fun apply(items: List<MediaItem>): List<MediaItem> = sortedBy(items) { it }
+
+    /** Sorts any list by the [MediaItem] each element carries (e.g. a download wrapper). */
+    fun <T> sortedBy(items: List<T>, item: (T) -> MediaItem): List<T> = when (this) {
         // Sorting is stable, so items with no known date/duration (e.g. YouTube
         // feed videos) keep their source order rather than shuffling.
-        NEWEST -> items.sortedByDescending { it.publishedAt }
-        OLDEST -> items.sortedBy { it.publishedAt }
-        TITLE -> items.sortedBy { it.title.lowercase() }
-        LONGEST -> items.sortedByDescending { it.duration }
-        SHORTEST -> items.sortedBy { it.duration }
+        NEWEST -> items.sortedByDescending { item(it).publishedAt }
+        OLDEST -> items.sortedBy { item(it).publishedAt }
+        TITLE -> items.sortedBy { item(it).title.lowercase() }
+        LONGEST -> items.sortedByDescending { item(it).duration }
+        SHORTEST -> items.sortedBy { item(it).duration }
     }
 
     companion object {
