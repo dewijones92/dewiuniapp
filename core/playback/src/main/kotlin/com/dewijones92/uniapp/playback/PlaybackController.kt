@@ -85,6 +85,8 @@ public data class PlaybackState(
     val hasEnded: Boolean = false,
     /** True while the player is buffering (loading/re-buffering) — drives a spinner. */
     val isBuffering: Boolean = false,
+    /** Skip (e.g. SponsorBlock) segments for the current item — drawn on the seek bar. */
+    val skipSegments: List<SkipSegment> = emptyList(),
 ) {
     init {
         require(positionMs >= 0) { "positionMs must not be negative" }

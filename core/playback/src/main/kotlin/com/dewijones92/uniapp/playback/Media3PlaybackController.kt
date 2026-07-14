@@ -210,6 +210,7 @@ public class Media3PlaybackController(
                 ?.let { it.width * it.pixelWidthHeightRatio / it.height },
             hasEnded = playbackState == Player.STATE_ENDED,
             isBuffering = playbackState == Player.STATE_BUFFERING,
+            skipSegments = activeSkipSegments,
         )
     }
 

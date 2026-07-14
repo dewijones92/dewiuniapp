@@ -33,7 +33,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -457,39 +456,6 @@ private fun KeepScreenOnWhilePlayingVideo(active: Boolean) {
     DisposableEffect(active) {
         view.keepScreenOn = active
         onDispose { view.keepScreenOn = false }
-    }
-}
-
-@Composable
-internal fun SeekBar(state: PlaybackState, onSeekTo: (Long) -> Unit, modifier: Modifier = Modifier) {
-    val duration = state.durationMs
-    var dragValue by remember(state.positionMs) { mutableStateOf<Float?>(null) }
-    val position = dragValue?.toLong() ?: state.positionMs
-
-    Column(modifier = modifier.fillMaxWidth()) {
-        if (duration != null) {
-            Slider(
-                value = position.coerceIn(0, duration).toFloat(),
-                onValueChange = { dragValue = it },
-                onValueChangeFinished = {
-                    dragValue?.let { onSeekTo(it.toLong()) }
-                    dragValue = null
-                },
-                valueRange = 0f..duration.toFloat(),
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Text(formatTime(position), style = MaterialTheme.typography.labelMedium)
-                Text(formatTime(duration), style = MaterialTheme.typography.labelMedium)
-            }
-        } else {
-            Text(
-                text = formatTime(state.positionMs),
-                style = MaterialTheme.typography.labelMedium,
-            )
-        }
     }
 }
 
