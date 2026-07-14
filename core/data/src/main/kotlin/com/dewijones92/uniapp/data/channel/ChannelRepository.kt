@@ -1,67 +1,33 @@
 package com.dewijones92.uniapp.data.channel
 
 import com.dewijones92.uniapp.common.HttpUrl
-import com.dewijones92.uniapp.data.subscription.ReconcileResult
 import com.dewijones92.uniapp.domain.MediaItem
-import com.dewijones92.uniapp.domain.MediaSource
-import com.dewijones92.uniapp.domain.SourceId
-import com.dewijones92.uniapp.domain.Subscription
-import kotlinx.coroutines.flow.Flow
 
 /**
- * The app's source of truth for subscribed video channels. Mirrors
- * `PodcastRepository` — same shape, same shared `SubscriptionStore` — differing
- * only in that channels resolve through the extraction engine, not an RSS feed.
+ * Read-only access to a video channel: its recent uploads, for browsing a
+ * channel page or resolving a channel URL to subscribe. Channel subscriptions
+ * themselves are NOT stored here — they live on the signed-in YouTube account
+ * (see `AccountSubscriptions`), read live, SmartTube-style. Podcasts, which
+ * have no cloud account, keep their own local `PodcastRepository`.
  */
 public interface ChannelRepository {
-    public fun observeSubscriptions(): Flow<List<Subscription>>
-    public fun observeVideos(): Flow<List<MediaItem>>
-    public suspend fun subscribe(channelUrl: HttpUrl): SubscribeChannelResult
-    public suspend fun unsubscribe(id: SourceId)
-
     /**
-     * Adds a single already-resolved channel without re-extracting it (identity
-     * known) and without pruning anything — for an in-app subscribe, where the
-     * user deliberately added this one channel. No-op if already subscribed.
-     * Contrast [syncImportedChannels], which reconciles against a whole list.
-     */
-    public suspend fun addChannel(source: MediaSource.VideoChannel)
-
-    /**
-     * Reconciles the subscribed channels against [sources] — the authoritative
-     * list from the signed-in YouTube account. New channels are added (marked as
-     * imported) and channels previously imported but no longer subscribed on
-     * YouTube are pruned; channels added manually (by URL or in-app subscribe)
-     * are left alone. Unlike [subscribe], this does NOT re-extract each channel —
-     * the identity is already known — so hundreds cost one store write each, not
-     * a network fetch; videos populate lazily on later refresh. Returns the counts.
-     */
-    public suspend fun syncImportedChannels(sources: List<MediaSource.VideoChannel>): ReconcileResult
-
-    /**
-     * Fetches a channel's recent uploads for browsing — read-only, does not
-     * subscribe or persist. Reuses the same extraction the subscribe path uses,
-     * so the browse view and the subscribed feed show the same videos.
+     * Fetches a channel's recent uploads for browsing — read-only, persists
+     * nothing. [ChannelVideosResult.Success.channelId] is the resolved `UC…`
+     * id, so a URL a user pastes can be turned into a live YouTube subscribe.
      */
     public suspend fun fetchChannelVideos(channelUrl: HttpUrl): ChannelVideosResult
 }
 
 /** Outcome of fetching a channel's videos for browsing; expected failures are values. */
 public sealed interface ChannelVideosResult {
-    public data class Success(val title: String, val videos: List<MediaItem>) : ChannelVideosResult
+    public data class Success(
+        val channelId: String,
+        val title: String,
+        val videos: List<MediaItem>,
+    ) : ChannelVideosResult
 
     public sealed interface Failure : ChannelVideosResult {
-        public data class Network(val detail: String) : Failure
-        public data class NotAChannel(val detail: String) : Failure
-    }
-}
-
-/** Outcome of subscribing to a channel; expected failures are values. */
-public sealed interface SubscribeChannelResult {
-    public data class Subscribed(val source: MediaSource.VideoChannel) : SubscribeChannelResult
-    public data class AlreadySubscribed(val id: SourceId) : SubscribeChannelResult
-
-    public sealed interface Failure : SubscribeChannelResult {
         public data class Network(val detail: String) : Failure
         public data class NotAChannel(val detail: String) : Failure
     }

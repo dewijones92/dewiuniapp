@@ -7,18 +7,20 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.dewijones92.uniapp.common.HttpUrl
 import com.dewijones92.uniapp.data.channel.ChannelRepository
-import com.dewijones92.uniapp.data.channel.SubscribeChannelResult
+import com.dewijones92.uniapp.data.channel.ChannelVideosResult
 import com.dewijones92.uniapp.data.download.DownloadManager
 import com.dewijones92.uniapp.di.AppContainer
 import com.dewijones92.uniapp.di.YouTubeAccountServices
 import com.dewijones92.uniapp.domain.DownloadState
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.MediaItemId
+import com.dewijones92.uniapp.domain.MediaSource
 import com.dewijones92.uniapp.domain.SourceId
-import com.dewijones92.uniapp.domain.Subscription
 import com.dewijones92.uniapp.innertube.feeds.AccountFeed
 import com.dewijones92.uniapp.innertube.feeds.FeedResult
 import com.dewijones92.uniapp.innertube.feeds.FeedVideo
+import com.dewijones92.uniapp.innertube.subscriptions.SubscribedChannel
+import com.dewijones92.uniapp.video.AccountSubscriptions
 import com.dewijones92.uniapp.video.VideoPlaybackLauncher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -31,13 +33,15 @@ import kotlin.time.Duration.Companion.seconds
 
 class VideosViewModel(
     private val channels: ChannelRepository,
+    private val accountSubscriptions: AccountSubscriptions,
     private val launcher: VideoPlaybackLauncher,
     private val downloads: DownloadManager,
     private val youtube: YouTubeAccountServices,
 ) : ViewModel() {
 
     data class UiState(
-        val subscriptions: List<Subscription> = emptyList(),
+        /** The signed-in account's subscribed channels, read live from YouTube. */
+        val subscriptions: List<MediaSource.VideoChannel> = emptyList(),
         val videos: List<MediaItem> = emptyList(),
         val subscribing: Subscribing = Subscribing.Idle,
         /** watchUrl currently being resolved for playback, if any. */
@@ -45,7 +49,6 @@ class VideosViewModel(
         val downloadStates: Map<MediaItemId, DownloadState> = emptyMap(),
         /** Account feeds are offered only when signed in. */
         val signedIn: Boolean = false,
-        /** The selected account feed, or null for the local latest-videos list. */
         val selectedFeed: AccountFeed? = null,
         val feedLoading: Boolean = false,
         val feedError: Boolean = false,
@@ -67,7 +70,6 @@ class VideosViewModel(
     private val subscribing = MutableStateFlow<Subscribing>(Subscribing.Idle)
     private val resolving = MutableStateFlow<String?>(null)
 
-    /** Selected account feed and its loaded videos; null feed = local list. */
     private data class FeedState(
         val selected: AccountFeed? = null,
         val loading: Boolean = false,
@@ -80,10 +82,11 @@ class VideosViewModel(
 
     init {
         // Signed in, the subscriptions feed (recent uploads) is the useful
-        // default; signed out, the screen keeps its local-channels behaviour.
+        // default; the live subscription list refreshes so the channel row is current.
         viewModelScope.launch {
             if (youtube.account.isSignedIn()) {
                 signedIn.value = true
+                accountSubscriptions.refresh()
                 selectFeed(AccountFeed.SUBSCRIPTIONS)
             }
         }
@@ -93,15 +96,14 @@ class VideosViewModel(
     private val feedView = combine(feedState, signedIn) { feed, si -> feed to si }
 
     val uiState: StateFlow<UiState> = combine(
-        channels.observeSubscriptions(),
-        channels.observeVideos(),
+        accountSubscriptions.channels,
         downloads.observeDownloads(),
         flags,
         feedView,
-    ) { subs, localVideos, downloadStates, (subscribing, resolving), (feed, isSignedIn) ->
+    ) { subs, downloadStates, (subscribing, resolving), (feed, isSignedIn) ->
         UiState(
             subscriptions = subs,
-            videos = if (feed.selected == null) localVideos else feed.videos,
+            videos = feed.videos,
             subscribing = subscribing,
             resolving = resolving,
             downloadStates = downloadStates,
@@ -146,6 +148,11 @@ class VideosViewModel(
         mediaUrl = watchUrl,
     )
 
+    /**
+     * Subscribes to a channel by URL — resolves it to a YouTube channel id and
+     * subscribes live on the account (no local copy). The live list updates
+     * optimistically, so the new channel appears in the row straight away.
+     */
     fun subscribe(rawUrl: String) {
         val url = HttpUrl.parse(rawUrl)
         if (url == null) {
@@ -154,13 +161,20 @@ class VideosViewModel(
         }
         viewModelScope.launch {
             subscribing.value = Subscribing.InProgress
-            subscribing.value = when (channels.subscribe(url)) {
-                is SubscribeChannelResult.Subscribed -> Subscribing.Done
-                is SubscribeChannelResult.AlreadySubscribed -> Subscribing.Error.AlreadySubscribed
-                is SubscribeChannelResult.Failure.Network -> Subscribing.Error.Network
-                is SubscribeChannelResult.Failure.NotAChannel -> Subscribing.Error.NotAChannel
+            subscribing.value = when (val result = channels.fetchChannelVideos(url)) {
+                is ChannelVideosResult.Success -> subscribeResolved(result, fallback = url)
+                is ChannelVideosResult.Failure.Network -> Subscribing.Error.Network
+                is ChannelVideosResult.Failure.NotAChannel -> Subscribing.Error.NotAChannel
             }
         }
+    }
+
+    private suspend fun subscribeResolved(result: ChannelVideosResult.Success, fallback: HttpUrl): Subscribing {
+        val canonical = SubscribedChannel.channelUrlFor(result.channelId) ?: fallback
+        val source = MediaSource.VideoChannel(SourceId(canonical.value), result.title, canonical)
+        if (accountSubscriptions.isSubscribed(source.id)) return Subscribing.Error.AlreadySubscribed
+        accountSubscriptions.setSubscribed(source, subscribed = true)
+        return Subscribing.Done
     }
 
     fun resetSubscribing() {
@@ -201,6 +215,7 @@ class VideosViewModel(
             initializer {
                 VideosViewModel(
                     channels = container.channelRepository,
+                    accountSubscriptions = container.accountSubscriptions,
                     launcher = container.videoPlaybackLauncher,
                     downloads = container.downloadManager,
                     youtube = YouTubeAccountServices(

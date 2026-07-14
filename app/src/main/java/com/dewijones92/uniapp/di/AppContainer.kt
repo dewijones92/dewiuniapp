@@ -4,7 +4,6 @@ import android.content.Context
 import com.dewijones92.uniapp.account.SharedPrefsTokenStore
 import com.dewijones92.uniapp.data.channel.ChannelRepository
 import com.dewijones92.uniapp.data.channel.DefaultChannelRepository
-import com.dewijones92.uniapp.data.channel.SubscriptionImporter
 import com.dewijones92.uniapp.data.download.DefaultDownloadManager
 import com.dewijones92.uniapp.data.download.DownloadManager
 import com.dewijones92.uniapp.data.download.EngineDownloadStrategy
@@ -39,7 +38,7 @@ import com.dewijones92.uniapp.innertube.related.YouTubeRelated
 import com.dewijones92.uniapp.innertube.subscriptions.HttpYouTubeSubscriptions
 import com.dewijones92.uniapp.playback.Media3PlaybackController
 import com.dewijones92.uniapp.playback.PlaybackController
-import com.dewijones92.uniapp.video.ChannelSubscriptions
+import com.dewijones92.uniapp.video.AccountSubscriptions
 import com.dewijones92.uniapp.video.VideoPlaybackLauncher
 import com.dewijones92.uniapp.video.VideoResolver
 import com.dewijones92.uniapp.video.WatchHistorySync
@@ -66,13 +65,12 @@ interface AppContainer {
     val downloadManager: DownloadManager
     val videoResolver: VideoResolver
     val videoPlaybackLauncher: VideoPlaybackLauncher
-    val channelSubscriptions: ChannelSubscriptions
+
+    /** The signed-in account's subscribed channels, read live (no local copy). */
+    val accountSubscriptions: AccountSubscriptions
 
     /** The signed-in YouTube account seam (device-code login, token upkeep). */
     val youTubeAccount: YouTubeAccount
-
-    /** Imports the signed-in account's subscriptions into the unified model. */
-    val subscriptionImporter: SubscriptionImporter
 
     /** The signed-in account's video feeds (home, subs, watch later, history). */
     val youTubeFeeds: YouTubeFeeds
@@ -100,11 +98,11 @@ interface AppContainer {
     fun startWatchHistorySync()
 
     /**
-     * Pull the signed-in account's YouTube subscriptions into the unified store
-     * (so they appear as channels app-wide). Runs in the background on launch;
-     * no-ops while signed out. Additive — already-subscribed channels are kept.
+     * Load the signed-in account's subscribed channels into [accountSubscriptions]
+     * (read live, never copied). Runs in the background on launch; no-ops while
+     * signed out.
      */
-    fun syncSubscriptions()
+    fun refreshSubscriptions()
 }
 
 class DefaultAppContainer(private val context: Context) : AppContainer {
@@ -124,10 +122,7 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
     }
 
     override val channelRepository: ChannelRepository by lazy {
-        DefaultChannelRepository(
-            engine = ytDlpEngine,
-            store = RoomSubscriptionStore(database.podcastDao(), RoomSubscriptionStore.SourceType.CHANNEL),
-        )
+        DefaultChannelRepository(engine = ytDlpEngine)
     }
 
     // Shared between the engine (activates a cached wheel) and the updater
@@ -207,14 +202,17 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
         watchHistorySync.start()
     }
 
-    override fun syncSubscriptions() {
-        applicationScope.launch {
-            if (youTubeAccount.isSignedIn()) subscriptionImporter.import()
-        }
+    override fun refreshSubscriptions() {
+        accountSubscriptions.refresh()
     }
 
-    override val channelSubscriptions: ChannelSubscriptions by lazy {
-        ChannelSubscriptions(channelRepository, youTubeActions)
+    override val accountSubscriptions: AccountSubscriptions by lazy {
+        AccountSubscriptions(
+            subscriptions = HttpYouTubeSubscriptions(youTubeAccount, innerTubeClient),
+            actions = youTubeActions,
+            account = youTubeAccount,
+            scope = applicationScope,
+        )
     }
 
     override val youTubeAccount: YouTubeAccount by lazy {
@@ -225,13 +223,6 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
     }
 
     private val innerTubeClient by lazy { InnerTubeClient(httpClient) }
-
-    override val subscriptionImporter: SubscriptionImporter by lazy {
-        SubscriptionImporter(
-            subscriptions = HttpYouTubeSubscriptions(youTubeAccount, innerTubeClient),
-            channels = channelRepository,
-        )
-    }
 
     override val youTubeFeeds: YouTubeFeeds by lazy {
         HttpYouTubeFeeds(youTubeAccount, innerTubeClient)

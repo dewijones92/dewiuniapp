@@ -142,11 +142,10 @@ private fun ChannelsAndVideos(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     contentPadding = PaddingValues(horizontal = 16.dp),
                 ) {
-                    items(state.subscriptions) { subscription ->
-                        val channel = subscription.source as? MediaSource.VideoChannel
+                    items(state.subscriptions) { channel ->
                         AssistChip(
-                            onClick = { channel?.let(onChannelClick) },
-                            label = { Text(subscription.source.title) },
+                            onClick = { onChannelClick(channel) },
+                            label = { Text(channel.title) },
                         )
                     }
                 }

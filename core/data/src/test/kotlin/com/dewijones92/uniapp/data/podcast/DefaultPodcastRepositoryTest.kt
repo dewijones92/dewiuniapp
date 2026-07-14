@@ -2,10 +2,8 @@ package com.dewijones92.uniapp.data.podcast
 
 import com.dewijones92.uniapp.common.HttpUrl
 import com.dewijones92.uniapp.data.net.FetchResult
-import com.dewijones92.uniapp.data.subscription.ReconcileResult
 import com.dewijones92.uniapp.data.subscription.SubscriptionStore
 import com.dewijones92.uniapp.domain.MediaItem
-import com.dewijones92.uniapp.domain.MediaSource
 import com.dewijones92.uniapp.domain.SourceId
 import com.dewijones92.uniapp.domain.Subscription
 import kotlinx.coroutines.flow.Flow
@@ -108,12 +106,5 @@ private class InMemoryPodcastStore : SubscriptionStore {
     override suspend fun removeSource(id: SourceId) {
         removed += id
         subscriptions.value = subscriptions.value.filterNot { it.source.id == id }
-    }
-
-    override suspend fun reconcileImported(sources: List<MediaSource>, subscribedAt: Instant): ReconcileResult {
-        val existing = subscriptions.value.map { it.source.id.value }.toSet()
-        val fresh = sources.filterNot { it.id.value in existing }
-        subscriptions.value += fresh.map { Subscription(it, subscribedAt) }
-        return ReconcileResult(added = fresh.size, removed = 0)
     }
 }

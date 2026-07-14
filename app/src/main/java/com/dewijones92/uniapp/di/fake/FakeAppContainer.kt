@@ -1,7 +1,6 @@
 package com.dewijones92.uniapp.di.fake
 
 import com.dewijones92.uniapp.data.channel.ChannelRepository
-import com.dewijones92.uniapp.data.channel.SubscriptionImporter
 import com.dewijones92.uniapp.data.channel.fake.FakeChannelRepository
 import com.dewijones92.uniapp.data.download.DownloadManager
 import com.dewijones92.uniapp.data.download.fake.FakeDownloadManager
@@ -27,11 +26,13 @@ import com.dewijones92.uniapp.innertube.related.fake.FakeYouTubeRelated
 import com.dewijones92.uniapp.innertube.subscriptions.fake.FakeYouTubeSubscriptions
 import com.dewijones92.uniapp.playback.PlaybackController
 import com.dewijones92.uniapp.playback.fake.FakePlaybackController
-import com.dewijones92.uniapp.video.ChannelSubscriptions
+import com.dewijones92.uniapp.video.AccountSubscriptions
 import com.dewijones92.uniapp.video.VideoPlaybackLauncher
 import com.dewijones92.uniapp.video.VideoResolver
 import com.dewijones92.uniapp.ytdlp.YtDlpEngine
 import com.dewijones92.uniapp.ytdlp.fake.FakeYtDlpEngine
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 
 /** In-memory [AppContainer] for previews and UI tests. */
 class FakeAppContainer(
@@ -49,10 +50,12 @@ class FakeAppContainer(
     override val videoPlaybackLauncher: VideoPlaybackLauncher =
         VideoPlaybackLauncher(videoResolver, playbackController, FakeYouTubeWatchHistory()),
     override val youTubeAccount: YouTubeAccount = YouTubeAccount(FakeYouTubeAuth(), InMemoryTokenStore()),
-    override val channelSubscriptions: ChannelSubscriptions =
-        ChannelSubscriptions(channelRepository, FakeYouTubeActions()),
-    override val subscriptionImporter: SubscriptionImporter =
-        SubscriptionImporter(FakeYouTubeSubscriptions(), channelRepository),
+    override val accountSubscriptions: AccountSubscriptions = AccountSubscriptions(
+        subscriptions = FakeYouTubeSubscriptions(),
+        actions = FakeYouTubeActions(),
+        account = youTubeAccount,
+        scope = CoroutineScope(SupervisorJob()),
+    ),
     override val youTubeFeeds: YouTubeFeeds = FakeYouTubeFeeds(),
     override val youTubeComments: YouTubeComments = FakeYouTubeComments(),
     override val youTubeRelated: YouTubeRelated = FakeYouTubeRelated(),
@@ -62,5 +65,5 @@ class FakeAppContainer(
 
     override fun startWatchHistorySync() = Unit
 
-    override fun syncSubscriptions() = Unit
+    override fun refreshSubscriptions() = Unit
 }

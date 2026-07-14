@@ -13,7 +13,7 @@ import com.dewijones92.uniapp.domain.DownloadState
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.MediaItemId
 import com.dewijones92.uniapp.domain.MediaSource
-import com.dewijones92.uniapp.video.ChannelSubscriptions
+import com.dewijones92.uniapp.video.AccountSubscriptions
 import com.dewijones92.uniapp.video.VideoPlaybackLauncher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -33,7 +33,7 @@ class ChannelViewModel(
     private val source: MediaSource.VideoChannel,
     private val channels: ChannelRepository,
     private val launcher: VideoPlaybackLauncher,
-    private val channelSubscriptions: ChannelSubscriptions,
+    private val accountSubscriptions: AccountSubscriptions,
     private val downloads: DownloadManager,
 ) : ViewModel() {
 
@@ -60,7 +60,7 @@ class ChannelViewModel(
 
     val uiState: StateFlow<UiState> = combine(
         fetch,
-        channels.observeSubscriptions(),
+        accountSubscriptions.channels,
         downloads.observeDownloads(),
     ) { f, subs, downloadStates ->
         UiState(
@@ -69,7 +69,7 @@ class ChannelViewModel(
             loading = f.loading,
             error = f.error,
             resolving = f.resolving,
-            subscribed = subs.any { it.source.id == source.id },
+            subscribed = subs.any { it.id == source.id },
             downloadStates = downloadStates,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), UiState(source.title))
@@ -100,7 +100,7 @@ class ChannelViewModel(
 
     fun toggleSubscribed() {
         val target = !uiState.value.subscribed
-        viewModelScope.launch { channelSubscriptions.setSubscribed(source, target) }
+        viewModelScope.launch { accountSubscriptions.setSubscribed(source, target) }
     }
 
     fun download(video: MediaItem) {
@@ -121,7 +121,7 @@ class ChannelViewModel(
                         source = source,
                         channels = container.channelRepository,
                         launcher = container.videoPlaybackLauncher,
-                        channelSubscriptions = container.channelSubscriptions,
+                        accountSubscriptions = container.accountSubscriptions,
                         downloads = container.downloadManager,
                     )
                 }
