@@ -144,6 +144,8 @@ private fun FullPlayerHost(
             options = quality.options,
             selectedId = quality.selectedId,
             onSelect = watchViewModel::selectQuality,
+            canListen = quality.canListen,
+            onListen = watchViewModel::listen,
         ),
         sleepTimer = sleepTimer,
         onDismiss = onDismiss,

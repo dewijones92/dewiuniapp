@@ -22,6 +22,9 @@ data class QualityControl(
     val options: List<VideoQuality>,
     val selectedId: String?,
     val onSelect: (String) -> Unit,
+    /** True when an audio-only stream is available, so "Listen" can be offered. */
+    val canListen: Boolean = false,
+    val onListen: () -> Unit = {},
 ) {
     companion object {
         val None: QualityControl = QualityControl(emptyList(), null, {})

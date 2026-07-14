@@ -24,11 +24,14 @@ public data class VideoQuality(
  * is paired with the best audio-only track for merging. Heights with no usable
  * stream are dropped.
  */
+/** The best audio-only stream URL, for merging or for "Listen" (audio-only) playback. */
+public fun MediaMetadata.bestAudioUrl(): HttpUrl? = formats
+    .filter { it.isAudioOnly && it.url != null }
+    .maxByOrNull { it.fileSizeBytes ?: 0 }
+    ?.url?.let(HttpUrl::parse)
+
 public fun MediaMetadata.videoQualities(): List<VideoQuality> {
-    val bestAudio = formats
-        .filter { it.isAudioOnly && it.url != null }
-        .maxByOrNull { it.fileSizeBytes ?: 0 }
-        ?.url?.let(HttpUrl::parse)
+    val bestAudio = bestAudioUrl()
 
     return formats
         .filter { it.hasVideo && it.height != null && it.url != null }

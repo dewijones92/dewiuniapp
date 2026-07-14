@@ -30,6 +30,10 @@ import kotlinx.coroutines.launch
  * switching videos resets. Writes are optimistic where it helps responsiveness
  * but always reflect the real result.
  */
+// The watch page's one view-model: comments, related/autoplay, rating, Watch
+// Later, Listen, quality and comment-posting are all thin actions that belong
+// together; splitting to satisfy the counter would only scatter the page's logic.
+@Suppress("TooManyFunctions")
 class WatchViewModel(
     private val commentsSource: YouTubeComments,
     private val relatedSource: YouTubeRelated,
@@ -42,6 +46,9 @@ class WatchViewModel(
     val quality: StateFlow<VideoPlaybackLauncher.QualityState> = launcher.quality
 
     fun selectQuality(id: String): Unit = launcher.selectQuality(id)
+
+    /** Switch the current video to audio-only ("Listen"). */
+    fun listen(): Unit = launcher.listen()
 
     sealed interface CommentsState {
         data object Loading : CommentsState

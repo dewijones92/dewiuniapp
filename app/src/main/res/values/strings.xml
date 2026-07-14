@@ -64,6 +64,7 @@
     <string name="liked">Liked</string>
     <string name="dislike">Dislike</string>
     <string name="watch_later_save">Save to Watch Later</string>
+    <string name="listen">Listen (audio only)</string>
     <string name="comment_hint">Add a comment…</string>
     <string name="comment_post">Post</string>
     <string name="comment_failed">Couldn\'t post</string>

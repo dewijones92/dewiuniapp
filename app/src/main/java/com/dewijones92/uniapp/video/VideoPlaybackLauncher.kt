@@ -26,6 +26,8 @@ class VideoPlaybackLauncher(
     data class QualityState(
         val options: List<VideoQuality> = emptyList(),
         val selectedId: String? = null,
+        /** True when an audio-only stream exists, so "Listen" mode is offered. */
+        val canListen: Boolean = false,
     )
 
     private val _quality = MutableStateFlow(QualityState())
@@ -50,7 +52,7 @@ class VideoPlaybackLauncher(
         val resolved = resolver.resolve(watchUrl, sourceId) ?: return false
         current = resolved
         val selected = resolved.qualities.firstOrNull { it.videoUrl == resolved.item.mediaUrl }?.id
-        _quality.value = QualityState(resolved.qualities, selected)
+        _quality.value = QualityState(resolved.qualities, selected, canListen = resolved.audioOnlyUrl != null)
         // Register this video's tracking URLs so its progress can sync to YouTube.
         watchHistory.beginSession(
             resolved.item.id.value,
@@ -59,6 +61,19 @@ class VideoPlaybackLauncher(
         )
         playback.play(resolved.item, skipSegments = resolved.skipSegments)
         return true
+    }
+
+    /**
+     * Switches the current video to audio-only ("Listen") — replays the same
+     * item with just the audio stream, so there's no video track (the player
+     * shows artwork) and far less data is used. Replays from the saved position.
+     * No-op if nothing is resolved or there's no audio-only stream.
+     */
+    fun listen() {
+        val resolved = current ?: return
+        val audio = resolved.audioOnlyUrl ?: return
+        _quality.update { it.copy(selectedId = null) }
+        playback.play(resolved.item.copy(mediaUrl = audio), skipSegments = resolved.skipSegments)
     }
 
     /**

@@ -25,6 +25,8 @@ class VideoResolver(
         val skipSegments: List<SkipSegment>,
         /** Selectable streaming qualities, highest first; empty for audio-only. */
         val qualities: List<VideoQuality> = emptyList(),
+        /** Best audio-only stream, for "Listen" mode; null if none is available. */
+        val audioOnlyUrl: HttpUrl? = null,
         /** YouTube watch-progress stats URLs (from yt-dlp's player response), null for non-YouTube. */
         val playbackTrackingUrl: String? = null,
         val watchtimeTrackingUrl: String? = null,
@@ -50,6 +52,7 @@ class VideoResolver(
             ),
             skipSegments = skipSegments.segmentsFor(metadata.id),
             qualities = metadata.videoQualities(),
+            audioOnlyUrl = metadata.bestAudioUrl(),
             playbackTrackingUrl = metadata.playbackTrackingUrl,
             watchtimeTrackingUrl = metadata.watchtimeTrackingUrl,
         )
