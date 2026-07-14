@@ -16,8 +16,6 @@ class UniAppApplication : Application(), SingletonImageLoader.Factory {
         // Fetch the latest yt-dlp in the background so YouTube-breaking changes
         // self-heal; the download applies on the next start.
         container.refreshExtractorEngine()
-        // Mirror video watch-progress to YouTube as playback advances.
-        container.startWatchHistorySync()
     }
 
     /**

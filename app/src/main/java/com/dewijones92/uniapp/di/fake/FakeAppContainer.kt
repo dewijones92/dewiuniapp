@@ -55,6 +55,4 @@ class FakeAppContainer(
     override val youTubeActions: YouTubeActions = FakeYouTubeActions(),
 ) : AppContainer {
     override fun refreshExtractorEngine() = Unit
-
-    override fun startWatchHistorySync() = Unit
 }
