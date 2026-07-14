@@ -2,6 +2,7 @@ package com.dewijones92.uniapp.ui.player
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -28,6 +29,7 @@ import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.ThumbDown
 import androidx.compose.material.icons.outlined.ThumbUp
 import androidx.compose.material.icons.outlined.WatchLater
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -439,14 +441,18 @@ private fun DescriptionSection(description: String) {
 /** Artwork for an audio item (a podcast), via the same [MediaThumbnail] every list uses. */
 @Composable
 private fun ArtworkStage(state: PlaybackState) {
-    MediaThumbnail(
-        url = HttpUrl.parse(state.artworkUrl.orEmpty()),
-        contentDescription = state.title,
-        modifier = Modifier
-            .widthIn(max = ARTWORK_MAX_WIDTH)
-            .fillMaxWidth()
-            .aspectRatio(1f),
-    )
+    Box(contentAlignment = Alignment.Center) {
+        MediaThumbnail(
+            url = HttpUrl.parse(state.artworkUrl.orEmpty()),
+            contentDescription = state.title,
+            modifier = Modifier
+                .widthIn(max = ARTWORK_MAX_WIDTH)
+                .fillMaxWidth()
+                .aspectRatio(1f),
+        )
+        // Spinner over the artwork while audio is buffering, mirroring the video stage.
+        if (state.isBuffering) CircularProgressIndicator()
+    }
 }
 
 /** Stops the screen dimming while a video is actually playing. */
