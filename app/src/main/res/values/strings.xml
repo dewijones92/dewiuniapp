@@ -39,6 +39,8 @@
     <string name="show_more">Show more</string>
     <string name="show_less">Show less</string>
 
+    <string name="sleep_timer">Sleep timer</string>
+
     <string name="sort_label">Sort</string>
     <string name="sort_newest">Newest first</string>
     <string name="sort_oldest">Oldest first</string>

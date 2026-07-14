@@ -117,6 +117,7 @@ private fun FullPlayerHost(
     }
     val comments by watchViewModel.comments.collectAsStateWithLifecycle()
     val related by watchViewModel.related.collectAsStateWithLifecycle()
+    val sleepTimer by container.sleepTimer.state.collectAsStateWithLifecycle()
     val signedIn by watchViewModel.signedIn.collectAsStateWithLifecycle()
     val liked by watchViewModel.liked.collectAsStateWithLifecycle()
     val postState by watchViewModel.postState.collectAsStateWithLifecycle()
@@ -140,8 +141,11 @@ private fun FullPlayerHost(
             selectedId = quality.selectedId,
             onSelect = watchViewModel::selectQuality,
         ),
+        sleepTimer = sleepTimer,
         onDismiss = onDismiss,
         onPlayRelated = watchViewModel::playRelated,
+        onStartSleep = container.sleepTimer::start,
+        onCancelSleep = container.sleepTimer::cancel,
         onTogglePlayPause = controller::togglePlayPause,
         onSeekTo = controller::seekTo,
         onSeekBackward = controller::seekBackward,

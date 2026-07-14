@@ -55,11 +55,13 @@ import com.dewijones92.uniapp.common.HttpUrl
 import com.dewijones92.uniapp.innertube.comments.Comment
 import com.dewijones92.uniapp.innertube.feeds.FeedVideo
 import com.dewijones92.uniapp.playback.PlaybackState
+import com.dewijones92.uniapp.playback.SleepTimerState
 import com.dewijones92.uniapp.ui.common.MediaThumbnail
 import com.dewijones92.uniapp.ui.player.WatchViewModel.CommentsState
 import com.dewijones92.uniapp.ui.player.WatchViewModel.PostState
 import com.dewijones92.uniapp.ui.player.WatchViewModel.RelatedState
 import java.util.concurrent.TimeUnit
+import kotlin.time.Duration
 
 /**
  * Full "now playing" screen, opened from the mini player. Drives the one
@@ -74,8 +76,11 @@ fun FullPlayerDialog(
     related: RelatedState,
     watchActions: WatchActions,
     quality: QualityControl,
+    sleepTimer: SleepTimerState,
     onDismiss: () -> Unit,
     onPlayRelated: (FeedVideo) -> Unit,
+    onStartSleep: (Duration) -> Unit,
+    onCancelSleep: () -> Unit,
     onTogglePlayPause: () -> Unit,
     onSeekTo: (Long) -> Unit,
     onSeekBackward: () -> Unit,
@@ -120,7 +125,10 @@ fun FullPlayerDialog(
                     related = related,
                     watchActions = watchActions,
                     quality = quality,
+                    sleepTimer = sleepTimer,
                     onPlayRelated = onPlayRelated,
+                    onStartSleep = onStartSleep,
+                    onCancelSleep = onCancelSleep,
                     onTogglePlayPause = onTogglePlayPause,
                     onSeekTo = onSeekTo,
                     onSeekBackward = onSeekBackward,
@@ -145,7 +153,10 @@ private fun PlayerDetails(
     related: RelatedState,
     watchActions: WatchActions,
     quality: QualityControl,
+    sleepTimer: SleepTimerState,
     onPlayRelated: (FeedVideo) -> Unit,
+    onStartSleep: (Duration) -> Unit,
+    onCancelSleep: () -> Unit,
     onTogglePlayPause: () -> Unit,
     onSeekTo: (Long) -> Unit,
     onSeekBackward: () -> Unit,
@@ -179,6 +190,9 @@ private fun PlayerDetails(
 
     Spacer(Modifier.height(24.dp))
     SpeedControl(state.speed, onSetSpeed)
+
+    Spacer(Modifier.height(4.dp))
+    SleepTimerControl(sleepTimer, onStartSleep, onCancelSleep)
 
     // Quality — video only, and only when there's a choice to make.
     if (state.hasVideo && quality.options.size > 1) {

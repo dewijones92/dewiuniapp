@@ -25,6 +25,7 @@ import com.dewijones92.uniapp.innertube.related.YouTubeRelated
 import com.dewijones92.uniapp.innertube.related.fake.FakeYouTubeRelated
 import com.dewijones92.uniapp.innertube.subscriptions.fake.FakeYouTubeSubscriptions
 import com.dewijones92.uniapp.playback.PlaybackController
+import com.dewijones92.uniapp.playback.SleepTimer
 import com.dewijones92.uniapp.playback.fake.FakePlaybackController
 import com.dewijones92.uniapp.video.AccountSubscriptions
 import com.dewijones92.uniapp.video.VideoPlaybackLauncher
@@ -49,6 +50,7 @@ class FakeAppContainer(
     override val videoResolver: VideoResolver = VideoResolver(ytDlpEngine, skipSegmentSource),
     override val videoPlaybackLauncher: VideoPlaybackLauncher =
         VideoPlaybackLauncher(videoResolver, playbackController, FakeYouTubeWatchHistory()),
+    override val sleepTimer: SleepTimer = SleepTimer(playbackController, CoroutineScope(SupervisorJob())),
     override val youTubeAccount: YouTubeAccount = YouTubeAccount(FakeYouTubeAuth(), InMemoryTokenStore()),
     override val accountSubscriptions: AccountSubscriptions = AccountSubscriptions(
         subscriptions = FakeYouTubeSubscriptions(),

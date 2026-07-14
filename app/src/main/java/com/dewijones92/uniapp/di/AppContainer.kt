@@ -38,6 +38,7 @@ import com.dewijones92.uniapp.innertube.related.YouTubeRelated
 import com.dewijones92.uniapp.innertube.subscriptions.HttpYouTubeSubscriptions
 import com.dewijones92.uniapp.playback.Media3PlaybackController
 import com.dewijones92.uniapp.playback.PlaybackController
+import com.dewijones92.uniapp.playback.SleepTimer
 import com.dewijones92.uniapp.video.AccountSubscriptions
 import com.dewijones92.uniapp.video.VideoPlaybackLauncher
 import com.dewijones92.uniapp.video.VideoResolver
@@ -65,6 +66,9 @@ interface AppContainer {
     val downloadManager: DownloadManager
     val videoResolver: VideoResolver
     val videoPlaybackLauncher: VideoPlaybackLauncher
+
+    /** Sleep timer that pauses playback after a chosen delay. */
+    val sleepTimer: SleepTimer
 
     /** The signed-in account's subscribed channels, read live (no local copy). */
     val accountSubscriptions: AccountSubscriptions
@@ -184,6 +188,10 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
 
     override val videoResolver: VideoResolver by lazy {
         VideoResolver(ytDlpEngine, skipSegmentSource)
+    }
+
+    override val sleepTimer: SleepTimer by lazy {
+        SleepTimer(playbackController, applicationScope)
     }
 
     private val youTubeWatchHistory: YouTubeWatchHistory by lazy {
