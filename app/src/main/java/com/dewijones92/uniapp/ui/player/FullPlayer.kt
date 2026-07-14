@@ -50,9 +50,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.media3.common.Player
-import androidx.media3.common.util.UnstableApi
-import androidx.media3.ui.compose.PlayerSurface
-import androidx.media3.ui.compose.SURFACE_TYPE_TEXTURE_VIEW
 import com.dewijones92.uniapp.R
 import com.dewijones92.uniapp.common.HttpUrl
 import com.dewijones92.uniapp.innertube.comments.Comment
@@ -91,65 +88,114 @@ fun FullPlayerDialog(
                     .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                IconButton(onClick = onDismiss, modifier = Modifier.align(Alignment.Start)) {
-                    Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.close))
-                }
-
-                PlayerStage(state, player)
-
-                Spacer(Modifier.height(if (state.hasVideo) 24.dp else 48.dp))
-                Text(
-                    text = state.title,
-                    style = MaterialTheme.typography.headlineSmall,
-                    textAlign = TextAlign.Center,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                state.artist?.let {
-                    Text(
-                        text = it,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 8.dp),
+                // For video, the transport + seek controls overlay the picture
+                // (modern-player style, auto-hiding); audio keeps them below the
+                // artwork. `videoPlayer` is non-null only when there's a video.
+                val videoPlayer = player.takeIf { state.hasVideo }
+                if (videoPlayer != null) {
+                    VideoStageWithControls(
+                        state = state,
+                        player = videoPlayer,
+                        onDismiss = onDismiss,
+                        onTogglePlayPause = onTogglePlayPause,
+                        onSeekTo = onSeekTo,
+                        onSeekBackward = onSeekBackward,
+                        onSeekForward = onSeekForward,
                     )
+                } else {
+                    IconButton(onClick = onDismiss, modifier = Modifier.align(Alignment.Start)) {
+                        Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.close))
+                    }
+                    ArtworkStage(state)
                 }
 
-                Spacer(Modifier.height(48.dp))
-                SeekBar(state, onSeekTo)
-
-                Spacer(Modifier.height(24.dp))
-                TransportControls(state, onTogglePlayPause, onSeekBackward, onSeekForward)
-
-                Spacer(Modifier.height(24.dp))
-                SpeedControl(state.speed, onSetSpeed)
-
-                // Quality — video only, and only when there's a choice to make.
-                if (state.hasVideo && quality.options.size > 1) {
-                    Spacer(Modifier.height(8.dp))
-                    QualitySelector(quality)
-                }
-
-                // Like — signed-in write action, keyed by the current video.
-                if (state.hasVideo && watchActions.canAct) {
-                    Spacer(Modifier.height(16.dp))
-                    LikeButton(watchActions.liked, watchActions.onToggleLike)
-                }
-
-                // Description / show notes — unified: a video's description and
-                // a podcast episode's notes are the same field, shown the same way.
-                val description = state.description
-                if (!description.isNullOrBlank()) {
-                    Spacer(Modifier.height(24.dp))
-                    DescriptionSection(description)
-                }
-
-                // Comments live under the video, YouTube-style; audio items have none.
-                if (state.hasVideo) {
-                    Spacer(Modifier.height(32.dp))
-                    CommentsSection(comments, watchActions)
-                }
+                PlayerDetails(
+                    state = state,
+                    controlsOverlaid = videoPlayer != null,
+                    comments = comments,
+                    watchActions = watchActions,
+                    quality = quality,
+                    onTogglePlayPause = onTogglePlayPause,
+                    onSeekTo = onSeekTo,
+                    onSeekBackward = onSeekBackward,
+                    onSeekForward = onSeekForward,
+                    onSetSpeed = onSetSpeed,
+                )
             }
         }
+    }
+}
+
+/**
+ * Everything below the stage: title/artist, the transport + seek bar when they
+ * aren't overlaid on a video ([controlsOverlaid]), then speed, quality, like,
+ * description and comments — the same for both pillars, gated by what applies.
+ */
+@Composable
+private fun PlayerDetails(
+    state: PlaybackState,
+    controlsOverlaid: Boolean,
+    comments: CommentsState,
+    watchActions: WatchActions,
+    quality: QualityControl,
+    onTogglePlayPause: () -> Unit,
+    onSeekTo: (Long) -> Unit,
+    onSeekBackward: () -> Unit,
+    onSeekForward: () -> Unit,
+    onSetSpeed: (Float) -> Unit,
+) {
+    Spacer(Modifier.height(if (state.hasVideo) 16.dp else 48.dp))
+    Text(
+        text = state.title,
+        style = MaterialTheme.typography.headlineSmall,
+        textAlign = TextAlign.Center,
+        maxLines = 3,
+        overflow = TextOverflow.Ellipsis,
+    )
+    state.artist?.let {
+        Text(
+            text = it,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 8.dp),
+        )
+    }
+
+    // Audio: seek + transport sit below the artwork (video has them overlaid).
+    if (!controlsOverlaid) {
+        Spacer(Modifier.height(48.dp))
+        SeekBar(state, onSeekTo)
+        Spacer(Modifier.height(24.dp))
+        TransportControls(state, onTogglePlayPause, onSeekBackward, onSeekForward)
+    }
+
+    Spacer(Modifier.height(24.dp))
+    SpeedControl(state.speed, onSetSpeed)
+
+    // Quality — video only, and only when there's a choice to make.
+    if (state.hasVideo && quality.options.size > 1) {
+        Spacer(Modifier.height(8.dp))
+        QualitySelector(quality)
+    }
+
+    // Like — signed-in write action, keyed by the current video.
+    if (state.hasVideo && watchActions.canAct) {
+        Spacer(Modifier.height(16.dp))
+        LikeButton(watchActions.liked, watchActions.onToggleLike)
+    }
+
+    // Description / show notes — unified: a video's description and a podcast
+    // episode's notes are the same field, shown the same way.
+    val description = state.description
+    if (!description.isNullOrBlank()) {
+        Spacer(Modifier.height(24.dp))
+        DescriptionSection(description)
+    }
+
+    // Comments live under the video, YouTube-style; audio items have none.
+    if (state.hasVideo) {
+        Spacer(Modifier.height(32.dp))
+        CommentsSection(comments, watchActions)
     }
 }
 
@@ -328,40 +374,16 @@ private fun DescriptionSection(description: String) {
     }
 }
 
-/**
- * The one stage at the top of the player. A video track shows the shared
- * player's surface (as soon as the track exists — before the first frame — so
- * decoding can start, defaulting to 16:9 until the real aspect ratio arrives);
- * an audio item (a podcast) shows its artwork through the same [MediaThumbnail]
- * every list uses. Two pillars, one stage.
- */
+/** Artwork for an audio item (a podcast), via the same [MediaThumbnail] every list uses. */
 @Composable
-private fun PlayerStage(state: PlaybackState, player: Player?) {
-    if (player != null && state.hasVideo) {
-        VideoStage(player, state.videoAspectRatio ?: DEFAULT_VIDEO_ASPECT_RATIO)
-    } else {
-        MediaThumbnail(
-            url = HttpUrl.parse(state.artworkUrl.orEmpty()),
-            contentDescription = state.title,
-            modifier = Modifier
-                .widthIn(max = ARTWORK_MAX_WIDTH)
-                .fillMaxWidth()
-                .aspectRatio(1f),
-        )
-    }
-}
-
-@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-@Composable
-private fun VideoStage(player: Player, aspectRatio: Float, modifier: Modifier = Modifier) {
-    // A TextureView composes cleanly inside the dialog (no SurfaceView z-order
-    // punch-through); PlayerSurface attaches/detaches it to the player for us.
-    PlayerSurface(
-        player = player,
-        surfaceType = SURFACE_TYPE_TEXTURE_VIEW,
-        modifier = modifier
+private fun ArtworkStage(state: PlaybackState) {
+    MediaThumbnail(
+        url = HttpUrl.parse(state.artworkUrl.orEmpty()),
+        contentDescription = state.title,
+        modifier = Modifier
+            .widthIn(max = ARTWORK_MAX_WIDTH)
             .fillMaxWidth()
-            .aspectRatio(aspectRatio),
+            .aspectRatio(1f),
     )
 }
 
@@ -376,7 +398,7 @@ private fun KeepScreenOnWhilePlayingVideo(active: Boolean) {
 }
 
 @Composable
-private fun SeekBar(state: PlaybackState, onSeekTo: (Long) -> Unit, modifier: Modifier = Modifier) {
+internal fun SeekBar(state: PlaybackState, onSeekTo: (Long) -> Unit, modifier: Modifier = Modifier) {
     val duration = state.durationMs
     var dragValue by remember(state.positionMs) { mutableStateOf<Float?>(null) }
     val position = dragValue?.toLong() ?: state.positionMs
@@ -409,7 +431,7 @@ private fun SeekBar(state: PlaybackState, onSeekTo: (Long) -> Unit, modifier: Mo
 }
 
 @Composable
-private fun TransportControls(
+internal fun TransportControls(
     state: PlaybackState,
     onTogglePlayPause: () -> Unit,
     onSeekBackward: () -> Unit,
@@ -485,6 +507,6 @@ private fun formatTime(millis: Long): String {
 
 private val SPEEDS = listOf(0.8f, 1.0f, 1.25f, 1.5f, 2.0f)
 private const val SECONDS_PER_MINUTE = 60L
-private const val DEFAULT_VIDEO_ASPECT_RATIO = 16f / 9f
+internal const val DEFAULT_VIDEO_ASPECT_RATIO = 16f / 9f
 private val ARTWORK_MAX_WIDTH = 320.dp
 private const val DESCRIPTION_COLLAPSED_LINES = 4
