@@ -53,10 +53,12 @@ import androidx.media3.common.Player
 import com.dewijones92.uniapp.R
 import com.dewijones92.uniapp.common.HttpUrl
 import com.dewijones92.uniapp.innertube.comments.Comment
+import com.dewijones92.uniapp.innertube.feeds.FeedVideo
 import com.dewijones92.uniapp.playback.PlaybackState
 import com.dewijones92.uniapp.ui.common.MediaThumbnail
 import com.dewijones92.uniapp.ui.player.WatchViewModel.CommentsState
 import com.dewijones92.uniapp.ui.player.WatchViewModel.PostState
+import com.dewijones92.uniapp.ui.player.WatchViewModel.RelatedState
 import java.util.concurrent.TimeUnit
 
 /**
@@ -69,9 +71,11 @@ fun FullPlayerDialog(
     state: PlaybackState,
     player: Player?,
     comments: CommentsState,
+    related: RelatedState,
     watchActions: WatchActions,
     quality: QualityControl,
     onDismiss: () -> Unit,
+    onPlayRelated: (FeedVideo) -> Unit,
     onTogglePlayPause: () -> Unit,
     onSeekTo: (Long) -> Unit,
     onSeekBackward: () -> Unit,
@@ -113,8 +117,10 @@ fun FullPlayerDialog(
                     state = state,
                     controlsOverlaid = videoPlayer != null,
                     comments = comments,
+                    related = related,
                     watchActions = watchActions,
                     quality = quality,
+                    onPlayRelated = onPlayRelated,
                     onTogglePlayPause = onTogglePlayPause,
                     onSeekTo = onSeekTo,
                     onSeekBackward = onSeekBackward,
@@ -136,8 +142,10 @@ private fun PlayerDetails(
     state: PlaybackState,
     controlsOverlaid: Boolean,
     comments: CommentsState,
+    related: RelatedState,
     watchActions: WatchActions,
     quality: QualityControl,
+    onPlayRelated: (FeedVideo) -> Unit,
     onTogglePlayPause: () -> Unit,
     onSeekTo: (Long) -> Unit,
     onSeekBackward: () -> Unit,
@@ -192,8 +200,11 @@ private fun PlayerDetails(
         DescriptionSection(description)
     }
 
-    // Comments live under the video, YouTube-style; audio items have none.
+    // Related / up-next and comments live under the video, YouTube-style; audio
+    // items have neither.
     if (state.hasVideo) {
+        Spacer(Modifier.height(32.dp))
+        RelatedSection(related, onPlayRelated)
         Spacer(Modifier.height(32.dp))
         CommentsSection(comments, watchActions)
     }
@@ -241,12 +252,12 @@ private fun CommentsSection(comments: CommentsState, watchActions: WatchActions,
             CommentComposer(watchActions)
         }
         when (comments) {
-            CommentsState.Loading -> CommentsNote(stringResource(R.string.comments_loading))
-            CommentsState.Disabled -> CommentsNote(stringResource(R.string.comments_disabled))
-            CommentsState.Error -> CommentsNote(stringResource(R.string.comments_error))
+            CommentsState.Loading -> PlayerNote(stringResource(R.string.comments_loading))
+            CommentsState.Disabled -> PlayerNote(stringResource(R.string.comments_disabled))
+            CommentsState.Error -> PlayerNote(stringResource(R.string.comments_error))
             is CommentsState.Loaded ->
                 if (comments.comments.isEmpty()) {
-                    CommentsNote(stringResource(R.string.comments_empty))
+                    PlayerNote(stringResource(R.string.comments_empty))
                 } else {
                     comments.comments.forEach { comment -> CommentRow(comment) }
                 }
@@ -332,7 +343,7 @@ private fun CommentRow(comment: Comment) {
 }
 
 @Composable
-private fun CommentsNote(text: String) {
+internal fun PlayerNote(text: String) {
     Text(
         text = text,
         style = MaterialTheme.typography.bodyMedium,
@@ -498,7 +509,7 @@ private fun SpeedControl(speed: Float, onSetSpeed: (Float) -> Unit, modifier: Mo
     }
 }
 
-private fun formatTime(millis: Long): String {
+internal fun formatTime(millis: Long): String {
     val totalSeconds = TimeUnit.MILLISECONDS.toSeconds(millis)
     val minutes = totalSeconds / SECONDS_PER_MINUTE
     val seconds = totalSeconds % SECONDS_PER_MINUTE

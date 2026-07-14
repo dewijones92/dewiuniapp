@@ -76,7 +76,7 @@ internal object VideoTileParser {
         for (overlay in overlays) {
             val status = (overlay as? JsonObject)?.get("thumbnailOverlayTimeStatusRenderer") as? JsonObject
             val text = (status?.get("text") as? JsonObject)?.readText()
-            if (text != null) return parseClock(text)
+            if (text != null) return parseClockToSeconds(text)
         }
         return null
     }
@@ -88,13 +88,6 @@ internal object VideoTileParser {
         return (thumbnails.lastOrNull() as? JsonObject)?.stringAt("url")?.let(HttpUrl::parse)
     }
 
-    /** "s", "m:ss" or "h:mm:ss" → total seconds; each field carries into the next at base 60. */
-    private fun parseClock(clock: String): Long? {
-        val parts = clock.trim().split(":")
-        if (parts.isEmpty() || parts.size > MAX_CLOCK_FIELDS) return null
-        return parts.fold(0L) { acc, part -> acc * SECONDS_PER_MINUTE + (part.toLongOrNull() ?: return null) }
-    }
-
     private fun JsonObject.readText(): String? {
         stringAt("simpleText")?.let { return it }
         val runs = this["runs"] as? JsonArray ?: return null
@@ -103,7 +96,4 @@ internal object VideoTileParser {
 
     private fun JsonObject.stringAt(key: String): String? =
         this[key]?.jsonPrimitive?.contentOrNull?.ifBlank { null }
-
-    private const val SECONDS_PER_MINUTE = 60L
-    private const val MAX_CLOCK_FIELDS = 3
 }

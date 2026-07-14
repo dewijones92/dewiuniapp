@@ -208,6 +208,7 @@ public class Media3PlaybackController(
             hasVideo = currentTracks.groups.any { it.type == C.TRACK_TYPE_VIDEO },
             videoAspectRatio = videoSize.takeIf { it.width > 0 && it.height > 0 }
                 ?.let { it.width * it.pixelWidthHeightRatio / it.height },
+            hasEnded = playbackState == Player.STATE_ENDED,
         )
     }
 

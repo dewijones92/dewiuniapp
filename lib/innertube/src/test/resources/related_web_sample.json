@@ -1,0 +1,97 @@
+{
+  "contents": {
+    "twoColumnWatchNextResults": {
+      "secondaryResults": {
+        "secondaryResults": {
+          "results": [
+            {
+              "lockupViewModel": {
+                "contentType": "LOCKUP_CONTENT_TYPE_VIDEO",
+                "contentId": "rel00000001",
+                "contentImage": {
+                  "thumbnailViewModel": {
+                    "image": {
+                      "sources": [
+                        { "url": "https://i.ytimg.com/rel00000001/sm.jpg", "width": 168, "height": 94 },
+                        { "url": "https://i.ytimg.com/rel00000001/hq.jpg", "width": 336, "height": 188 }
+                      ]
+                    },
+                    "overlays": [
+                      {
+                        "thumbnailBottomOverlayViewModel": {
+                          "badges": [
+                            { "thumbnailBadgeViewModel": { "text": "12:34" } }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                },
+                "metadata": {
+                  "lockupMetadataViewModel": {
+                    "title": { "content": "First Related" },
+                    "metadata": {
+                      "contentMetadataViewModel": {
+                        "metadataRows": [
+                          { "metadataParts": [ { "text": { "content": "Alpha Channel" } } ] },
+                          { "metadataParts": [ { "text": { "content": "1.2M views" } } ] }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "lockupViewModel": {
+                "contentType": "LOCKUP_CONTENT_TYPE_VIDEO",
+                "contentId": "rel00000002",
+                "contentImage": {
+                  "thumbnailViewModel": {
+                    "image": { "sources": [ { "url": "https://i.ytimg.com/rel00000002/hq.jpg" } ] },
+                    "overlays": [
+                      {
+                        "thumbnailBottomOverlayViewModel": {
+                          "badges": [
+                            { "thumbnailBadgeViewModel": { "text": "Now playing", "animatedText": "Now playing" } },
+                            { "thumbnailBadgeViewModel": { "text": "1:02:03" } }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                },
+                "metadata": {
+                  "lockupMetadataViewModel": {
+                    "title": { "content": "Second Related" },
+                    "metadata": {
+                      "contentMetadataViewModel": {
+                        "metadataRows": [
+                          { "metadataParts": [ { "text": { "content": "Beta Channel" } } ] }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "lockupViewModel": {
+                "contentType": "LOCKUP_CONTENT_TYPE_CHANNEL",
+                "contentId": "UCignoreme",
+                "metadata": { "lockupMetadataViewModel": { "title": { "content": "Some Channel" } } }
+              }
+            },
+            {
+              "lockupViewModel": {
+                "contentType": "LOCKUP_CONTENT_TYPE_VIDEO",
+                "contentId": "rel00000001",
+                "metadata": { "lockupMetadataViewModel": { "title": { "content": "First Related (dupe)" } } }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

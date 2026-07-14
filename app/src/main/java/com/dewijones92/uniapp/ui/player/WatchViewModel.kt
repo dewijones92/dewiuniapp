@@ -6,12 +6,16 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.dewijones92.uniapp.di.AppContainer
+import com.dewijones92.uniapp.domain.SourceId
 import com.dewijones92.uniapp.innertube.actions.ActionResult
 import com.dewijones92.uniapp.innertube.actions.YouTubeActions
 import com.dewijones92.uniapp.innertube.auth.YouTubeAccount
 import com.dewijones92.uniapp.innertube.comments.Comment
 import com.dewijones92.uniapp.innertube.comments.CommentsResult
 import com.dewijones92.uniapp.innertube.comments.YouTubeComments
+import com.dewijones92.uniapp.innertube.feeds.FeedVideo
+import com.dewijones92.uniapp.innertube.related.RelatedResult
+import com.dewijones92.uniapp.innertube.related.YouTubeRelated
 import com.dewijones92.uniapp.video.VideoPlaybackLauncher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -27,6 +31,7 @@ import kotlinx.coroutines.launch
  */
 class WatchViewModel(
     private val commentsSource: YouTubeComments,
+    private val relatedSource: YouTubeRelated,
     private val actions: YouTubeActions,
     private val account: YouTubeAccount,
     private val launcher: VideoPlaybackLauncher,
@@ -46,8 +51,17 @@ class WatchViewModel(
 
     enum class PostState { Idle, Posting, Posted, Failed }
 
+    sealed interface RelatedState {
+        data object Loading : RelatedState
+        data class Loaded(val videos: List<FeedVideo>) : RelatedState
+        data object Error : RelatedState
+    }
+
     private val _comments = MutableStateFlow<CommentsState>(CommentsState.Loading)
     val comments: StateFlow<CommentsState> get() = _comments.asStateFlow()
+
+    private val _related = MutableStateFlow<RelatedState>(RelatedState.Loading)
+    val related: StateFlow<RelatedState> get() = _related.asStateFlow()
 
     private val _signedIn = MutableStateFlow(false)
     val signedIn: StateFlow<Boolean> = _signedIn.asStateFlow()
@@ -64,6 +78,7 @@ class WatchViewModel(
         if (videoId == this.videoId) return
         this.videoId = videoId
         _comments.value = CommentsState.Loading
+        _related.value = RelatedState.Loading
         _liked.value = false
         _postState.value = PostState.Idle
         viewModelScope.launch { _signedIn.value = account.isSignedIn() }
@@ -74,6 +89,28 @@ class WatchViewModel(
                 is CommentsResult.Failure -> CommentsState.Error
             }
         }
+        viewModelScope.launch {
+            _related.value = when (val result = relatedSource.relatedTo(videoId)) {
+                is RelatedResult.Success -> RelatedState.Loaded(result.videos)
+                is RelatedResult.Failure -> RelatedState.Error
+            }
+        }
+    }
+
+    /** Plays a tapped related video through the one launcher. */
+    fun playRelated(video: FeedVideo) {
+        viewModelScope.launch { launcher.play(video.watchUrl, RELATED_SOURCE) }
+    }
+
+    /**
+     * Plays the next up-next video when the current one ends — the top related
+     * that isn't the video just watched. No-op if related hasn't loaded or is
+     * empty.
+     */
+    fun autoplayNext() {
+        val videos = (_related.value as? RelatedState.Loaded)?.videos ?: return
+        val next = videos.firstOrNull { it.videoId != videoId } ?: return
+        playRelated(next)
     }
 
     fun toggleLike() {
@@ -101,10 +138,14 @@ class WatchViewModel(
     fun clearPostState() = _postState.update { PostState.Idle }
 
     companion object {
+        /** Ad-hoc source for a related video — not tied to a subscribed channel or feed. */
+        private val RELATED_SOURCE = SourceId("watch:related-video")
+
         fun factory(container: AppContainer): ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 WatchViewModel(
                     container.youTubeComments,
+                    container.youTubeRelated,
                     container.youTubeActions,
                     container.youTubeAccount,
                     container.videoPlaybackLauncher,

@@ -78,6 +78,11 @@ public data class PlaybackState(
      * for audio). The UI defaults to 16:9 while this is unknown.
      */
     val videoAspectRatio: Float? = null,
+    /**
+     * True once the current item has played to its end (the player reached the
+     * ended state). Drives "up next" autoplay; clears when the next item starts.
+     */
+    val hasEnded: Boolean = false,
 ) {
     init {
         require(positionMs >= 0) { "positionMs must not be negative" }

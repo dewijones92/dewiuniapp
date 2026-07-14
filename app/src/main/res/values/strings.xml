@@ -39,6 +39,11 @@
     <string name="show_more">Show more</string>
     <string name="show_less">Show less</string>
 
+    <string name="related_title">Up next</string>
+    <string name="related_loading">Loading related videos…</string>
+    <string name="related_empty">No related videos.</string>
+    <string name="related_error">Couldn\'t load related videos.</string>
+
     <string name="comments_title">Comments</string>
     <string name="comments_loading">Loading comments…</string>
     <string name="comments_empty">No comments.</string>

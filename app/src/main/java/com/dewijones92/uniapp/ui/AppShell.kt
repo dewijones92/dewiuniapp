@@ -111,7 +111,12 @@ private fun FullPlayerHost(
     LaunchedEffect(state.itemId, state.hasVideo) {
         if (state.hasVideo) watchViewModel.bind(state.itemId.value)
     }
+    // When the current video ends, roll on to the top up-next video.
+    LaunchedEffect(state.hasEnded) {
+        if (state.hasEnded && state.hasVideo) watchViewModel.autoplayNext()
+    }
     val comments by watchViewModel.comments.collectAsStateWithLifecycle()
+    val related by watchViewModel.related.collectAsStateWithLifecycle()
     val signedIn by watchViewModel.signedIn.collectAsStateWithLifecycle()
     val liked by watchViewModel.liked.collectAsStateWithLifecycle()
     val postState by watchViewModel.postState.collectAsStateWithLifecycle()
@@ -121,6 +126,7 @@ private fun FullPlayerHost(
         state = state,
         player = controller.player,
         comments = comments,
+        related = related,
         watchActions = WatchActions(
             canAct = signedIn,
             liked = liked,
@@ -135,6 +141,7 @@ private fun FullPlayerHost(
             onSelect = watchViewModel::selectQuality,
         ),
         onDismiss = onDismiss,
+        onPlayRelated = watchViewModel::playRelated,
         onTogglePlayPause = controller::togglePlayPause,
         onSeekTo = controller::seekTo,
         onSeekBackward = controller::seekBackward,
