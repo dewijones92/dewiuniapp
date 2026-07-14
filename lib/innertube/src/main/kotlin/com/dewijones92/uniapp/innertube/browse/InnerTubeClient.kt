@@ -25,6 +25,7 @@ public class InnerTubeClient(
     private val client: OkHttpClient,
     private val browseUrl: String = BROWSE_URL,
     private val nextUrl: String = NEXT_URL,
+    private val playerUrl: String = PLAYER_URL,
     private val tvClientVersion: String = TV_CLIENT_VERSION,
     private val webClientVersion: String = WEB_CLIENT_VERSION,
 ) {
@@ -47,6 +48,35 @@ public class InnerTubeClient(
      */
     public suspend fun action(url: String, fieldsJson: String, accessToken: AccessToken): InnerTubeResponse =
         execute(url, tvContext(fieldsJson), accessToken)
+
+    /** Authenticated player response (TV client) — carries the watch-progress tracking URLs. */
+    public suspend fun player(videoId: String, accessToken: AccessToken): InnerTubeResponse =
+        execute(playerUrl, tvContext(""" "videoId":"$videoId" """), accessToken)
+
+    /**
+     * Authenticated GET (the watch-progress stats pings). These reply with an
+     * empty body, so any 2xx is success — unlike the POSTs, which expect JSON.
+     */
+    public suspend fun get(url: String, accessToken: AccessToken): InnerTubeResponse =
+        withContext(Dispatchers.IO) {
+            val request = Request.Builder()
+                .url(url)
+                .addHeader("Authorization", "Bearer ${accessToken.value}")
+                .get()
+                .build()
+            try {
+                client.newCall(request).execute().use { response ->
+                    when {
+                        response.isSuccessful -> InnerTubeResponse.Success("")
+                        response.code == HTTP_UNAUTHORIZED || response.code == HTTP_FORBIDDEN ->
+                            InnerTubeResponse.Unauthorized
+                        else -> InnerTubeResponse.Failure("HTTP ${response.code}")
+                    }
+                }
+            } catch (e: IOException) {
+                InnerTubeResponse.Failure(e.message ?: "network error")
+            }
+        }
 
     private fun tvContext(fields: String): String =
         """{"context":{"client":{"clientName":"TVHTML5","clientVersion":"$tvClientVersion"}},$fields}"""
@@ -80,6 +110,7 @@ public class InnerTubeClient(
         private const val BASE: String = "https://www.youtube.com/youtubei/v1"
         public const val BROWSE_URL: String = "$BASE/browse?prettyPrint=false"
         public const val NEXT_URL: String = "$BASE/next?prettyPrint=false"
+        public const val PLAYER_URL: String = "$BASE/player?prettyPrint=false"
         public const val LIKE_URL: String = "$BASE/like/like?prettyPrint=false"
         public const val REMOVE_LIKE_URL: String = "$BASE/like/removelike?prettyPrint=false"
         public const val SUBSCRIBE_URL: String = "$BASE/subscription/subscribe?prettyPrint=false"
