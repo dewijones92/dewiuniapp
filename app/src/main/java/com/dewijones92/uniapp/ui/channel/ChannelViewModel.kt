@@ -13,6 +13,7 @@ import com.dewijones92.uniapp.domain.DownloadState
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.MediaItemId
 import com.dewijones92.uniapp.domain.MediaSource
+import com.dewijones92.uniapp.ui.common.MediaSort
 import com.dewijones92.uniapp.video.AccountSubscriptions
 import com.dewijones92.uniapp.video.VideoPlaybackLauncher
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -48,6 +49,7 @@ class ChannelViewModel(
         val resolving: String? = null,
         /** Pull-to-refresh in progress (keeps the uploads visible). */
         val refreshing: Boolean = false,
+        val sort: MediaSort = MediaSort.DEFAULT,
     )
 
     private data class FetchState(
@@ -60,24 +62,31 @@ class ChannelViewModel(
 
     private val fetch = MutableStateFlow(FetchState(source.title))
     private val refreshing = MutableStateFlow(false)
+    private val sort = MutableStateFlow(MediaSort.DEFAULT)
 
     val uiState: StateFlow<UiState> = combine(
         fetch,
         accountSubscriptions.channels,
         downloads.observeDownloads(),
         refreshing,
-    ) { f, subs, downloadStates, refreshing ->
+        sort,
+    ) { f, subs, downloadStates, refreshing, sort ->
         UiState(
             title = f.title,
-            videos = f.videos,
+            videos = sort.apply(f.videos),
             loading = f.loading,
             error = f.error,
             resolving = f.resolving,
             subscribed = subs.any { it.id == source.id },
             downloadStates = downloadStates,
             refreshing = refreshing,
+            sort = sort,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), UiState(source.title))
+
+    fun setSort(order: MediaSort) {
+        sort.value = order
+    }
 
     init {
         load()

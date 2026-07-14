@@ -35,6 +35,8 @@ import com.dewijones92.uniapp.domain.DownloadState
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.MediaSource
 import com.dewijones92.uniapp.ui.common.MediaItemRow
+import com.dewijones92.uniapp.ui.common.MediaSort
+import com.dewijones92.uniapp.ui.common.SectionHeaderWithSort
 import com.dewijones92.uniapp.ui.common.mediaItemSubtitle
 
 /**
@@ -62,6 +64,7 @@ fun ChannelScreen(
         onDownload = viewModel::download,
         onDeleteDownload = viewModel::deleteDownload,
         onRefresh = viewModel::refresh,
+        onSetSort = viewModel::setSort,
         modifier = modifier,
     )
 }
@@ -76,6 +79,7 @@ internal fun ChannelContent(
     onDownload: (MediaItem) -> Unit,
     onDeleteDownload: (MediaItem) -> Unit,
     onRefresh: () -> Unit,
+    onSetSort: (MediaSort) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Surface(modifier = modifier.fillMaxSize()) {
@@ -88,6 +92,15 @@ internal fun ChannelContent(
                         onBack = onBack,
                         onToggleSubscribed = onToggleSubscribed,
                     )
+                }
+                if (state.videos.isNotEmpty()) {
+                    item {
+                        SectionHeaderWithSort(
+                            title = stringResource(R.string.latest_videos),
+                            sort = state.sort,
+                            onSetSort = onSetSort,
+                        )
+                    }
                 }
                 when {
                     state.loading -> item { CenteredProgress() }
