@@ -32,12 +32,15 @@ import com.dewijones92.uniapp.innertube.comments.HttpYouTubeComments
 import com.dewijones92.uniapp.innertube.comments.YouTubeComments
 import com.dewijones92.uniapp.innertube.feeds.HttpYouTubeFeeds
 import com.dewijones92.uniapp.innertube.feeds.YouTubeFeeds
+import com.dewijones92.uniapp.innertube.history.HttpYouTubeWatchHistory
+import com.dewijones92.uniapp.innertube.history.YouTubeWatchHistory
 import com.dewijones92.uniapp.innertube.subscriptions.HttpYouTubeSubscriptions
 import com.dewijones92.uniapp.playback.Media3PlaybackController
 import com.dewijones92.uniapp.playback.PlaybackController
 import com.dewijones92.uniapp.video.ChannelSubscriptions
 import com.dewijones92.uniapp.video.VideoPlaybackLauncher
 import com.dewijones92.uniapp.video.VideoResolver
+import com.dewijones92.uniapp.video.WatchHistorySync
 import com.dewijones92.uniapp.ytdlp.YtDlpEngine
 import com.dewijones92.uniapp.ytdlp.chaquopy.ChaquopyYtDlpEngine
 import com.dewijones92.uniapp.ytdlp.chaquopy.YtDlpUpdater
@@ -84,6 +87,12 @@ interface AppContainer {
      * Safe to call on every launch; never blocks and never touches Python.
      */
     fun refreshExtractorEngine()
+
+    /**
+     * Start mirroring video watch-progress to YouTube's servers as playback
+     * advances (History + cross-device resume). No-ops while signed out.
+     */
+    fun startWatchHistorySync()
 }
 
 class DefaultAppContainer(private val context: Context) : AppContainer {
@@ -170,8 +179,20 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
         VideoResolver(ytDlpEngine, skipSegmentSource)
     }
 
+    private val youTubeWatchHistory: YouTubeWatchHistory by lazy {
+        HttpYouTubeWatchHistory(youTubeAccount, httpClient)
+    }
+
     override val videoPlaybackLauncher: VideoPlaybackLauncher by lazy {
-        VideoPlaybackLauncher(videoResolver, playbackController)
+        VideoPlaybackLauncher(videoResolver, playbackController, youTubeWatchHistory)
+    }
+
+    private val watchHistorySync: WatchHistorySync by lazy {
+        WatchHistorySync(playbackController, youTubeWatchHistory, applicationScope)
+    }
+
+    override fun startWatchHistorySync() {
+        watchHistorySync.start()
     }
 
     override val channelSubscriptions: ChannelSubscriptions by lazy {

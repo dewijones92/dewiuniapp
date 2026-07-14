@@ -21,6 +21,7 @@ import com.dewijones92.uniapp.innertube.comments.YouTubeComments
 import com.dewijones92.uniapp.innertube.comments.fake.FakeYouTubeComments
 import com.dewijones92.uniapp.innertube.feeds.YouTubeFeeds
 import com.dewijones92.uniapp.innertube.feeds.fake.FakeYouTubeFeeds
+import com.dewijones92.uniapp.innertube.history.fake.FakeYouTubeWatchHistory
 import com.dewijones92.uniapp.innertube.subscriptions.fake.FakeYouTubeSubscriptions
 import com.dewijones92.uniapp.playback.PlaybackController
 import com.dewijones92.uniapp.playback.fake.FakePlaybackController
@@ -44,7 +45,7 @@ class FakeAppContainer(
     override val downloadManager: DownloadManager = FakeDownloadManager(),
     override val videoResolver: VideoResolver = VideoResolver(ytDlpEngine, skipSegmentSource),
     override val videoPlaybackLauncher: VideoPlaybackLauncher =
-        VideoPlaybackLauncher(videoResolver, playbackController),
+        VideoPlaybackLauncher(videoResolver, playbackController, FakeYouTubeWatchHistory()),
     override val youTubeAccount: YouTubeAccount = YouTubeAccount(FakeYouTubeAuth(), InMemoryTokenStore()),
     override val channelSubscriptions: ChannelSubscriptions =
         ChannelSubscriptions(channelRepository, FakeYouTubeActions()),
@@ -55,4 +56,6 @@ class FakeAppContainer(
     override val youTubeActions: YouTubeActions = FakeYouTubeActions(),
 ) : AppContainer {
     override fun refreshExtractorEngine() = Unit
+
+    override fun startWatchHistorySync() = Unit
 }

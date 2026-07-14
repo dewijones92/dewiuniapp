@@ -3,6 +3,7 @@ package com.dewijones92.uniapp.video
 import com.dewijones92.uniapp.common.HttpUrl
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.SourceId
+import com.dewijones92.uniapp.innertube.history.YouTubeWatchHistory
 import com.dewijones92.uniapp.playback.PlaybackController
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,6 +20,7 @@ import kotlinx.coroutines.flow.update
 class VideoPlaybackLauncher(
     private val resolver: VideoResolver,
     private val playback: PlaybackController,
+    private val watchHistory: YouTubeWatchHistory,
 ) {
     /** The current video's quality options and which one is playing. */
     data class QualityState(
@@ -49,6 +51,12 @@ class VideoPlaybackLauncher(
         current = resolved
         val selected = resolved.qualities.firstOrNull { it.videoUrl == resolved.item.mediaUrl }?.id
         _quality.value = QualityState(resolved.qualities, selected)
+        // Register this video's tracking URLs so its progress can sync to YouTube.
+        watchHistory.beginSession(
+            resolved.item.id.value,
+            resolved.playbackTrackingUrl,
+            resolved.watchtimeTrackingUrl,
+        )
         playback.play(resolved.item, skipSegments = resolved.skipSegments)
         return true
     }

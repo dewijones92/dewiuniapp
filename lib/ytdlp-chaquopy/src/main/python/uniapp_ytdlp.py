@@ -18,13 +18,59 @@ def versions():
 
 
 def extract(url):
-    options = {"quiet": True, "no_warnings": True, "skip_download": True}
+    # mark_watched=True makes yt-dlp compute the watch-progress tracking URLs; we
+    # capture them (rather than let yt-dlp ping) so the app can report the real
+    # position to the account. yt-dlp already fetches a playable player response
+    # past YouTube's anti-bot, so this is the one reliable source of those URLs.
+    options = {"quiet": True, "no_warnings": True, "skip_download": True, "mark_watched": True}
+    tracking = {}
+    restore = _install_tracking_capture(tracking)
     try:
         with yt_dlp.YoutubeDL(options) as ydl:
             info = ydl.sanitize_info(ydl.extract_info(url, download=False))
-            return json.dumps({"ok": True, "info": info})
+            return json.dumps({"ok": True, "info": info, "tracking": tracking})
     except yt_dlp.utils.DownloadError as e:
         return json.dumps({"ok": False, "kind": _classify(e), "detail": str(e)})
+    finally:
+        restore()
+
+
+def _install_tracking_capture(tracking):
+    """Capture the playbackTracking base URLs from yt-dlp's player responses.
+
+    yt-dlp computes these in YoutubeIE._mark_watched, but its base mark_watched
+    only calls it when yt-dlp itself is logged in (cookies/login). We run
+    unauthenticated and only want to READ the URLs (the app pings with its own
+    account token), so we patch _mark_watched to capture and the base guard to
+    invoke it regardless. Best-effort: extraction still works if this fails.
+    Returns a callable that restores the originals."""
+    try:
+        import yt_dlp.extractor.common as common
+        import yt_dlp.extractor.youtube._video as ytv
+    except Exception:  # noqa: BLE001
+        return lambda: None
+
+    original_mark = ytv.YoutubeIE._mark_watched
+    original_guard = common.InfoExtractor.mark_watched
+
+    def capture(self, video_id, player_responses):
+        tracking["playback"] = ytv.get_first(
+            player_responses, ("playbackTracking", "videostatsPlaybackUrl", "baseUrl"))
+        tracking["watchtime"] = ytv.get_first(
+            player_responses, ("playbackTracking", "videostatsWatchtimeUrl", "baseUrl"))
+
+    def unguarded(self, *args, **kwargs):
+        if self.get_param("mark_watched", False):
+            self._mark_watched(*args, **kwargs)
+
+    ytv.YoutubeIE._mark_watched = capture
+    common.InfoExtractor.mark_watched = unguarded
+
+    def restore():
+        ytv.YoutubeIE._mark_watched = original_mark
+        common.InfoExtractor.mark_watched = original_guard
+
+    return restore
 
 
 def search(query, max_results):

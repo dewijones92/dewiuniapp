@@ -38,6 +38,9 @@ class BridgeJsonTest {
                     {"format_id": "sb0", "ext": "mhtml", "vcodec": "none", "acodec": "none"},
                     {"ext": "mp4", "vcodec": "avc1"}
                 ]
+            }, "tracking": {
+                "playback": "https://s.youtube.com/api/stats/playback?docid=abc",
+                "watchtime": "https://s.youtube.com/api/stats/watchtime?docid=abc"
             }}
         """.trimIndent()
 
@@ -46,6 +49,8 @@ class BridgeJsonTest {
         assertEquals("abc", metadata.id)
         assertEquals(90L, metadata.durationSeconds)
         assertEquals("Line one\nLine two", metadata.description)
+        assertEquals("https://s.youtube.com/api/stats/playback?docid=abc", metadata.playbackTrackingUrl)
+        assertEquals("https://s.youtube.com/api/stats/watchtime?docid=abc", metadata.watchtimeTrackingUrl)
         // Formats with no format_id or no codecs at all (storyboards) are dropped, not crashed on.
         assertEquals(2, metadata.formats.size)
         val (video, audio) = metadata.formats

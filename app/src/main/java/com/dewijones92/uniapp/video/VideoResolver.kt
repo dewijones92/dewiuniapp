@@ -25,6 +25,9 @@ class VideoResolver(
         val skipSegments: List<SkipSegment>,
         /** Selectable streaming qualities, highest first; empty for audio-only. */
         val qualities: List<VideoQuality> = emptyList(),
+        /** YouTube watch-progress stats URLs (from yt-dlp's player response), null for non-YouTube. */
+        val playbackTrackingUrl: String? = null,
+        val watchtimeTrackingUrl: String? = null,
     )
 
     /** Null when the video can't be resolved (private, removed, geo-blocked, …). */
@@ -47,6 +50,8 @@ class VideoResolver(
             ),
             skipSegments = skipSegments.segmentsFor(metadata.id),
             qualities = metadata.videoQualities(),
+            playbackTrackingUrl = metadata.playbackTrackingUrl,
+            watchtimeTrackingUrl = metadata.watchtimeTrackingUrl,
         )
     }
 }

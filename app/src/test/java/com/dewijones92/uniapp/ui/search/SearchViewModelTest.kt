@@ -8,6 +8,7 @@ import com.dewijones92.uniapp.data.search.SearchSource
 import com.dewijones92.uniapp.data.search.YtDlpVideoSearchSource
 import com.dewijones92.uniapp.data.sponsorblock.SkipSegmentSource
 import com.dewijones92.uniapp.domain.SkipSegment
+import com.dewijones92.uniapp.innertube.history.fake.FakeYouTubeWatchHistory
 import com.dewijones92.uniapp.playback.fake.FakePlaybackController
 import com.dewijones92.uniapp.ui.search.SearchViewModel.Results
 import com.dewijones92.uniapp.video.VideoPlaybackLauncher
@@ -52,7 +53,11 @@ class SearchViewModelTest {
         podcastSearch = podcastSearch,
         videoSearch = YtDlpVideoSearchSource(engine),
         podcastRepository = repository,
-        launcher = VideoPlaybackLauncher(VideoResolver(engine, SkipSegmentSource { cannedSegments }), playback),
+        launcher = VideoPlaybackLauncher(
+            VideoResolver(engine, SkipSegmentSource { cannedSegments }),
+            playback,
+            FakeYouTubeWatchHistory(),
+        ),
     )
 
     @Before

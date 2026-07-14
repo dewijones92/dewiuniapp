@@ -35,7 +35,14 @@ internal fun parseVersions(text: String): EngineVersions {
 internal fun parseExtraction(url: HttpUrl, text: String): ExtractionResult {
     val obj = json.parseToJsonElement(text).jsonObject
     return if (obj.isOk()) {
-        ExtractionResult.Success(obj.getValue("info").jsonObject.toMediaMetadata(url))
+        val tracking = obj["tracking"]?.jsonObject
+        ExtractionResult.Success(
+            obj.getValue("info").jsonObject.toMediaMetadata(
+                url = url,
+                playbackTrackingUrl = tracking?.stringOrNull("playback"),
+                watchtimeTrackingUrl = tracking?.stringOrNull("watchtime"),
+            ),
+        )
     } else {
         obj.toFailure(url)
     }
@@ -60,7 +67,11 @@ private fun JsonObject.toFailure(url: HttpUrl): ExtractionResult.Failure {
     }
 }
 
-private fun JsonObject.toMediaMetadata(url: HttpUrl): MediaMetadata = MediaMetadata(
+private fun JsonObject.toMediaMetadata(
+    url: HttpUrl,
+    playbackTrackingUrl: String?,
+    watchtimeTrackingUrl: String?,
+): MediaMetadata = MediaMetadata(
     id = stringOrNull("id") ?: url.value,
     title = stringOrNull("title") ?: "Untitled",
     uploader = stringOrNull("uploader") ?: stringOrNull("channel"),
@@ -68,6 +79,8 @@ private fun JsonObject.toMediaMetadata(url: HttpUrl): MediaMetadata = MediaMetad
     thumbnailUrl = stringOrNull("thumbnail"),
     formats = this["formats"]?.jsonArray.orEmpty().mapNotNull { it.jsonObject.toMediaFormatOrNull() },
     description = stringOrNull("description"),
+    playbackTrackingUrl = playbackTrackingUrl,
+    watchtimeTrackingUrl = watchtimeTrackingUrl,
 )
 
 private fun JsonObject.toMediaFormatOrNull(): MediaFormat? {

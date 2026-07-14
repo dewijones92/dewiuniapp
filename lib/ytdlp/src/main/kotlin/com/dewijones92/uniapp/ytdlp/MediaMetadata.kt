@@ -30,6 +30,14 @@ public data class MediaMetadata(
     val formats: List<MediaFormat>,
     /** The uploader's description/notes for this media, when the extractor provides one. */
     val description: String? = null,
+    /**
+     * YouTube watch-progress stats URLs from the player response, when present.
+     * [watchtimeTrackingUrl] is pinged (with a client nonce + position) to sync
+     * how far the video was watched to the account; [playbackTrackingUrl] opens
+     * the record first. Null for non-YouTube media.
+     */
+    val playbackTrackingUrl: String? = null,
+    val watchtimeTrackingUrl: String? = null,
 ) {
     init {
         require(id.isNotBlank()) { "id must not be blank" }
