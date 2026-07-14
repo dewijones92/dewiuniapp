@@ -12,6 +12,7 @@ import com.dewijones92.uniapp.innertube.auth.YouTubeAccount
 import com.dewijones92.uniapp.innertube.comments.Comment
 import com.dewijones92.uniapp.innertube.comments.CommentsResult
 import com.dewijones92.uniapp.innertube.comments.YouTubeComments
+import com.dewijones92.uniapp.video.VideoPlaybackLauncher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -28,7 +29,13 @@ class WatchViewModel(
     private val commentsSource: YouTubeComments,
     private val actions: YouTubeActions,
     private val account: YouTubeAccount,
+    private val launcher: VideoPlaybackLauncher,
 ) : ViewModel() {
+
+    /** The current video's selectable qualities; switching replays from the same spot. */
+    val quality: StateFlow<VideoPlaybackLauncher.QualityState> = launcher.quality
+
+    fun selectQuality(id: String): Unit = launcher.selectQuality(id)
 
     sealed interface CommentsState {
         data object Loading : CommentsState
@@ -96,7 +103,12 @@ class WatchViewModel(
     companion object {
         fun factory(container: AppContainer): ViewModelProvider.Factory = viewModelFactory {
             initializer {
-                WatchViewModel(container.youTubeComments, container.youTubeActions, container.youTubeAccount)
+                WatchViewModel(
+                    container.youTubeComments,
+                    container.youTubeActions,
+                    container.youTubeAccount,
+                    container.videoPlaybackLauncher,
+                )
             }
         }
     }

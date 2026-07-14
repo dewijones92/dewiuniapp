@@ -20,11 +20,18 @@ class VideoResolver(
     private val engine: YtDlpEngine,
     private val skipSegments: SkipSegmentSource,
 ) {
-    data class Resolved(val item: MediaItem, val skipSegments: List<SkipSegment>)
+    data class Resolved(
+        val item: MediaItem,
+        val skipSegments: List<SkipSegment>,
+        /** Selectable streaming qualities, highest first; empty for audio-only. */
+        val qualities: List<VideoQuality> = emptyList(),
+    )
 
     /** Null when the video can't be resolved (private, removed, geo-blocked, …). */
     suspend fun resolve(watchUrl: HttpUrl, sourceId: SourceId): Resolved? {
         val metadata = (engine.extract(watchUrl) as? ExtractionResult.Success)?.metadata ?: return null
+        // Default stream stays the best muxed format (one stream, reliable, data-friendly);
+        // the quality menu offers higher, merged qualities on demand.
         val streamUrl = metadata.bestPlayableFormat()?.url?.let(HttpUrl::parse) ?: return null
         return Resolved(
             item = MediaItem(
@@ -39,6 +46,7 @@ class VideoResolver(
                 mediaUrl = streamUrl,
             ),
             skipSegments = skipSegments.segmentsFor(metadata.id),
+            qualities = metadata.videoQualities(),
         )
     }
 }

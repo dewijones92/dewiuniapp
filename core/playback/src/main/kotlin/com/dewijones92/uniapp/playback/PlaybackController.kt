@@ -1,6 +1,7 @@
 package com.dewijones92.uniapp.playback
 
 import androidx.media3.common.Player
+import com.dewijones92.uniapp.common.HttpUrl
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.MediaItemId
 import com.dewijones92.uniapp.domain.SkipSegment
@@ -25,13 +26,17 @@ public interface PlaybackController {
 
     /**
      * Starts (or restarts) playback of [item]. Plays [localPath] when given
-     * (offline download), else streams [MediaItem.mediaUrl]. Any [skipSegments]
-     * (e.g. SponsorBlock) are jumped over automatically.
+     * (offline download), else streams [MediaItem.mediaUrl]. When [audioUrl] is
+     * given, [MediaItem.mediaUrl] is a video-only stream and [audioUrl] its
+     * separate audio track — the two are merged for playback (how higher-than-
+     * muxed video qualities stream). Any [skipSegments] (e.g. SponsorBlock) are
+     * jumped over automatically.
      */
     public fun play(
         item: MediaItem,
         skipSegments: List<SkipSegment> = emptyList(),
         localPath: String? = null,
+        audioUrl: HttpUrl? = null,
     )
 
     /** Toggles play/pause of the current item; no-op when nothing is queued. */

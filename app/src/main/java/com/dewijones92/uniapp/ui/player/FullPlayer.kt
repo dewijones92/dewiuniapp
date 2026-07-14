@@ -73,6 +73,7 @@ fun FullPlayerDialog(
     player: Player?,
     comments: CommentsState,
     watchActions: WatchActions,
+    quality: QualityControl,
     onDismiss: () -> Unit,
     onTogglePlayPause: () -> Unit,
     onSeekTo: (Long) -> Unit,
@@ -121,6 +122,12 @@ fun FullPlayerDialog(
 
                 Spacer(Modifier.height(24.dp))
                 SpeedControl(state.speed, onSetSpeed)
+
+                // Quality — video only, and only when there's a choice to make.
+                if (state.hasVideo && quality.options.size > 1) {
+                    Spacer(Modifier.height(8.dp))
+                    QualitySelector(quality)
+                }
 
                 // Like — signed-in write action, keyed by the current video.
                 if (state.hasVideo && watchActions.canAct) {

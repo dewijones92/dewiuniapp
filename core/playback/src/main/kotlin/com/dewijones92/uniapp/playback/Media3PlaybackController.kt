@@ -4,11 +4,13 @@ import android.content.ComponentName
 import android.content.Context
 import android.util.Log
 import androidx.core.content.ContextCompat
+import androidx.core.os.bundleOf
 import androidx.media3.common.C
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
+import com.dewijones92.uniapp.common.HttpUrl
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.MediaItemId
 import com.dewijones92.uniapp.domain.SkipSegment
@@ -82,13 +84,19 @@ public class Media3PlaybackController(
         )
     }
 
-    override fun play(item: MediaItem, skipSegments: List<SkipSegment>, localPath: String?) {
+    override fun play(item: MediaItem, skipSegments: List<SkipSegment>, localPath: String?, audioUrl: HttpUrl?) {
         val uri = localPath?.let { File(it).toURI().toString() }
             ?: requireNotNull(item.mediaUrl) { "MediaItem ${item.id.value} has no mediaUrl" }.value
         activeSkipSegments = skipSegments
+        // A separate audio track (higher-than-muxed qualities) rides along in
+        // the request metadata; the service merges it with the video-only URI.
+        val requestMetadata = Media3MediaItem.RequestMetadata.Builder()
+            .setExtras(audioUrl?.let { bundleOf(EXTRA_AUDIO_URL to it.value) })
+            .build()
         val media3Item = Media3MediaItem.Builder()
             .setMediaId(item.id.value)
             .setUri(uri)
+            .setRequestMetadata(requestMetadata)
             .setMediaMetadata(
                 MediaMetadata.Builder()
                     .setTitle(item.title)
