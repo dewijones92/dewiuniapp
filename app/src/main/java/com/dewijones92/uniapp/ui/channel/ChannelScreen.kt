@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -18,6 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -59,10 +61,12 @@ fun ChannelScreen(
         onPlay = viewModel::play,
         onDownload = viewModel::download,
         onDeleteDownload = viewModel::deleteDownload,
+        onRefresh = viewModel::refresh,
         modifier = modifier,
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun ChannelContent(
     state: ChannelViewModel.UiState,
@@ -71,32 +75,35 @@ internal fun ChannelContent(
     onPlay: (MediaItem) -> Unit,
     onDownload: (MediaItem) -> Unit,
     onDeleteDownload: (MediaItem) -> Unit,
+    onRefresh: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Surface(modifier = modifier.fillMaxSize()) {
-        LazyColumn(modifier = Modifier.fillMaxSize()) {
-            item {
-                ChannelHeader(
-                    title = state.title,
-                    subscribed = state.subscribed,
-                    onBack = onBack,
-                    onToggleSubscribed = onToggleSubscribed,
-                )
-            }
-            when {
-                state.loading -> item { CenteredProgress() }
-                state.error -> item { Message(stringResource(R.string.feed_error)) }
-                state.videos.isEmpty() -> item { Message(stringResource(R.string.feed_empty)) }
-                else -> items(state.videos, key = { it.id.value }) { video ->
-                    MediaItemRow(
-                        item = video,
-                        subtitle = mediaItemSubtitle(video),
-                        downloadState = state.downloadStates[video.id] ?: DownloadState.NotDownloaded,
-                        onPlay = { onPlay(video) },
-                        onDownload = { onDownload(video) },
-                        onDeleteDownload = { onDeleteDownload(video) },
+        PullToRefreshBox(isRefreshing = state.refreshing, onRefresh = onRefresh) {
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                item {
+                    ChannelHeader(
+                        title = state.title,
+                        subscribed = state.subscribed,
+                        onBack = onBack,
+                        onToggleSubscribed = onToggleSubscribed,
                     )
-                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                }
+                when {
+                    state.loading -> item { CenteredProgress() }
+                    state.error -> item { Message(stringResource(R.string.feed_error)) }
+                    state.videos.isEmpty() -> item { Message(stringResource(R.string.feed_empty)) }
+                    else -> items(state.videos, key = { it.id.value }) { video ->
+                        MediaItemRow(
+                            item = video,
+                            subtitle = mediaItemSubtitle(video),
+                            downloadState = state.downloadStates[video.id] ?: DownloadState.NotDownloaded,
+                            onPlay = { onPlay(video) },
+                            onDownload = { onDownload(video) },
+                            onDeleteDownload = { onDeleteDownload(video) },
+                        )
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                    }
                 }
             }
         }

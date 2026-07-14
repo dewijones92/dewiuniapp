@@ -52,6 +52,8 @@ class VideosViewModel(
         val selectedFeed: AccountFeed? = null,
         val feedLoading: Boolean = false,
         val feedError: Boolean = false,
+        /** Pull-to-refresh in progress (keeps content visible, unlike [feedLoading]). */
+        val refreshing: Boolean = false,
     )
 
     sealed interface Subscribing {
@@ -69,6 +71,7 @@ class VideosViewModel(
 
     private val subscribing = MutableStateFlow<Subscribing>(Subscribing.Idle)
     private val resolving = MutableStateFlow<String?>(null)
+    private val refreshing = MutableStateFlow(false)
 
     private data class FeedState(
         val selected: AccountFeed? = null,
@@ -94,7 +97,7 @@ class VideosViewModel(
         }
     }
 
-    private val flags = combine(subscribing, resolving) { sub, res -> sub to res }
+    private val flags = combine(subscribing, resolving, refreshing) { sub, res, ref -> Triple(sub, res, ref) }
     private val feedView = combine(feedState, accountSubscriptions.signedIn) { feed, si -> feed to si }
 
     val uiState: StateFlow<UiState> = combine(
@@ -102,7 +105,7 @@ class VideosViewModel(
         downloads.observeDownloads(),
         flags,
         feedView,
-    ) { subs, downloadStates, (subscribing, resolving), (feed, isSignedIn) ->
+    ) { subs, downloadStates, (subscribing, resolving, refreshing), (feed, isSignedIn) ->
         UiState(
             subscriptions = subs,
             videos = feed.videos,
@@ -113,6 +116,7 @@ class VideosViewModel(
             selectedFeed = feed.selected,
             feedLoading = feed.loading,
             feedError = feed.error,
+            refreshing = refreshing,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), UiState())
 
@@ -121,13 +125,7 @@ class VideosViewModel(
         if (feed == null) return
         viewModelScope.launch {
             feedState.update { it.copy(loading = true) }
-            val result = when (feed) {
-                AccountFeed.RECOMMENDED -> youtube.feeds.recommended()
-                AccountFeed.SUBSCRIPTIONS -> youtube.feeds.subscriptionsFeed()
-                AccountFeed.WATCH_LATER -> youtube.feeds.watchLater()
-                AccountFeed.HISTORY -> youtube.feeds.history()
-            }
-            feedState.value = when (result) {
+            feedState.value = when (val result = loadFeed(feed)) {
                 is FeedResult.Success ->
                     FeedState(feed, loading = false, videos = result.videos.map { it.toMediaItem(feed) })
                 FeedResult.SignedOut -> {
@@ -138,6 +136,37 @@ class VideosViewModel(
                 is FeedResult.Failure -> FeedState(feed, loading = false, error = true)
             }
         }
+    }
+
+    /**
+     * Pull-to-refresh: reload the subscription list and re-fetch the current
+     * feed, keeping the visible content until the new data arrives (a transient
+     * failure is swallowed rather than replacing the list with an error).
+     */
+    fun refresh() {
+        if (refreshing.value) return
+        viewModelScope.launch {
+            refreshing.value = true
+            accountSubscriptions.refresh()
+            feedState.value.selected?.let { feed ->
+                when (val result = loadFeed(feed)) {
+                    is FeedResult.Success -> {
+                        val items = result.videos.map { it.toMediaItem(feed) }
+                        feedState.update { it.copy(videos = items, error = false) }
+                    }
+                    FeedResult.SignedOut -> accountSubscriptions.refresh()
+                    is FeedResult.Failure -> Unit // keep what's shown
+                }
+            }
+            refreshing.value = false
+        }
+    }
+
+    private suspend fun loadFeed(feed: AccountFeed): FeedResult = when (feed) {
+        AccountFeed.RECOMMENDED -> youtube.feeds.recommended()
+        AccountFeed.SUBSCRIPTIONS -> youtube.feeds.subscriptionsFeed()
+        AccountFeed.WATCH_LATER -> youtube.feeds.watchLater()
+        AccountFeed.HISTORY -> youtube.feeds.history()
     }
 
     private fun FeedVideo.toMediaItem(feed: AccountFeed) = MediaItem(

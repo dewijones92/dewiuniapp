@@ -46,6 +46,8 @@ class ChannelViewModel(
         val downloadStates: Map<MediaItemId, DownloadState> = emptyMap(),
         /** Watch URL currently being resolved for playback, if any. */
         val resolving: String? = null,
+        /** Pull-to-refresh in progress (keeps the uploads visible). */
+        val refreshing: Boolean = false,
     )
 
     private data class FetchState(
@@ -57,12 +59,14 @@ class ChannelViewModel(
     )
 
     private val fetch = MutableStateFlow(FetchState(source.title))
+    private val refreshing = MutableStateFlow(false)
 
     val uiState: StateFlow<UiState> = combine(
         fetch,
         accountSubscriptions.channels,
         downloads.observeDownloads(),
-    ) { f, subs, downloadStates ->
+        refreshing,
+    ) { f, subs, downloadStates, refreshing ->
         UiState(
             title = f.title,
             videos = f.videos,
@@ -71,6 +75,7 @@ class ChannelViewModel(
             resolving = f.resolving,
             subscribed = subs.any { it.id == source.id },
             downloadStates = downloadStates,
+            refreshing = refreshing,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), UiState(source.title))
 
@@ -86,6 +91,20 @@ class ChannelViewModel(
                     FetchState(title = result.title, videos = result.videos, loading = false)
                 is ChannelVideosResult.Failure -> fetch.value.copy(loading = false, error = true)
             }
+        }
+    }
+
+    /** Pull-to-refresh: re-fetch uploads, keeping the current list until new data arrives. */
+    fun refresh() {
+        if (refreshing.value) return
+        viewModelScope.launch {
+            refreshing.value = true
+            when (val result = channels.fetchChannelVideos(source.channelUrl)) {
+                is ChannelVideosResult.Success ->
+                    fetch.value = FetchState(title = result.title, videos = result.videos, loading = false)
+                is ChannelVideosResult.Failure -> Unit // keep what's shown
+            }
+            refreshing.value = false
         }
     }
 

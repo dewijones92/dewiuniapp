@@ -14,12 +14,14 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.SmartDisplay
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -66,11 +68,13 @@ fun VideosScreen(container: AppContainer, modifier: Modifier = Modifier) {
             onDeleteDownload = viewModel::deleteDownload,
             onSelectFeed = viewModel::selectFeed,
             onChannelClick = { browsingChannel = it },
+            onRefresh = viewModel::refresh,
             modifier = modifier,
         )
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun VideosContent(
     state: VideosViewModel.UiState,
@@ -81,26 +85,33 @@ internal fun VideosContent(
     onDeleteDownload: (MediaItem) -> Unit,
     onSelectFeed: (AccountFeed?) -> Unit,
     onChannelClick: (MediaSource.VideoChannel) -> Unit,
+    onRefresh: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
 
     Box(modifier.fillMaxSize()) {
-        if (state.subscriptions.isEmpty() && !state.signedIn) {
-            EmptyState(
-                icon = Icons.Outlined.SmartDisplay,
-                headline = stringResource(R.string.videos_empty_headline),
-                supportingText = stringResource(R.string.videos_empty_supporting),
-            )
-        } else {
-            ChannelsAndVideos(
-                state,
-                onPlay,
-                onDownload,
-                onDeleteDownload,
-                onSelectFeed,
-                onChannelClick = onChannelClick,
-            )
+        PullToRefreshBox(
+            isRefreshing = state.refreshing,
+            onRefresh = onRefresh,
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            if (state.subscriptions.isEmpty() && !state.signedIn) {
+                EmptyState(
+                    icon = Icons.Outlined.SmartDisplay,
+                    headline = stringResource(R.string.videos_empty_headline),
+                    supportingText = stringResource(R.string.videos_empty_supporting),
+                )
+            } else {
+                ChannelsAndVideos(
+                    state,
+                    onPlay,
+                    onDownload,
+                    onDeleteDownload,
+                    onSelectFeed,
+                    onChannelClick = onChannelClick,
+                )
+            }
         }
 
         FloatingActionButton(
@@ -243,6 +254,7 @@ private fun VideosContentPreview() {
             onDeleteDownload = {},
             onSelectFeed = {},
             onChannelClick = {},
+            onRefresh = {},
         )
     }
 }
