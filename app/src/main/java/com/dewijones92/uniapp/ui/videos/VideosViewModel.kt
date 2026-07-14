@@ -20,6 +20,7 @@ import com.dewijones92.uniapp.innertube.feeds.AccountFeed
 import com.dewijones92.uniapp.innertube.feeds.FeedResult
 import com.dewijones92.uniapp.innertube.feeds.FeedVideo
 import com.dewijones92.uniapp.innertube.subscriptions.SubscribedChannel
+import com.dewijones92.uniapp.ui.common.MediaSort
 import com.dewijones92.uniapp.video.AccountSubscriptions
 import com.dewijones92.uniapp.video.VideoPlaybackLauncher
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,6 +32,10 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.seconds
 
+// The Videos tab's one view-model: several small user actions (play, download,
+// subscribe, sort, refresh, feed selection) push it just past the counter; they
+// are all thin and cohesive, so splitting would only scatter the screen's logic.
+@Suppress("TooManyFunctions")
 class VideosViewModel(
     private val channels: ChannelRepository,
     private val accountSubscriptions: AccountSubscriptions,
@@ -54,6 +59,7 @@ class VideosViewModel(
         val feedError: Boolean = false,
         /** Pull-to-refresh in progress (keeps content visible, unlike [feedLoading]). */
         val refreshing: Boolean = false,
+        val sort: MediaSort = MediaSort.DEFAULT,
     )
 
     sealed interface Subscribing {
@@ -72,6 +78,7 @@ class VideosViewModel(
     private val subscribing = MutableStateFlow<Subscribing>(Subscribing.Idle)
     private val resolving = MutableStateFlow<String?>(null)
     private val refreshing = MutableStateFlow(false)
+    private val sort = MutableStateFlow(MediaSort.DEFAULT)
 
     private data class FeedState(
         val selected: AccountFeed? = null,
@@ -98,17 +105,18 @@ class VideosViewModel(
     }
 
     private val flags = combine(subscribing, resolving, refreshing) { sub, res, ref -> Triple(sub, res, ref) }
-    private val feedView = combine(feedState, accountSubscriptions.signedIn) { feed, si -> feed to si }
+    private val feedView =
+        combine(feedState, accountSubscriptions.signedIn, sort) { feed, si, s -> Triple(feed, si, s) }
 
     val uiState: StateFlow<UiState> = combine(
         accountSubscriptions.channels,
         downloads.observeDownloads(),
         flags,
         feedView,
-    ) { subs, downloadStates, (subscribing, resolving, refreshing), (feed, isSignedIn) ->
+    ) { subs, downloadStates, (subscribing, resolving, refreshing), (feed, isSignedIn, sort) ->
         UiState(
             subscriptions = subs,
-            videos = feed.videos,
+            videos = sort.apply(feed.videos),
             subscribing = subscribing,
             resolving = resolving,
             downloadStates = downloadStates,
@@ -117,8 +125,13 @@ class VideosViewModel(
             feedLoading = feed.loading,
             feedError = feed.error,
             refreshing = refreshing,
+            sort = sort,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), UiState())
+
+    fun setSort(order: MediaSort) {
+        sort.value = order
+    }
 
     fun selectFeed(feed: AccountFeed?) {
         feedState.update { it.copy(selected = feed, error = false) }

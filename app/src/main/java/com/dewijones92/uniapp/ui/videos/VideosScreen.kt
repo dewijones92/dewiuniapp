@@ -45,6 +45,8 @@ import com.dewijones92.uniapp.theme.UniAppTheme
 import com.dewijones92.uniapp.ui.channel.ChannelScreen
 import com.dewijones92.uniapp.ui.common.EmptyState
 import com.dewijones92.uniapp.ui.common.MediaItemRow
+import com.dewijones92.uniapp.ui.common.MediaSort
+import com.dewijones92.uniapp.ui.common.SectionHeaderWithSort
 import com.dewijones92.uniapp.ui.common.mediaItemSubtitle
 
 @Composable
@@ -69,6 +71,7 @@ fun VideosScreen(container: AppContainer, modifier: Modifier = Modifier) {
             onSelectFeed = viewModel::selectFeed,
             onChannelClick = { browsingChannel = it },
             onRefresh = viewModel::refresh,
+            onSetSort = viewModel::setSort,
             modifier = modifier,
         )
     }
@@ -86,6 +89,7 @@ internal fun VideosContent(
     onSelectFeed: (AccountFeed?) -> Unit,
     onChannelClick: (MediaSource.VideoChannel) -> Unit,
     onRefresh: () -> Unit,
+    onSetSort: (MediaSort) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
@@ -110,6 +114,7 @@ internal fun VideosContent(
                     onDeleteDownload,
                     onSelectFeed,
                     onChannelClick = onChannelClick,
+                    onSetSort = onSetSort,
                 )
             }
         }
@@ -144,6 +149,7 @@ private fun ChannelsAndVideos(
     onDeleteDownload: (MediaItem) -> Unit,
     onSelectFeed: (AccountFeed?) -> Unit,
     onChannelClick: (MediaSource.VideoChannel) -> Unit,
+    onSetSort: (MediaSort) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(modifier = modifier.fillMaxSize()) {
@@ -171,10 +177,10 @@ private fun ChannelsAndVideos(
             state.videos.isEmpty() -> item { FeedMessage(stringResource(R.string.feed_empty)) }
             else -> {
                 item {
-                    Text(
-                        text = stringResource(feedTitleRes(state.selectedFeed)),
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    SectionHeaderWithSort(
+                        title = stringResource(feedTitleRes(state.selectedFeed)),
+                        sort = state.sort,
+                        onSetSort = onSetSort,
                     )
                 }
                 items(state.videos, key = { it.id.value }) { video ->
@@ -255,6 +261,7 @@ private fun VideosContentPreview() {
             onSelectFeed = {},
             onChannelClick = {},
             onRefresh = {},
+            onSetSort = {},
         )
     }
 }

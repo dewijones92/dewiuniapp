@@ -15,6 +15,7 @@ import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.MediaItemId
 import com.dewijones92.uniapp.domain.Subscription
 import com.dewijones92.uniapp.playback.PlaybackController
+import com.dewijones92.uniapp.ui.common.MediaSort
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -35,6 +36,7 @@ class PodcastsViewModel(
         val subscribing: Subscribing = Subscribing.Idle,
         val downloadStates: Map<MediaItemId, DownloadState> = emptyMap(),
         val refreshing: Boolean = false,
+        val sort: MediaSort = MediaSort.DEFAULT,
     )
 
     /** State of the current subscribe attempt; the dialog renders from this. */
@@ -53,16 +55,22 @@ class PodcastsViewModel(
 
     private val subscribing = MutableStateFlow<Subscribing>(Subscribing.Idle)
     private val refreshing = MutableStateFlow(false)
+    private val sort = MutableStateFlow(MediaSort.DEFAULT)
+    private val refreshAndSort = combine(refreshing, sort) { r, s -> r to s }
 
     val uiState: StateFlow<UiState> = combine(
         repository.observeSubscriptions(),
         repository.observeEpisodes(),
         subscribing,
         downloads.observeDownloads(),
-        refreshing,
-    ) { subs, episodes, subscribing, downloadStates, refreshing ->
-        UiState(subs, episodes, subscribing, downloadStates, refreshing)
+        refreshAndSort,
+    ) { subs, episodes, subscribing, downloadStates, (refreshing, sort) ->
+        UiState(subs, sort.apply(episodes), subscribing, downloadStates, refreshing, sort)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), UiState())
+
+    fun setSort(order: MediaSort) {
+        sort.value = order
+    }
 
     /** Pull-to-refresh: re-fetch every subscribed feed's episodes. */
     fun refresh() {

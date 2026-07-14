@@ -39,6 +39,13 @@
     <string name="show_more">Show more</string>
     <string name="show_less">Show less</string>
 
+    <string name="sort_label">Sort</string>
+    <string name="sort_newest">Newest first</string>
+    <string name="sort_oldest">Oldest first</string>
+    <string name="sort_title">Title (A–Z)</string>
+    <string name="sort_longest">Longest first</string>
+    <string name="sort_shortest">Shortest first</string>
+
     <string name="related_title">Up next</string>
     <string name="related_loading">Loading related videos…</string>
     <string name="related_empty">No related videos.</string>

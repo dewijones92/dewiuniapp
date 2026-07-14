@@ -16,7 +16,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
@@ -42,6 +41,8 @@ import com.dewijones92.uniapp.domain.Subscription
 import com.dewijones92.uniapp.theme.UniAppTheme
 import com.dewijones92.uniapp.ui.common.EmptyState
 import com.dewijones92.uniapp.ui.common.MediaItemRow
+import com.dewijones92.uniapp.ui.common.MediaSort
+import com.dewijones92.uniapp.ui.common.SectionHeaderWithSort
 import com.dewijones92.uniapp.ui.common.mediaItemSubtitle
 
 @Composable
@@ -57,6 +58,7 @@ fun PodcastsScreen(container: AppContainer, modifier: Modifier = Modifier) {
         onDownload = viewModel::download,
         onDeleteDownload = viewModel::deleteDownload,
         onRefresh = viewModel::refresh,
+        onSetSort = viewModel::setSort,
         modifier = modifier,
     )
 }
@@ -71,6 +73,7 @@ internal fun PodcastsContent(
     onDownload: (MediaItem) -> Unit,
     onDeleteDownload: (MediaItem) -> Unit,
     onRefresh: () -> Unit,
+    onSetSort: (MediaSort) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
@@ -88,7 +91,7 @@ internal fun PodcastsContent(
                     supportingText = stringResource(R.string.podcasts_empty_supporting),
                 )
             } else {
-                SubscriptionsAndEpisodes(state, onPlayEpisode, onDownload, onDeleteDownload)
+                SubscriptionsAndEpisodes(state, onPlayEpisode, onDownload, onDeleteDownload, onSetSort)
             }
         }
 
@@ -120,6 +123,7 @@ private fun SubscriptionsAndEpisodes(
     onPlayEpisode: (MediaItem) -> Unit,
     onDownload: (MediaItem) -> Unit,
     onDeleteDownload: (MediaItem) -> Unit,
+    onSetSort: (MediaSort) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(modifier = modifier.fillMaxSize()) {
@@ -134,10 +138,10 @@ private fun SubscriptionsAndEpisodes(
             }
         }
         item {
-            Text(
-                text = stringResource(R.string.latest_episodes),
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            SectionHeaderWithSort(
+                title = stringResource(R.string.latest_episodes),
+                sort = state.sort,
+                onSetSort = onSetSort,
             )
         }
         items(state.episodes, key = { it.id.value }) { episode ->
@@ -180,6 +184,7 @@ private fun PodcastsContentPreview() {
             onDownload = {},
             onDeleteDownload = {},
             onRefresh = {},
+            onSetSort = {},
         )
     }
 }
@@ -196,6 +201,7 @@ private fun PodcastsEmptyPreview() {
             onDownload = {},
             onDeleteDownload = {},
             onRefresh = {},
+            onSetSort = {},
         )
     }
 }
