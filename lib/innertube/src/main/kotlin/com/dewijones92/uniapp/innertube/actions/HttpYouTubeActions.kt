@@ -26,6 +26,7 @@ public class HttpYouTubeActions(
         val dislike: String = InnerTubeClient.DISLIKE_URL,
         val removeLike: String = InnerTubeClient.REMOVE_LIKE_URL,
         val createComment: String = InnerTubeClient.CREATE_COMMENT_URL,
+        val editPlaylist: String = InnerTubeClient.EDIT_PLAYLIST_URL,
     )
 
     override suspend fun setSubscribed(channelId: String, subscribed: Boolean): ActionResult {
@@ -40,6 +41,15 @@ public class HttpYouTubeActions(
             VideoRating.NONE -> endpoints.removeLike
         }
         return act(url) { """"target":{"videoId":"${escape(videoId)}"}""" }
+    }
+
+    override suspend fun setSavedToWatchLater(videoId: String, saved: Boolean): ActionResult {
+        val action = if (saved) {
+            """{"action":"ACTION_ADD_VIDEO","addedVideoId":"${escape(videoId)}"}"""
+        } else {
+            """{"action":"ACTION_REMOVE_VIDEO","removedVideoId":"${escape(videoId)}"}"""
+        }
+        return act(endpoints.editPlaylist) { """"playlistId":"WL","actions":[$action]""" }
     }
 
     override suspend fun postComment(videoId: String, text: String): ActionResult =

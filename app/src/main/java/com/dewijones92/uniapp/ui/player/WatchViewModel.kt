@@ -70,6 +70,9 @@ class WatchViewModel(
     private val _rating = MutableStateFlow(VideoRating.NONE)
     val rating: StateFlow<VideoRating> = _rating.asStateFlow()
 
+    private val _inWatchLater = MutableStateFlow(false)
+    val inWatchLater: StateFlow<Boolean> = _inWatchLater.asStateFlow()
+
     private val _postState = MutableStateFlow(PostState.Idle)
     val postState: StateFlow<PostState> = _postState.asStateFlow()
 
@@ -81,6 +84,7 @@ class WatchViewModel(
         _comments.value = CommentsState.Loading
         _related.value = RelatedState.Loading
         _rating.value = VideoRating.NONE
+        _inWatchLater.value = false
         _postState.value = PostState.Idle
         viewModelScope.launch { _signedIn.value = account.isSignedIn() }
         viewModelScope.launch {
@@ -130,6 +134,16 @@ class WatchViewModel(
         _rating.value = target // optimistic
         viewModelScope.launch {
             if (actions.setRating(id, target) !is ActionResult.Success) _rating.value = previous
+        }
+    }
+
+    /** Adds/removes the current video to/from Watch Later (optimistic). */
+    fun toggleWatchLater() {
+        val id = videoId ?: return
+        val target = !_inWatchLater.value
+        _inWatchLater.value = target
+        viewModelScope.launch {
+            if (actions.setSavedToWatchLater(id, target) !is ActionResult.Success) _inWatchLater.value = !target
         }
     }
 

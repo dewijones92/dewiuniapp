@@ -39,6 +39,7 @@ class HttpYouTubeActionsTest {
                 dislike = server.url("/act/dislike").toString(),
                 removeLike = mock,
                 createComment = mock,
+                editPlaylist = mock,
             ),
         )
     }
@@ -63,6 +64,16 @@ class HttpYouTubeActionsTest {
         ok()
         assertEquals(ActionResult.Success, actions().setRating("vid12345678", VideoRating.DISLIKE))
         assertTrue(server.takeRequest().target.contains("/act/dislike"))
+    }
+
+    @Test
+    fun `save to Watch Later adds the video to the WL playlist`() = runBlocking {
+        ok()
+        assertEquals(ActionResult.Success, actions().setSavedToWatchLater("vid12345678", saved = true))
+        val body = server.takeRequest().body?.utf8().orEmpty()
+        assertTrue(body.contains(""""playlistId":"WL""""))
+        assertTrue(body.contains("ACTION_ADD_VIDEO"))
+        assertTrue(body.contains(""""addedVideoId":"vid12345678""""))
     }
 
     @Test

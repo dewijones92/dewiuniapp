@@ -86,6 +86,7 @@ public class InnerTubeClient(
         public const val SUBSCRIBE_URL: String = "$BASE/subscription/subscribe?prettyPrint=false"
         public const val UNSUBSCRIBE_URL: String = "$BASE/subscription/unsubscribe?prettyPrint=false"
         public const val CREATE_COMMENT_URL: String = "$BASE/comment/create_comment?prettyPrint=false"
+        public const val EDIT_PLAYLIST_URL: String = "$BASE/browse/edit_playlist?prettyPrint=false"
         public const val TV_CLIENT_VERSION: String = "7.20240401.10.00"
         public const val WEB_CLIENT_VERSION: String = "2.20240726.00.00"
         private const val HTTP_UNAUTHORIZED = 401

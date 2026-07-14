@@ -7,6 +7,9 @@ package com.dewijones92.uniapp.innertube.actions
 public interface YouTubeActions {
     public suspend fun setSubscribed(channelId: String, subscribed: Boolean): ActionResult
     public suspend fun setRating(videoId: String, rating: VideoRating): ActionResult
+
+    /** Adds or removes the video from the account's Watch Later playlist. */
+    public suspend fun setSavedToWatchLater(videoId: String, saved: Boolean): ActionResult
     public suspend fun postComment(videoId: String, text: String): ActionResult
 }
 

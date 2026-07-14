@@ -22,9 +22,11 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material.icons.filled.ThumbDown
 import androidx.compose.material.icons.filled.ThumbUp
+import androidx.compose.material.icons.filled.WatchLater
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.ThumbDown
 import androidx.compose.material.icons.outlined.ThumbUp
+import androidx.compose.material.icons.outlined.WatchLater
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -203,10 +205,10 @@ private fun PlayerDetails(
         QualitySelector(quality)
     }
 
-    // Like / dislike — signed-in write actions, keyed by the current video.
+    // Like / dislike / Watch Later — signed-in write actions for the current video.
     if (state.hasVideo && watchActions.canAct) {
         Spacer(Modifier.height(16.dp))
-        RatingButtons(watchActions.rating, watchActions.onToggleLike, watchActions.onToggleDislike)
+        WatchActionButtons(watchActions)
     }
 
     // Description / show notes — unified: a video's description and a podcast
@@ -231,24 +233,27 @@ private fun PlayerDetails(
 data class WatchActions(
     val canAct: Boolean,
     val rating: VideoRating,
+    val inWatchLater: Boolean,
     val onToggleLike: () -> Unit,
     val onToggleDislike: () -> Unit,
+    val onToggleWatchLater: () -> Unit,
     val postState: PostState,
     val onPostComment: (String) -> Unit,
     val onPostHandled: () -> Unit,
 ) {
     companion object {
         /** No account connected: reading only. */
-        val ReadOnly: WatchActions = WatchActions(false, VideoRating.NONE, {}, {}, PostState.Idle, {}, {})
+        val ReadOnly: WatchActions =
+            WatchActions(false, VideoRating.NONE, false, {}, {}, {}, PostState.Idle, {}, {})
     }
 }
 
 @Composable
-private fun RatingButtons(rating: VideoRating, onToggleLike: () -> Unit, onToggleDislike: () -> Unit) {
+private fun WatchActionButtons(actions: WatchActions) {
     Row(horizontalArrangement = Arrangement.Center, modifier = Modifier.fillMaxWidth()) {
-        val liked = rating == VideoRating.LIKE
-        val disliked = rating == VideoRating.DISLIKE
-        TextButton(onClick = onToggleLike) {
+        val liked = actions.rating == VideoRating.LIKE
+        val disliked = actions.rating == VideoRating.DISLIKE
+        TextButton(onClick = actions.onToggleLike) {
             Icon(
                 imageVector = if (liked) Icons.Filled.ThumbUp else Icons.Outlined.ThumbUp,
                 contentDescription = stringResource(R.string.like),
@@ -259,11 +264,19 @@ private fun RatingButtons(rating: VideoRating, onToggleLike: () -> Unit, onToggl
                 modifier = Modifier.padding(start = 8.dp),
             )
         }
-        TextButton(onClick = onToggleDislike, modifier = Modifier.padding(start = 8.dp)) {
+        TextButton(onClick = actions.onToggleDislike, modifier = Modifier.padding(start = 8.dp)) {
             Icon(
                 imageVector = if (disliked) Icons.Filled.ThumbDown else Icons.Outlined.ThumbDown,
                 contentDescription = stringResource(R.string.dislike),
                 tint = if (disliked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        val saved = actions.inWatchLater
+        TextButton(onClick = actions.onToggleWatchLater, modifier = Modifier.padding(start = 8.dp)) {
+            Icon(
+                imageVector = if (saved) Icons.Filled.WatchLater else Icons.Outlined.WatchLater,
+                contentDescription = stringResource(R.string.watch_later_save),
+                tint = if (saved) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
