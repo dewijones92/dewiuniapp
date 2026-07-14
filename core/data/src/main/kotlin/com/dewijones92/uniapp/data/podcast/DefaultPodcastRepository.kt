@@ -14,6 +14,7 @@ import com.dewijones92.uniapp.domain.MediaSource
 import com.dewijones92.uniapp.domain.SourceId
 import com.dewijones92.uniapp.domain.Subscription
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import java.time.Clock
 
 public class DefaultPodcastRepository(
@@ -53,6 +54,24 @@ public class DefaultPodcastRepository(
 
     override suspend fun unsubscribe(id: SourceId) {
         store.removeSource(id)
+    }
+
+    override suspend fun refresh() {
+        store.observeSubscriptions().first().forEach { refreshFeed(it) }
+    }
+
+    /** Re-fetches one feed's episodes; a fetch/parse failure leaves the stored episodes intact. */
+    private suspend fun refreshFeed(sub: Subscription) {
+        val source = sub.source as? MediaSource.PodcastFeed ?: return
+        val body = (fetcher.fetch(source.feedUrl) as? FetchResult.Success)?.body ?: return
+        val parsed = (parser.parse(body) as? RssParseResult.Success)?.feed ?: return
+        store.saveSource(
+            // Keep the original subscribedAt so refreshing doesn't reorder feeds.
+            subscription = Subscription(source = source, subscribedAt = sub.subscribedAt),
+            items = parsed.episodes.mapIndexed { index, episode ->
+                episode.toMediaItem(source.id, source.feedUrl, index, feedTitle = parsed.title)
+            },
+        )
     }
 
     private fun ParsedFeed.toMediaSource(id: SourceId, feedUrl: HttpUrl) = MediaSource.PodcastFeed(

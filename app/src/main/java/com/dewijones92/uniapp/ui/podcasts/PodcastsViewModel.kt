@@ -34,6 +34,7 @@ class PodcastsViewModel(
         val episodes: List<MediaItem> = emptyList(),
         val subscribing: Subscribing = Subscribing.Idle,
         val downloadStates: Map<MediaItemId, DownloadState> = emptyMap(),
+        val refreshing: Boolean = false,
     )
 
     /** State of the current subscribe attempt; the dialog renders from this. */
@@ -51,15 +52,27 @@ class PodcastsViewModel(
     }
 
     private val subscribing = MutableStateFlow<Subscribing>(Subscribing.Idle)
+    private val refreshing = MutableStateFlow(false)
 
     val uiState: StateFlow<UiState> = combine(
         repository.observeSubscriptions(),
         repository.observeEpisodes(),
         subscribing,
         downloads.observeDownloads(),
-    ) { subs, episodes, subscribing, downloadStates ->
-        UiState(subs, episodes, subscribing, downloadStates)
+        refreshing,
+    ) { subs, episodes, subscribing, downloadStates, refreshing ->
+        UiState(subs, episodes, subscribing, downloadStates, refreshing)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), UiState())
+
+    /** Pull-to-refresh: re-fetch every subscribed feed's episodes. */
+    fun refresh() {
+        if (refreshing.value) return
+        viewModelScope.launch {
+            refreshing.value = true
+            repository.refresh()
+            refreshing.value = false
+        }
+    }
 
     /** Plays the downloaded file when available, else streams. One decision, one place. */
     fun play(episode: MediaItem) {

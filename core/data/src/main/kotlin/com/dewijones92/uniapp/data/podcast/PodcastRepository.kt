@@ -21,6 +21,13 @@ public interface PodcastRepository {
 
     /** Removes the subscription and its episodes. */
     public suspend fun unsubscribe(id: SourceId)
+
+    /**
+     * Re-fetches every subscribed feed and upserts its episodes (pull-to-
+     * refresh). Feeds that fail to fetch or parse are skipped, leaving their
+     * stored episodes intact.
+     */
+    public suspend fun refresh()
 }
 
 /** Outcome of a subscribe attempt; expected failures are values. */

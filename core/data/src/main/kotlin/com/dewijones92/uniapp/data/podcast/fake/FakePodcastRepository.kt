@@ -45,6 +45,10 @@ public class FakePodcastRepository(
         episodes.update { list -> list.filterNot { it.sourceId == id } }
     }
 
+    override suspend fun refresh() {
+        // No network in the fake; the in-memory episodes are already "fresh".
+    }
+
     public companion object {
         /** A ready-made episode for previews and tests. */
         public fun sampleEpisode(

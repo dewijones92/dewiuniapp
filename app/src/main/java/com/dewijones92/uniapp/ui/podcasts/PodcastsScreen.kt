@@ -12,11 +12,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.Podcasts
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -54,10 +56,12 @@ fun PodcastsScreen(container: AppContainer, modifier: Modifier = Modifier) {
         onPlayEpisode = viewModel::play,
         onDownload = viewModel::download,
         onDeleteDownload = viewModel::deleteDownload,
+        onRefresh = viewModel::refresh,
         modifier = modifier,
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun PodcastsContent(
     state: PodcastsViewModel.UiState,
@@ -66,19 +70,26 @@ internal fun PodcastsContent(
     onPlayEpisode: (MediaItem) -> Unit,
     onDownload: (MediaItem) -> Unit,
     onDeleteDownload: (MediaItem) -> Unit,
+    onRefresh: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
 
     Box(modifier.fillMaxSize()) {
-        if (state.subscriptions.isEmpty()) {
-            EmptyState(
-                icon = Icons.Outlined.Podcasts,
-                headline = stringResource(R.string.podcasts_empty_headline),
-                supportingText = stringResource(R.string.podcasts_empty_supporting),
-            )
-        } else {
-            SubscriptionsAndEpisodes(state, onPlayEpisode, onDownload, onDeleteDownload)
+        PullToRefreshBox(
+            isRefreshing = state.refreshing,
+            onRefresh = onRefresh,
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            if (state.subscriptions.isEmpty()) {
+                EmptyState(
+                    icon = Icons.Outlined.Podcasts,
+                    headline = stringResource(R.string.podcasts_empty_headline),
+                    supportingText = stringResource(R.string.podcasts_empty_supporting),
+                )
+            } else {
+                SubscriptionsAndEpisodes(state, onPlayEpisode, onDownload, onDeleteDownload)
+            }
         }
 
         FloatingActionButton(
@@ -168,6 +179,7 @@ private fun PodcastsContentPreview() {
             onPlayEpisode = {},
             onDownload = {},
             onDeleteDownload = {},
+            onRefresh = {},
         )
     }
 }
@@ -183,6 +195,7 @@ private fun PodcastsEmptyPreview() {
             onPlayEpisode = {},
             onDownload = {},
             onDeleteDownload = {},
+            onRefresh = {},
         )
     }
 }
