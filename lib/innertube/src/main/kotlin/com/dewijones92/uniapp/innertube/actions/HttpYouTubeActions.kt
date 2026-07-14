@@ -23,6 +23,7 @@ public class HttpYouTubeActions(
         val subscribe: String = InnerTubeClient.SUBSCRIBE_URL,
         val unsubscribe: String = InnerTubeClient.UNSUBSCRIBE_URL,
         val like: String = InnerTubeClient.LIKE_URL,
+        val dislike: String = InnerTubeClient.DISLIKE_URL,
         val removeLike: String = InnerTubeClient.REMOVE_LIKE_URL,
         val createComment: String = InnerTubeClient.CREATE_COMMENT_URL,
     )
@@ -32,8 +33,12 @@ public class HttpYouTubeActions(
         return act(url) { """"channelIds":["${escape(channelId)}"]""" }
     }
 
-    override suspend fun setLiked(videoId: String, liked: Boolean): ActionResult {
-        val url = if (liked) endpoints.like else endpoints.removeLike
+    override suspend fun setRating(videoId: String, rating: VideoRating): ActionResult {
+        val url = when (rating) {
+            VideoRating.LIKE -> endpoints.like
+            VideoRating.DISLIKE -> endpoints.dislike
+            VideoRating.NONE -> endpoints.removeLike
+        }
         return act(url) { """"target":{"videoId":"${escape(videoId)}"}""" }
     }
 

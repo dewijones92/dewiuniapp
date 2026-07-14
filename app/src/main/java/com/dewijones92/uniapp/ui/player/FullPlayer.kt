@@ -20,8 +20,10 @@ import androidx.compose.material.icons.filled.Forward30
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay10
+import androidx.compose.material.icons.filled.ThumbDown
 import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material.icons.outlined.Speed
+import androidx.compose.material.icons.outlined.ThumbDown
 import androidx.compose.material.icons.outlined.ThumbUp
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
@@ -52,6 +54,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.media3.common.Player
 import com.dewijones92.uniapp.R
 import com.dewijones92.uniapp.common.HttpUrl
+import com.dewijones92.uniapp.innertube.actions.VideoRating
 import com.dewijones92.uniapp.innertube.comments.Comment
 import com.dewijones92.uniapp.innertube.feeds.FeedVideo
 import com.dewijones92.uniapp.playback.PlaybackState
@@ -200,10 +203,10 @@ private fun PlayerDetails(
         QualitySelector(quality)
     }
 
-    // Like — signed-in write action, keyed by the current video.
+    // Like / dislike — signed-in write actions, keyed by the current video.
     if (state.hasVideo && watchActions.canAct) {
         Spacer(Modifier.height(16.dp))
-        LikeButton(watchActions.liked, watchActions.onToggleLike)
+        RatingButtons(watchActions.rating, watchActions.onToggleLike, watchActions.onToggleDislike)
     }
 
     // Description / show notes — unified: a video's description and a podcast
@@ -227,30 +230,42 @@ private fun PlayerDetails(
 /** The signed-in write actions available on the watch page. */
 data class WatchActions(
     val canAct: Boolean,
-    val liked: Boolean,
+    val rating: VideoRating,
     val onToggleLike: () -> Unit,
+    val onToggleDislike: () -> Unit,
     val postState: PostState,
     val onPostComment: (String) -> Unit,
     val onPostHandled: () -> Unit,
 ) {
     companion object {
         /** No account connected: reading only. */
-        val ReadOnly: WatchActions = WatchActions(false, false, {}, PostState.Idle, {}, {})
+        val ReadOnly: WatchActions = WatchActions(false, VideoRating.NONE, {}, {}, PostState.Idle, {}, {})
     }
 }
 
 @Composable
-private fun LikeButton(liked: Boolean, onToggleLike: () -> Unit) {
-    TextButton(onClick = onToggleLike) {
-        Icon(
-            imageVector = if (liked) Icons.Filled.ThumbUp else Icons.Outlined.ThumbUp,
-            contentDescription = stringResource(R.string.like),
-            tint = if (liked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
-            text = stringResource(if (liked) R.string.liked else R.string.like),
-            modifier = Modifier.padding(start = 8.dp),
-        )
+private fun RatingButtons(rating: VideoRating, onToggleLike: () -> Unit, onToggleDislike: () -> Unit) {
+    Row(horizontalArrangement = Arrangement.Center, modifier = Modifier.fillMaxWidth()) {
+        val liked = rating == VideoRating.LIKE
+        val disliked = rating == VideoRating.DISLIKE
+        TextButton(onClick = onToggleLike) {
+            Icon(
+                imageVector = if (liked) Icons.Filled.ThumbUp else Icons.Outlined.ThumbUp,
+                contentDescription = stringResource(R.string.like),
+                tint = if (liked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = stringResource(if (liked) R.string.liked else R.string.like),
+                modifier = Modifier.padding(start = 8.dp),
+            )
+        }
+        TextButton(onClick = onToggleDislike, modifier = Modifier.padding(start = 8.dp)) {
+            Icon(
+                imageVector = if (disliked) Icons.Filled.ThumbDown else Icons.Outlined.ThumbDown,
+                contentDescription = stringResource(R.string.dislike),
+                tint = if (disliked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 

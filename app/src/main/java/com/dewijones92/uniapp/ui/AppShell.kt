@@ -119,7 +119,7 @@ private fun FullPlayerHost(
     val related by watchViewModel.related.collectAsStateWithLifecycle()
     val sleepTimer by container.sleepTimer.state.collectAsStateWithLifecycle()
     val signedIn by watchViewModel.signedIn.collectAsStateWithLifecycle()
-    val liked by watchViewModel.liked.collectAsStateWithLifecycle()
+    val rating by watchViewModel.rating.collectAsStateWithLifecycle()
     val postState by watchViewModel.postState.collectAsStateWithLifecycle()
     val quality by watchViewModel.quality.collectAsStateWithLifecycle()
 
@@ -130,8 +130,9 @@ private fun FullPlayerHost(
         related = related,
         watchActions = WatchActions(
             canAct = signedIn,
-            liked = liked,
+            rating = rating,
             onToggleLike = watchViewModel::toggleLike,
+            onToggleDislike = watchViewModel::toggleDislike,
             postState = postState,
             onPostComment = watchViewModel::postComment,
             onPostHandled = watchViewModel::clearPostState,

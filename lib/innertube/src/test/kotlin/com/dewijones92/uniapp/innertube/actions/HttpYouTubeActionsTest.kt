@@ -32,7 +32,14 @@ class HttpYouTubeActionsTest {
         return HttpYouTubeActions(
             account = account,
             innerTube = InnerTubeClient(OkHttpClient()),
-            endpoints = HttpYouTubeActions.ActionEndpoints(mock, mock, mock, mock, mock),
+            endpoints = HttpYouTubeActions.ActionEndpoints(
+                subscribe = mock,
+                unsubscribe = mock,
+                like = mock,
+                dislike = server.url("/act/dislike").toString(),
+                removeLike = mock,
+                createComment = mock,
+            ),
         )
     }
 
@@ -43,12 +50,19 @@ class HttpYouTubeActionsTest {
     @Test
     fun `like posts the video target with a bearer token`() = runBlocking {
         ok()
-        assertEquals(ActionResult.Success, actions().setLiked("vid12345678", liked = true))
+        assertEquals(ActionResult.Success, actions().setRating("vid12345678", VideoRating.LIKE))
         val request = server.takeRequest()
         assertEquals("Bearer at", request.headers["Authorization"])
         val body = request.body?.utf8().orEmpty()
         assertTrue(body.contains(""""videoId":"vid12345678""""))
         assertTrue(body.contains("TVHTML5"))
+    }
+
+    @Test
+    fun `dislike posts to the dislike endpoint`() = runBlocking {
+        ok()
+        assertEquals(ActionResult.Success, actions().setRating("vid12345678", VideoRating.DISLIKE))
+        assertTrue(server.takeRequest().target.contains("/act/dislike"))
     }
 
     @Test
@@ -70,7 +84,7 @@ class HttpYouTubeActionsTest {
 
     @Test
     fun `signed out short-circuits without a request`() = runBlocking {
-        assertEquals(ActionResult.SignedOut, actions(signedIn = false).setLiked("v", liked = true))
+        assertEquals(ActionResult.SignedOut, actions(signedIn = false).setRating("v", VideoRating.LIKE))
         assertEquals(0, server.requestCount)
     }
 

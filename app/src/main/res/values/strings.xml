@@ -62,6 +62,7 @@
     <string name="comments_replies" tools:ignore="PluralsCandidate">%1$d replies</string>
     <string name="like">Like</string>
     <string name="liked">Liked</string>
+    <string name="dislike">Dislike</string>
     <string name="comment_hint">Add a comment…</string>
     <string name="comment_post">Post</string>
     <string name="comment_failed">Couldn\'t post</string>

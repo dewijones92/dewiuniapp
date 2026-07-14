@@ -8,6 +8,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.dewijones92.uniapp.di.AppContainer
 import com.dewijones92.uniapp.domain.SourceId
 import com.dewijones92.uniapp.innertube.actions.ActionResult
+import com.dewijones92.uniapp.innertube.actions.VideoRating
 import com.dewijones92.uniapp.innertube.actions.YouTubeActions
 import com.dewijones92.uniapp.innertube.auth.YouTubeAccount
 import com.dewijones92.uniapp.innertube.comments.Comment
@@ -66,8 +67,8 @@ class WatchViewModel(
     private val _signedIn = MutableStateFlow(false)
     val signedIn: StateFlow<Boolean> = _signedIn.asStateFlow()
 
-    private val _liked = MutableStateFlow(false)
-    val liked: StateFlow<Boolean> = _liked.asStateFlow()
+    private val _rating = MutableStateFlow(VideoRating.NONE)
+    val rating: StateFlow<VideoRating> = _rating.asStateFlow()
 
     private val _postState = MutableStateFlow(PostState.Idle)
     val postState: StateFlow<PostState> = _postState.asStateFlow()
@@ -79,7 +80,7 @@ class WatchViewModel(
         this.videoId = videoId
         _comments.value = CommentsState.Loading
         _related.value = RelatedState.Loading
-        _liked.value = false
+        _rating.value = VideoRating.NONE
         _postState.value = PostState.Idle
         viewModelScope.launch { _signedIn.value = account.isSignedIn() }
         viewModelScope.launch {
@@ -113,12 +114,22 @@ class WatchViewModel(
         playRelated(next)
     }
 
+    /** Toggles like on/off (YouTube clears any dislike when you like). */
     fun toggleLike() {
+        setRating(if (_rating.value == VideoRating.LIKE) VideoRating.NONE else VideoRating.LIKE)
+    }
+
+    /** Toggles dislike on/off (YouTube clears any like when you dislike). */
+    fun toggleDislike() {
+        setRating(if (_rating.value == VideoRating.DISLIKE) VideoRating.NONE else VideoRating.DISLIKE)
+    }
+
+    private fun setRating(target: VideoRating) {
         val id = videoId ?: return
-        val target = !_liked.value
-        _liked.value = target // optimistic
+        val previous = _rating.value
+        _rating.value = target // optimistic
         viewModelScope.launch {
-            if (actions.setLiked(id, target) !is ActionResult.Success) _liked.value = !target
+            if (actions.setRating(id, target) !is ActionResult.Success) _rating.value = previous
         }
     }
 

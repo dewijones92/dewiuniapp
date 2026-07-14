@@ -81,6 +81,7 @@ public class InnerTubeClient(
         public const val BROWSE_URL: String = "$BASE/browse?prettyPrint=false"
         public const val NEXT_URL: String = "$BASE/next?prettyPrint=false"
         public const val LIKE_URL: String = "$BASE/like/like?prettyPrint=false"
+        public const val DISLIKE_URL: String = "$BASE/like/dislike?prettyPrint=false"
         public const val REMOVE_LIKE_URL: String = "$BASE/like/removelike?prettyPrint=false"
         public const val SUBSCRIBE_URL: String = "$BASE/subscription/subscribe?prettyPrint=false"
         public const val UNSUBSCRIBE_URL: String = "$BASE/subscription/unsubscribe?prettyPrint=false"

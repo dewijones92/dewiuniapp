@@ -6,9 +6,12 @@ package com.dewijones92.uniapp.innertube.actions
  */
 public interface YouTubeActions {
     public suspend fun setSubscribed(channelId: String, subscribed: Boolean): ActionResult
-    public suspend fun setLiked(videoId: String, liked: Boolean): ActionResult
+    public suspend fun setRating(videoId: String, rating: VideoRating): ActionResult
     public suspend fun postComment(videoId: String, text: String): ActionResult
 }
+
+/** A video's rating on the signed-in account; like and dislike are mutually exclusive. */
+public enum class VideoRating { NONE, LIKE, DISLIKE }
 
 public sealed interface ActionResult {
     public data object Success : ActionResult
