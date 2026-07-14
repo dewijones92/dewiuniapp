@@ -32,19 +32,29 @@ class AccountSubscriptions(
     private val _channels = MutableStateFlow<List<MediaSource.VideoChannel>>(emptyList())
     val channels: StateFlow<List<MediaSource.VideoChannel>> = _channels.asStateFlow()
 
-    /** Reloads the live subscription list (on launch, on sign-in). Never blocks. */
+    private val _signedIn = MutableStateFlow(false)
+
+    /** Whether the account is signed in, updated on each [refresh]; drives the feed UI. */
+    val signedIn: StateFlow<Boolean> = _signedIn.asStateFlow()
+
+    /** Reloads the live subscription list (on launch, on sign-in/out). Never blocks. */
     fun refresh() {
         scope.launch { reload() }
     }
 
     private suspend fun reload() {
-        if (!account.isSignedIn()) {
+        val signed = account.isSignedIn()
+        _signedIn.value = signed
+        if (!signed) {
             _channels.value = emptyList()
             return
         }
         when (val result = subscriptions.list()) {
             is SubscriptionsResult.Success -> _channels.value = result.channels.map { it.toSource() }
-            SubscriptionsResult.SignedOut -> _channels.value = emptyList()
+            SubscriptionsResult.SignedOut -> {
+                _signedIn.value = false
+                _channels.value = emptyList()
+            }
             is SubscriptionsResult.Failure -> Unit // transient — keep what we have
         }
     }

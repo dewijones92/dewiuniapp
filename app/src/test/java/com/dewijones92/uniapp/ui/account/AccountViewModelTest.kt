@@ -1,5 +1,6 @@
 package com.dewijones92.uniapp.ui.account
 
+import com.dewijones92.uniapp.innertube.actions.fake.FakeYouTubeActions
 import com.dewijones92.uniapp.innertube.auth.AccessToken
 import com.dewijones92.uniapp.innertube.auth.OAuthTokens
 import com.dewijones92.uniapp.innertube.auth.RefreshToken
@@ -7,6 +8,9 @@ import com.dewijones92.uniapp.innertube.auth.TokenPollResult
 import com.dewijones92.uniapp.innertube.auth.YouTubeAccount
 import com.dewijones92.uniapp.innertube.auth.fake.FakeYouTubeAuth
 import com.dewijones92.uniapp.innertube.auth.fake.InMemoryTokenStore
+import com.dewijones92.uniapp.innertube.subscriptions.fake.FakeYouTubeSubscriptions
+import com.dewijones92.uniapp.video.AccountSubscriptions
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -35,7 +39,13 @@ class AccountViewModelTest {
     private fun viewModel(signedIn: Boolean = false): AccountViewModel {
         val initial = if (signedIn) TOKENS else null
         val account = YouTubeAccount(auth, InMemoryTokenStore(initial), nowEpochSeconds = { 0 })
-        return AccountViewModel(account)
+        val subscriptions = AccountSubscriptions(
+            FakeYouTubeSubscriptions(),
+            FakeYouTubeActions(),
+            account,
+            CoroutineScope(dispatcher),
+        )
+        return AccountViewModel(account, subscriptions)
     }
 
     @Test

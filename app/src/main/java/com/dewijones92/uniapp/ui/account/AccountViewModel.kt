@@ -10,6 +10,7 @@ import com.dewijones92.uniapp.di.AppContainer
 import com.dewijones92.uniapp.innertube.auth.DeviceLoginEvent
 import com.dewijones92.uniapp.innertube.auth.LoginFailure
 import com.dewijones92.uniapp.innertube.auth.YouTubeAccount
+import com.dewijones92.uniapp.video.AccountSubscriptions
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -23,6 +24,7 @@ import kotlinx.coroutines.launch
  */
 class AccountViewModel(
     private val account: YouTubeAccount,
+    private val accountSubscriptions: AccountSubscriptions,
 ) : ViewModel() {
 
     sealed interface UiState {
@@ -50,7 +52,12 @@ class AccountViewModel(
         if (loginJob?.isActive == true) return
         _state.value = UiState.Starting
         loginJob = viewModelScope.launch {
-            account.signIn().collect { event -> _state.value = event.toUiState() }
+            account.signIn().collect { event ->
+                _state.value = event.toUiState()
+                // As soon as sign-in lands, load the live subscriptions so the
+                // rest of the app reflects it without a restart.
+                if (event is DeviceLoginEvent.Succeeded) accountSubscriptions.refresh()
+            }
         }
     }
 
@@ -65,6 +72,8 @@ class AccountViewModel(
         viewModelScope.launch {
             account.signOut()
             _state.value = UiState.SignedOut
+            // Clear the live subscription list (and the feed) app-wide.
+            accountSubscriptions.refresh()
         }
     }
 
@@ -82,7 +91,7 @@ class AccountViewModel(
 
     companion object {
         fun factory(container: AppContainer): ViewModelProvider.Factory = viewModelFactory {
-            initializer { AccountViewModel(container.youTubeAccount) }
+            initializer { AccountViewModel(container.youTubeAccount, container.accountSubscriptions) }
         }
     }
 }

@@ -77,23 +77,25 @@ class VideosViewModel(
         val error: Boolean = false,
     )
 
-    private val signedIn = MutableStateFlow(false)
     private val feedState = MutableStateFlow(FeedState())
 
     init {
-        // Signed in, the subscriptions feed (recent uploads) is the useful
-        // default; the live subscription list refreshes so the channel row is current.
+        // React to sign-in state — including signing in mid-session — off the
+        // one live subscriptions seam: load the subscriptions feed (recent
+        // uploads) as the default when signed in, clear it when signed out.
         viewModelScope.launch {
-            if (youtube.account.isSignedIn()) {
-                signedIn.value = true
-                accountSubscriptions.refresh()
-                selectFeed(AccountFeed.SUBSCRIPTIONS)
+            accountSubscriptions.signedIn.collect { signed ->
+                if (signed) {
+                    if (feedState.value.selected == null) selectFeed(AccountFeed.SUBSCRIPTIONS)
+                } else {
+                    feedState.value = FeedState()
+                }
             }
         }
     }
 
     private val flags = combine(subscribing, resolving) { sub, res -> sub to res }
-    private val feedView = combine(feedState, signedIn) { feed, si -> feed to si }
+    private val feedView = combine(feedState, accountSubscriptions.signedIn) { feed, si -> feed to si }
 
     val uiState: StateFlow<UiState> = combine(
         accountSubscriptions.channels,
@@ -129,7 +131,8 @@ class VideosViewModel(
                 is FeedResult.Success ->
                     FeedState(feed, loading = false, videos = result.videos.map { it.toMediaItem(feed) })
                 FeedResult.SignedOut -> {
-                    signedIn.value = false
+                    // Token died mid-session — re-check, which clears signedIn app-wide.
+                    accountSubscriptions.refresh()
                     FeedState()
                 }
                 is FeedResult.Failure -> FeedState(feed, loading = false, error = true)
