@@ -509,15 +509,22 @@ private fun SpeedControl(speed: Float, onSetSpeed: (Float) -> Unit, modifier: Mo
     }
 }
 
+/** "m:ss", or "h:mm:ss" once past an hour — used for positions and durations alike. */
 internal fun formatTime(millis: Long): String {
     val totalSeconds = TimeUnit.MILLISECONDS.toSeconds(millis)
-    val minutes = totalSeconds / SECONDS_PER_MINUTE
+    val hours = totalSeconds / SECONDS_PER_HOUR
+    val minutes = totalSeconds % SECONDS_PER_HOUR / SECONDS_PER_MINUTE
     val seconds = totalSeconds % SECONDS_PER_MINUTE
-    return "%d:%02d".format(minutes, seconds)
+    return if (hours > 0) {
+        "%d:%02d:%02d".format(hours, minutes, seconds)
+    } else {
+        "%d:%02d".format(minutes, seconds)
+    }
 }
 
 private val SPEEDS = listOf(0.8f, 1.0f, 1.25f, 1.5f, 2.0f)
 private const val SECONDS_PER_MINUTE = 60L
+private const val SECONDS_PER_HOUR = 3600L
 internal const val DEFAULT_VIDEO_ASPECT_RATIO = 16f / 9f
 private val ARTWORK_MAX_WIDTH = 320.dp
 private const val DESCRIPTION_COLLAPSED_LINES = 4
