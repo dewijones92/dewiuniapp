@@ -65,18 +65,19 @@ class AccountSubscriptions(
      * Subscribes to / unsubscribes from [source] on YouTube, updating the list
      * optimistically and reverting if the write fails. A channel URL without a
      * `/channel/<id>` can't be mirrored to the account, so it only updates the
-     * in-memory list.
+     * in-memory list. Returns whether the write actually persisted to the account
+     * (false on a revert or when there was no channel id to write).
      */
-    suspend fun setSubscribed(source: MediaSource.VideoChannel, subscribed: Boolean) {
+    suspend fun setSubscribed(source: MediaSource.VideoChannel, subscribed: Boolean): Boolean {
         val before = _channels.value
         _channels.update { list ->
             val without = list.filterNot { it.id == source.id }
             if (subscribed) without + source else without
         }
-        val channelId = source.channelId() ?: return
-        if (actions.setSubscribed(channelId, subscribed) !is ActionResult.Success) {
-            _channels.value = before // revert on failure
-        }
+        val channelId = source.channelId() ?: return false
+        val ok = actions.setSubscribed(channelId, subscribed) is ActionResult.Success
+        if (!ok) _channels.value = before // revert on failure
+        return ok
     }
 
     private fun SubscribedChannel.toSource() = MediaSource.VideoChannel(

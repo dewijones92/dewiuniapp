@@ -96,39 +96,38 @@ public class RssParser {
     }
 
     /** Normal Play Time ("HH:MM:SS(.mmm)" / "MM:SS" / seconds); allows 0, since chapters start at 0. */
-    private fun parseNptOrNull(text: String): Duration? {
+    private fun parseNptOrNull(text: String): Duration? =
+        splitClockToSeconds(text)?.takeIf { it >= 0 && it.isFinite() }?.seconds
+
+    /** iTunes duration comes as "HH:MM:SS", "MM:SS", or plain seconds; must be positive. */
+    private fun parseItunesDurationOrNull(text: String): Duration? =
+        splitClockToSeconds(text)?.takeIf { it > 0 && it.isFinite() }?.seconds
+
+    /**
+     * Colon-separated clock ("H:MM:SS(.mmm)" / "M:SS" / bare seconds) to total
+     * seconds; null if any part isn't a number or there are more than three.
+     * Shared by the chapter (NPT) and iTunes-duration parsers, which differ only
+     * in their accept policy (zero-allowed vs positive-only).
+     */
+    private fun splitClockToSeconds(text: String): Double? {
         val parts = text.trim().ifBlank { return null }.split(":")
         if (parts.size > HOURS_MINUTES_SECONDS_PARTS) return null
         val nums = parts.map { it.toDoubleOrNull() ?: return null }
-        val seconds = when (nums.size) {
+        return when (nums.size) {
             MINUTES_SECONDS_PARTS -> nums[0] * SECONDS_PER_MINUTE + nums[1]
             HOURS_MINUTES_SECONDS_PARTS -> (nums[0] * MINUTES_PER_HOUR + nums[1]) * SECONDS_PER_MINUTE + nums[2]
             else -> nums[0]
         }
-        return if (seconds >= 0) seconds.seconds else null
     }
 
     private fun parseRfc1123OrNull(text: String): Instant? = runCatching {
         Instant.from(DateTimeFormatter.RFC_1123_DATE_TIME.parse(text.trim()))
     }.getOrNull()
 
-    /** iTunes duration comes as "HH:MM:SS", "MM:SS", or plain seconds. */
-    private fun parseItunesDurationOrNull(text: String): Duration? {
-        val parts = text.trim().split(":").map { it.toLongOrNull() ?: return null }
-        val totalSeconds = when (parts.size) {
-            SECONDS_ONLY_PARTS -> parts[0]
-            MINUTES_SECONDS_PARTS -> parts[0] * SECONDS_PER_MINUTE + parts[1]
-            HOURS_MINUTES_SECONDS_PARTS -> (parts[0] * MINUTES_PER_HOUR + parts[1]) * SECONDS_PER_MINUTE + parts[2]
-            else -> return null
-        }
-        return totalSeconds.takeIf { it > 0 }?.seconds
-    }
-
     private companion object {
         const val UNTITLED_EPISODE = "Untitled episode"
         const val SECONDS_PER_MINUTE = 60L
         const val MINUTES_PER_HOUR = 60L
-        const val SECONDS_ONLY_PARTS = 1
         const val MINUTES_SECONDS_PARTS = 2
         const val HOURS_MINUTES_SECONDS_PARTS = 3
     }

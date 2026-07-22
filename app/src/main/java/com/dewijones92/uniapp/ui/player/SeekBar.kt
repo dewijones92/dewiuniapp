@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.dewijones92.uniapp.R
@@ -83,8 +84,8 @@ private fun SkipSegmentBar(segments: List<SkipSegment>, durationMs: Long) {
             .height(SEGMENT_BAR_HEIGHT),
     ) {
         segments.forEach { segment ->
-            val startX = (segment.start.inWholeMilliseconds.toFloat() / durationMs).coerceIn(0f, 1f) * size.width
-            val endX = (segment.end.inWholeMilliseconds.toFloat() / durationMs).coerceIn(0f, 1f) * size.width
+            val startX = fractionX(segment.start.inWholeMilliseconds, durationMs)
+            val endX = fractionX(segment.end.inWholeMilliseconds, durationMs)
             drawRect(
                 color = SponsorSegmentColor,
                 topLeft = Offset(startX, 0f),
@@ -136,7 +137,7 @@ private fun ChapterMarkerBar(chapters: List<Chapter>, durationMs: Long) {
     ) {
         val tickWidth = CHAPTER_TICK_WIDTH.toPx()
         chapters.forEach { chapter ->
-            val x = (chapter.start.inWholeMilliseconds.toFloat() / durationMs).coerceIn(0f, 1f) * size.width
+            val x = fractionX(chapter.start.inWholeMilliseconds, durationMs)
             drawRect(
                 color = ChapterMarkerColor,
                 topLeft = Offset((x - tickWidth / 2).coerceAtLeast(0f), 0f),
@@ -177,6 +178,10 @@ internal fun ChapterList(chapters: List<Chapter>, onSeekTo: (Long) -> Unit, modi
         }
     }
 }
+
+/** X position on a full-width strip for [ms] into a [durationMs] track, clamped to the ends. */
+private fun DrawScope.fractionX(ms: Long, durationMs: Long): Float =
+    (ms.toFloat() / durationMs).coerceIn(0f, 1f) * size.width
 
 private val SLIDER_THUMB_INSET = 10.dp
 private val SEGMENT_BAR_HEIGHT = 4.dp

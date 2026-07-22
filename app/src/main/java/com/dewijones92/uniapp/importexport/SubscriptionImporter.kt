@@ -82,8 +82,12 @@ class SubscriptionImporter(
         val channelUrl = resolveChannelUrl(source.channelUrl) ?: return copy(failed = failed + 1)
         val resolved = MediaSource.VideoChannel(SourceId(channelUrl.value), source.title, channelUrl)
         if (channels.isSubscribed(resolved.id)) return copy(alreadyPresent = alreadyPresent + 1)
-        channels.setSubscribed(resolved, subscribed = true)
-        return copy(channelsAdded = channelsAdded + 1)
+        // Count as added only if the write actually persisted to the account (it can revert).
+        return if (channels.setSubscribed(resolved, subscribed = true)) {
+            copy(channelsAdded = channelsAdded + 1)
+        } else {
+            copy(failed = failed + 1)
+        }
     }
 
     /** A `/channel/UC…` URL is used as-is; a handle URL is resolved to one via the extractor. */

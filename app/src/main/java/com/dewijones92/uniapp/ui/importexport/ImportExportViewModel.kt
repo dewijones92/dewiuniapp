@@ -9,6 +9,7 @@ import com.dewijones92.uniapp.di.AppContainer
 import com.dewijones92.uniapp.importexport.ImportOutcome
 import com.dewijones92.uniapp.importexport.ImportSummary
 import com.dewijones92.uniapp.importexport.SubscriptionImporter
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -37,7 +38,9 @@ class ImportExportViewModel(
 
     fun import(content: String) {
         _state.value = State.Working
-        viewModelScope.launch {
+        // Default dispatcher: parsing (DOM/JSON over a whole export file) is CPU work
+        // that must not block the main thread; downstream network calls switch to IO themselves.
+        viewModelScope.launch(Dispatchers.Default) {
             _state.value = when (val outcome = importer.import(content)) {
                 is ImportOutcome.Done -> State.Imported(outcome.summary)
                 is ImportOutcome.ParseError -> State.Failed(outcome.detail)

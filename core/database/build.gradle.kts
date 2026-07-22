@@ -19,8 +19,6 @@ dependencies {
     // api: UniAppDatabase extends RoomDatabase, so Room is part of this module's ABI.
     api(libs.room.runtime)
     implementation(libs.kotlinx.coroutines.core)
-    // Chapters are persisted as a compact JSON array in one episode column.
-    implementation(libs.kotlinx.serialization.json)
     ksp(libs.room.compiler)
 
     androidTestImplementation(libs.junit)

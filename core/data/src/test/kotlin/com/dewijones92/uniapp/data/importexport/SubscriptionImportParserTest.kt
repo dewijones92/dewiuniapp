@@ -94,6 +94,29 @@ class SubscriptionImportParserTest {
     }
 
     @Test
+    fun `Takeout CSV honours doubled-quote escapes inside a quoted title`() {
+        val csv = """
+            Channel Id,Channel URL,Channel Title
+            UCcccccccccccccccccccccc,http://www.youtube.com/channel/UCcccccccccccccccccccccc,"Say ""hi"" now"
+        """.trimIndent()
+
+        val channel = parse(csv).single() as ImportedSource.YouTubeChannel
+
+        assertEquals("Say \"hi\" now", channel.title)
+    }
+
+    @Test
+    fun `a byte-order mark before the OPML does not defeat format sniffing`() {
+        val opml = "\uFEFF<opml version=\"2.0\"><body>" +
+            "<outline type=\"rss\" text=\"Show\" xmlUrl=\"https://feeds.example.com/a.xml\"/></body></opml>"
+
+        val sources = parse(opml)
+
+        assertEquals(1, sources.size)
+        assertEquals("Show", sources[0].title)
+    }
+
+    @Test
     fun `empty content is a failure, not an empty success`() {
         assertTrue(parser.parse("   ") is ImportParseResult.Failure)
     }

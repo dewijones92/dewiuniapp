@@ -45,7 +45,9 @@ public sealed interface ImportParseResult {
 public class SubscriptionImportParser {
 
     public fun parse(content: String): ImportParseResult {
-        val trimmed = content.trimStart()
+        // Drop leading whitespace AND a UTF-8 BOM (some exporters emit one), so a
+        // BOM-prefixed OPML/JSON is still recognised by its first real character.
+        val trimmed = content.dropWhile { it.isWhitespace() || it == BYTE_ORDER_MARK }
         val sources = runCatching {
             when (trimmed.firstOrNull()) {
                 '<' -> parseOpml(content)
@@ -107,6 +109,7 @@ public class SubscriptionImportParser {
 
     private companion object {
         const val YOUTUBE_SERVICE_ID = 0
+        const val BYTE_ORDER_MARK = '\uFEFF'
         val LENIENT_JSON = Json { ignoreUnknownKeys = true }
     }
 }

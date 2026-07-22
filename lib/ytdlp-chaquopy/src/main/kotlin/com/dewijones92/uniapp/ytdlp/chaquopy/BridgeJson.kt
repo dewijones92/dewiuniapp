@@ -11,11 +11,12 @@ import com.dewijones92.uniapp.ytdlp.MediaMetadata
 import com.dewijones92.uniapp.ytdlp.VideoSearchEntry
 import com.dewijones92.uniapp.ytdlp.VideoSearchResult
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.doubleOrNull
-import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
@@ -78,11 +79,11 @@ private fun JsonObject.toMediaMetadata(
     uploader = stringOrNull("uploader") ?: stringOrNull("channel"),
     durationSeconds = this["duration"]?.jsonPrimitive?.doubleOrNull?.toLong()?.takeIf { it > 0 },
     thumbnailUrl = stringOrNull("thumbnail"),
-    formats = this["formats"]?.jsonArray.orEmpty().mapNotNull { it.jsonObject.toMediaFormatOrNull() },
+    formats = arrayAt("formats").mapNotNull { it.jsonObject.toMediaFormatOrNull() },
     description = stringOrNull("description"),
     playbackTrackingUrl = playbackTrackingUrl,
     watchtimeTrackingUrl = watchtimeTrackingUrl,
-    chapters = this["chapters"]?.jsonArray.orEmpty().mapNotNull { it.jsonObject.toChapterOrNull() },
+    chapters = arrayAt("chapters").mapNotNull { it.jsonObject.toChapterOrNull() },
 )
 
 private fun JsonObject.toChapterOrNull(): ChapterInfo? {
@@ -122,7 +123,7 @@ internal fun parseChannel(url: HttpUrl, text: String): ChannelResult {
     return ChannelResult.Success(
         channelId = obj.stringOrNull("channel_id") ?: url.value,
         title = obj.stringOrNull("title") ?: "Channel",
-        videos = obj["videos"]?.jsonArray.orEmpty().mapNotNull { it.jsonObject.toSearchEntryOrNull() },
+        videos = obj.arrayAt("videos").mapNotNull { it.jsonObject.toSearchEntryOrNull() },
     )
 }
 
@@ -131,7 +132,7 @@ internal fun parseSearch(text: String): VideoSearchResult {
     if (!obj.isOk()) {
         return VideoSearchResult.Failure(obj.stringOrNull("detail") ?: "unknown error")
     }
-    val entries = obj["entries"]?.jsonArray.orEmpty().mapNotNull { it.jsonObject.toSearchEntryOrNull() }
+    val entries = obj.arrayAt("entries").mapNotNull { it.jsonObject.toSearchEntryOrNull() }
     return VideoSearchResult.Success(entries)
 }
 
@@ -151,3 +152,6 @@ private fun JsonObject.toSearchEntryOrNull(): VideoSearchEntry? {
 
 private fun JsonObject.stringOrNull(key: String): String? =
     this[key]?.jsonPrimitive?.contentOrNull?.ifBlank { null }
+
+/** The array at [key], or empty — tolerant of a missing key AND of a present JSON `null` value. */
+private fun JsonObject.arrayAt(key: String): List<JsonElement> = (this[key] as? JsonArray).orEmpty()

@@ -51,7 +51,9 @@ class VideoResolver(
                 thumbnailUrl = metadata.thumbnailUrl?.let(HttpUrl::parse),
                 mediaUrl = streamUrl,
                 chapters = metadata.chapters.mapNotNull { chapter ->
-                    chapter.title.trim().ifBlank { null }?.let { Chapter(chapter.startSeconds.seconds, it) }
+                    val title = chapter.title.trim().ifBlank { null } ?: return@mapNotNull null
+                    val start = chapter.startSeconds.takeIf { it.isFinite() && it >= 0 } ?: return@mapNotNull null
+                    Chapter(start.seconds, title)
                 },
             ),
             skipSegments = skipSegments.segmentsFor(metadata.id),

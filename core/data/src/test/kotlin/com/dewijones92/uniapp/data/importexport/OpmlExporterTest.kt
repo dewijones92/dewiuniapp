@@ -48,9 +48,9 @@ class OpmlExporterTest {
 
     @Test
     fun `special characters in titles are XML-escaped`() {
-        val opml = exporter.export(listOf(podcast("Tom & Jerry <fun>", "https://feeds.example.com/tj.xml")))
+        val opml = exporter.export(listOf(podcast("Tom & \"Jerry\" <fun>", "https://feeds.example.com/tj.xml")))
 
-        assertTrue(opml.contains("Tom &amp; Jerry &lt;fun&gt;"))
+        assertTrue(opml.contains("Tom &amp; &quot;Jerry&quot; &lt;fun&gt;"))
     }
 
     @Test

@@ -89,6 +89,22 @@ class BridgeJsonTest {
     }
 
     @Test
+    fun `a present but null chapters or formats value yields empty lists, not a crash`() {
+        // yt-dlp sets "chapters": null for the majority of videos (no chapters);
+        // the key is present with a JSON null, which must not throw.
+        val text = """
+            {"ok": true, "info": {
+                "id": "abc", "title": "No chapters", "chapters": null, "formats": null
+            }}
+        """.trimIndent()
+
+        val metadata = (parseExtraction(url, text) as ExtractionResult.Success).metadata
+
+        assertTrue(metadata.chapters.isEmpty())
+        assertTrue(metadata.formats.isEmpty())
+    }
+
+    @Test
     fun `parses search entries, dropping ones without id or url`() {
         val text = """
             {"ok": true, "entries": [
