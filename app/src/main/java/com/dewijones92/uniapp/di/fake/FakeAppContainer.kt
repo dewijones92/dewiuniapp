@@ -4,6 +4,8 @@ import com.dewijones92.uniapp.data.channel.ChannelRepository
 import com.dewijones92.uniapp.data.channel.fake.FakeChannelRepository
 import com.dewijones92.uniapp.data.download.DownloadManager
 import com.dewijones92.uniapp.data.download.fake.FakeDownloadManager
+import com.dewijones92.uniapp.data.importexport.OpmlExporter
+import com.dewijones92.uniapp.data.importexport.SubscriptionImportParser
 import com.dewijones92.uniapp.data.podcast.PodcastRepository
 import com.dewijones92.uniapp.data.podcast.fake.FakePodcastRepository
 import com.dewijones92.uniapp.data.search.SearchOutcome
@@ -11,6 +13,7 @@ import com.dewijones92.uniapp.data.search.SearchSource
 import com.dewijones92.uniapp.data.search.YtDlpVideoSearchSource
 import com.dewijones92.uniapp.data.sponsorblock.SkipSegmentSource
 import com.dewijones92.uniapp.di.AppContainer
+import com.dewijones92.uniapp.importexport.SubscriptionImporter
 import com.dewijones92.uniapp.innertube.actions.YouTubeActions
 import com.dewijones92.uniapp.innertube.actions.fake.FakeYouTubeActions
 import com.dewijones92.uniapp.innertube.auth.YouTubeAccount
@@ -71,6 +74,13 @@ class FakeAppContainer(
     override val youTubeActions: YouTubeActions = FakeYouTubeActions(),
     override val youTubePlaylists: YouTubePlaylists = FakeYouTubePlaylists(),
     override val newUploadsTracker: NewUploadsTracker = InMemoryNewUploadsTracker(),
+    override val subscriptionImporter: SubscriptionImporter = SubscriptionImporter(
+        parser = SubscriptionImportParser(),
+        exporter = OpmlExporter(),
+        podcasts = podcastRepository,
+        channels = accountSubscriptions,
+        channelResolver = channelRepository,
+    ),
 ) : AppContainer {
     override fun refreshExtractorEngine() = Unit
 

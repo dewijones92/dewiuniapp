@@ -9,6 +9,8 @@ import com.dewijones92.uniapp.data.download.DownloadManager
 import com.dewijones92.uniapp.data.download.EngineDownloadStrategy
 import com.dewijones92.uniapp.data.download.HttpDownloadStrategy
 import com.dewijones92.uniapp.data.download.RoutedDownloadStrategy
+import com.dewijones92.uniapp.data.importexport.OpmlExporter
+import com.dewijones92.uniapp.data.importexport.SubscriptionImportParser
 import com.dewijones92.uniapp.data.net.OkHttpTextFetcher
 import com.dewijones92.uniapp.data.podcast.DefaultPodcastRepository
 import com.dewijones92.uniapp.data.podcast.PodcastRepository
@@ -22,6 +24,7 @@ import com.dewijones92.uniapp.database.RoomPlaybackProgressStore
 import com.dewijones92.uniapp.database.RoomSubscriptionStore
 import com.dewijones92.uniapp.database.UniAppDatabase
 import com.dewijones92.uniapp.domain.MediaItem
+import com.dewijones92.uniapp.importexport.SubscriptionImporter
 import com.dewijones92.uniapp.innertube.actions.HttpYouTubeActions
 import com.dewijones92.uniapp.innertube.actions.YouTubeActions
 import com.dewijones92.uniapp.innertube.auth.HttpYouTubeAuth
@@ -102,6 +105,9 @@ interface AppContainer {
 
     /** Tracks which subscription uploads are new since the user last looked (the bell). */
     val newUploadsTracker: NewUploadsTracker
+
+    /** Imports subscriptions from other apps (OPML / NewPipe / Takeout) and exports them as OPML. */
+    val subscriptionImporter: SubscriptionImporter
 
     /**
      * Kick off background upkeep on app start (currently: fetch the latest
@@ -281,6 +287,16 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
 
     override val newUploadsTracker: NewUploadsTracker by lazy {
         SharedPrefsNewUploadsTracker(context)
+    }
+
+    override val subscriptionImporter: SubscriptionImporter by lazy {
+        SubscriptionImporter(
+            parser = SubscriptionImportParser(),
+            exporter = OpmlExporter(),
+            podcasts = podcastRepository,
+            channels = accountSubscriptions,
+            channelResolver = channelRepository,
+        )
     }
 
     private companion object {

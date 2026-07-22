@@ -1,10 +1,13 @@
 package com.dewijones92.uniapp.data.rss
 
+import com.dewijones92.uniapp.data.xml.childElements
+import com.dewijones92.uniapp.data.xml.firstChildElement
+import com.dewijones92.uniapp.data.xml.firstChildText
+import com.dewijones92.uniapp.data.xml.hardenedDocumentBuilderFactory
 import org.w3c.dom.Element
 import java.io.ByteArrayInputStream
 import java.time.Instant
 import java.time.format.DateTimeFormatter
-import javax.xml.parsers.DocumentBuilderFactory
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
@@ -43,7 +46,7 @@ public class RssParser {
 
     public fun parse(xml: String): RssParseResult {
         val document = runCatching {
-            newHardenedDocumentBuilderFactory()
+            hardenedDocumentBuilderFactory()
                 .newDocumentBuilder()
                 .parse(ByteArrayInputStream(xml.toByteArray(Charsets.UTF_8)))
         }.getOrElse { return RssParseResult.Failure("Not parseable XML: ${it.message}") }
@@ -79,35 +82,6 @@ public class RssParser {
         imageUrl = firstChildElement("itunes:image")?.getAttribute("href")?.ifBlank { null },
     )
 
-    /**
-     * External entities and doctypes are attack surface, not podcast data.
-     * Note: only [setFeature]-based hardening is used. The bean-property
-     * toggles (isExpandEntityReferences / isXIncludeAware) make Android's
-     * Expat-backed parser throw "does not support specification Unknown
-     * version 0.0" — and disallowing DOCTYPE outright covers XXE regardless.
-     */
-    private fun newHardenedDocumentBuilderFactory(): DocumentBuilderFactory =
-        DocumentBuilderFactory.newInstance().apply {
-            HARDENING_FEATURES.forEach { (feature, value) ->
-                runCatching { setFeature(feature, value) }
-            }
-        }
-
-    private fun Element.childElements(name: String): List<Element> {
-        val result = mutableListOf<Element>()
-        var child = firstChild
-        while (child != null) {
-            if (child is Element && child.tagName == name) result += child
-            child = child.nextSibling
-        }
-        return result
-    }
-
-    private fun Element.firstChildElement(name: String): Element? = childElements(name).firstOrNull()
-
-    private fun Element.firstChildText(name: String): String? =
-        firstChildElement(name)?.textContent?.trim()?.ifBlank { null }
-
     private fun parseRfc1123OrNull(text: String): Instant? = runCatching {
         Instant.from(DateTimeFormatter.RFC_1123_DATE_TIME.parse(text.trim()))
     }.getOrNull()
@@ -131,10 +105,5 @@ public class RssParser {
         const val SECONDS_ONLY_PARTS = 1
         const val MINUTES_SECONDS_PARTS = 2
         const val HOURS_MINUTES_SECONDS_PARTS = 3
-        val HARDENING_FEATURES = mapOf(
-            "http://apache.org/xml/features/disallow-doctype-decl" to true,
-            "http://xml.org/sax/features/external-general-entities" to false,
-            "http://xml.org/sax/features/external-parameter-entities" to false,
-        )
     }
 }

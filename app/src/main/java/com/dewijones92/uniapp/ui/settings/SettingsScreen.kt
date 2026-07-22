@@ -1,5 +1,6 @@
 package com.dewijones92.uniapp.ui.settings
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -8,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -20,6 +22,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -29,6 +32,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dewijones92.uniapp.R
 import com.dewijones92.uniapp.di.AppContainer
 import com.dewijones92.uniapp.settings.AppPreferences
+import com.dewijones92.uniapp.ui.importexport.ImportExportScreen
 
 /** One selectable video-quality cap for the per-network preference. */
 private data class QualityOption(val label: String, val height: Int)
@@ -56,6 +60,12 @@ private fun labelFor(height: Int): String =
 fun SettingsScreen(container: AppContainer, onBack: () -> Unit, modifier: Modifier = Modifier) {
     val prefs = container.appPreferences
     val settings by prefs.settings.collectAsStateWithLifecycle()
+    var showImportExport by rememberSaveable { mutableStateOf(false) }
+
+    if (showImportExport) {
+        ImportExportScreen(container, onBack = { showImportExport = false }, modifier = modifier)
+        return
+    }
 
     Surface(modifier = modifier.fillMaxSize()) {
         Column {
@@ -87,7 +97,35 @@ fun SettingsScreen(container: AppContainer, onBack: () -> Unit, modifier: Modifi
                 current = settings.cellularMaxHeight,
                 onSelect = prefs::setCellularMaxHeight,
             )
+            Text(
+                text = stringResource(R.string.settings_subscriptions_section),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            )
+            NavRow(
+                label = stringResource(R.string.settings_import_export),
+                onClick = { showImportExport = true },
+            )
         }
+    }
+}
+
+@Composable
+private fun NavRow(label: String, onClick: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 16.dp),
+    ) {
+        Text(text = label, style = MaterialTheme.typography.bodyLarge)
+        Icon(
+            Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
