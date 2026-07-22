@@ -15,3 +15,10 @@ internal fun parseClockToSeconds(clock: String): Long? {
 
 private const val SECONDS_PER_MINUTE = 60L
 private const val MAX_CLOCK_FIELDS = 3
+
+// YouTube renders a tile's published date as relative text ("2 days ago",
+// "Streamed 3 hours ago") or, for premieres, "Premiered ...". This picks that
+// metadata part out from views/other lines. Shared by the feed and related parsers.
+private val PUBLISHED_HINT = Regex("""\bago\b|Streamed|Premiered""", RegexOption.IGNORE_CASE)
+
+internal fun String.looksLikePublished(): Boolean = PUBLISHED_HINT.containsMatchIn(this)

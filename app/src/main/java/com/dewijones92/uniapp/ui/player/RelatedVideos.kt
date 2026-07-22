@@ -79,6 +79,10 @@ private fun RelatedVideoRow(video: FeedVideo, onPlay: () -> Unit, modifier: Modi
             )
             val subtitle = buildString {
                 video.author?.let { append(it) }
+                video.publishedText?.let {
+                    if (isNotEmpty()) append("  ·  ")
+                    append(it)
+                }
                 video.durationSeconds?.let {
                     if (isNotEmpty()) append("  ·  ")
                     append(formatTime(it * MILLIS_PER_SECOND))

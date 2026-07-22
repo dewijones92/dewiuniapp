@@ -2,6 +2,7 @@ package com.dewijones92.uniapp.innertube.related
 
 import com.dewijones92.uniapp.common.HttpUrl
 import com.dewijones92.uniapp.innertube.feeds.FeedVideo
+import com.dewijones92.uniapp.innertube.feeds.looksLikePublished
 import com.dewijones92.uniapp.innertube.feeds.parseClockToSeconds
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -59,7 +60,22 @@ internal object RelatedVideosParser {
             thumbnailUrl = bestThumbnailUrl(),
             watchUrl = watchUrl,
             kind = if (isLive()) FeedVideo.Kind.LIVE else FeedVideo.Kind.VIDEO,
+            publishedText = metadata.publishedText(),
         )
+    }
+
+    /** The metadata part YouTube uses for the published date (e.g. "2 days ago"). */
+    private fun JsonObject.publishedText(): String? {
+        val rows = ((this["metadata"] as? JsonObject)?.get("contentMetadataViewModel") as? JsonObject)
+            ?.get("metadataRows") as? JsonArray ?: return null
+        for (row in rows) {
+            val parts = (row as? JsonObject)?.get("metadataParts") as? JsonArray ?: continue
+            for (part in parts) {
+                val text = ((part as? JsonObject)?.get("text") as? JsonObject)?.stringAt("content")
+                if (text != null && text.looksLikePublished()) return text
+            }
+        }
+        return null
     }
 
     /** A live lockup carries a thumbnail badge with the LIVE badge style. */
@@ -112,7 +128,7 @@ internal object RelatedVideosParser {
 
     private fun JsonObject.thumbnailViewModel(): JsonObject? =
         (this["contentImage"] as? JsonObject)?.get("thumbnailViewModel") as? JsonObject
-
-    private fun JsonObject.stringAt(key: String): String? =
-        this[key]?.jsonPrimitive?.contentOrNull?.ifBlank { null }
 }
+
+private fun JsonObject.stringAt(key: String): String? =
+    this[key]?.jsonPrimitive?.contentOrNull?.ifBlank { null }

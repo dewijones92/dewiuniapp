@@ -55,7 +55,23 @@ internal object VideoTileParser {
             thumbnailUrl = bestThumbnailUrl(),
             watchUrl = watchUrl,
             kind = if (isLive()) FeedVideo.Kind.LIVE else FeedVideo.Kind.VIDEO,
+            publishedText = metadata.publishedLine(),
         )
+    }
+
+    /** The metadata line YouTube uses for the published date (e.g. "2 days ago"). */
+    private fun JsonObject.publishedLine(): String? {
+        val lines = this["lines"] as? JsonArray ?: return null
+        for (line in lines) {
+            val items = ((line as? JsonObject)?.get("lineRenderer") as? JsonObject)?.get("items") as? JsonArray
+                ?: continue
+            for (item in items) {
+                val text = ((item as? JsonObject)?.get("lineItemRenderer") as? JsonObject)?.get("text")
+                    ?.let { it as? JsonObject }?.readText()
+                if (text != null && text.looksLikePublished()) return text
+            }
+        }
+        return null
     }
 
     /** A live tile carries a time-status overlay with style "LIVE" instead of a duration. */
@@ -98,13 +114,13 @@ internal object VideoTileParser {
             ?.let { it["thumbnails"] as? JsonArray } ?: return null
         return (thumbnails.lastOrNull() as? JsonObject)?.stringAt("url")?.let(HttpUrl::parse)
     }
-
-    private fun JsonObject.readText(): String? {
-        stringAt("simpleText")?.let { return it }
-        val runs = this["runs"] as? JsonArray ?: return null
-        return runs.joinToString("") { (it as? JsonObject)?.stringAt("text").orEmpty() }
-    }
-
-    private fun JsonObject.stringAt(key: String): String? =
-        this[key]?.jsonPrimitive?.contentOrNull?.ifBlank { null }
 }
+
+private fun JsonObject.readText(): String? {
+    stringAt("simpleText")?.let { return it }
+    val runs = this["runs"] as? JsonArray ?: return null
+    return runs.joinToString("") { (it as? JsonObject)?.stringAt("text").orEmpty() }
+}
+
+private fun JsonObject.stringAt(key: String): String? =
+    this[key]?.jsonPrimitive?.contentOrNull?.ifBlank { null }

@@ -58,6 +58,23 @@ class RelatedVideosParserTest {
     }
 
     @Test
+    fun `extracts the published relative time from lockup metadata`() {
+        val body = """
+            {"contents":[{"lockupViewModel":{
+              "contentType":"LOCKUP_CONTENT_TYPE_VIDEO","contentId":"dated000002",
+              "metadata":{"lockupMetadataViewModel":{
+                "title":{"content":"Dated lockup"},
+                "metadata":{"contentMetadataViewModel":{"metadataRows":[
+                  {"metadataParts":[{"text":{"content":"Some Channel"}}]},
+                  {"metadataParts":[{"text":{"content":"1.2M views"}},{"text":{"content":"3 weeks ago"}}]}
+                ]}}
+              }}}}]}
+        """.trimIndent()
+        val video = (RelatedVideosParser.parse(body) as RelatedResult.Success).videos.single()
+        assertEquals("3 weeks ago", video.publishedText)
+    }
+
+    @Test
     fun `a live lockup is tagged LIVE`() {
         val body = """
             {"contents":[{"lockupViewModel":{

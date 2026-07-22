@@ -22,6 +22,12 @@ public data class MediaItem(
     val sourceId: SourceId,
     val title: String,
     val publishedAt: Instant?,
+    /**
+     * Human published date as the source renders it (e.g. YouTube's "2 days
+     * ago"), for sources that give relative text rather than an absolute
+     * [publishedAt]. The UI prefers this when set, else formats [publishedAt].
+     */
+    val publishedText: String? = null,
     val duration: Duration?,
     /** Who made it: podcast/feed name or channel/uploader. Shown as the artist line. */
     val author: String? = null,

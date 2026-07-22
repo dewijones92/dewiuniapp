@@ -60,6 +60,27 @@ class VideoTileParserTest {
     }
 
     @Test
+    fun `extracts the published relative time from tile metadata`() {
+        val body = """
+            {"contents":[{"tileRenderer":{
+              "contentType":"TILE_CONTENT_TYPE_VIDEO",
+              "onSelectCommand":{"watchEndpoint":{"videoId":"dated000001"}},
+              "metadata":{"tileMetadataRenderer":{
+                "title":{"simpleText":"Dated video"},
+                "lines":[
+                  {"lineRenderer":{"items":[{"lineItemRenderer":{"text":{"simpleText":"Some Channel"}}}]}},
+                  {"lineRenderer":{"items":[
+                    {"lineItemRenderer":{"text":{"simpleText":"12K views"}}},
+                    {"lineItemRenderer":{"text":{"simpleText":"2 days ago"}}}
+                  ]}}
+                ]}}}}]}
+        """.trimIndent()
+        val video = (VideoTileParser.parse(body) as FeedResult.Success).videos.single()
+        assertEquals("2 days ago", video.publishedText)
+        assertEquals("Some Channel", video.author)
+    }
+
+    @Test
     fun `a live tile is tagged LIVE`() {
         val body = """
             {"contents":[{"tileRenderer":{

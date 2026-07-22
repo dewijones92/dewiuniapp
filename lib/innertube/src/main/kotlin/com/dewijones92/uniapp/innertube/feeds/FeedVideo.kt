@@ -16,6 +16,8 @@ public data class FeedVideo(
     val watchUrl: HttpUrl,
     /** Normal video, live stream or Short — lets a unified feed tag each item. */
     val kind: Kind = Kind.VIDEO,
+    /** How YouTube renders the published date (e.g. "2 days ago"); null if absent. */
+    val publishedText: String? = null,
 ) {
     public enum class Kind { VIDEO, LIVE, SHORT }
 

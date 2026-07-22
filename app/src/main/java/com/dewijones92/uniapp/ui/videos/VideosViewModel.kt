@@ -188,6 +188,7 @@ class VideosViewModel(
         sourceId = SourceId("ytfeed:${feed.name}"),
         title = title,
         publishedAt = null,
+        publishedText = publishedText,
         duration = durationSeconds?.seconds,
         author = author,
         thumbnailUrl = thumbnailUrl,
