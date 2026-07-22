@@ -22,6 +22,8 @@ import kotlinx.serialization.json.jsonPrimitive
 internal object RelatedVideosParser {
 
     private const val VIDEO_CONTENT_TYPE = "LOCKUP_CONTENT_TYPE_VIDEO"
+    private const val SHORTS_CONTENT_TYPE = "LOCKUP_CONTENT_TYPE_SHORTS"
+    private val VIDEO_CONTENT_TYPES = setOf(VIDEO_CONTENT_TYPE, SHORTS_CONTENT_TYPE)
     private const val LIVE_BADGE_STYLE = "THUMBNAIL_OVERLAY_BADGE_STYLE_LIVE"
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -39,7 +41,7 @@ internal object RelatedVideosParser {
         when (node) {
             is JsonObject -> {
                 val lockup = node["lockupViewModel"] as? JsonObject
-                if (lockup != null && lockup.stringAt("contentType") == VIDEO_CONTENT_TYPE) onLockup(lockup)
+                if (lockup != null && lockup.stringAt("contentType") in VIDEO_CONTENT_TYPES) onLockup(lockup)
                 node.values.forEach { collectVideoLockups(it, onLockup) }
             }
             is JsonArray -> node.forEach { collectVideoLockups(it, onLockup) }
@@ -59,7 +61,11 @@ internal object RelatedVideosParser {
             durationSeconds = durationSeconds(),
             thumbnailUrl = bestThumbnailUrl(),
             watchUrl = watchUrl,
-            kind = if (isLive()) FeedVideo.Kind.LIVE else FeedVideo.Kind.VIDEO,
+            kind = when {
+                isLive() -> FeedVideo.Kind.LIVE
+                stringAt("contentType") == SHORTS_CONTENT_TYPE -> FeedVideo.Kind.SHORT
+                else -> FeedVideo.Kind.VIDEO
+            },
             publishedText = metadata.publishedText(),
         )
     }

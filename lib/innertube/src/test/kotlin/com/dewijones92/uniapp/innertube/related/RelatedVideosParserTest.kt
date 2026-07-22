@@ -75,6 +75,18 @@ class RelatedVideosParserTest {
     }
 
     @Test
+    fun `a shorts lockup is collected and tagged SHORT`() {
+        val body = """
+            {"contents":[{"lockupViewModel":{
+              "contentType":"LOCKUP_CONTENT_TYPE_SHORTS","contentId":"short000003",
+              "metadata":{"lockupMetadataViewModel":{"title":{"content":"A related Short"}}}}}]}
+        """.trimIndent()
+        val video = (RelatedVideosParser.parse(body) as RelatedResult.Success).videos.single()
+        assertEquals("short000003", video.videoId)
+        assertEquals(FeedVideo.Kind.SHORT, video.kind)
+    }
+
+    @Test
     fun `a live lockup is tagged LIVE`() {
         val body = """
             {"contents":[{"lockupViewModel":{

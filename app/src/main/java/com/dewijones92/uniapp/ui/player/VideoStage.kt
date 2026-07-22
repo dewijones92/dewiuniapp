@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -67,13 +68,15 @@ internal fun VideoStageWithControls(
             controlsVisible = false
         }
     }
-    // Fullscreen fills the screen; otherwise the video keeps its aspect ratio.
-    val sizing = if (fullscreen) {
-        Modifier.fillMaxSize()
-    } else {
-        Modifier
-            .fillMaxWidth()
-            .aspectRatio(state.videoAspectRatio ?: DEFAULT_VIDEO_ASPECT_RATIO)
+    // Fullscreen fills the screen; otherwise the video keeps its aspect ratio —
+    // except a portrait video (a Short) gets a bounded, centred stage, since
+    // filling the width at 9:16 would make the inline player absurdly tall.
+    val aspect = state.videoAspectRatio
+    val isPortrait = aspect != null && aspect < 1f
+    val sizing = when {
+        fullscreen -> Modifier.fillMaxSize()
+        isPortrait -> Modifier.fillMaxWidth().height(PORTRAIT_STAGE_HEIGHT)
+        else -> Modifier.fillMaxWidth().aspectRatio(aspect ?: DEFAULT_VIDEO_ASPECT_RATIO)
     }
     Box(
         modifier = sizing
@@ -171,3 +174,4 @@ private fun VideoControlsOverlay(
 
 private const val CONTROLS_AUTOHIDE_MS = 3_000L
 private const val SCRIM_ALPHA = 0.35f
+private val PORTRAIT_STAGE_HEIGHT = 460.dp

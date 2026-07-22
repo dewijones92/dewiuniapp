@@ -54,7 +54,11 @@ internal object VideoTileParser {
             durationSeconds = durationSeconds(),
             thumbnailUrl = bestThumbnailUrl(),
             watchUrl = watchUrl,
-            kind = if (isLive()) FeedVideo.Kind.LIVE else FeedVideo.Kind.VIDEO,
+            kind = when {
+                "LIVE" in timeStatusStyles() -> FeedVideo.Kind.LIVE
+                isShort() -> FeedVideo.Kind.SHORT
+                else -> FeedVideo.Kind.VIDEO
+            },
             publishedText = metadata.publishedLine(),
         )
     }
@@ -74,18 +78,27 @@ internal object VideoTileParser {
         return null
     }
 
-    /** A live tile carries a time-status overlay with style "LIVE" instead of a duration. */
-    private fun JsonObject.isLive(): Boolean {
+    /** Styles of the tile's thumbnail time-status overlays (e.g. "LIVE", "SHORTS"). */
+    private fun JsonObject.timeStatusStyles(): List<String> {
         val overlays = ((this["header"] as? JsonObject)?.get("tileHeaderRenderer") as? JsonObject)
-            ?.get("thumbnailOverlays") as? JsonArray ?: return false
-        return overlays.any { overlay ->
+            ?.get("thumbnailOverlays") as? JsonArray ?: return emptyList()
+        return overlays.mapNotNull { overlay ->
             (overlay as? JsonObject)?.get("thumbnailOverlayTimeStatusRenderer")
-                ?.let { it as? JsonObject }?.stringAt("style") == "LIVE"
+                ?.let { it as? JsonObject }?.stringAt("style")
         }
     }
 
-    private fun JsonObject.watchVideoId(): String? =
-        ((this["onSelectCommand"] as? JsonObject)?.get("watchEndpoint") as? JsonObject)?.stringAt("videoId")
+    /** A Short opens a reel player (a `reelWatchEndpoint`) or carries a "SHORTS" overlay. */
+    private fun JsonObject.isShort(): Boolean =
+        (this["onSelectCommand"] as? JsonObject)?.get("reelWatchEndpoint") != null ||
+            "SHORTS" in timeStatusStyles()
+
+    /** A video (or Short) tile's id lives on its watch or reel endpoint. */
+    private fun JsonObject.watchVideoId(): String? {
+        val command = this["onSelectCommand"] as? JsonObject ?: return null
+        return (command["watchEndpoint"] as? JsonObject)?.stringAt("videoId")
+            ?: (command["reelWatchEndpoint"] as? JsonObject)?.stringAt("videoId")
+    }
 
     /** First metadata line's text is the channel/author. */
     private fun JsonObject.authorLine(): String? {

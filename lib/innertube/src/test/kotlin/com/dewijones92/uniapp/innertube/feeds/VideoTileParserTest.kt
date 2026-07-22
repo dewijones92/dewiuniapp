@@ -81,6 +81,34 @@ class VideoTileParserTest {
     }
 
     @Test
+    fun `a reel tile is tagged SHORT and its id read from the reel endpoint`() {
+        val body = """
+            {"contents":[{"tileRenderer":{
+              "contentType":"TILE_CONTENT_TYPE_VIDEO",
+              "onSelectCommand":{"reelWatchEndpoint":{"videoId":"short000001"}},
+              "metadata":{"tileMetadataRenderer":{"title":{"simpleText":"A Short"}}}}}]}
+        """.trimIndent()
+        val video = (VideoTileParser.parse(body) as FeedResult.Success).videos.single()
+        assertEquals("short000001", video.videoId)
+        assertEquals(FeedVideo.Kind.SHORT, video.kind)
+    }
+
+    @Test
+    fun `a tile with a SHORTS time-status overlay is tagged SHORT`() {
+        val body = """
+            {"contents":[{"tileRenderer":{
+              "contentType":"TILE_CONTENT_TYPE_VIDEO",
+              "onSelectCommand":{"watchEndpoint":{"videoId":"short000002"}},
+              "metadata":{"tileMetadataRenderer":{"title":{"simpleText":"Short two"}}},
+              "header":{"tileHeaderRenderer":{"thumbnailOverlays":[
+                {"thumbnailOverlayTimeStatusRenderer":{"style":"SHORTS"}}
+              ]}}}}]}
+        """.trimIndent()
+        val video = (VideoTileParser.parse(body) as FeedResult.Success).videos.single()
+        assertEquals(FeedVideo.Kind.SHORT, video.kind)
+    }
+
+    @Test
     fun `a live tile is tagged LIVE`() {
         val body = """
             {"contents":[{"tileRenderer":{
