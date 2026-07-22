@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -49,6 +51,8 @@ import kotlinx.coroutines.delay
 internal fun VideoStageWithControls(
     state: PlaybackState,
     player: Player,
+    fullscreen: Boolean,
+    onToggleFullscreen: () -> Unit,
     onDismiss: () -> Unit,
     onTogglePlayPause: () -> Unit,
     onSeekTo: (Long) -> Unit,
@@ -63,10 +67,16 @@ internal fun VideoStageWithControls(
             controlsVisible = false
         }
     }
-    Box(
-        modifier = Modifier
+    // Fullscreen fills the screen; otherwise the video keeps its aspect ratio.
+    val sizing = if (fullscreen) {
+        Modifier.fillMaxSize()
+    } else {
+        Modifier
             .fillMaxWidth()
             .aspectRatio(state.videoAspectRatio ?: DEFAULT_VIDEO_ASPECT_RATIO)
+    }
+    Box(
+        modifier = sizing
             .background(Color.Black)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
@@ -93,7 +103,16 @@ internal fun VideoStageWithControls(
             exit = fadeOut(),
             modifier = Modifier.matchParentSize(),
         ) {
-            VideoControlsOverlay(state, onDismiss, onTogglePlayPause, onSeekTo, onSeekBackward, onSeekForward)
+            VideoControlsOverlay(
+                state = state,
+                fullscreen = fullscreen,
+                onToggleFullscreen = onToggleFullscreen,
+                onDismiss = onDismiss,
+                onTogglePlayPause = onTogglePlayPause,
+                onSeekTo = onSeekTo,
+                onSeekBackward = onSeekBackward,
+                onSeekForward = onSeekForward,
+            )
         }
     }
 }
@@ -102,6 +121,8 @@ internal fun VideoStageWithControls(
 @Composable
 private fun VideoControlsOverlay(
     state: PlaybackState,
+    fullscreen: Boolean,
+    onToggleFullscreen: () -> Unit,
     onDismiss: () -> Unit,
     onTogglePlayPause: () -> Unit,
     onSeekTo: (Long) -> Unit,
@@ -115,8 +136,12 @@ private fun VideoControlsOverlay(
                 .fillMaxSize()
                 .background(Color.Black.copy(alpha = SCRIM_ALPHA)),
         ) {
-            IconButton(onClick = onDismiss, modifier = Modifier.align(Alignment.TopStart)) {
-                Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.close))
+            // Fullscreen hides the app chrome, so its close button would strand the
+            // user; the fullscreen-exit button (bottom-end) is the way back out.
+            if (!fullscreen) {
+                IconButton(onClick = onDismiss, modifier = Modifier.align(Alignment.TopStart)) {
+                    Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.close))
+                }
             }
             TransportControls(
                 state,
@@ -130,8 +155,16 @@ private fun VideoControlsOverlay(
                 onSeekTo = onSeekTo,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                    .padding(start = 12.dp, end = 48.dp, bottom = 8.dp),
             )
+            IconButton(
+                onClick = onToggleFullscreen,
+                modifier = Modifier.align(Alignment.BottomEnd),
+            ) {
+                val icon = if (fullscreen) Icons.Filled.FullscreenExit else Icons.Filled.Fullscreen
+                val desc = if (fullscreen) R.string.fullscreen_exit else R.string.fullscreen_enter
+                Icon(icon, contentDescription = stringResource(desc))
+            }
         }
     }
 }

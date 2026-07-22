@@ -1,5 +1,6 @@
 package com.dewijones92.uniapp.ui.player
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -53,8 +55,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.media3.common.Player
 import com.dewijones92.uniapp.R
 import com.dewijones92.uniapp.common.HttpUrl
@@ -76,7 +76,7 @@ import kotlin.time.Duration
  * episodes and videos identically.
  */
 @Composable
-fun FullPlayerDialog(
+fun FullPlayerOverlay(
     state: PlaybackState,
     player: Player?,
     comments: CommentsState,
@@ -95,55 +95,132 @@ fun FullPlayerDialog(
     onSetSpeed: (Float) -> Unit,
 ) {
     KeepScreenOnWhilePlayingVideo(active = state.hasVideo && state.isPlaying)
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(modifier = Modifier.fillMaxSize()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                // For video, the transport + seek controls overlay the picture
-                // (modern-player style, auto-hiding); audio keeps them below the
-                // artwork. `videoPlayer` is non-null only when there's a video.
-                val videoPlayer = player.takeIf { state.hasVideo }
-                if (videoPlayer != null) {
-                    VideoStageWithControls(
-                        state = state,
-                        player = videoPlayer,
-                        onDismiss = onDismiss,
-                        onTogglePlayPause = onTogglePlayPause,
-                        onSeekTo = onSeekTo,
-                        onSeekBackward = onSeekBackward,
-                        onSeekForward = onSeekForward,
-                    )
-                } else {
-                    IconButton(onClick = onDismiss, modifier = Modifier.align(Alignment.Start)) {
-                        Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.close))
-                    }
-                    ArtworkStage(state)
-                }
+    var fullscreen by rememberSaveable { mutableStateOf(false) }
+    // `videoPlayer` is non-null only for a video; only a video can go fullscreen.
+    val videoPlayer = player.takeIf { state.hasVideo }
+    LaunchedEffect(videoPlayer == null) { if (videoPlayer == null) fullscreen = false }
 
-                PlayerDetails(
+    // Back exits fullscreen first, then closes the player. Rendered in the
+    // activity's own window (not a Dialog), so landscape rotation for fullscreen
+    // is handled by the same window that hosts the app — a Dialog sub-window
+    // would stay portrait-sized and leave the video in a stale frame.
+    BackHandler { if (fullscreen) fullscreen = false else onDismiss() }
+    FullscreenEffect(active = fullscreen && videoPlayer != null)
+    Surface(modifier = Modifier.fillMaxSize()) {
+        if (fullscreen && videoPlayer != null) {
+            // Immersive: just the picture, filling the screen in landscape.
+            VideoStageWithControls(
+                state = state,
+                player = videoPlayer,
+                fullscreen = true,
+                onToggleFullscreen = { fullscreen = false },
+                onDismiss = onDismiss,
+                onTogglePlayPause = onTogglePlayPause,
+                onSeekTo = onSeekTo,
+                onSeekBackward = onSeekBackward,
+                onSeekForward = onSeekForward,
+            )
+        } else {
+            DraggablePlayerContent(
+                state = state,
+                videoPlayer = videoPlayer,
+                comments = comments,
+                related = related,
+                watchActions = watchActions,
+                quality = quality,
+                sleepTimer = sleepTimer,
+                onEnterFullscreen = { fullscreen = true },
+                onDismiss = onDismiss,
+                onPlayRelated = onPlayRelated,
+                onStartSleep = onStartSleep,
+                onCancelSleep = onCancelSleep,
+                onTogglePlayPause = onTogglePlayPause,
+                onSeekTo = onSeekTo,
+                onSeekBackward = onSeekBackward,
+                onSeekForward = onSeekForward,
+                onSetSpeed = onSetSpeed,
+            )
+        }
+    }
+}
+
+/**
+ * The scrolling player (stage + details). Dragging the stage down slides the
+ * whole thing and, past a threshold, drops to the mini player — which keeps
+ * playing, so you can carry on using the app over the running video or audio.
+ * The drag handle is the stage only, so scrolling the details below is
+ * unaffected.
+ */
+@Composable
+private fun DraggablePlayerContent(
+    state: PlaybackState,
+    videoPlayer: Player?,
+    comments: CommentsState,
+    related: RelatedState,
+    watchActions: WatchActions,
+    quality: QualityControl,
+    sleepTimer: SleepTimerState,
+    onEnterFullscreen: () -> Unit,
+    onDismiss: () -> Unit,
+    onPlayRelated: (FeedVideo) -> Unit,
+    onStartSleep: (Duration) -> Unit,
+    onCancelSleep: () -> Unit,
+    onTogglePlayPause: () -> Unit,
+    onSeekTo: (Long) -> Unit,
+    onSeekBackward: () -> Unit,
+    onSeekForward: () -> Unit,
+    onSetSpeed: (Float) -> Unit,
+) {
+    val drag = rememberStageDragDismiss(onDismiss)
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .systemBarsPadding()
+            .then(drag.contentOffset)
+            .verticalScroll(rememberScrollState())
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        // For video the transport + seek overlay the picture (modern-player
+        // style, auto-hiding); audio keeps them below the artwork.
+        if (videoPlayer != null) {
+            Box(drag.handle) {
+                VideoStageWithControls(
                     state = state,
-                    controlsOverlaid = videoPlayer != null,
-                    comments = comments,
-                    related = related,
-                    watchActions = watchActions,
-                    quality = quality,
-                    sleepTimer = sleepTimer,
-                    onPlayRelated = onPlayRelated,
-                    onStartSleep = onStartSleep,
-                    onCancelSleep = onCancelSleep,
+                    player = videoPlayer,
+                    fullscreen = false,
+                    onToggleFullscreen = onEnterFullscreen,
+                    onDismiss = onDismiss,
                     onTogglePlayPause = onTogglePlayPause,
                     onSeekTo = onSeekTo,
                     onSeekBackward = onSeekBackward,
                     onSeekForward = onSeekForward,
-                    onSetSpeed = onSetSpeed,
                 )
             }
+        } else {
+            IconButton(onClick = onDismiss, modifier = Modifier.align(Alignment.Start)) {
+                Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.close))
+            }
+            Box(drag.handle) { ArtworkStage(state) }
         }
+
+        PlayerDetails(
+            state = state,
+            controlsOverlaid = videoPlayer != null,
+            comments = comments,
+            related = related,
+            watchActions = watchActions,
+            quality = quality,
+            sleepTimer = sleepTimer,
+            onPlayRelated = onPlayRelated,
+            onStartSleep = onStartSleep,
+            onCancelSleep = onCancelSleep,
+            onTogglePlayPause = onTogglePlayPause,
+            onSeekTo = onSeekTo,
+            onSeekBackward = onSeekBackward,
+            onSeekForward = onSeekForward,
+            onSetSpeed = onSetSpeed,
+        )
     }
 }
 

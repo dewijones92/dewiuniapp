@@ -1,7 +1,9 @@
 package com.dewijones92.uniapp.ui
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -29,7 +31,7 @@ import com.dewijones92.uniapp.ui.account.AccountScreen
 import com.dewijones92.uniapp.ui.common.MiniPlayerBar
 import com.dewijones92.uniapp.ui.common.RequestNotificationPermissionOnFirstPlay
 import com.dewijones92.uniapp.ui.library.LibraryScreen
-import com.dewijones92.uniapp.ui.player.FullPlayerDialog
+import com.dewijones92.uniapp.ui.player.FullPlayerOverlay
 import com.dewijones92.uniapp.ui.player.QualityControl
 import com.dewijones92.uniapp.ui.player.WatchActions
 import com.dewijones92.uniapp.ui.player.WatchViewModel
@@ -50,55 +52,58 @@ fun AppShell(container: AppContainer, modifier: Modifier = Modifier) {
 
     RequestNotificationPermissionOnFirstPlay(playbackActive = playbackState != null)
 
-    playbackState?.takeIf { showFullPlayer }?.let { state ->
-        FullPlayerHost(state, controller, container) { showFullPlayer = false }
-    }
-
-    Scaffold(
-        modifier = modifier,
-        bottomBar = {
-            Column {
-                playbackState?.let { state ->
-                    MiniPlayerBar(
-                        state = state,
-                        onTogglePlayPause = controller::togglePlayPause,
-                        onExpand = { showFullPlayer = true },
-                    )
-                }
-                NavigationBar {
-                    TopLevelDestination.entries.forEach { destination ->
-                        val isSelected = destination == selected
-                        NavigationBarItem(
-                            selected = isSelected,
-                            onClick = { selected = destination },
-                            icon = {
-                                val icon = if (isSelected) destination.selectedIcon else destination.unselectedIcon
-                                Icon(imageVector = icon, contentDescription = null)
-                            },
-                            label = { Text(stringResource(destination.labelRes)) },
+    Box(modifier = modifier.fillMaxSize()) {
+        Scaffold(
+            bottomBar = {
+                Column {
+                    playbackState?.let { state ->
+                        MiniPlayerBar(
+                            state = state,
+                            onTogglePlayPause = controller::togglePlayPause,
+                            onExpand = { showFullPlayer = true },
                         )
                     }
+                    NavigationBar {
+                        TopLevelDestination.entries.forEach { destination ->
+                            val isSelected = destination == selected
+                            NavigationBarItem(
+                                selected = isSelected,
+                                onClick = { selected = destination },
+                                icon = {
+                                    val icon = if (isSelected) destination.selectedIcon else destination.unselectedIcon
+                                    Icon(imageVector = icon, contentDescription = null)
+                                },
+                                label = { Text(stringResource(destination.labelRes)) },
+                            )
+                        }
+                    }
+                }
+            },
+        ) { innerPadding ->
+            AnimatedContent(
+                targetState = selected,
+                modifier = Modifier.padding(innerPadding),
+                label = "top-level-destination",
+            ) { destination ->
+                when (destination) {
+                    TopLevelDestination.Videos -> VideosScreen(container)
+                    TopLevelDestination.Podcasts -> PodcastsScreen(container)
+                    TopLevelDestination.Search -> SearchScreen(container)
+                    TopLevelDestination.Library -> LibraryScreen(container)
+                    TopLevelDestination.Account -> AccountScreen(container)
                 }
             }
-        },
-    ) { innerPadding ->
-        AnimatedContent(
-            targetState = selected,
-            modifier = Modifier.padding(innerPadding),
-            label = "top-level-destination",
-        ) { destination ->
-            when (destination) {
-                TopLevelDestination.Videos -> VideosScreen(container)
-                TopLevelDestination.Podcasts -> PodcastsScreen(container)
-                TopLevelDestination.Search -> SearchScreen(container)
-                TopLevelDestination.Library -> LibraryScreen(container)
-                TopLevelDestination.Account -> AccountScreen(container)
-            }
+        }
+
+        // Full player overlays the whole app (above the mini player + nav) when
+        // expanded; the mini player keeps the audio/video running underneath.
+        playbackState?.takeIf { showFullPlayer }?.let { state ->
+            FullPlayerHost(state, controller, container) { showFullPlayer = false }
         }
     }
 }
 
-/** Hosts the full-player dialog, wiring it to the one playback controller. */
+/** Hosts the full-player overlay, wiring it to the one playback controller. */
 @Composable
 private fun FullPlayerHost(
     state: PlaybackState,
@@ -124,7 +129,7 @@ private fun FullPlayerHost(
     val postState by watchViewModel.postState.collectAsStateWithLifecycle()
     val quality by watchViewModel.quality.collectAsStateWithLifecycle()
 
-    FullPlayerDialog(
+    FullPlayerOverlay(
         state = state,
         player = controller.player,
         comments = comments,

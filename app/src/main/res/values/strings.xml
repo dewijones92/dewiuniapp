@@ -80,6 +80,8 @@
     <string name="back">Back</string>
     <string name="seek_back">Skip back 10 seconds</string>
     <string name="seek_forward">Skip forward 30 seconds</string>
+    <string name="fullscreen_enter">Fullscreen</string>
+    <string name="fullscreen_exit">Exit fullscreen</string>
     <string name="download">Download</string>
     <string name="downloaded_delete">Downloaded — tap to remove</string>
     <string name="library_downloads">Downloads</string>
