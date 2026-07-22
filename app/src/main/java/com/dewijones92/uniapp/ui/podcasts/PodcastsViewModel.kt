@@ -13,6 +13,7 @@ import com.dewijones92.uniapp.di.AppContainer
 import com.dewijones92.uniapp.domain.DownloadState
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.MediaItemId
+import com.dewijones92.uniapp.domain.MediaKind
 import com.dewijones92.uniapp.domain.Subscription
 import com.dewijones92.uniapp.playback.PlaybackController
 import com.dewijones92.uniapp.ui.common.MediaSort
@@ -85,7 +86,7 @@ class PodcastsViewModel(
     /** Plays the downloaded file when available, else streams. One decision, one place. */
     fun play(episode: MediaItem) {
         val local = (uiState.value.downloadStates[episode.id] as? DownloadState.Downloaded)?.localPath
-        playback.play(episode, localPath = local)
+        playback.play(episode, kind = MediaKind.PODCAST, localPath = local)
     }
 
     fun download(episode: MediaItem) {

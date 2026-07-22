@@ -13,6 +13,7 @@ import androidx.media3.session.SessionToken
 import com.dewijones92.uniapp.common.HttpUrl
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.MediaItemId
+import com.dewijones92.uniapp.domain.MediaKind
 import com.dewijones92.uniapp.domain.SkipSegment
 import com.dewijones92.uniapp.domain.skipTargetFor
 import kotlinx.coroutines.CoroutineScope
@@ -84,7 +85,13 @@ public class Media3PlaybackController(
         )
     }
 
-    override fun play(item: MediaItem, skipSegments: List<SkipSegment>, localPath: String?, audioUrl: HttpUrl?) {
+    override fun play(
+        item: MediaItem,
+        kind: MediaKind,
+        skipSegments: List<SkipSegment>,
+        localPath: String?,
+        audioUrl: HttpUrl?,
+    ) {
         val uri = localPath?.let { File(it).toURI().toString() }
             ?: requireNotNull(item.mediaUrl) { "MediaItem ${item.id.value} has no mediaUrl" }.value
         activeSkipSegments = skipSegments
@@ -103,6 +110,13 @@ public class Media3PlaybackController(
                     .setArtist(item.author)
                     .setDescription(item.description)
                     .setArtworkUri(item.thumbnailUrl?.value?.let(android.net.Uri::parse))
+                    // Round-trips the pillar through the session so the UI can label it.
+                    .setMediaType(
+                        when (kind) {
+                            MediaKind.VIDEO -> MediaMetadata.MEDIA_TYPE_VIDEO
+                            MediaKind.PODCAST -> MediaMetadata.MEDIA_TYPE_PODCAST_EPISODE
+                        },
+                    )
                     .build(),
             )
             .build()
@@ -201,6 +215,11 @@ public class Media3PlaybackController(
             artist = current.mediaMetadata.artist?.toString(),
             artworkUrl = current.mediaMetadata.artworkUri?.toString(),
             description = current.mediaMetadata.description?.toString(),
+            kind = if (current.mediaMetadata.mediaType == MediaMetadata.MEDIA_TYPE_PODCAST_EPISODE) {
+                MediaKind.PODCAST
+            } else {
+                MediaKind.VIDEO
+            },
             isPlaying = isPlaying,
             positionMs = currentPosition.coerceAtLeast(0),
             durationMs = duration.takeIf { it > 0 },

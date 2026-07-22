@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -42,6 +43,15 @@ fun MiniPlayerBar(
     ) {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                // Marks the pillar at a glance — video vs podcast.
+                Icon(
+                    imageVector = pillarIcon(state.kind),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .padding(start = 16.dp)
+                        .size(18.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 Text(
                     text = state.title,
                     style = MaterialTheme.typography.bodyMedium,
@@ -49,7 +59,7 @@ fun MiniPlayerBar(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier
                         .weight(1f)
-                        .padding(start = 16.dp),
+                        .padding(start = 12.dp),
                 )
                 IconButton(onClick = onTogglePlayPause) {
                     if (state.isPlaying) {

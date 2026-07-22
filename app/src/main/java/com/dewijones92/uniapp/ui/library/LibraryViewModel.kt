@@ -10,6 +10,7 @@ import com.dewijones92.uniapp.data.podcast.PodcastRepository
 import com.dewijones92.uniapp.di.AppContainer
 import com.dewijones92.uniapp.domain.DownloadState
 import com.dewijones92.uniapp.domain.MediaItem
+import com.dewijones92.uniapp.domain.MediaKind
 import com.dewijones92.uniapp.playback.PlaybackController
 import com.dewijones92.uniapp.ui.common.MediaSort
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -48,7 +49,8 @@ class LibraryViewModel(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), emptyList())
 
     fun play(entry: DownloadedItem) {
-        playback.play(entry.item, localPath = entry.localPath)
+        // The Library lists downloaded podcast episodes (observeEpisodes).
+        playback.play(entry.item, kind = MediaKind.PODCAST, localPath = entry.localPath)
     }
 
     fun delete(entry: DownloadedItem) {

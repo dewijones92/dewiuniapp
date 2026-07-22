@@ -4,6 +4,7 @@ import androidx.media3.common.Player
 import com.dewijones92.uniapp.common.HttpUrl
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.MediaItemId
+import com.dewijones92.uniapp.domain.MediaKind
 import com.dewijones92.uniapp.domain.SkipSegment
 import kotlinx.coroutines.flow.StateFlow
 
@@ -34,6 +35,7 @@ public interface PlaybackController {
      */
     public fun play(
         item: MediaItem,
+        kind: MediaKind = MediaKind.VIDEO,
         skipSegments: List<SkipSegment> = emptyList(),
         localPath: String? = null,
         audioUrl: HttpUrl? = null,
@@ -61,6 +63,8 @@ public data class PlaybackState(
     val title: String,
     val artist: String?,
     val artworkUrl: String?,
+    /** Which pillar is playing — lets the UI show whether it's a video or a podcast. */
+    val kind: MediaKind = MediaKind.VIDEO,
     /** The item's description / show notes, when known. Shown on the full player. */
     val description: String? = null,
     val isPlaying: Boolean,

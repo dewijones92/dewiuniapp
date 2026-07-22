@@ -3,6 +3,7 @@ package com.dewijones92.uniapp.playback.fake
 import androidx.media3.common.Player
 import com.dewijones92.uniapp.common.HttpUrl
 import com.dewijones92.uniapp.domain.MediaItem
+import com.dewijones92.uniapp.domain.MediaKind
 import com.dewijones92.uniapp.domain.SkipSegment
 import com.dewijones92.uniapp.playback.PlaybackController
 import com.dewijones92.uniapp.playback.PlaybackState
@@ -31,7 +32,13 @@ public class FakePlaybackController : PlaybackController {
     public var lastAudioUrl: HttpUrl? = null
         private set
 
-    override fun play(item: MediaItem, skipSegments: List<SkipSegment>, localPath: String?, audioUrl: HttpUrl?) {
+    override fun play(
+        item: MediaItem,
+        kind: MediaKind,
+        skipSegments: List<SkipSegment>,
+        localPath: String?,
+        audioUrl: HttpUrl?,
+    ) {
         lastSkipSegments = skipSegments
         lastLocalPath = localPath
         lastAudioUrl = audioUrl
@@ -41,6 +48,7 @@ public class FakePlaybackController : PlaybackController {
             artist = item.author,
             artworkUrl = item.thumbnailUrl?.value,
             description = item.description,
+            kind = kind,
             isPlaying = true,
             positionMs = 0,
             durationMs = item.duration?.inWholeMilliseconds,

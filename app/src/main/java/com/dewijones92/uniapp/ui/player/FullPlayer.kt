@@ -64,6 +64,7 @@ import com.dewijones92.uniapp.innertube.feeds.FeedVideo
 import com.dewijones92.uniapp.playback.PlaybackState
 import com.dewijones92.uniapp.playback.SleepTimerState
 import com.dewijones92.uniapp.ui.common.MediaThumbnail
+import com.dewijones92.uniapp.ui.common.PillarBadge
 import com.dewijones92.uniapp.ui.player.WatchViewModel.CommentsState
 import com.dewijones92.uniapp.ui.player.WatchViewModel.PostState
 import com.dewijones92.uniapp.ui.player.WatchViewModel.RelatedState
@@ -263,6 +264,8 @@ private fun PlayerDetails(
             modifier = Modifier.padding(top = 8.dp),
         )
     }
+    // Says whether this is a YouTube video or a podcast.
+    PillarBadge(state.kind, modifier = Modifier.padding(top = 8.dp))
 
     // Audio: seek + transport sit below the artwork (video has them overlaid).
     if (!controlsOverlaid) {
@@ -304,7 +307,7 @@ private fun PlayerDetails(
     val description = state.description
     if (!description.isNullOrBlank()) {
         Spacer(Modifier.height(24.dp))
-        DescriptionSection(description)
+        DescriptionSection(description, onSeekTo)
     }
 
     // Related / up-next and comments live under the video, YouTube-style; audio
@@ -484,23 +487,21 @@ internal fun PlayerNote(text: String) {
 /**
  * Collapsible description / show-notes block. Starts clamped to a few lines
  * with a "Show more" toggle, so a long description doesn't push the comments
- * off-screen. Tapping the whole block toggles too.
+ * off-screen. Chapter timestamps (e.g. `1:23`) are tappable and seek playback.
  */
 @Composable
-private fun DescriptionSection(description: String) {
+private fun DescriptionSection(description: String, onSeekTo: (Long) -> Unit) {
     var expanded by rememberSaveable(description) { mutableStateOf(false) }
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { expanded = !expanded },
-    ) {
+    val linkColor = MaterialTheme.colorScheme.primary
+    val annotated = remember(description, linkColor) { description.withTimestampLinks(linkColor, onSeekTo) }
+    Column(modifier = Modifier.fillMaxWidth()) {
         Text(
             text = stringResource(R.string.description_title),
             style = MaterialTheme.typography.titleMedium,
         )
         Spacer(Modifier.height(8.dp))
         Text(
-            text = description,
+            text = annotated,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = if (expanded) Int.MAX_VALUE else DESCRIPTION_COLLAPSED_LINES,
@@ -511,6 +512,7 @@ private fun DescriptionSection(description: String) {
             text = stringResource(if (expanded) R.string.show_less else R.string.show_more),
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.clickable { expanded = !expanded },
         )
     }
 }
