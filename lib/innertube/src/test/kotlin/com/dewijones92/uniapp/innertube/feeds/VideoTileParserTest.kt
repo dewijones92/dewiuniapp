@@ -53,4 +53,24 @@ class VideoTileParserTest {
     fun `unparseable json is a failure value`() {
         assertTrue(VideoTileParser.parse("not json") is FeedResult.Failure)
     }
+
+    @Test
+    fun `normal feed tiles are tagged VIDEO`() {
+        assertTrue(parsed().all { it.kind == FeedVideo.Kind.VIDEO })
+    }
+
+    @Test
+    fun `a live tile is tagged LIVE`() {
+        val body = """
+            {"contents":[{"tileRenderer":{
+              "contentType":"TILE_CONTENT_TYPE_VIDEO",
+              "onSelectCommand":{"watchEndpoint":{"videoId":"live0000001"}},
+              "metadata":{"tileMetadataRenderer":{"title":{"simpleText":"Live now"}}},
+              "header":{"tileHeaderRenderer":{"thumbnailOverlays":[
+                {"thumbnailOverlayTimeStatusRenderer":{"style":"LIVE","text":{"runs":[{"text":"LIVE"}]}}}
+              ]}}}}]}
+        """.trimIndent()
+        val video = (VideoTileParser.parse(body) as FeedResult.Success).videos.single()
+        assertEquals(FeedVideo.Kind.LIVE, video.kind)
+    }
 }

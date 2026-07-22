@@ -21,6 +21,7 @@ import kotlinx.serialization.json.jsonPrimitive
 internal object RelatedVideosParser {
 
     private const val VIDEO_CONTENT_TYPE = "LOCKUP_CONTENT_TYPE_VIDEO"
+    private const val LIVE_BADGE_STYLE = "THUMBNAIL_OVERLAY_BADGE_STYLE_LIVE"
     private val json = Json { ignoreUnknownKeys = true }
 
     fun parse(body: String): RelatedResult {
@@ -57,7 +58,14 @@ internal object RelatedVideosParser {
             durationSeconds = durationSeconds(),
             thumbnailUrl = bestThumbnailUrl(),
             watchUrl = watchUrl,
+            kind = if (isLive()) FeedVideo.Kind.LIVE else FeedVideo.Kind.VIDEO,
         )
+    }
+
+    /** A live lockup carries a thumbnail badge with the LIVE badge style. */
+    private fun JsonObject.isLive(): Boolean {
+        val overlays = thumbnailViewModel()?.get("overlays") as? JsonArray ?: return false
+        return collectBadgeValues(overlays, "badgeStyle").any { it == LIVE_BADGE_STYLE }
     }
 
     /** First metadata row's first part is the channel/author line. */
@@ -75,17 +83,17 @@ internal object RelatedVideosParser {
     /** Duration is the thumbnail's bottom-overlay badge text ("m:ss"/"h:mm:ss"). */
     private fun JsonObject.durationSeconds(): Long? {
         val overlays = thumbnailViewModel()?.get("overlays") as? JsonArray ?: return null
-        collectBadgeTexts(overlays).forEach { text -> parseClockToSeconds(text)?.let { return it } }
+        collectBadgeValues(overlays, "text").forEach { text -> parseClockToSeconds(text)?.let { return it } }
         return null
     }
 
-    private fun collectBadgeTexts(node: JsonElement): List<String> {
-        val texts = mutableListOf<String>()
+    /** Every thumbnail badge's value at [field] (e.g. "text" for duration, "badgeStyle" for LIVE). */
+    private fun collectBadgeValues(node: JsonElement, field: String): List<String> {
+        val values = mutableListOf<String>()
         fun walk(n: JsonElement) {
             when (n) {
                 is JsonObject -> {
-                    val badge = n["thumbnailBadgeViewModel"] as? JsonObject
-                    badge?.stringAt("text")?.let { texts.add(it) }
+                    (n["thumbnailBadgeViewModel"] as? JsonObject)?.stringAt(field)?.let { values.add(it) }
                     n.values.forEach { walk(it) }
                 }
                 is JsonArray -> n.forEach { walk(it) }
@@ -93,7 +101,7 @@ internal object RelatedVideosParser {
             }
         }
         walk(node)
-        return texts
+        return values
     }
 
     private fun JsonObject.bestThumbnailUrl(): HttpUrl? {

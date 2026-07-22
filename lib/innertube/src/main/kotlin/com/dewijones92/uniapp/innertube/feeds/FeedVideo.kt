@@ -14,7 +14,11 @@ public data class FeedVideo(
     val durationSeconds: Long?,
     val thumbnailUrl: HttpUrl?,
     val watchUrl: HttpUrl,
+    /** Normal video, live stream or Short — lets a unified feed tag each item. */
+    val kind: Kind = Kind.VIDEO,
 ) {
+    public enum class Kind { VIDEO, LIVE, SHORT }
+
     public companion object {
         public fun watchUrlFor(videoId: String): HttpUrl? =
             HttpUrl.parse("https://www.youtube.com/watch?v=$videoId")

@@ -56,4 +56,20 @@ class RelatedVideosParserTest {
     fun `an empty response yields no videos`() {
         assertNull(parsed().firstOrNull { it.videoId == "UCignoreme" })
     }
+
+    @Test
+    fun `a live lockup is tagged LIVE`() {
+        val body = """
+            {"contents":[{"lockupViewModel":{
+              "contentType":"LOCKUP_CONTENT_TYPE_VIDEO","contentId":"live0000002",
+              "metadata":{"lockupMetadataViewModel":{"title":{"content":"Live stream"}}},
+              "contentImage":{"thumbnailViewModel":{"overlays":[
+                {"thumbnailBottomOverlayViewModel":{"badges":[
+                  {"thumbnailBadgeViewModel":{"badgeStyle":"THUMBNAIL_OVERLAY_BADGE_STYLE_LIVE","text":"LIVE"}}
+                ]}}
+              ]}}}}]}
+        """.trimIndent()
+        val video = (RelatedVideosParser.parse(body) as RelatedResult.Success).videos.single()
+        assertEquals(FeedVideo.Kind.LIVE, video.kind)
+    }
 }

@@ -54,7 +54,18 @@ internal object VideoTileParser {
             durationSeconds = durationSeconds(),
             thumbnailUrl = bestThumbnailUrl(),
             watchUrl = watchUrl,
+            kind = if (isLive()) FeedVideo.Kind.LIVE else FeedVideo.Kind.VIDEO,
         )
+    }
+
+    /** A live tile carries a time-status overlay with style "LIVE" instead of a duration. */
+    private fun JsonObject.isLive(): Boolean {
+        val overlays = ((this["header"] as? JsonObject)?.get("tileHeaderRenderer") as? JsonObject)
+            ?.get("thumbnailOverlays") as? JsonArray ?: return false
+        return overlays.any { overlay ->
+            (overlay as? JsonObject)?.get("thumbnailOverlayTimeStatusRenderer")
+                ?.let { it as? JsonObject }?.stringAt("style") == "LIVE"
+        }
     }
 
     private fun JsonObject.watchVideoId(): String? =

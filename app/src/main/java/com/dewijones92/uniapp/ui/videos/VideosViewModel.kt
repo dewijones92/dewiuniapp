@@ -12,6 +12,7 @@ import com.dewijones92.uniapp.data.download.DownloadManager
 import com.dewijones92.uniapp.di.AppContainer
 import com.dewijones92.uniapp.di.YouTubeAccountServices
 import com.dewijones92.uniapp.domain.DownloadState
+import com.dewijones92.uniapp.domain.MediaContentKind
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.MediaItemId
 import com.dewijones92.uniapp.domain.MediaSource
@@ -191,6 +192,11 @@ class VideosViewModel(
         author = author,
         thumbnailUrl = thumbnailUrl,
         mediaUrl = watchUrl,
+        contentKind = when (kind) {
+            FeedVideo.Kind.VIDEO -> MediaContentKind.STANDARD
+            FeedVideo.Kind.LIVE -> MediaContentKind.LIVE
+            FeedVideo.Kind.SHORT -> MediaContentKind.SHORT
+        },
     )
 
     /**

@@ -33,6 +33,8 @@
     <string name="feed_watch_later">Watch Later</string>
     <string name="feed_history">History</string>
     <string name="feed_error">Couldn\'t load this feed. Check your connection and try again.</string>
+    <string name="tag_live">LIVE</string>
+    <string name="tag_short">SHORT</string>
     <string name="feed_empty">Nothing here yet.</string>
 
     <string name="description_title">Description</string>
