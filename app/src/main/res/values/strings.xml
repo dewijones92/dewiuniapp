@@ -76,6 +76,8 @@
     <string name="dislike">Dislike</string>
     <string name="watch_later_save">Save to Watch Later</string>
     <string name="listen">Listen (audio only)</string>
+    <string name="sponsor_segments_title">SponsorBlock skips</string>
+    <string name="skip_silence">Skip silences</string>
     <string name="pillar_video">YouTube</string>
     <string name="pillar_podcast">Podcast</string>
     <string name="comment_hint">Add a comment…</string>

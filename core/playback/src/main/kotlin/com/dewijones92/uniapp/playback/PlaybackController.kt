@@ -55,6 +55,9 @@ public interface PlaybackController {
 
     /** Sets playback speed (e.g. 1.0, 1.5, 2.0); clamped to a sensible range. */
     public fun setSpeed(speed: Float)
+
+    /** Toggles skipping of near-silent stretches (trims dead air, podcast-style). */
+    public fun setSkipSilence(enabled: Boolean)
 }
 
 /** What the UI needs to render a player for the current item. */
@@ -91,6 +94,8 @@ public data class PlaybackState(
     val isBuffering: Boolean = false,
     /** Skip (e.g. SponsorBlock) segments for the current item — drawn on the seek bar. */
     val skipSegments: List<SkipSegment> = emptyList(),
+    /** Whether silence-skipping (dead-air trimming) is currently on. */
+    val skipSilence: Boolean = false,
 ) {
     init {
         require(positionMs >= 0) { "positionMs must not be negative" }

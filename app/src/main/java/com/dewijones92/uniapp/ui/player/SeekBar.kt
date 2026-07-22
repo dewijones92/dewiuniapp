@@ -19,7 +19,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.dewijones92.uniapp.R
 import com.dewijones92.uniapp.domain.SkipSegment
 import com.dewijones92.uniapp.playback.PlaybackState
 
@@ -84,6 +86,32 @@ private fun SkipSegmentBar(segments: List<SkipSegment>, durationMs: Long) {
                 color = SponsorSegmentColor,
                 topLeft = Offset(startX, 0f),
                 size = Size((endX - startX).coerceAtLeast(1f), size.height),
+            )
+        }
+    }
+}
+
+/**
+ * The sponsor segments spelled out as time ranges (e.g. "2:10 – 3:05"), in the
+ * same green as the strip, so it's clear exactly what gets auto-skipped and when.
+ */
+@Composable
+internal fun SponsorSegments(segments: List<SkipSegment>, modifier: Modifier = Modifier) {
+    if (segments.isEmpty()) return
+    Column(modifier = modifier.fillMaxWidth()) {
+        Text(
+            text = stringResource(R.string.sponsor_segments_title),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(bottom = 8.dp),
+        )
+        segments.sortedBy { it.start }.forEach { segment ->
+            val range = "${formatTime(segment.start.inWholeMilliseconds)} – " +
+                formatTime(segment.end.inWholeMilliseconds)
+            Text(
+                text = range,
+                style = MaterialTheme.typography.labelLarge,
+                color = SponsorSegmentColor,
+                modifier = Modifier.padding(vertical = 2.dp),
             )
         }
     }

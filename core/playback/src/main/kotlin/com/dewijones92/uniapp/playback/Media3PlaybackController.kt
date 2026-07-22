@@ -2,6 +2,7 @@ package com.dewijones92.uniapp.playback
 
 import android.content.ComponentName
 import android.content.Context
+import android.os.Bundle
 import android.util.Log
 import androidx.core.content.ContextCompat
 import androidx.core.os.bundleOf
@@ -9,6 +10,7 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
+import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionToken
 import com.dewijones92.uniapp.common.HttpUrl
 import com.dewijones92.uniapp.domain.MediaItem
@@ -48,6 +50,7 @@ public class Media3PlaybackController(
     override val player: Player? get() = controller
     private val pendingCommands = mutableListOf<(MediaController) -> Unit>()
     private var activeSkipSegments: List<SkipSegment> = emptyList()
+    private var skipSilence = false
     private var ticksSinceSave = 0
 
     init {
@@ -173,6 +176,17 @@ public class Media3PlaybackController(
         }
     }
 
+    override fun setSkipSilence(enabled: Boolean) {
+        skipSilence = enabled
+        withController {
+            it.sendCustomCommand(
+                SessionCommand(ACTION_SKIP_SILENCE, Bundle.EMPTY),
+                bundleOf(EXTRA_SKIP_SILENCE_ENABLED to enabled),
+            )
+            _state.value = it.currentPlaybackState()
+        }
+    }
+
     private fun withController(command: (MediaController) -> Unit) {
         controller?.let(command) ?: pendingCommands.add(command)
     }
@@ -230,6 +244,7 @@ public class Media3PlaybackController(
             hasEnded = playbackState == Player.STATE_ENDED,
             isBuffering = playbackState == Player.STATE_BUFFERING,
             skipSegments = activeSkipSegments,
+            skipSilence = skipSilence,
         )
     }
 

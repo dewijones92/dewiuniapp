@@ -169,6 +169,7 @@ private fun FullPlayerHost(
         onSeekBackward = controller::seekBackward,
         onSeekForward = controller::seekForward,
         onSetSpeed = controller::setSpeed,
+        onSetSkipSilence = controller::setSkipSilence,
     )
 }
 

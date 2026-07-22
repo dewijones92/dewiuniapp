@@ -76,6 +76,10 @@ public class FakePlaybackController : PlaybackController {
         _state.update { it?.copy(speed = speed) }
     }
 
+    override fun setSkipSilence(enabled: Boolean) {
+        _state.update { it?.copy(skipSilence = enabled) }
+    }
+
     private companion object {
         const val SEEK_BACK_MS = 10_000L
         const val SEEK_FORWARD_MS = 30_000L

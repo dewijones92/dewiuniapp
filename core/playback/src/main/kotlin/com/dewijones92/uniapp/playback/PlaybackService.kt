@@ -1,10 +1,17 @@
 package com.dewijones92.uniapp.playback
 
+import android.content.Context
+import android.os.Bundle
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.audio.SonicAudioProcessor
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.audio.AudioSink
+import androidx.media3.exoplayer.audio.DefaultAudioSink
+import androidx.media3.exoplayer.audio.SilenceSkippingAudioProcessor
 import androidx.media3.exoplayer.drm.DrmSessionManagerProvider
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.MediaSource
@@ -12,6 +19,10 @@ import androidx.media3.exoplayer.source.MergingMediaSource
 import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
+import androidx.media3.session.SessionCommand
+import androidx.media3.session.SessionResult
+import com.google.common.util.concurrent.Futures
+import com.google.common.util.concurrent.ListenableFuture
 
 /**
  * Foreground media service so playback continues when the app is backgrounded.
@@ -23,10 +34,30 @@ public class PlaybackService : MediaSessionService() {
 
     private var mediaSession: MediaSession? = null
 
+    // Held so the skip-silences toggle (a custom session command) can flip it live.
+    @UnstableApi
+    private val silenceSkipping = SilenceSkippingAudioProcessor()
+
     @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
     override fun onCreate() {
         super.onCreate()
+        // A custom audio sink whose processor chain carries the silence skipper
+        // (Sonic stays for speed/pitch); skipping is off until the user turns it on.
+        val renderersFactory = object : DefaultRenderersFactory(this) {
+            override fun buildAudioSink(
+                context: Context,
+                enableFloatOutput: Boolean,
+                enableAudioTrackPlaybackParams: Boolean,
+            ): AudioSink = DefaultAudioSink.Builder(context)
+                .setEnableFloatOutput(enableFloatOutput)
+                .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
+                .setAudioProcessorChain(
+                    DefaultAudioSink.DefaultAudioProcessorChain(silenceSkipping, SonicAudioProcessor()),
+                )
+                .build()
+        }
         val player = ExoPlayer.Builder(this)
+            .setRenderersFactory(renderersFactory)
             .setMediaSourceFactory(MergingAudioVideoFactory(DefaultMediaSourceFactory(this)))
             .setAudioAttributes(
                 AudioAttributes.Builder()
@@ -40,7 +71,38 @@ public class PlaybackService : MediaSessionService() {
             .setSeekBackIncrementMs(SEEK_BACK_MS)
             .setSeekForwardIncrementMs(SEEK_FORWARD_MS)
             .build()
-        mediaSession = MediaSession.Builder(this, player).build()
+        mediaSession = MediaSession.Builder(this, player).setCallback(SkipSilenceCallback()).build()
+    }
+
+    /** Adds the skip-silences custom command and applies it to the audio processor. */
+    @UnstableApi
+    private inner class SkipSilenceCallback : MediaSession.Callback {
+        override fun onConnect(
+            session: MediaSession,
+            controller: MediaSession.ControllerInfo,
+        ): MediaSession.ConnectionResult =
+            MediaSession.ConnectionResult.AcceptedResultBuilder(session)
+                .setAvailableSessionCommands(
+                    MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS.buildUpon()
+                        .add(SessionCommand(ACTION_SKIP_SILENCE, Bundle.EMPTY))
+                        .build(),
+                )
+                .build()
+
+        override fun onCustomCommand(
+            session: MediaSession,
+            controller: MediaSession.ControllerInfo,
+            customCommand: SessionCommand,
+            args: Bundle,
+        ): ListenableFuture<SessionResult> {
+            if (customCommand.customAction == ACTION_SKIP_SILENCE) {
+                val enabled = args.getBoolean(EXTRA_SKIP_SILENCE_ENABLED)
+                android.util.Log.i("dewidebug", "skip-silence -> $enabled")
+                silenceSkipping.setEnabled(enabled)
+                return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+            }
+            return super.onCustomCommand(session, controller, customCommand, args)
+        }
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = mediaSession
@@ -60,6 +122,10 @@ public class PlaybackService : MediaSessionService() {
         const val SEEK_FORWARD_MS = 30_000L
     }
 }
+
+/** Custom session command to toggle silence-skipping; the bool rides in [EXTRA_SKIP_SILENCE_ENABLED]. */
+internal const val ACTION_SKIP_SILENCE: String = "com.dewijones92.uniapp.SKIP_SILENCE"
+internal const val EXTRA_SKIP_SILENCE_ENABLED: String = "enabled"
 
 /**
  * Wraps the default source factory: when a [MediaItem] carries a separate audio

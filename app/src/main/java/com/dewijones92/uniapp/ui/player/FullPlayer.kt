@@ -95,6 +95,7 @@ fun FullPlayerOverlay(
     onSeekBackward: () -> Unit,
     onSeekForward: () -> Unit,
     onSetSpeed: (Float) -> Unit,
+    onSetSkipSilence: (Boolean) -> Unit,
 ) {
     KeepScreenOnWhilePlayingVideo(active = state.hasVideo && state.isPlaying)
     var fullscreen by rememberSaveable { mutableStateOf(false) }
@@ -142,6 +143,7 @@ fun FullPlayerOverlay(
                 onSeekBackward = onSeekBackward,
                 onSeekForward = onSeekForward,
                 onSetSpeed = onSetSpeed,
+                onSetSkipSilence = onSetSkipSilence,
             )
         }
     }
@@ -174,6 +176,7 @@ private fun DraggablePlayerContent(
     onSeekBackward: () -> Unit,
     onSeekForward: () -> Unit,
     onSetSpeed: (Float) -> Unit,
+    onSetSkipSilence: (Boolean) -> Unit,
 ) {
     val drag = rememberStageDragDismiss(onDismiss)
     Column(
@@ -225,6 +228,7 @@ private fun DraggablePlayerContent(
             onSeekBackward = onSeekBackward,
             onSeekForward = onSeekForward,
             onSetSpeed = onSetSpeed,
+            onSetSkipSilence = onSetSkipSilence,
         )
     }
 }
@@ -252,6 +256,7 @@ private fun PlayerDetails(
     onSeekBackward: () -> Unit,
     onSeekForward: () -> Unit,
     onSetSpeed: (Float) -> Unit,
+    onSetSkipSilence: (Boolean) -> Unit,
 ) {
     Spacer(Modifier.height(if (state.hasVideo) 16.dp else 48.dp))
     Text(
@@ -282,9 +287,8 @@ private fun PlayerDetails(
 
     Spacer(Modifier.height(24.dp))
     SpeedControl(state.speed, onSetSpeed)
-
-    Spacer(Modifier.height(4.dp))
     SleepTimerControl(sleepTimer, onStartSleep, onCancelSleep)
+    SkipSilenceControl(state.skipSilence, onSetSkipSilence)
 
     // Quality — video only, and only when there's a choice to make.
     if (state.hasVideo && quality.options.size > 1) {
@@ -313,6 +317,11 @@ private fun PlayerDetails(
     if (!description.isNullOrBlank()) {
         Spacer(Modifier.height(24.dp))
         DescriptionSection(description, onSeekTo)
+    }
+
+    if (state.skipSegments.isNotEmpty()) {
+        Spacer(Modifier.height(24.dp))
+        SponsorSegments(state.skipSegments) // sponsor time ranges, matching the green seek-bar strip
     }
 
     // Related / up-next and comments live under the video, YouTube-style; audio
