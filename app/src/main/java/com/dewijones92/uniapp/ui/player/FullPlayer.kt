@@ -311,18 +311,7 @@ private fun PlayerDetails(
         WatchActionButtons(watchActions)
     }
 
-    // Description / show notes — unified: a video's description and a podcast
-    // episode's notes are the same field, shown the same way.
-    val description = state.description
-    if (!description.isNullOrBlank()) {
-        Spacer(Modifier.height(24.dp))
-        DescriptionSection(description, onSeekTo)
-    }
-
-    if (state.skipSegments.isNotEmpty()) {
-        Spacer(Modifier.height(24.dp))
-        SponsorSegments(state.skipSegments) // sponsor time ranges, matching the green seek-bar strip
-    }
+    NotesChaptersAndSponsors(state, onSeekTo)
 
     // Related / up-next and comments live under the video, YouTube-style; audio
     // items have neither.
@@ -331,6 +320,27 @@ private fun PlayerDetails(
         RelatedSection(related, onPlayRelated)
         Spacer(Modifier.height(32.dp))
         CommentsSection(comments, watchActions, replies)
+    }
+}
+
+/**
+ * The scrollable extras below the controls: description/show notes, the chapter
+ * list, and the SponsorBlock time ranges — all unified across both pillars.
+ */
+@Composable
+private fun NotesChaptersAndSponsors(state: PlaybackState, onSeekTo: (Long) -> Unit) {
+    val description = state.description
+    if (!description.isNullOrBlank()) {
+        Spacer(Modifier.height(24.dp))
+        DescriptionSection(description, onSeekTo)
+    }
+    if (state.chapters.isNotEmpty()) {
+        Spacer(Modifier.height(24.dp))
+        ChapterList(state.chapters, onSeekTo) // tap a chapter to jump; marked amber on the seek bar
+    }
+    if (state.skipSegments.isNotEmpty()) {
+        Spacer(Modifier.height(24.dp))
+        SponsorSegments(state.skipSegments) // sponsor time ranges, matching the green seek-bar strip
     }
 }
 

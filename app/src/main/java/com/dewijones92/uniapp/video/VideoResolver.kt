@@ -2,6 +2,7 @@ package com.dewijones92.uniapp.video
 
 import com.dewijones92.uniapp.common.HttpUrl
 import com.dewijones92.uniapp.data.sponsorblock.SkipSegmentSource
+import com.dewijones92.uniapp.domain.Chapter
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.MediaItemId
 import com.dewijones92.uniapp.domain.SkipSegment
@@ -49,6 +50,9 @@ class VideoResolver(
                 description = metadata.description,
                 thumbnailUrl = metadata.thumbnailUrl?.let(HttpUrl::parse),
                 mediaUrl = streamUrl,
+                chapters = metadata.chapters.mapNotNull { chapter ->
+                    chapter.title.trim().ifBlank { null }?.let { Chapter(chapter.startSeconds.seconds, it) }
+                },
             ),
             skipSegments = skipSegments.segmentsFor(metadata.id),
             qualities = metadata.videoQualities(),

@@ -6,6 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.Instant
 import kotlin.time.Duration.Companion.hours
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
@@ -69,6 +70,40 @@ class RssParserTest {
     fun `rejects a feed without a channel title`() {
         val xml = """<?xml version="1.0"?><rss version="2.0"><channel><item/></channel></rss>"""
         assertTrue(parser.parse(xml) is RssParseResult.Failure)
+    }
+
+    @Test
+    fun `parses inline Podlove Simple Chapters, allowing a zero start`() {
+        val xml = """
+            <?xml version="1.0"?>
+            <rss version="2.0">
+              <channel>
+                <title>Chaptered</title>
+                <item>
+                  <title>Episode with chapters</title>
+                  <psc:chapters version="1.2">
+                    <psc:chapter start="00:00:00" title="Intro"/>
+                    <psc:chapter start="00:01:30.500" title="Topic one"/>
+                    <psc:chapter start="12:05" title="Wrap up"/>
+                    <psc:chapter title="no start, dropped"/>
+                  </psc:chapters>
+                </item>
+              </channel>
+            </rss>
+        """.trimIndent()
+
+        val chapters = (parser.parse(xml) as RssParseResult.Success).feed.episodes.single().chapters
+
+        assertEquals(3, chapters.size)
+        assertEquals(0.seconds, chapters[0].start)
+        assertEquals("Intro", chapters[0].title)
+        assertEquals(1.minutes + 30.seconds + 500.milliseconds, chapters[1].start)
+        assertEquals(12.minutes + 5.seconds, chapters[2].start)
+    }
+
+    @Test
+    fun `an episode with no chapters has an empty chapter list`() {
+        assertTrue(parseSampleFeed().episodes[0].chapters.isEmpty())
     }
 
     @Test

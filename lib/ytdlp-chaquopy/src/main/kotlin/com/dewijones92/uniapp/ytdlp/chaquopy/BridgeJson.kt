@@ -2,6 +2,7 @@ package com.dewijones92.uniapp.ytdlp.chaquopy
 
 import com.dewijones92.uniapp.common.HttpUrl
 import com.dewijones92.uniapp.ytdlp.ChannelResult
+import com.dewijones92.uniapp.ytdlp.ChapterInfo
 import com.dewijones92.uniapp.ytdlp.DownloadEvent
 import com.dewijones92.uniapp.ytdlp.EngineVersions
 import com.dewijones92.uniapp.ytdlp.ExtractionResult
@@ -81,7 +82,14 @@ private fun JsonObject.toMediaMetadata(
     description = stringOrNull("description"),
     playbackTrackingUrl = playbackTrackingUrl,
     watchtimeTrackingUrl = watchtimeTrackingUrl,
+    chapters = this["chapters"]?.jsonArray.orEmpty().mapNotNull { it.jsonObject.toChapterOrNull() },
 )
+
+private fun JsonObject.toChapterOrNull(): ChapterInfo? {
+    val start = this["start_time"]?.jsonPrimitive?.doubleOrNull ?: return null
+    val title = stringOrNull("title") ?: return null
+    return ChapterInfo(startSeconds = start, title = title)
+}
 
 private fun JsonObject.toMediaFormatOrNull(): MediaFormat? {
     val formatId = stringOrNull("format_id") ?: return null

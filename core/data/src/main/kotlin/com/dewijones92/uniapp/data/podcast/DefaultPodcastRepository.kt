@@ -97,5 +97,6 @@ public class DefaultPodcastRepository(
         description = description,
         thumbnailUrl = imageUrl?.let(HttpUrl::parse),
         mediaUrl = enclosureUrl?.let(HttpUrl::parse),
+        chapters = chapters,
     )
 }

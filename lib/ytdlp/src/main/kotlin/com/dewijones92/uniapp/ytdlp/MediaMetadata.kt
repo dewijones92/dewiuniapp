@@ -38,12 +38,17 @@ public data class MediaMetadata(
      */
     val playbackTrackingUrl: String? = null,
     val watchtimeTrackingUrl: String? = null,
+    /** Chapters yt-dlp parsed from the description/metadata, earliest first; empty if none. */
+    val chapters: List<ChapterInfo> = emptyList(),
 ) {
     init {
         require(id.isNotBlank()) { "id must not be blank" }
         require(durationSeconds == null || durationSeconds > 0) { "durationSeconds must be positive when present" }
     }
 }
+
+/** One chapter as yt-dlp reports it: a start offset in seconds and a title. */
+public data class ChapterInfo(val startSeconds: Double, val title: String)
 
 /** One downloadable/streamable representation of the media. */
 public data class MediaFormat(

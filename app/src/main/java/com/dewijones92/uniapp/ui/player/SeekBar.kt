@@ -1,6 +1,7 @@
 package com.dewijones92.uniapp.ui.player
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -22,6 +23,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.dewijones92.uniapp.R
+import com.dewijones92.uniapp.domain.Chapter
 import com.dewijones92.uniapp.domain.SkipSegment
 import com.dewijones92.uniapp.playback.PlaybackState
 
@@ -48,6 +50,7 @@ internal fun SeekBar(state: PlaybackState, onSeekTo: (Long) -> Unit, modifier: M
                 valueRange = 0f..duration.toFloat(),
             )
             SkipSegmentBar(state.skipSegments, duration)
+            ChapterMarkerBar(state.chapters, duration)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -117,6 +120,66 @@ internal fun SponsorSegments(segments: List<SkipSegment>, modifier: Modifier = M
     }
 }
 
+/**
+ * Thin vertical ticks under the scrubber at each chapter's start, so chapter
+ * boundaries are visible while scrubbing. Amber, to read on both the light
+ * (audio) and dark (video) backgrounds and stay distinct from the sponsor green.
+ */
+@Composable
+private fun ChapterMarkerBar(chapters: List<Chapter>, durationMs: Long) {
+    if (chapters.isEmpty() || durationMs <= 0) return
+    Canvas(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = SLIDER_THUMB_INSET)
+            .height(SEGMENT_BAR_HEIGHT),
+    ) {
+        val tickWidth = CHAPTER_TICK_WIDTH.toPx()
+        chapters.forEach { chapter ->
+            val x = (chapter.start.inWholeMilliseconds.toFloat() / durationMs).coerceIn(0f, 1f) * size.width
+            drawRect(
+                color = ChapterMarkerColor,
+                topLeft = Offset((x - tickWidth / 2).coerceAtLeast(0f), 0f),
+                size = Size(tickWidth, size.height),
+            )
+        }
+    }
+}
+
+/** The chapters as a tappable list; tapping one seeks the player to its start. */
+@Composable
+internal fun ChapterList(chapters: List<Chapter>, onSeekTo: (Long) -> Unit, modifier: Modifier = Modifier) {
+    if (chapters.isEmpty()) return
+    Column(modifier = modifier.fillMaxWidth()) {
+        Text(
+            text = stringResource(R.string.chapters_title),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(bottom = 8.dp),
+        )
+        chapters.sortedBy { it.start }.forEach { chapter ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onSeekTo(chapter.start.inWholeMilliseconds) }
+                    .padding(vertical = 6.dp),
+            ) {
+                Text(
+                    text = formatTime(chapter.start.inWholeMilliseconds),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                Text(
+                    text = chapter.title,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(start = 12.dp),
+                )
+            }
+        }
+    }
+}
+
 private val SLIDER_THUMB_INSET = 10.dp
 private val SEGMENT_BAR_HEIGHT = 4.dp
+private val CHAPTER_TICK_WIDTH = 2.dp
 private val SponsorSegmentColor = Color(0xFF2ECC71) // SponsorBlock's brand green
+private val ChapterMarkerColor = Color(0xFFFFC107) // amber — visible on light and dark

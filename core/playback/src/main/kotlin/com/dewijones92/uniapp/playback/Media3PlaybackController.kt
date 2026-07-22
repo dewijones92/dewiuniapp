@@ -13,6 +13,7 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionToken
 import com.dewijones92.uniapp.common.HttpUrl
+import com.dewijones92.uniapp.domain.Chapter
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.MediaItemId
 import com.dewijones92.uniapp.domain.MediaKind
@@ -50,6 +51,7 @@ public class Media3PlaybackController(
     override val player: Player? get() = controller
     private val pendingCommands = mutableListOf<(MediaController) -> Unit>()
     private var activeSkipSegments: List<SkipSegment> = emptyList()
+    private var activeChapters: List<Chapter> = emptyList()
     private var skipSilence = false
     private var ticksSinceSave = 0
 
@@ -98,6 +100,7 @@ public class Media3PlaybackController(
         val uri = localPath?.let { File(it).toURI().toString() }
             ?: requireNotNull(item.mediaUrl) { "MediaItem ${item.id.value} has no mediaUrl" }.value
         activeSkipSegments = skipSegments
+        activeChapters = item.chapters
         // A separate audio track (higher-than-muxed qualities) rides along in
         // the request metadata; the service merges it with the video-only URI.
         val requestMetadata = Media3MediaItem.RequestMetadata.Builder()
@@ -245,6 +248,7 @@ public class Media3PlaybackController(
             isBuffering = playbackState == Player.STATE_BUFFERING,
             skipSegments = activeSkipSegments,
             skipSilence = skipSilence,
+            chapters = activeChapters,
         )
     }
 

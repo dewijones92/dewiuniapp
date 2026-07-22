@@ -14,7 +14,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         DownloadEntity::class,
         PlaybackProgressEntity::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = false,
 )
 public abstract class UniAppDatabase : RoomDatabase() {
@@ -28,7 +28,14 @@ public abstract class UniAppDatabase : RoomDatabase() {
     public companion object {
         public fun build(context: Context): UniAppDatabase =
             Room.databaseBuilder(context, UniAppDatabase::class.java, "uniapp.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                .addMigrations(
+                    MIGRATION_1_2,
+                    MIGRATION_2_3,
+                    MIGRATION_3_4,
+                    MIGRATION_4_5,
+                    MIGRATION_5_6,
+                    MIGRATION_6_7,
+                )
                 .build()
 
         /** v2: episodes gained an author column (notification artist line). */
@@ -81,6 +88,13 @@ public abstract class UniAppDatabase : RoomDatabase() {
         private val MIGRATION_5_6 = object : Migration(5, 6) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE podcast_feeds ADD COLUMN origin TEXT NOT NULL DEFAULT 'manual'")
+            }
+        }
+
+        /** v7: episodes gained a `chapters` JSON column (nullable); existing rows have none. */
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE podcast_episodes ADD COLUMN chapters TEXT")
             }
         }
     }

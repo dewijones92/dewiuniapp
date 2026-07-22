@@ -65,6 +65,30 @@ class BridgeJsonTest {
     }
 
     @Test
+    fun `parses chapters, dropping ones missing a start or title`() {
+        val text = """
+            {"ok": true, "info": {
+                "id": "abc", "title": "A video",
+                "chapters": [
+                    {"start_time": 0.0, "end_time": 30.0, "title": "Intro"},
+                    {"start_time": 30.0, "title": "Main"},
+                    {"end_time": 60.0, "title": "no start"},
+                    {"start_time": 90.0}
+                ],
+                "formats": []
+            }}
+        """.trimIndent()
+
+        val metadata = (parseExtraction(url, text) as ExtractionResult.Success).metadata
+
+        assertEquals(2, metadata.chapters.size)
+        assertEquals(0.0, metadata.chapters[0].startSeconds, 0.0)
+        assertEquals("Intro", metadata.chapters[0].title)
+        assertEquals(30.0, metadata.chapters[1].startSeconds, 0.0)
+        assertEquals("Main", metadata.chapters[1].title)
+    }
+
+    @Test
     fun `parses search entries, dropping ones without id or url`() {
         val text = """
             {"ok": true, "entries": [

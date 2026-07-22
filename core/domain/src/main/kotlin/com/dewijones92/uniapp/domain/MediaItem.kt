@@ -37,6 +37,8 @@ public data class MediaItem(
     val mediaUrl: HttpUrl? = null,
     /** Whether this is a normal video, a live stream or a Short — for feed tagging. */
     val contentKind: MediaContentKind = MediaContentKind.STANDARD,
+    /** Named points along the media (video/podcast chapters), earliest first; empty if none. */
+    val chapters: List<Chapter> = emptyList(),
 ) {
     init {
         require(duration == null || duration.isPositive()) { "duration must be positive when present" }

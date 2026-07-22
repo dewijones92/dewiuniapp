@@ -53,6 +53,8 @@ public class FakePlaybackController : PlaybackController {
             positionMs = 0,
             durationMs = item.duration?.inWholeMilliseconds,
             speed = 1.0f,
+            skipSegments = skipSegments,
+            chapters = item.chapters,
         )
     }
 

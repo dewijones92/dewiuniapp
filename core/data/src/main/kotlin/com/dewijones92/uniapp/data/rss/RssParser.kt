@@ -4,6 +4,7 @@ import com.dewijones92.uniapp.data.xml.childElements
 import com.dewijones92.uniapp.data.xml.firstChildElement
 import com.dewijones92.uniapp.data.xml.firstChildText
 import com.dewijones92.uniapp.data.xml.hardenedDocumentBuilderFactory
+import com.dewijones92.uniapp.domain.Chapter
 import org.w3c.dom.Element
 import java.io.ByteArrayInputStream
 import java.time.Instant
@@ -34,6 +35,7 @@ public data class ParsedEpisode(
     val duration: Duration?,
     val description: String?,
     val imageUrl: String?,
+    val chapters: List<Chapter> = emptyList(),
 )
 
 /**
@@ -80,7 +82,31 @@ public class RssParser {
         duration = firstChildText("itunes:duration")?.let(::parseItunesDurationOrNull),
         description = firstChildText("description"),
         imageUrl = firstChildElement("itunes:image")?.getAttribute("href")?.ifBlank { null },
+        chapters = parseChapters(),
     )
+
+    /** Inline Podlove Simple Chapters: `<psc:chapters><psc:chapter start=".." title=".."/>…`. */
+    private fun Element.parseChapters(): List<Chapter> {
+        val container = firstChildElement("psc:chapters") ?: return emptyList()
+        return container.childElements("psc:chapter").mapNotNull { chapter ->
+            val start = parseNptOrNull(chapter.getAttribute("start")) ?: return@mapNotNull null
+            val title = chapter.getAttribute("title").trim().ifBlank { null } ?: return@mapNotNull null
+            Chapter(start, title)
+        }
+    }
+
+    /** Normal Play Time ("HH:MM:SS(.mmm)" / "MM:SS" / seconds); allows 0, since chapters start at 0. */
+    private fun parseNptOrNull(text: String): Duration? {
+        val parts = text.trim().ifBlank { return null }.split(":")
+        if (parts.size > HOURS_MINUTES_SECONDS_PARTS) return null
+        val nums = parts.map { it.toDoubleOrNull() ?: return null }
+        val seconds = when (nums.size) {
+            MINUTES_SECONDS_PARTS -> nums[0] * SECONDS_PER_MINUTE + nums[1]
+            HOURS_MINUTES_SECONDS_PARTS -> (nums[0] * MINUTES_PER_HOUR + nums[1]) * SECONDS_PER_MINUTE + nums[2]
+            else -> nums[0]
+        }
+        return if (seconds >= 0) seconds.seconds else null
+    }
 
     private fun parseRfc1123OrNull(text: String): Instant? = runCatching {
         Instant.from(DateTimeFormatter.RFC_1123_DATE_TIME.parse(text.trim()))

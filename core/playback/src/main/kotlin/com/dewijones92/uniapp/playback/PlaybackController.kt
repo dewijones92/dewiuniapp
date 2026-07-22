@@ -2,6 +2,7 @@ package com.dewijones92.uniapp.playback
 
 import androidx.media3.common.Player
 import com.dewijones92.uniapp.common.HttpUrl
+import com.dewijones92.uniapp.domain.Chapter
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.MediaItemId
 import com.dewijones92.uniapp.domain.MediaKind
@@ -96,6 +97,8 @@ public data class PlaybackState(
     val skipSegments: List<SkipSegment> = emptyList(),
     /** Whether silence-skipping (dead-air trimming) is currently on. */
     val skipSilence: Boolean = false,
+    /** Chapters of the current item — marked on the seek bar and listed to tap-jump. */
+    val chapters: List<Chapter> = emptyList(),
 ) {
     init {
         require(positionMs >= 0) { "positionMs must not be negative" }

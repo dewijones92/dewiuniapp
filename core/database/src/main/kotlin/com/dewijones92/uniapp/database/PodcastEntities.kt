@@ -72,4 +72,6 @@ public data class EpisodeEntity(
     val description: String?,
     val thumbnailUrl: String?,
     val mediaUrl: String?,
+    /** Chapters as a compact JSON array `[{"s":startMs,"t":title}]`; null/absent if none. */
+    val chapters: String? = null,
 )

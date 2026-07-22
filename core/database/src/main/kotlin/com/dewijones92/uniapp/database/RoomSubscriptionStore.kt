@@ -2,6 +2,7 @@ package com.dewijones92.uniapp.database
 
 import com.dewijones92.uniapp.common.HttpUrl
 import com.dewijones92.uniapp.data.subscription.SubscriptionStore
+import com.dewijones92.uniapp.domain.Chapter
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.MediaItemId
 import com.dewijones92.uniapp.domain.MediaSource
@@ -9,7 +10,17 @@ import com.dewijones92.uniapp.domain.SourceId
 import com.dewijones92.uniapp.domain.Subscription
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.add
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.long
+import kotlinx.serialization.json.put
 import java.time.Instant
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -89,6 +100,7 @@ public class RoomSubscriptionStore(
         description = description,
         thumbnailUrl = thumbnailUrl?.let(HttpUrl::parse),
         mediaUrl = mediaUrl?.let(HttpUrl::parse),
+        chapters = chapters.decodeChapters(),
     )
 
     private fun MediaItem.toEntity() = EpisodeEntity(
@@ -101,5 +113,33 @@ public class RoomSubscriptionStore(
         description = description,
         thumbnailUrl = thumbnailUrl?.value,
         mediaUrl = mediaUrl?.value,
+        chapters = chapters.encodeChapters(),
     )
+}
+
+/** Chapters ↔ the compact JSON stored in one episode column (`[{"s":startMs,"t":title}]`). */
+private fun List<Chapter>.encodeChapters(): String? {
+    if (isEmpty()) return null
+    return buildJsonArray {
+        forEach { chapter ->
+            add(
+                buildJsonObject {
+                    put("s", chapter.start.inWholeMilliseconds)
+                    put("t", chapter.title)
+                },
+            )
+        }
+    }.toString()
+}
+
+private fun String?.decodeChapters(): List<Chapter> {
+    if (this == null) return emptyList()
+    return runCatching {
+        Json.parseToJsonElement(this).jsonArray.mapNotNull { element ->
+            val obj = element.jsonObject
+            val start = obj["s"]?.jsonPrimitive?.long ?: return@mapNotNull null
+            val title = obj["t"]?.jsonPrimitive?.content?.ifBlank { null } ?: return@mapNotNull null
+            Chapter(start.milliseconds, title)
+        }
+    }.getOrDefault(emptyList())
 }
