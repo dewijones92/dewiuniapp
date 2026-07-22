@@ -41,6 +41,7 @@ import com.dewijones92.uniapp.domain.DownloadState
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.MediaSource
 import com.dewijones92.uniapp.innertube.feeds.AccountFeed
+import com.dewijones92.uniapp.innertube.playlists.Playlist
 import com.dewijones92.uniapp.theme.UniAppTheme
 import com.dewijones92.uniapp.ui.channel.ChannelScreen
 import com.dewijones92.uniapp.ui.common.EmptyState
@@ -48,20 +49,35 @@ import com.dewijones92.uniapp.ui.common.MediaItemRow
 import com.dewijones92.uniapp.ui.common.MediaSort
 import com.dewijones92.uniapp.ui.common.SectionHeaderWithSort
 import com.dewijones92.uniapp.ui.common.mediaItemSubtitle
+import com.dewijones92.uniapp.ui.playlist.PlaylistScreen
+import com.dewijones92.uniapp.ui.playlist.PlaylistsListScreen
 
 @Composable
 fun VideosScreen(container: AppContainer, modifier: Modifier = Modifier) {
     val viewModel: VideosViewModel = viewModel(factory = VideosViewModel.factory(container))
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
-    // A tapped channel chip opens that channel's page over the feed.
+    // A tapped channel chip opens that channel's page over the feed; the
+    // Playlists chip opens the playlist list, and a tapped playlist its videos.
     var browsingChannel by remember { mutableStateOf<MediaSource.VideoChannel?>(null) }
+    var showPlaylists by remember { mutableStateOf(false) }
+    var browsingPlaylist by remember { mutableStateOf<Playlist?>(null) }
     val channel = browsingChannel
+    val playlist = browsingPlaylist
 
-    if (channel != null) {
-        ChannelScreen(container, channel, onBack = { browsingChannel = null }, modifier = modifier)
-    } else {
-        VideosContent(
+    when {
+        playlist != null ->
+            PlaylistScreen(container, playlist, onBack = { browsingPlaylist = null }, modifier = modifier)
+        showPlaylists ->
+            PlaylistsListScreen(
+                container,
+                onOpen = { browsingPlaylist = it },
+                onBack = { showPlaylists = false },
+                modifier = modifier,
+            )
+        channel != null ->
+            ChannelScreen(container, channel, onBack = { browsingChannel = null }, modifier = modifier)
+        else -> VideosContent(
             state = state,
             onSubscribe = viewModel::subscribe,
             onDialogClosed = viewModel::resetSubscribing,
@@ -70,6 +86,7 @@ fun VideosScreen(container: AppContainer, modifier: Modifier = Modifier) {
             onDeleteDownload = viewModel::deleteDownload,
             onSelectFeed = viewModel::selectFeed,
             onChannelClick = { browsingChannel = it },
+            onOpenPlaylists = { showPlaylists = true },
             onRefresh = viewModel::refresh,
             onSetSort = viewModel::setSort,
             modifier = modifier,
@@ -88,6 +105,7 @@ internal fun VideosContent(
     onDeleteDownload: (MediaItem) -> Unit,
     onSelectFeed: (AccountFeed?) -> Unit,
     onChannelClick: (MediaSource.VideoChannel) -> Unit,
+    onOpenPlaylists: () -> Unit,
     onRefresh: () -> Unit,
     onSetSort: (MediaSort) -> Unit,
     modifier: Modifier = Modifier,
@@ -114,6 +132,7 @@ internal fun VideosContent(
                     onDeleteDownload,
                     onSelectFeed,
                     onChannelClick = onChannelClick,
+                    onOpenPlaylists = onOpenPlaylists,
                     onSetSort = onSetSort,
                 )
             }
@@ -149,6 +168,7 @@ private fun ChannelsAndVideos(
     onDeleteDownload: (MediaItem) -> Unit,
     onSelectFeed: (AccountFeed?) -> Unit,
     onChannelClick: (MediaSource.VideoChannel) -> Unit,
+    onOpenPlaylists: () -> Unit,
     onSetSort: (MediaSort) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -169,7 +189,7 @@ private fun ChannelsAndVideos(
             }
         }
         if (state.signedIn) {
-            item { FeedSelector(state.selectedFeed, onSelectFeed) }
+            item { FeedSelector(state.selectedFeed, onSelectFeed, onOpenPlaylists) }
         }
         when {
             state.feedLoading -> item { FeedLoading() }
@@ -200,7 +220,11 @@ private fun ChannelsAndVideos(
 }
 
 @Composable
-private fun FeedSelector(selected: AccountFeed?, onSelectFeed: (AccountFeed?) -> Unit) {
+private fun FeedSelector(
+    selected: AccountFeed?,
+    onSelectFeed: (AccountFeed?) -> Unit,
+    onOpenPlaylists: () -> Unit,
+) {
     LazyRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         contentPadding = PaddingValues(horizontal = 16.dp),
@@ -211,6 +235,13 @@ private fun FeedSelector(selected: AccountFeed?, onSelectFeed: (AccountFeed?) ->
                 selected = feed == selected,
                 onClick = { onSelectFeed(feed) },
                 label = { Text(stringResource(feedChipRes(feed))) },
+            )
+        }
+        // Not a feed filter — opens the playlists list.
+        item {
+            AssistChip(
+                onClick = onOpenPlaylists,
+                label = { Text(stringResource(R.string.playlists_title)) },
             )
         }
     }
@@ -260,6 +291,7 @@ private fun VideosContentPreview() {
             onDeleteDownload = {},
             onSelectFeed = {},
             onChannelClick = {},
+            onOpenPlaylists = {},
             onRefresh = {},
             onSetSort = {},
         )

@@ -21,6 +21,8 @@ import com.dewijones92.uniapp.innertube.comments.fake.FakeYouTubeComments
 import com.dewijones92.uniapp.innertube.feeds.YouTubeFeeds
 import com.dewijones92.uniapp.innertube.feeds.fake.FakeYouTubeFeeds
 import com.dewijones92.uniapp.innertube.history.fake.FakeYouTubeWatchHistory
+import com.dewijones92.uniapp.innertube.playlists.YouTubePlaylists
+import com.dewijones92.uniapp.innertube.playlists.fake.FakeYouTubePlaylists
 import com.dewijones92.uniapp.innertube.related.YouTubeRelated
 import com.dewijones92.uniapp.innertube.related.fake.FakeYouTubeRelated
 import com.dewijones92.uniapp.innertube.subscriptions.fake.FakeYouTubeSubscriptions
@@ -65,6 +67,7 @@ class FakeAppContainer(
     override val youTubeComments: YouTubeComments = FakeYouTubeComments(),
     override val youTubeRelated: YouTubeRelated = FakeYouTubeRelated(),
     override val youTubeActions: YouTubeActions = FakeYouTubeActions(),
+    override val youTubePlaylists: YouTubePlaylists = FakeYouTubePlaylists(),
 ) : AppContainer {
     override fun refreshExtractorEngine() = Unit
 

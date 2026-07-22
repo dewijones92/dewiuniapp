@@ -36,6 +36,9 @@
     <string name="tag_live">LIVE</string>
     <string name="tag_short">SHORT</string>
     <string name="feed_empty">Nothing here yet.</string>
+    <string name="playlists_title">Playlists</string>
+    <string name="playlists_empty">No playlists yet.</string>
+    <string name="playlists_signed_out">Sign in to see your playlists.</string>
 
     <string name="description_title">Description</string>
     <string name="show_more">Show more</string>

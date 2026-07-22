@@ -12,7 +12,6 @@ import com.dewijones92.uniapp.data.download.DownloadManager
 import com.dewijones92.uniapp.di.AppContainer
 import com.dewijones92.uniapp.di.YouTubeAccountServices
 import com.dewijones92.uniapp.domain.DownloadState
-import com.dewijones92.uniapp.domain.MediaContentKind
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.MediaItemId
 import com.dewijones92.uniapp.domain.MediaSource
@@ -22,6 +21,7 @@ import com.dewijones92.uniapp.innertube.feeds.FeedResult
 import com.dewijones92.uniapp.innertube.feeds.FeedVideo
 import com.dewijones92.uniapp.innertube.subscriptions.SubscribedChannel
 import com.dewijones92.uniapp.ui.common.MediaSort
+import com.dewijones92.uniapp.ui.common.toMediaItem
 import com.dewijones92.uniapp.video.AccountSubscriptions
 import com.dewijones92.uniapp.video.VideoPlaybackLauncher
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,7 +31,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlin.time.Duration.Companion.seconds
 
 // The Videos tab's one view-model: several small user actions (play, download,
 // subscribe, sort, refresh, feed selection) push it just past the counter; they
@@ -183,22 +182,7 @@ class VideosViewModel(
         AccountFeed.HISTORY -> youtube.feeds.history()
     }
 
-    private fun FeedVideo.toMediaItem(feed: AccountFeed) = MediaItem(
-        id = MediaItemId(videoId),
-        sourceId = SourceId("ytfeed:${feed.name}"),
-        title = title,
-        publishedAt = null,
-        publishedText = publishedText,
-        duration = durationSeconds?.seconds,
-        author = author,
-        thumbnailUrl = thumbnailUrl,
-        mediaUrl = watchUrl,
-        contentKind = when (kind) {
-            FeedVideo.Kind.VIDEO -> MediaContentKind.STANDARD
-            FeedVideo.Kind.LIVE -> MediaContentKind.LIVE
-            FeedVideo.Kind.SHORT -> MediaContentKind.SHORT
-        },
-    )
+    private fun FeedVideo.toMediaItem(feed: AccountFeed) = toMediaItem(SourceId("ytfeed:${feed.name}"))
 
     /**
      * Subscribes to a channel by URL — resolves it to a YouTube channel id and

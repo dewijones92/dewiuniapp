@@ -33,6 +33,8 @@ import com.dewijones92.uniapp.innertube.feeds.HttpYouTubeFeeds
 import com.dewijones92.uniapp.innertube.feeds.YouTubeFeeds
 import com.dewijones92.uniapp.innertube.history.HttpYouTubeWatchHistory
 import com.dewijones92.uniapp.innertube.history.YouTubeWatchHistory
+import com.dewijones92.uniapp.innertube.playlists.HttpYouTubePlaylists
+import com.dewijones92.uniapp.innertube.playlists.YouTubePlaylists
 import com.dewijones92.uniapp.innertube.related.HttpYouTubeRelated
 import com.dewijones92.uniapp.innertube.related.YouTubeRelated
 import com.dewijones92.uniapp.innertube.subscriptions.HttpYouTubeSubscriptions
@@ -93,6 +95,8 @@ interface AppContainer {
 
     /** Authenticated write actions (like, subscribe, comment). */
     val youTubeActions: YouTubeActions
+
+    val youTubePlaylists: YouTubePlaylists
 
     /**
      * Kick off background upkeep on app start (currently: fetch the latest
@@ -264,6 +268,10 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
 
     override val youTubeActions: YouTubeActions by lazy {
         HttpYouTubeActions(youTubeAccount, innerTubeClient)
+    }
+
+    override val youTubePlaylists: YouTubePlaylists by lazy {
+        HttpYouTubePlaylists(youTubeAccount, innerTubeClient)
     }
 
     private companion object {
