@@ -36,18 +36,83 @@ internal object CommentsResponseParser {
             ?: return CommentsResult.Failure("Unparseable comments response")
         val mutations = root.path("frameworkUpdates", "entityBatchUpdate")?.arrayAt("mutations")
             ?: return CommentsResult.Success(emptyList())
+        // Reply tokens ride alongside in commentThreadRenderers, joined by id.
+        val replyTokens = findReplyTokens(root)
         val comments = mutations.mapNotNull { mutation ->
             ((mutation as? JsonObject)?.get("payload") as? JsonObject)
                 ?.get("commentEntityPayload")
                 ?.let { it as? JsonObject }
-                ?.toComment()
+                ?.toComment(wantReplies = false)
+                ?.let { it.copy(replyToken = replyTokens[it.id]) }
         }
         return CommentsResult.Success(comments)
     }
 
-    private fun JsonObject.toComment(): Comment? {
+    /**
+     * Reads a reply page (fetched via a [Comment.replyToken] or a "show more
+     * replies" token). Reply content is the same `commentEntityPayload` shape as
+     * top-level comments, just at `replyLevel` >= 1.
+     */
+    fun parseReplies(body: String): RepliesResult {
+        val root = runCatching { json.parseToJsonElement(body) }.getOrNull() as? JsonObject
+            ?: return RepliesResult.Failure("Unparseable replies response")
+        val mutations = root.path("frameworkUpdates", "entityBatchUpdate")?.arrayAt("mutations")
+            ?: return RepliesResult.Success(emptyList(), null)
+        val replies = mutations.mapNotNull { mutation ->
+            ((mutation as? JsonObject)?.get("payload") as? JsonObject)
+                ?.get("commentEntityPayload")
+                ?.let { it as? JsonObject }
+                ?.toComment(wantReplies = true)
+        }
+        return RepliesResult.Success(replies, findRepliesContinuation(root))
+    }
+
+    /** Maps each top-level comment id to the token that loads its replies. */
+    private fun findReplyTokens(node: JsonElement): Map<String, String> {
+        val tokens = mutableMapOf<String, String>()
+        fun walk(current: JsonElement) {
+            when (current) {
+                is JsonObject -> {
+                    (current["commentThreadRenderer"] as? JsonObject)?.let { thread ->
+                        val id = thread.path("commentViewModel", "commentViewModel")?.stringAt("commentId")
+                        val token = (
+                            thread.path("replies", "commentRepliesRenderer")?.arrayAt("contents")
+                                ?.firstOrNull() as? JsonObject
+                            )
+                            ?.path("continuationItemRenderer", "continuationEndpoint", "continuationCommand")
+                            ?.stringAt("token")
+                        if (id != null && token != null) tokens[id] = token
+                    }
+                    current.values.forEach(::walk)
+                }
+                is JsonArray -> current.forEach(::walk)
+                else -> Unit
+            }
+        }
+        walk(node)
+        return tokens
+    }
+
+    /** The "show more replies" token on a reply page, if the thread has further pages. */
+    private fun findRepliesContinuation(root: JsonObject): String? {
+        val endpoints = root.arrayAt("onResponseReceivedEndpoints") ?: return null
+        endpoints.forEach { endpoint ->
+            val items = (endpoint as? JsonObject)?.path("appendContinuationItemsAction")?.arrayAt("continuationItems")
+                ?: return@forEach
+            items.forEach { item ->
+                val renderer = (item as? JsonObject)?.get("continuationItemRenderer") as? JsonObject ?: return@forEach
+                val token = renderer.path("continuationEndpoint", "continuationCommand")?.stringAt("token")
+                    ?: renderer.path("button", "buttonRenderer", "command", "continuationCommand")?.stringAt("token")
+                if (token != null) return token
+            }
+        }
+        return null
+    }
+
+    private fun JsonObject.toComment(wantReplies: Boolean): Comment? {
         val properties = this["properties"] as? JsonObject ?: return null
-        if ((properties.stringAt("replyLevel")?.toIntOrNull() ?: 0) != 0) return null
+        val level = properties.stringAt("replyLevel")?.toIntOrNull() ?: 0
+        if (wantReplies == (level == 0)) return null
         val id = properties.stringAt("commentId") ?: return null
         val text = (properties["content"] as? JsonObject)?.stringAt("content") ?: ""
         val author = this["author"] as? JsonObject
@@ -95,17 +160,18 @@ internal object CommentsResponseParser {
         return null
     }
 
-    private fun JsonObject.path(vararg keys: String): JsonObject? {
-        var current: JsonObject? = this
-        for (key in keys) current = current?.get(key) as? JsonObject
-        return current
-    }
-
-    private fun JsonObject.arrayAt(key: String): JsonArray? = this[key] as? JsonArray
-
-    private fun JsonObject.stringAt(key: String): String? =
-        this[key]?.jsonPrimitive?.contentOrNull?.ifBlank { null }
-
     private const val COMMENTS_SECTION = "comment-item-section"
     private const val COMMENTS_TARGET = "comments-section"
 }
+
+// Small JSON accessors, file-scoped so they don't count against the parser object.
+private fun JsonObject.path(vararg keys: String): JsonObject? {
+    var current: JsonObject? = this
+    for (key in keys) current = current?.get(key) as? JsonObject
+    return current
+}
+
+private fun JsonObject.arrayAt(key: String): JsonArray? = this[key] as? JsonArray
+
+private fun JsonObject.stringAt(key: String): String? =
+    this[key]?.jsonPrimitive?.contentOrNull?.ifBlank { null }

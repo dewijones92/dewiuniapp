@@ -60,6 +60,10 @@
     <string name="comments_error">Couldn\'t load comments.</string>
     <!-- Compact reply count next to a comment; English-only app. -->
     <string name="comments_replies" tools:ignore="PluralsCandidate">%1$d replies</string>
+    <string name="replies_hide">Hide replies</string>
+    <string name="replies_loading">Loading replies…</string>
+    <string name="replies_error">Couldn\'t load replies.</string>
+    <string name="replies_show_more">Show more replies</string>
     <string name="like">Like</string>
     <string name="liked">Liked</string>
     <string name="dislike">Dislike</string>

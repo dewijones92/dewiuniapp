@@ -36,7 +36,6 @@ import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -68,6 +67,7 @@ import com.dewijones92.uniapp.ui.common.PillarBadge
 import com.dewijones92.uniapp.ui.player.WatchViewModel.CommentsState
 import com.dewijones92.uniapp.ui.player.WatchViewModel.PostState
 import com.dewijones92.uniapp.ui.player.WatchViewModel.RelatedState
+import com.dewijones92.uniapp.ui.player.WatchViewModel.RepliesState
 import java.util.concurrent.TimeUnit
 import kotlin.time.Duration
 
@@ -81,6 +81,7 @@ fun FullPlayerOverlay(
     state: PlaybackState,
     player: Player?,
     comments: CommentsState,
+    replies: CommentReplies,
     related: RelatedState,
     watchActions: WatchActions,
     quality: QualityControl,
@@ -126,6 +127,7 @@ fun FullPlayerOverlay(
                 state = state,
                 videoPlayer = videoPlayer,
                 comments = comments,
+                replies = replies,
                 related = related,
                 watchActions = watchActions,
                 quality = quality,
@@ -157,6 +159,7 @@ private fun DraggablePlayerContent(
     state: PlaybackState,
     videoPlayer: Player?,
     comments: CommentsState,
+    replies: CommentReplies,
     related: RelatedState,
     watchActions: WatchActions,
     quality: QualityControl,
@@ -209,6 +212,7 @@ private fun DraggablePlayerContent(
             state = state,
             controlsOverlaid = videoPlayer != null,
             comments = comments,
+            replies = replies,
             related = related,
             watchActions = watchActions,
             quality = quality,
@@ -235,6 +239,7 @@ private fun PlayerDetails(
     state: PlaybackState,
     controlsOverlaid: Boolean,
     comments: CommentsState,
+    replies: CommentReplies,
     related: RelatedState,
     watchActions: WatchActions,
     quality: QualityControl,
@@ -316,7 +321,7 @@ private fun PlayerDetails(
         Spacer(Modifier.height(32.dp))
         RelatedSection(related, onPlayRelated)
         Spacer(Modifier.height(32.dp))
-        CommentsSection(comments, watchActions)
+        CommentsSection(comments, watchActions, replies)
     }
 }
 
@@ -336,6 +341,18 @@ data class WatchActions(
         /** No account connected: reading only. */
         val ReadOnly: WatchActions =
             WatchActions(false, VideoRating.NONE, false, {}, {}, {}, PostState.Idle, {}, {})
+    }
+}
+
+/** Reply-thread interactions for the comments list — expand/collapse and paging. */
+data class CommentReplies(
+    val threads: Map<String, RepliesState>,
+    val onToggle: (Comment) -> Unit,
+    val onLoadMore: (String) -> Unit,
+) {
+    companion object {
+        /** Replies disabled (previews / no interactions). */
+        val None: CommentReplies = CommentReplies(emptyMap(), {}, {})
     }
 }
 
@@ -368,108 +385,6 @@ private fun WatchActionButtons(actions: WatchActions) {
                 imageVector = if (saved) Icons.Filled.WatchLater else Icons.Outlined.WatchLater,
                 contentDescription = stringResource(R.string.watch_later_save),
                 tint = if (saved) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
-
-@Composable
-private fun CommentsSection(comments: CommentsState, watchActions: WatchActions, modifier: Modifier = Modifier) {
-    Column(modifier = modifier.fillMaxWidth()) {
-        Text(
-            text = stringResource(R.string.comments_title),
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(bottom = 12.dp),
-        )
-        if (watchActions.canAct) {
-            CommentComposer(watchActions)
-        }
-        when (comments) {
-            CommentsState.Loading -> PlayerNote(stringResource(R.string.comments_loading))
-            CommentsState.Disabled -> PlayerNote(stringResource(R.string.comments_disabled))
-            CommentsState.Error -> PlayerNote(stringResource(R.string.comments_error))
-            is CommentsState.Loaded ->
-                if (comments.comments.isEmpty()) {
-                    PlayerNote(stringResource(R.string.comments_empty))
-                } else {
-                    comments.comments.forEach { comment -> CommentRow(comment) }
-                }
-        }
-    }
-}
-
-@Composable
-private fun CommentComposer(watchActions: WatchActions) {
-    var text by remember { mutableStateOf("") }
-    // Clear the box once a post lands, then reset the state (as an effect, not in composition).
-    LaunchedEffect(watchActions.postState) {
-        if (watchActions.postState == PostState.Posted) {
-            text = ""
-            watchActions.onPostHandled()
-        }
-    }
-    Column(modifier = Modifier.padding(bottom = 20.dp)) {
-        OutlinedTextField(
-            value = text,
-            onValueChange = { text = it },
-            placeholder = { Text(stringResource(R.string.comment_hint)) },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = watchActions.postState != PostState.Posting,
-        )
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 4.dp),
-            horizontalArrangement = Arrangement.End,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (watchActions.postState == PostState.Failed) {
-                Text(
-                    text = stringResource(R.string.comment_failed),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(end = 12.dp),
-                )
-            }
-            TextButton(
-                onClick = { watchActions.onPostComment(text) },
-                enabled = text.isNotBlank() && watchActions.postState != PostState.Posting,
-            ) { Text(stringResource(R.string.comment_post)) }
-        }
-    }
-}
-
-@Composable
-private fun CommentRow(comment: Comment) {
-    Column(modifier = Modifier.padding(bottom = 16.dp)) {
-        val author = buildString {
-            append(comment.author)
-            comment.publishedTime?.let { append("  ·  ").append(it) }
-        }
-        Text(
-            text = author,
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(text = comment.text, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 2.dp))
-        val repliesLabel = if (comment.replyCount > 0) {
-            stringResource(R.string.comments_replies, comment.replyCount)
-        } else {
-            null
-        }
-        val meta = buildString {
-            comment.likeCount?.let { append("👍 ").append(it) }
-            repliesLabel?.let {
-                if (isNotEmpty()) append("   ")
-                append(it)
-            }
-        }
-        if (meta.isNotEmpty()) {
-            Text(
-                text = meta,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp),
             )
         }
     }

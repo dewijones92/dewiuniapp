@@ -26,4 +26,11 @@ public class HttpYouTubeComments(
             is InnerTubeResponse.Failure -> CommentsResult.Failure(result.detail)
         }
     }
+
+    override suspend fun repliesFor(token: String): RepliesResult =
+        when (val result = innerTube.nextContinuation(token)) {
+            is InnerTubeResponse.Success -> CommentsResponseParser.parseReplies(result.body)
+            InnerTubeResponse.Unauthorized -> RepliesResult.Failure("Unauthorized")
+            is InnerTubeResponse.Failure -> RepliesResult.Failure(result.detail)
+        }
 }

@@ -71,4 +71,70 @@ class CommentsResponseParserTest {
     fun `unparseable json is a failure`() {
         assertTrue(CommentsResponseParser.parseComments("nope") is CommentsResult.Failure)
     }
+
+    @Test
+    fun `attaches a reply token to a comment from its commentThreadRenderer`() {
+        val body = """
+            {"frameworkUpdates":{"entityBatchUpdate":{"mutations":[
+              {"payload":{"commentEntityPayload":{
+                "properties":{"commentId":"c1","content":{"content":"Hi"},"replyLevel":0},
+                "author":{"displayName":"A"},"toolbar":{"replyCount":"2"}}}}
+            ]}},
+             "onResponseReceivedEndpoints":[{"reloadContinuationItemsCommand":{
+               "targetId":"comments-section","continuationItems":[
+                 {"commentThreadRenderer":{
+                   "commentViewModel":{"commentViewModel":{"commentId":"c1"}},
+                   "replies":{"commentRepliesRenderer":{"contents":[
+                     {"continuationItemRenderer":{"continuationEndpoint":{"continuationCommand":{"token":"REPLYTOKEN_c1"}}}}
+                   ]}}}}
+               ]}}]}
+        """.trimIndent()
+        val comment = (CommentsResponseParser.parseComments(body) as CommentsResult.Success).comments.single()
+        assertEquals("REPLYTOKEN_c1", comment.replyToken)
+    }
+
+    @Test
+    fun `a comment with no replies renderer has no reply token`() {
+        val body = """
+            {"frameworkUpdates":{"entityBatchUpdate":{"mutations":[
+              {"payload":{"commentEntityPayload":{
+                "properties":{"commentId":"c1","content":{"content":"Hi"},"replyLevel":0},
+                "author":{"displayName":"A"}}}}
+            ]}}}
+        """.trimIndent()
+        val comment = (CommentsResponseParser.parseComments(body) as CommentsResult.Success).comments.single()
+        assertNull(comment.replyToken)
+    }
+
+    @Test
+    fun `parses replies and the show-more token`() {
+        val body = """
+            {"frameworkUpdates":{"entityBatchUpdate":{"mutations":[
+              {"payload":{"commentEntityPayload":{
+                "properties":{"commentId":"c1.r1","content":{"content":"reply one"},"replyLevel":1},
+                "author":{"displayName":"B"}}}}
+            ]}},
+             "onResponseReceivedEndpoints":[{"appendContinuationItemsAction":{"continuationItems":[
+               {"continuationItemRenderer":{"button":{"buttonRenderer":{"command":{"continuationCommand":{"token":"MORE_c1"}}}}}}
+             ]}}]}
+        """.trimIndent()
+        val result = CommentsResponseParser.parseReplies(body) as RepliesResult.Success
+        assertEquals(listOf("c1.r1"), result.replies.map { it.id })
+        assertEquals("reply one", result.replies.single().text)
+        assertEquals("MORE_c1", result.continuation)
+    }
+
+    @Test
+    fun `replies with no further page have a null continuation`() {
+        val body = """
+            {"frameworkUpdates":{"entityBatchUpdate":{"mutations":[
+              {"payload":{"commentEntityPayload":{
+                "properties":{"commentId":"c1.r1","content":{"content":"only reply"},"replyLevel":1},
+                "author":{"displayName":"B"}}}}
+            ]}},"onResponseReceivedEndpoints":[{"appendContinuationItemsAction":{"continuationItems":[]}}]}
+        """.trimIndent()
+        val result = CommentsResponseParser.parseReplies(body) as RepliesResult.Success
+        assertEquals(1, result.replies.size)
+        assertNull(result.continuation)
+    }
 }

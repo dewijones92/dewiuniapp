@@ -13,6 +13,7 @@ import com.dewijones92.uniapp.innertube.actions.YouTubeActions
 import com.dewijones92.uniapp.innertube.auth.YouTubeAccount
 import com.dewijones92.uniapp.innertube.comments.Comment
 import com.dewijones92.uniapp.innertube.comments.CommentsResult
+import com.dewijones92.uniapp.innertube.comments.RepliesResult
 import com.dewijones92.uniapp.innertube.comments.YouTubeComments
 import com.dewijones92.uniapp.innertube.feeds.FeedVideo
 import com.dewijones92.uniapp.innertube.related.RelatedResult
@@ -65,11 +66,24 @@ class WatchViewModel(
         data object Error : RelatedState
     }
 
+    /** A comment thread's replies, once expanded. Absent from the map = collapsed. */
+    sealed interface RepliesState {
+        data object Loading : RepliesState
+
+        /** [moreToken] is set when the thread has further reply pages. */
+        data class Loaded(val replies: List<Comment>, val moreToken: String?) : RepliesState
+        data object Error : RepliesState
+    }
+
     private val _comments = MutableStateFlow<CommentsState>(CommentsState.Loading)
     val comments: StateFlow<CommentsState> get() = _comments.asStateFlow()
 
     private val _related = MutableStateFlow<RelatedState>(RelatedState.Loading)
     val related: StateFlow<RelatedState> get() = _related.asStateFlow()
+
+    // Expanded comment threads, keyed by the parent comment id. Absent = collapsed.
+    private val _replies = MutableStateFlow<Map<String, RepliesState>>(emptyMap())
+    val replies: StateFlow<Map<String, RepliesState>> get() = _replies.asStateFlow()
 
     private val _signedIn = MutableStateFlow(false)
     val signedIn: StateFlow<Boolean> = _signedIn.asStateFlow()
@@ -89,6 +103,7 @@ class WatchViewModel(
         if (videoId == this.videoId) return
         this.videoId = videoId
         _comments.value = CommentsState.Loading
+        _replies.value = emptyMap()
         _related.value = RelatedState.Loading
         _rating.value = VideoRating.NONE
         _inWatchLater.value = false
@@ -163,6 +178,35 @@ class WatchViewModel(
                 PostState.Posted
             } else {
                 PostState.Failed
+            }
+        }
+    }
+
+    /** Expands a comment's replies (loading them on first open) or collapses them. */
+    fun toggleReplies(comment: Comment) {
+        val token = comment.replyToken ?: return
+        if (_replies.value.containsKey(comment.id)) {
+            _replies.update { it - comment.id }
+            return
+        }
+        _replies.update { it + (comment.id to RepliesState.Loading) }
+        viewModelScope.launch {
+            val state = when (val result = commentsSource.repliesFor(token)) {
+                is RepliesResult.Success -> RepliesState.Loaded(result.replies, result.continuation)
+                is RepliesResult.Failure -> RepliesState.Error
+            }
+            _replies.update { it + (comment.id to state) }
+        }
+    }
+
+    /** Appends the next page of a long thread's replies ("show more replies"). */
+    fun loadMoreReplies(commentId: String) {
+        val loaded = _replies.value[commentId] as? RepliesState.Loaded ?: return
+        val token = loaded.moreToken ?: return
+        viewModelScope.launch {
+            val result = commentsSource.repliesFor(token) as? RepliesResult.Success ?: return@launch
+            _replies.update {
+                it + (commentId to RepliesState.Loaded(loaded.replies + result.replies, result.continuation))
             }
         }
     }

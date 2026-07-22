@@ -15,4 +15,6 @@ public data class Comment(
     val replyCount: Int,
     val isCreator: Boolean,
     val isVerified: Boolean,
+    /** Continuation token to load this comment's replies; null when it has none. */
+    val replyToken: String? = null,
 )

@@ -31,6 +31,7 @@ import com.dewijones92.uniapp.ui.account.AccountScreen
 import com.dewijones92.uniapp.ui.common.MiniPlayerBar
 import com.dewijones92.uniapp.ui.common.RequestNotificationPermissionOnFirstPlay
 import com.dewijones92.uniapp.ui.library.LibraryScreen
+import com.dewijones92.uniapp.ui.player.CommentReplies
 import com.dewijones92.uniapp.ui.player.FullPlayerOverlay
 import com.dewijones92.uniapp.ui.player.QualityControl
 import com.dewijones92.uniapp.ui.player.WatchActions
@@ -121,6 +122,7 @@ private fun FullPlayerHost(
         if (state.hasEnded && state.hasVideo) watchViewModel.autoplayNext()
     }
     val comments by watchViewModel.comments.collectAsStateWithLifecycle()
+    val replies by watchViewModel.replies.collectAsStateWithLifecycle()
     val related by watchViewModel.related.collectAsStateWithLifecycle()
     val sleepTimer by container.sleepTimer.state.collectAsStateWithLifecycle()
     val signedIn by watchViewModel.signedIn.collectAsStateWithLifecycle()
@@ -133,6 +135,11 @@ private fun FullPlayerHost(
         state = state,
         player = controller.player,
         comments = comments,
+        replies = CommentReplies(
+            threads = replies,
+            onToggle = watchViewModel::toggleReplies,
+            onLoadMore = watchViewModel::loadMoreReplies,
+        ),
         related = related,
         watchActions = WatchActions(
             canAct = signedIn,
