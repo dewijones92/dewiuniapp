@@ -38,6 +38,8 @@ import com.dewijones92.uniapp.innertube.playlists.YouTubePlaylists
 import com.dewijones92.uniapp.innertube.related.HttpYouTubeRelated
 import com.dewijones92.uniapp.innertube.related.YouTubeRelated
 import com.dewijones92.uniapp.innertube.subscriptions.HttpYouTubeSubscriptions
+import com.dewijones92.uniapp.notifications.NewUploadsTracker
+import com.dewijones92.uniapp.notifications.SharedPrefsNewUploadsTracker
 import com.dewijones92.uniapp.playback.Media3PlaybackController
 import com.dewijones92.uniapp.playback.PlaybackController
 import com.dewijones92.uniapp.playback.SleepTimer
@@ -97,6 +99,9 @@ interface AppContainer {
     val youTubeActions: YouTubeActions
 
     val youTubePlaylists: YouTubePlaylists
+
+    /** Tracks which subscription uploads are new since the user last looked (the bell). */
+    val newUploadsTracker: NewUploadsTracker
 
     /**
      * Kick off background upkeep on app start (currently: fetch the latest
@@ -272,6 +277,10 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
 
     override val youTubePlaylists: YouTubePlaylists by lazy {
         HttpYouTubePlaylists(youTubeAccount, innerTubeClient)
+    }
+
+    override val newUploadsTracker: NewUploadsTracker by lazy {
+        SharedPrefsNewUploadsTracker(context)
     }
 
     private companion object {

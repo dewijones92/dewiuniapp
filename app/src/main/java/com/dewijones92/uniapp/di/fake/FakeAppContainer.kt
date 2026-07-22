@@ -26,6 +26,8 @@ import com.dewijones92.uniapp.innertube.playlists.fake.FakeYouTubePlaylists
 import com.dewijones92.uniapp.innertube.related.YouTubeRelated
 import com.dewijones92.uniapp.innertube.related.fake.FakeYouTubeRelated
 import com.dewijones92.uniapp.innertube.subscriptions.fake.FakeYouTubeSubscriptions
+import com.dewijones92.uniapp.notifications.InMemoryNewUploadsTracker
+import com.dewijones92.uniapp.notifications.NewUploadsTracker
 import com.dewijones92.uniapp.playback.PlaybackController
 import com.dewijones92.uniapp.playback.SleepTimer
 import com.dewijones92.uniapp.playback.fake.FakePlaybackController
@@ -68,6 +70,7 @@ class FakeAppContainer(
     override val youTubeRelated: YouTubeRelated = FakeYouTubeRelated(),
     override val youTubeActions: YouTubeActions = FakeYouTubeActions(),
     override val youTubePlaylists: YouTubePlaylists = FakeYouTubePlaylists(),
+    override val newUploadsTracker: NewUploadsTracker = InMemoryNewUploadsTracker(),
 ) : AppContainer {
     override fun refreshExtractorEngine() = Unit
 

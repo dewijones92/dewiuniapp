@@ -2,7 +2,9 @@ package com.dewijones92.uniapp.ui.videos
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -11,14 +13,18 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.SmartDisplay
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -49,6 +55,8 @@ import com.dewijones92.uniapp.ui.common.MediaItemRow
 import com.dewijones92.uniapp.ui.common.MediaSort
 import com.dewijones92.uniapp.ui.common.SectionHeaderWithSort
 import com.dewijones92.uniapp.ui.common.mediaItemSubtitle
+import com.dewijones92.uniapp.ui.notifications.NotificationsScreen
+import com.dewijones92.uniapp.ui.notifications.NotificationsViewModel
 import com.dewijones92.uniapp.ui.playlist.PlaylistScreen
 import com.dewijones92.uniapp.ui.playlist.PlaylistsListScreen
 
@@ -57,10 +65,14 @@ fun VideosScreen(container: AppContainer, modifier: Modifier = Modifier) {
     val viewModel: VideosViewModel = viewModel(factory = VideosViewModel.factory(container))
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
-    // A tapped channel chip opens that channel's page over the feed; the
-    // Playlists chip opens the playlist list, and a tapped playlist its videos.
+    // Overlays over the feed: a tapped channel chip, the playlists list (and a
+    // tapped playlist), and the new-uploads notifications.
+    val notificationsViewModel: NotificationsViewModel =
+        viewModel(factory = NotificationsViewModel.factory(container))
+    val newUploadsCount by notificationsViewModel.count.collectAsStateWithLifecycle()
     var browsingChannel by remember { mutableStateOf<MediaSource.VideoChannel?>(null) }
     var showPlaylists by remember { mutableStateOf(false) }
+    var showNotifications by remember { mutableStateOf(false) }
     var browsingPlaylist by remember { mutableStateOf<Playlist?>(null) }
     val channel = browsingChannel
     val playlist = browsingPlaylist
@@ -75,10 +87,13 @@ fun VideosScreen(container: AppContainer, modifier: Modifier = Modifier) {
                 onBack = { showPlaylists = false },
                 modifier = modifier,
             )
+        showNotifications ->
+            NotificationsScreen(notificationsViewModel, onBack = { showNotifications = false }, modifier = modifier)
         channel != null ->
             ChannelScreen(container, channel, onBack = { browsingChannel = null }, modifier = modifier)
         else -> VideosContent(
             state = state,
+            newUploadsCount = newUploadsCount,
             onSubscribe = viewModel::subscribe,
             onDialogClosed = viewModel::resetSubscribing,
             onPlay = viewModel::play,
@@ -87,6 +102,7 @@ fun VideosScreen(container: AppContainer, modifier: Modifier = Modifier) {
             onSelectFeed = viewModel::selectFeed,
             onChannelClick = { browsingChannel = it },
             onOpenPlaylists = { showPlaylists = true },
+            onOpenNotifications = { showNotifications = true },
             onRefresh = viewModel::refresh,
             onSetSort = viewModel::setSort,
             modifier = modifier,
@@ -98,6 +114,7 @@ fun VideosScreen(container: AppContainer, modifier: Modifier = Modifier) {
 @Composable
 internal fun VideosContent(
     state: VideosViewModel.UiState,
+    newUploadsCount: Int,
     onSubscribe: (String) -> Unit,
     onDialogClosed: () -> Unit,
     onPlay: (MediaItem) -> Unit,
@@ -106,6 +123,7 @@ internal fun VideosContent(
     onSelectFeed: (AccountFeed?) -> Unit,
     onChannelClick: (MediaSource.VideoChannel) -> Unit,
     onOpenPlaylists: () -> Unit,
+    onOpenNotifications: () -> Unit,
     onRefresh: () -> Unit,
     onSetSort: (MediaSort) -> Unit,
     modifier: Modifier = Modifier,
@@ -113,28 +131,40 @@ internal fun VideosContent(
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
 
     Box(modifier.fillMaxSize()) {
-        PullToRefreshBox(
-            isRefreshing = state.refreshing,
-            onRefresh = onRefresh,
-            modifier = Modifier.fillMaxSize(),
-        ) {
-            if (state.subscriptions.isEmpty() && !state.signedIn) {
-                EmptyState(
-                    icon = Icons.Outlined.SmartDisplay,
-                    headline = stringResource(R.string.videos_empty_headline),
-                    supportingText = stringResource(R.string.videos_empty_supporting),
-                )
-            } else {
-                ChannelsAndVideos(
-                    state,
-                    onPlay,
-                    onDownload,
-                    onDeleteDownload,
-                    onSelectFeed,
-                    onChannelClick = onChannelClick,
-                    onOpenPlaylists = onOpenPlaylists,
-                    onSetSort = onSetSort,
-                )
+        Column {
+            if (state.signedIn) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    NotificationsBell(newUploadsCount, onOpenNotifications)
+                }
+            }
+            PullToRefreshBox(
+                isRefreshing = state.refreshing,
+                onRefresh = onRefresh,
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                if (state.subscriptions.isEmpty() && !state.signedIn) {
+                    EmptyState(
+                        icon = Icons.Outlined.SmartDisplay,
+                        headline = stringResource(R.string.videos_empty_headline),
+                        supportingText = stringResource(R.string.videos_empty_supporting),
+                    )
+                } else {
+                    ChannelsAndVideos(
+                        state,
+                        onPlay,
+                        onDownload,
+                        onDeleteDownload,
+                        onSelectFeed,
+                        onChannelClick = onChannelClick,
+                        onOpenPlaylists = onOpenPlaylists,
+                        onSetSort = onSetSort,
+                    )
+                }
             }
         }
 
@@ -156,6 +186,15 @@ internal fun VideosContent(
                     onDialogClosed()
                 },
             )
+        }
+    }
+}
+
+@Composable
+private fun NotificationsBell(count: Int, onClick: () -> Unit) {
+    BadgedBox(badge = { if (count > 0) Badge { Text(count.toString()) } }) {
+        IconButton(onClick = onClick) {
+            Icon(Icons.Outlined.Notifications, contentDescription = stringResource(R.string.notifications_title))
         }
     }
 }
@@ -290,8 +329,10 @@ private fun VideosContentPreview() {
             onDownload = {},
             onDeleteDownload = {},
             onSelectFeed = {},
+            newUploadsCount = 0,
             onChannelClick = {},
             onOpenPlaylists = {},
+            onOpenNotifications = {},
             onRefresh = {},
             onSetSort = {},
         )
