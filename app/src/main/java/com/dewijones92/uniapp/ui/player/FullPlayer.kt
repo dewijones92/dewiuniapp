@@ -288,7 +288,11 @@ private fun PlayerDetails(
     Spacer(Modifier.height(24.dp))
     SpeedControl(state.speed, onSetSpeed)
     SleepTimerControl(sleepTimer, onStartSleep, onCancelSleep)
-    SkipSilenceControl(state.skipSilence, onSetSkipSilence)
+    // Audio-only: silence-skipping a video runs the audio ahead of the picture,
+    // so it's offered only for podcasts and a video's audio-only "Listen" mode.
+    if (!state.hasVideo) {
+        SkipSilenceControl(state.skipSilence, onSetSkipSilence)
+    }
 
     // Quality — video only, and only when there's a choice to make.
     if (state.hasVideo && quality.options.size > 1) {
