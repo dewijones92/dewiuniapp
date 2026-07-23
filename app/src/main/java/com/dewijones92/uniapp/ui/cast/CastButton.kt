@@ -1,11 +1,14 @@
 package com.dewijones92.uniapp.ui.cast
 
+import android.view.ContextThemeWrapper
+import android.view.View
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.mediarouter.app.MediaRouteButton
+import com.dewijones92.uniapp.R
 import com.google.android.gms.cast.framework.CastButtonFactory
 import com.google.android.gms.cast.framework.CastContext
 
@@ -24,9 +27,15 @@ fun CastButton(modifier: Modifier = Modifier) {
     if (!available) return
     AndroidView(
         factory = { ctx ->
-            MediaRouteButton(ctx).also { button ->
-                runCatching { CastButtonFactory.setUpMediaRouteButton(ctx, button) }
-            }
+            // MediaRouteButton reads AppCompat theme attributes and computes a
+            // contrast ratio against the theme's window background — the Compose
+            // host theme has a translucent background, which throws ("background
+            // can not be translucent"). Give it an AppCompat theme with an opaque
+            // background, and fall back to an empty view if Cast still can't init.
+            val themed = ContextThemeWrapper(ctx, R.style.Theme_UniApp_Cast)
+            runCatching {
+                MediaRouteButton(themed).also { CastButtonFactory.setUpMediaRouteButton(themed, it) }
+            }.getOrElse { View(ctx) }
         },
         modifier = modifier,
     )

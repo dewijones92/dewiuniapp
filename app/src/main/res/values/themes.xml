@@ -2,4 +2,9 @@
 <resources>
 
     <style name="Theme.UniApp" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <!-- Only used to host the Cast MediaRouteButton: it needs AppCompat theme
+         attributes and an opaque window background (DayNight provides both),
+         which the app's platform-Material theme doesn't give it. -->
+    <style name="Theme.UniApp.Cast" parent="Theme.AppCompat.DayNight" />
 </resources>
