@@ -5,9 +5,11 @@ import com.dewijones92.uniapp.data.net.FetchResult
 import com.dewijones92.uniapp.data.net.HttpTextFetcher
 import com.dewijones92.uniapp.data.rss.ParsedEpisode
 import com.dewijones92.uniapp.data.rss.ParsedFeed
+import com.dewijones92.uniapp.data.rss.PodcastChaptersJson
 import com.dewijones92.uniapp.data.rss.RssParseResult
 import com.dewijones92.uniapp.data.rss.RssParser
 import com.dewijones92.uniapp.data.subscription.SubscriptionStore
+import com.dewijones92.uniapp.domain.Chapter
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.MediaItemId
 import com.dewijones92.uniapp.domain.MediaSource
@@ -46,7 +48,7 @@ public class DefaultPodcastRepository(
         store.saveSource(
             subscription = Subscription(source = source, subscribedAt = clock.instant()),
             items = parsed.episodes.mapIndexed { index, episode ->
-                episode.toMediaItem(id, feedUrl, index, feedTitle = parsed.title)
+                episode.toMediaItem(id, feedUrl, index, parsed.title, resolveChapters(episode, index))
             },
         )
         return SubscribeResult.Subscribed(source)
@@ -69,7 +71,7 @@ public class DefaultPodcastRepository(
             // Keep the original subscribedAt so refreshing doesn't reorder feeds.
             subscription = Subscription(source = source, subscribedAt = sub.subscribedAt),
             items = parsed.episodes.mapIndexed { index, episode ->
-                episode.toMediaItem(source.id, source.feedUrl, index, feedTitle = parsed.title)
+                episode.toMediaItem(source.id, source.feedUrl, index, parsed.title, resolveChapters(episode, index))
             },
         )
     }
@@ -81,11 +83,26 @@ public class DefaultPodcastRepository(
         websiteUrl = websiteUrl?.let(HttpUrl::parse),
     )
 
+    /**
+     * Chapters for an episode: inline Podlove chapters if present, else the
+     * Podcasting 2.0 remote chapters JSON — fetched only for the newest episodes
+     * (a feed can link one per episode) and fail-open, like SponsorBlock.
+     */
+    private suspend fun resolveChapters(episode: ParsedEpisode, index: Int): List<Chapter> {
+        if (episode.chapters.isNotEmpty()) return episode.chapters
+        val url = episode.chaptersUrl
+            ?.takeIf { index < REMOTE_CHAPTERS_LIMIT }
+            ?.let(HttpUrl::parse) ?: return emptyList()
+        val body = (fetcher.fetch(url) as? FetchResult.Success)?.body ?: return emptyList()
+        return PodcastChaptersJson.parse(body)
+    }
+
     private fun ParsedEpisode.toMediaItem(
         sourceId: SourceId,
         feedUrl: HttpUrl,
         index: Int,
         feedTitle: String,
+        chapters: List<Chapter>,
     ) = MediaItem(
         // Stable per feed: guid, else enclosure, else position — in that order of trust.
         id = MediaItemId(guid ?: enclosureUrl ?: "${feedUrl.value}#$index"),
@@ -99,4 +116,9 @@ public class DefaultPodcastRepository(
         mediaUrl = enclosureUrl?.let(HttpUrl::parse),
         chapters = chapters,
     )
+
+    private companion object {
+        /** Cap on remote-chapter fetches per feed refresh, so a fully-chaptered feed can't fan out. */
+        const val REMOTE_CHAPTERS_LIMIT = 30
+    }
 }

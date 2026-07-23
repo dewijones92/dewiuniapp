@@ -52,6 +52,34 @@ class DefaultPodcastRepositoryTest {
     }
 
     @Test
+    fun `fetches remote Podcasting 2_0 chapters for an episode that links them`() = runTest {
+        val chaptersUrl = "https://chapters.example.com/ep.json"
+        val feedXml = """
+            <rss version="2.0"><channel><title>Chaptered</title>
+              <item><title>Ep</title><guid>ep1</guid>
+                <enclosure url="https://cdn.example.com/ep.mp3"/>
+                <podcast:chapters url="$chaptersUrl" type="application/json+chapters"/>
+              </item>
+            </channel></rss>
+        """.trimIndent()
+        val chaptersJson = """{"chapters":[{"startTime":0,"title":"Intro"},{"startTime":30,"title":"Main"}]}"""
+        val repository = DefaultPodcastRepository(
+            fetcher = { url ->
+                FetchResult.Success(if (url.value == chaptersUrl) chaptersJson else feedXml)
+            },
+            store = store,
+            clock = Clock.fixed(now, ZoneOffset.UTC),
+        )
+
+        repository.subscribe(feedUrl)
+
+        val episode = checkNotNull(store.saved).second.single()
+        assertEquals(2, episode.chapters.size)
+        assertEquals("Intro", episode.chapters[0].title)
+        assertEquals("Main", episode.chapters[1].title)
+    }
+
+    @Test
     fun `subscribing twice reports AlreadySubscribed`() = runTest {
         val xml = checkNotNull(javaClass.getResource("/sample-feed.xml")).readText()
         val repository = repository(FetchResult.Success(xml))

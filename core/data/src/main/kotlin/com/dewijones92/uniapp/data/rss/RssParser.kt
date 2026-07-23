@@ -36,6 +36,8 @@ public data class ParsedEpisode(
     val description: String?,
     val imageUrl: String?,
     val chapters: List<Chapter> = emptyList(),
+    /** Podcasting 2.0 remote chapters URL (`<podcast:chapters url=…>`); fetched if no inline chapters. */
+    val chaptersUrl: String? = null,
 )
 
 /**
@@ -83,6 +85,7 @@ public class RssParser {
         description = firstChildText("description"),
         imageUrl = firstChildElement("itunes:image")?.getAttribute("href")?.ifBlank { null },
         chapters = parseChapters(),
+        chaptersUrl = firstChildElement("podcast:chapters")?.getAttribute("url")?.ifBlank { null },
     )
 
     /** Inline Podlove Simple Chapters: `<psc:chapters><psc:chapter start=".." title=".."/>…`. */

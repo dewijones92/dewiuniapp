@@ -107,6 +107,24 @@ class RssParserTest {
     }
 
     @Test
+    fun `reads the Podcasting 2_0 remote chapters URL`() {
+        val xml = """
+            <?xml version="1.0"?>
+            <rss version="2.0"><channel><title>Remote</title>
+              <item>
+                <title>Ep</title>
+                <podcast:chapters url="https://chapters.example.com/ep1.json" type="application/json+chapters"/>
+              </item>
+            </channel></rss>
+        """.trimIndent()
+
+        val episode = (parser.parse(xml) as RssParseResult.Success).feed.episodes.single()
+
+        assertEquals("https://chapters.example.com/ep1.json", episode.chaptersUrl)
+        assertTrue(episode.chapters.isEmpty())
+    }
+
+    @Test
     fun `rejects doctype declarations (XXE hardening)`() {
         val xml = """
             <?xml version="1.0"?>
