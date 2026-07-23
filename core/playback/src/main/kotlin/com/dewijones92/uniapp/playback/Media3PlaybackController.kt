@@ -3,7 +3,6 @@ package com.dewijones92.uniapp.playback
 import android.content.ComponentName
 import android.content.Context
 import android.os.Bundle
-import android.os.SystemClock
 import android.util.Log
 import androidx.core.content.ContextCompat
 import androidx.core.os.bundleOf
@@ -55,11 +54,6 @@ public class Media3PlaybackController(
     private var activeChapters: List<Chapter> = emptyList()
     private var skipSilence = false
     private var ticksSinceSave = 0
-
-    // dewidebug: previous tick's media position + wall time, to spot silence skips
-    // (media clock advancing faster than wall-clock × speed).
-    private var lastTickPositionMs = -1L
-    private var lastTickRealtimeMs = 0L
 
     init {
         val token = SessionToken(context, ComponentName(context, PlaybackService::class.java))
@@ -205,14 +199,11 @@ public class Media3PlaybackController(
             while (isActive) {
                 if (controller.isPlaying) {
                     applySkipSegments(controller)
-                    logSilenceSkipJump(controller)
                     _state.value = controller.currentPlaybackState()
                     if (++ticksSinceSave >= TICKS_PER_SAVE) {
                         ticksSinceSave = 0
                         saveProgress(controller)
                     }
-                } else {
-                    lastTickPositionMs = -1L // reset so a pause isn't read as a skip
                 }
                 delay(POSITION_TICK_MS)
             }
@@ -231,30 +222,6 @@ public class Media3PlaybackController(
     private fun applySkipSegments(controller: MediaController) {
         val target = activeSkipSegments.skipTargetFor(controller.currentPosition.milliseconds) ?: return
         controller.seekTo(target.inWholeMilliseconds)
-    }
-
-    /**
-     * dewidebug: logs when the media clock advances faster than wall-clock while
-     * skip-silences is on — i.e. a silence just got skipped. Pair it with the
-     * service's dropped-frame log at the same position to confirm video followed.
-     */
-    private fun logSilenceSkipJump(controller: MediaController) {
-        val posNow = controller.currentPosition
-        val realtimeNow = SystemClock.elapsedRealtime()
-        val lastPos = lastTickPositionMs
-        val lastRealtime = lastTickRealtimeMs
-        lastTickPositionMs = posNow
-        lastTickRealtimeMs = realtimeNow
-        if (lastPos < 0 || !skipSilence) return
-        val wallDelta = realtimeNow - lastRealtime
-        val extra = (posNow - lastPos) - wallDelta * controller.playbackParameters.speed
-        if (extra > SILENCE_JUMP_THRESHOLD_MS) {
-            Log.i(
-                "dewidebug",
-                "av-sync silence-skip: media clock +${posNow - lastPos}ms in ${wallDelta}ms wall " +
-                    "(x${controller.playbackParameters.speed}) -> ~${extra.toLong()}ms skipped at pos=${posNow}ms",
-            )
-        }
     }
 
     private fun MediaController.currentPlaybackState(): PlaybackState? {
@@ -292,8 +259,5 @@ public class Media3PlaybackController(
 
         /** Persist progress every ~5s of playback (10 ticks of 500ms). */
         const val TICKS_PER_SAVE = 10
-
-        /** dewidebug: media-clock advance beyond wall-clock (× speed) that reads as a skipped silence. */
-        const val SILENCE_JUMP_THRESHOLD_MS = 300
     }
 }
