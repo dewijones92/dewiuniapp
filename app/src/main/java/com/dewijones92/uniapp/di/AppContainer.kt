@@ -4,6 +4,9 @@ import android.content.Context
 import com.dewijones92.uniapp.account.SharedPrefsTokenStore
 import com.dewijones92.uniapp.data.channel.ChannelRepository
 import com.dewijones92.uniapp.data.channel.DefaultChannelRepository
+import com.dewijones92.uniapp.data.content.ContentRefresher
+import com.dewijones92.uniapp.data.content.PodcastSubscriptionItemsSource
+import com.dewijones92.uniapp.data.content.SeenItemsTracker
 import com.dewijones92.uniapp.data.download.DefaultDownloadManager
 import com.dewijones92.uniapp.data.download.DownloadManager
 import com.dewijones92.uniapp.data.download.EngineDownloadStrategy
@@ -41,8 +44,8 @@ import com.dewijones92.uniapp.innertube.playlists.YouTubePlaylists
 import com.dewijones92.uniapp.innertube.related.HttpYouTubeRelated
 import com.dewijones92.uniapp.innertube.related.YouTubeRelated
 import com.dewijones92.uniapp.innertube.subscriptions.HttpYouTubeSubscriptions
-import com.dewijones92.uniapp.notifications.NewUploadsTracker
-import com.dewijones92.uniapp.notifications.SharedPrefsNewUploadsTracker
+import com.dewijones92.uniapp.notifications.SharedPrefsSeenItemsTracker
+import com.dewijones92.uniapp.notifications.YouTubeSubscriptionItemsSource
 import com.dewijones92.uniapp.playback.Media3PlaybackController
 import com.dewijones92.uniapp.playback.PlaybackController
 import com.dewijones92.uniapp.playback.SleepTimer
@@ -107,8 +110,11 @@ interface AppContainer {
 
     val youTubePlaylists: YouTubePlaylists
 
-    /** Tracks which subscription uploads are new since the user last looked (the bell). */
-    val newUploadsTracker: NewUploadsTracker
+    /** Seen-state for the in-app bell (new since the user last opened the list). */
+    val bellSeenTracker: SeenItemsTracker
+
+    /** Finds new content across both pillars for the background notifications. */
+    val contentRefresher: ContentRefresher
 
     /** Imports subscriptions from other apps (OPML / NewPipe / Takeout) and exports them as OPML. */
     val subscriptionImporter: SubscriptionImporter
@@ -293,8 +299,18 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
         HttpYouTubePlaylists(youTubeAccount, innerTubeClient)
     }
 
-    override val newUploadsTracker: NewUploadsTracker by lazy {
-        SharedPrefsNewUploadsTracker(context)
+    override val bellSeenTracker: SeenItemsTracker by lazy {
+        SharedPrefsSeenItemsTracker(context, namespace = "bell")
+    }
+
+    override val contentRefresher: ContentRefresher by lazy {
+        ContentRefresher(
+            sources = listOf(
+                PodcastSubscriptionItemsSource(podcastRepository),
+                YouTubeSubscriptionItemsSource(youTubeFeeds),
+            ),
+            tracker = SharedPrefsSeenItemsTracker(context, namespace = "notifications"),
+        )
     }
 
     override val subscriptionImporter: SubscriptionImporter by lazy {

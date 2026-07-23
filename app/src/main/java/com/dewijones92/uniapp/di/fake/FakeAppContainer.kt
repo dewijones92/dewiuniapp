@@ -2,6 +2,9 @@ package com.dewijones92.uniapp.di.fake
 
 import com.dewijones92.uniapp.data.channel.ChannelRepository
 import com.dewijones92.uniapp.data.channel.fake.FakeChannelRepository
+import com.dewijones92.uniapp.data.content.ContentRefresher
+import com.dewijones92.uniapp.data.content.SeenItemsTracker
+import com.dewijones92.uniapp.data.content.fake.InMemorySeenItemsTracker
 import com.dewijones92.uniapp.data.download.DownloadManager
 import com.dewijones92.uniapp.data.download.fake.FakeDownloadManager
 import com.dewijones92.uniapp.data.importexport.OpmlExporter
@@ -29,8 +32,6 @@ import com.dewijones92.uniapp.innertube.playlists.fake.FakeYouTubePlaylists
 import com.dewijones92.uniapp.innertube.related.YouTubeRelated
 import com.dewijones92.uniapp.innertube.related.fake.FakeYouTubeRelated
 import com.dewijones92.uniapp.innertube.subscriptions.fake.FakeYouTubeSubscriptions
-import com.dewijones92.uniapp.notifications.InMemoryNewUploadsTracker
-import com.dewijones92.uniapp.notifications.NewUploadsTracker
 import com.dewijones92.uniapp.playback.PlaybackController
 import com.dewijones92.uniapp.playback.SleepTimer
 import com.dewijones92.uniapp.playback.fake.FakePlaybackController
@@ -76,7 +77,8 @@ class FakeAppContainer(
     override val youTubeRelated: YouTubeRelated = FakeYouTubeRelated(),
     override val youTubeActions: YouTubeActions = FakeYouTubeActions(),
     override val youTubePlaylists: YouTubePlaylists = FakeYouTubePlaylists(),
-    override val newUploadsTracker: NewUploadsTracker = InMemoryNewUploadsTracker(),
+    override val bellSeenTracker: SeenItemsTracker = InMemorySeenItemsTracker(),
+    override val contentRefresher: ContentRefresher = ContentRefresher(emptyList(), InMemorySeenItemsTracker()),
     override val subscriptionImporter: SubscriptionImporter = SubscriptionImporter(
         parser = SubscriptionImportParser(),
         exporter = OpmlExporter(),

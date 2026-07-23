@@ -7,6 +7,7 @@ import coil3.SingletonImageLoader
 import coil3.request.crossfade
 import com.dewijones92.uniapp.di.AppContainer
 import com.dewijones92.uniapp.di.DefaultAppContainer
+import com.dewijones92.uniapp.notifications.NewContentWorker
 
 class UniAppApplication : Application(), SingletonImageLoader.Factory {
     val container: AppContainer by lazy { DefaultAppContainer(this) }
@@ -20,6 +21,8 @@ class UniAppApplication : Application(), SingletonImageLoader.Factory {
         container.startWatchHistorySync()
         // Load the account's subscribed channels (read live, never copied locally).
         container.refreshSubscriptions()
+        // Periodically check every subscription (both pillars) and notify on new content.
+        NewContentWorker.schedule(this)
     }
 
     /**
