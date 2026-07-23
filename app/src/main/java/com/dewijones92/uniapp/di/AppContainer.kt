@@ -48,6 +48,7 @@ import com.dewijones92.uniapp.notifications.SharedPrefsSeenItemsTracker
 import com.dewijones92.uniapp.notifications.YouTubeSubscriptionItemsSource
 import com.dewijones92.uniapp.playback.Media3PlaybackController
 import com.dewijones92.uniapp.playback.PlaybackController
+import com.dewijones92.uniapp.playback.SharedPrefsPlaybackSpeedStore
 import com.dewijones92.uniapp.playback.SleepTimer
 import com.dewijones92.uniapp.queue.PlaybackQueue
 import com.dewijones92.uniapp.settings.AppPreferences
@@ -181,6 +182,7 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
             context,
             applicationScope,
             RoomPlaybackProgressStore(database.playbackProgressDao()),
+            SharedPrefsPlaybackSpeedStore(context),
         )
     }
 

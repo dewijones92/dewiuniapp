@@ -18,6 +18,7 @@ import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.MediaItemId
 import com.dewijones92.uniapp.domain.MediaKind
 import com.dewijones92.uniapp.domain.SkipSegment
+import com.dewijones92.uniapp.domain.SourceId
 import com.dewijones92.uniapp.domain.skipTargetFor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -42,6 +43,7 @@ public class Media3PlaybackController(
     context: Context,
     private val scope: CoroutineScope,
     private val progressStore: PlaybackProgressStore = NoOpPlaybackProgressStore,
+    private val speedStore: PlaybackSpeedStore = NoOpPlaybackSpeedStore,
 ) : PlaybackController {
 
     private val _state = MutableStateFlow<PlaybackState?>(null)
@@ -52,6 +54,7 @@ public class Media3PlaybackController(
     private val pendingCommands = mutableListOf<(MediaController) -> Unit>()
     private var activeSkipSegments: List<SkipSegment> = emptyList()
     private var activeChapters: List<Chapter> = emptyList()
+    private var currentSourceId: SourceId? = null
     private var skipSilence = false
     private var ticksSinceSave = 0
 
@@ -101,6 +104,7 @@ public class Media3PlaybackController(
             ?: requireNotNull(item.mediaUrl) { "MediaItem ${item.id.value} has no mediaUrl" }.value
         activeSkipSegments = skipSegments
         activeChapters = item.chapters
+        currentSourceId = item.sourceId
         // A separate audio track (higher-than-muxed qualities) rides along in
         // the request metadata; the service merges it with the video-only URI.
         val requestMetadata = Media3MediaItem.RequestMetadata.Builder()
@@ -130,9 +134,11 @@ public class Media3PlaybackController(
         // can hand the start position straight to the player — no jump from 0.
         scope.launch {
             val resumeMs = progressStore.resumePositionMs(item.id) ?: 0L
+            val speed = speedStore.speedFor(item.sourceId)
             ticksSinceSave = 0
             withController { controller ->
                 controller.setMediaItem(media3Item, resumeMs)
+                controller.setPlaybackSpeed(speed)
                 controller.prepare()
                 controller.play()
             }
@@ -173,10 +179,12 @@ public class Media3PlaybackController(
     }
 
     override fun setSpeed(speed: Float) {
+        val clamped = speed.coerceIn(MIN_SPEED, MAX_SPEED)
         withController {
-            it.setPlaybackSpeed(speed.coerceIn(MIN_SPEED, MAX_SPEED))
+            it.setPlaybackSpeed(clamped)
             _state.value = it.currentPlaybackState()
         }
+        currentSourceId?.let { source -> scope.launch { speedStore.save(source, clamped) } }
     }
 
     override fun setSkipSilence(enabled: Boolean) {
