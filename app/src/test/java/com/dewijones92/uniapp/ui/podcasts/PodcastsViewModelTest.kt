@@ -2,8 +2,15 @@ package com.dewijones92.uniapp.ui.podcasts
 
 import com.dewijones92.uniapp.data.download.fake.FakeDownloadManager
 import com.dewijones92.uniapp.data.podcast.fake.FakePodcastRepository
+import com.dewijones92.uniapp.data.sponsorblock.SkipSegmentSource
+import com.dewijones92.uniapp.innertube.history.fake.FakeYouTubeWatchHistory
 import com.dewijones92.uniapp.playback.fake.FakePlaybackController
+import com.dewijones92.uniapp.queue.PlaybackQueue
 import com.dewijones92.uniapp.ui.podcasts.PodcastsViewModel.Subscribing
+import com.dewijones92.uniapp.video.VideoPlaybackLauncher
+import com.dewijones92.uniapp.video.VideoResolver
+import com.dewijones92.uniapp.ytdlp.fake.FakeYtDlpEngine
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
@@ -26,10 +33,17 @@ class PodcastsViewModelTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
+        val controller = FakePlaybackController()
+        val launcher = VideoPlaybackLauncher(
+            VideoResolver(FakeYtDlpEngine(), SkipSegmentSource { emptyList() }),
+            controller,
+            FakeYouTubeWatchHistory(),
+        )
         viewModel = PodcastsViewModel(
             FakePodcastRepository(),
-            FakePlaybackController(),
+            controller,
             FakeDownloadManager(),
+            PlaybackQueue(controller, launcher, CoroutineScope(dispatcher)),
         )
     }
 

@@ -62,6 +62,7 @@ import com.dewijones92.uniapp.innertube.comments.Comment
 import com.dewijones92.uniapp.innertube.feeds.FeedVideo
 import com.dewijones92.uniapp.playback.PlaybackState
 import com.dewijones92.uniapp.playback.SleepTimerState
+import com.dewijones92.uniapp.queue.QueuedItem
 import com.dewijones92.uniapp.ui.common.MediaThumbnail
 import com.dewijones92.uniapp.ui.common.PillarBadge
 import com.dewijones92.uniapp.ui.player.WatchViewModel.CommentsState
@@ -96,6 +97,7 @@ fun FullPlayerOverlay(
     onSeekForward: () -> Unit,
     onSetSpeed: (Float) -> Unit,
     onSetSkipSilence: (Boolean) -> Unit,
+    queue: QueueControls = QueueControls.None,
 ) {
     KeepScreenOnWhilePlayingVideo(active = state.hasVideo && state.isPlaying)
     var fullscreen by rememberSaveable { mutableStateOf(false) }
@@ -133,6 +135,7 @@ fun FullPlayerOverlay(
                 watchActions = watchActions,
                 quality = quality,
                 sleepTimer = sleepTimer,
+                queue = queue,
                 onEnterFullscreen = { fullscreen = true },
                 onDismiss = onDismiss,
                 onPlayRelated = onPlayRelated,
@@ -166,6 +169,7 @@ private fun DraggablePlayerContent(
     watchActions: WatchActions,
     quality: QualityControl,
     sleepTimer: SleepTimerState,
+    queue: QueueControls,
     onEnterFullscreen: () -> Unit,
     onDismiss: () -> Unit,
     onPlayRelated: (FeedVideo) -> Unit,
@@ -220,6 +224,7 @@ private fun DraggablePlayerContent(
             watchActions = watchActions,
             quality = quality,
             sleepTimer = sleepTimer,
+            queue = queue,
             onPlayRelated = onPlayRelated,
             onStartSleep = onStartSleep,
             onCancelSleep = onCancelSleep,
@@ -248,6 +253,7 @@ private fun PlayerDetails(
     watchActions: WatchActions,
     quality: QualityControl,
     sleepTimer: SleepTimerState,
+    queue: QueueControls,
     onPlayRelated: (FeedVideo) -> Unit,
     onStartSleep: (Duration) -> Unit,
     onCancelSleep: () -> Unit,
@@ -317,6 +323,12 @@ private fun PlayerDetails(
 
     NotesChaptersAndSponsors(state, onSeekTo)
 
+    // The user's up-next queue — both pillars, above the video-only related list.
+    if (queue.upNext.isNotEmpty()) {
+        Spacer(Modifier.height(32.dp))
+        UpNextSection(queue)
+    }
+
     // Related / up-next and comments live under the video, YouTube-style; audio
     // items have neither.
     if (state.hasVideo) {
@@ -324,6 +336,38 @@ private fun PlayerDetails(
         RelatedSection(related, onPlayRelated)
         Spacer(Modifier.height(32.dp))
         CommentsSection(comments, watchActions, replies)
+    }
+}
+
+/** The up-next queue: a titled list, tap an entry to jump to it, X to remove it. */
+@Composable
+private fun UpNextSection(queue: QueueControls) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = stringResource(R.string.queue_up_next_title),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(bottom = 8.dp),
+        )
+        queue.upNext.forEachIndexed { index, queued ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { queue.onPlay(index) }
+                    .padding(vertical = 6.dp),
+            ) {
+                Text(
+                    text = queued.item.title,
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                IconButton(onClick = { queue.onRemove(index) }) {
+                    Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.queue_remove))
+                }
+            }
+        }
     }
 }
 
@@ -345,6 +389,18 @@ private fun NotesChaptersAndSponsors(state: PlaybackState, onSeekTo: (Long) -> U
     if (state.skipSegments.isNotEmpty()) {
         Spacer(Modifier.height(24.dp))
         SponsorSegments(state.skipSegments) // sponsor time ranges, matching the green seek-bar strip
+    }
+}
+
+/** The up-next queue and its interactions, for the full player's queue list. */
+data class QueueControls(
+    val upNext: List<QueuedItem>,
+    val onPlay: (Int) -> Unit,
+    val onRemove: (Int) -> Unit,
+) {
+    companion object {
+        /** No queue (previews). */
+        val None: QueueControls = QueueControls(emptyList(), {}, {})
     }
 }
 

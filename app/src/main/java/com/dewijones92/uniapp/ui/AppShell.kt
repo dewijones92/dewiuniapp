@@ -34,6 +34,7 @@ import com.dewijones92.uniapp.ui.library.LibraryScreen
 import com.dewijones92.uniapp.ui.player.CommentReplies
 import com.dewijones92.uniapp.ui.player.FullPlayerOverlay
 import com.dewijones92.uniapp.ui.player.QualityControl
+import com.dewijones92.uniapp.ui.player.QueueControls
 import com.dewijones92.uniapp.ui.player.WatchActions
 import com.dewijones92.uniapp.ui.player.WatchViewModel
 import com.dewijones92.uniapp.ui.podcasts.PodcastsScreen
@@ -143,6 +144,7 @@ private fun FullPlayerHost(
     val inWatchLater by watchViewModel.inWatchLater.collectAsStateWithLifecycle()
     val postState by watchViewModel.postState.collectAsStateWithLifecycle()
     val quality by watchViewModel.quality.collectAsStateWithLifecycle()
+    val upNext by container.playbackQueue.upNext.collectAsStateWithLifecycle()
 
     FullPlayerOverlay(
         state = state,
@@ -183,6 +185,11 @@ private fun FullPlayerHost(
         onSeekForward = controller::seekForward,
         onSetSpeed = controller::setSpeed,
         onSetSkipSilence = controller::setSkipSilence,
+        queue = QueueControls(
+            upNext = upNext,
+            onPlay = container.playbackQueue::playFromQueue,
+            onRemove = container.playbackQueue::removeAt,
+        ),
     )
 }
 

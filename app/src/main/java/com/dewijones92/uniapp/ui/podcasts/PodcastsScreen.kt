@@ -59,6 +59,8 @@ fun PodcastsScreen(container: AppContainer, modifier: Modifier = Modifier) {
         onDeleteDownload = viewModel::deleteDownload,
         onRefresh = viewModel::refresh,
         onSetSort = viewModel::setSort,
+        onEnqueue = viewModel::enqueue,
+        onPlayNext = viewModel::playNext,
         modifier = modifier,
     )
 }
@@ -74,6 +76,8 @@ internal fun PodcastsContent(
     onDeleteDownload: (MediaItem) -> Unit,
     onRefresh: () -> Unit,
     onSetSort: (MediaSort) -> Unit,
+    onEnqueue: (MediaItem) -> Unit,
+    onPlayNext: (MediaItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
@@ -91,7 +95,15 @@ internal fun PodcastsContent(
                     supportingText = stringResource(R.string.podcasts_empty_supporting),
                 )
             } else {
-                SubscriptionsAndEpisodes(state, onPlayEpisode, onDownload, onDeleteDownload, onSetSort)
+                SubscriptionsAndEpisodes(
+                    state,
+                    onPlayEpisode,
+                    onDownload,
+                    onDeleteDownload,
+                    onSetSort,
+                    onEnqueue,
+                    onPlayNext,
+                )
             }
         }
 
@@ -124,6 +136,8 @@ private fun SubscriptionsAndEpisodes(
     onDownload: (MediaItem) -> Unit,
     onDeleteDownload: (MediaItem) -> Unit,
     onSetSort: (MediaSort) -> Unit,
+    onEnqueue: (MediaItem) -> Unit,
+    onPlayNext: (MediaItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(modifier = modifier.fillMaxSize()) {
@@ -152,6 +166,8 @@ private fun SubscriptionsAndEpisodes(
                 onPlay = { onPlayEpisode(episode) },
                 onDownload = { onDownload(episode) },
                 onDeleteDownload = { onDeleteDownload(episode) },
+                onPlayNext = { onPlayNext(episode) },
+                onAddToQueue = { onEnqueue(episode) },
             )
             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
         }
@@ -185,6 +201,8 @@ private fun PodcastsContentPreview() {
             onDeleteDownload = {},
             onRefresh = {},
             onSetSort = {},
+            onEnqueue = {},
+            onPlayNext = {},
         )
     }
 }
@@ -202,6 +220,8 @@ private fun PodcastsEmptyPreview() {
             onDeleteDownload = {},
             onRefresh = {},
             onSetSort = {},
+            onEnqueue = {},
+            onPlayNext = {},
         )
     }
 }

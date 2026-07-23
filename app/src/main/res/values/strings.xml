@@ -78,6 +78,11 @@
     <string name="listen">Listen (audio only)</string>
     <string name="sponsor_segments_title">SponsorBlock skips</string>
     <string name="chapters_title">Chapters</string>
+    <string name="queue_menu">More options</string>
+    <string name="queue_play_next">Play next</string>
+    <string name="queue_add">Add to queue</string>
+    <string name="queue_up_next_title">Up next</string>
+    <string name="queue_remove">Remove from queue</string>
     <string name="skip_silence">Skip silences</string>
     <string name="pillar_video">YouTube</string>
     <string name="pillar_podcast">Podcast</string>

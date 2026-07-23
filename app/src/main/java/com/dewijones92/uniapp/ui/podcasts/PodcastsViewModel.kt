@@ -16,6 +16,8 @@ import com.dewijones92.uniapp.domain.MediaItemId
 import com.dewijones92.uniapp.domain.MediaKind
 import com.dewijones92.uniapp.domain.Subscription
 import com.dewijones92.uniapp.playback.PlaybackController
+import com.dewijones92.uniapp.queue.PlaybackQueue
+import com.dewijones92.uniapp.queue.QueuedItem
 import com.dewijones92.uniapp.ui.common.MediaSort
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -29,6 +31,7 @@ class PodcastsViewModel(
     private val repository: PodcastRepository,
     private val playback: PlaybackController,
     private val downloads: DownloadManager,
+    private val queue: PlaybackQueue,
 ) : ViewModel() {
 
     data class UiState(
@@ -89,6 +92,15 @@ class PodcastsViewModel(
         playback.play(episode, kind = MediaKind.PODCAST, localPath = local)
     }
 
+    /** Queue this episode to play after the current item (end of queue). */
+    fun enqueue(episode: MediaItem) = queue.enqueue(queuedItem(episode))
+
+    /** Queue this episode to play next (front of queue). */
+    fun playNext(episode: MediaItem) = queue.playNext(queuedItem(episode))
+
+    private fun queuedItem(episode: MediaItem) =
+        QueuedItem.Podcast(episode, (uiState.value.downloadStates[episode.id] as? DownloadState.Downloaded)?.localPath)
+
     fun download(episode: MediaItem) {
         viewModelScope.launch { downloads.download(episode) }
     }
@@ -128,6 +140,7 @@ class PodcastsViewModel(
                     repository = container.podcastRepository,
                     playback = container.playbackController,
                     downloads = container.downloadManager,
+                    queue = container.playbackQueue,
                 )
             }
         }

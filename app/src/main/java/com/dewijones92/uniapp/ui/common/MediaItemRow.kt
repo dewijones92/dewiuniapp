@@ -13,13 +13,20 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -51,6 +58,8 @@ fun MediaItemRow(
     onDownload: () -> Unit,
     onDeleteDownload: () -> Unit,
     modifier: Modifier = Modifier,
+    onPlayNext: (() -> Unit)? = null,
+    onAddToQueue: (() -> Unit)? = null,
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -85,7 +94,39 @@ fun MediaItemRow(
                 )
             }
         }
+        if (onAddToQueue != null || onPlayNext != null) {
+            QueueMenu(onPlayNext, onAddToQueue)
+        }
         DownloadControl(downloadState, onDownload, onDeleteDownload)
+    }
+}
+
+/** Overflow menu adding the item to the up-next queue (now-next or end). */
+@Composable
+private fun QueueMenu(onPlayNext: (() -> Unit)?, onAddToQueue: (() -> Unit)?) {
+    var expanded by remember { mutableStateOf(false) }
+    IconButton(onClick = { expanded = true }) {
+        Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.queue_menu))
+    }
+    DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+        onPlayNext?.let { action ->
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.queue_play_next)) },
+                onClick = {
+                    expanded = false
+                    action()
+                },
+            )
+        }
+        onAddToQueue?.let { action ->
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.queue_add)) },
+                onClick = {
+                    expanded = false
+                    action()
+                },
+            )
+        }
     }
 }
 
