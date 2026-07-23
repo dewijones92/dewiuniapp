@@ -1,8 +1,10 @@
 package com.dewijones92.uniapp.notifications
 
 import android.content.Context
+import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
@@ -23,8 +25,20 @@ public class NewContentWorker(
     override suspend fun doWork(): Result {
         val container = (applicationContext as UniAppApplication).container
         return runCatching {
-            NewContentNotifier(applicationContext).notify(container.contentRefresher.findNewContent())
-            Result.success()
+            val batch = container.contentRefresher.findNewContent()
+            if (batch.newContent.isEmpty()) {
+                // Nothing to deliver — still advance the seen-state (bootstrap / steady state).
+                batch.markDelivered()
+                return@runCatching Result.success()
+            }
+            if (NewContentNotifier(applicationContext).notify(batch.newContent)) {
+                batch.markDelivered()
+                Result.success()
+            } else {
+                // Couldn't deliver (permission not granted yet, transient failure) — leave
+                // the items unseen so they're found again once we can notify.
+                Result.retry()
+            }
         }.getOrElse { Result.retry() }
     }
 
@@ -34,7 +48,9 @@ public class NewContentWorker(
 
         /** Schedules the periodic refresh, keeping any already-scheduled instance. */
         public fun schedule(context: Context) {
-            val request = PeriodicWorkRequestBuilder<NewContentWorker>(INTERVAL_HOURS, TimeUnit.HOURS).build()
+            val request = PeriodicWorkRequestBuilder<NewContentWorker>(INTERVAL_HOURS, TimeUnit.HOURS)
+                .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+                .build()
             WorkManager.getInstance(context)
                 .enqueueUniquePeriodicWork(UNIQUE_NAME, ExistingPeriodicWorkPolicy.KEEP, request)
         }

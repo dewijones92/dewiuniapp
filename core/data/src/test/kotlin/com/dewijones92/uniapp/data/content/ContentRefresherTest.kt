@@ -28,26 +28,21 @@ class ContentRefresherTest {
 
     private fun source(vararg updates: SourceUpdate) = SubscriptionItemsSource { updates.toList() }
 
+    private suspend fun findNew(vararg updates: SourceUpdate) =
+        ContentRefresher(listOf(source(*updates)), tracker).findNewContent()
+
     @Test
     fun `first run reports nothing - everything bootstraps as seen`() = runTest {
-        val refresher = ContentRefresher(
-            listOf(source(SourceUpdate(feed("a"), listOf(item("a1", "a"), item("a2", "a"))))),
-            tracker,
-        )
-
-        assertTrue(refresher.findNewContent().isEmpty())
+        val batch = findNew(SourceUpdate(feed("a"), listOf(item("a1", "a"), item("a2", "a"))))
+        assertTrue(batch.newContent.isEmpty())
     }
 
     @Test
     fun `second run reports only items that appeared after the source was known`() = runTest {
         val a = feed("a")
-        var items = listOf(item("a1", "a"))
-        val refresher = ContentRefresher(listOf(source(SourceUpdate(a, items))), tracker)
-        refresher.findNewContent() // bootstrap
+        findNew(SourceUpdate(a, listOf(item("a1", "a")))) // bootstrap commits internally
 
-        items = listOf(item("a2", "a"), item("a1", "a"))
-        val refresher2 = ContentRefresher(listOf(source(SourceUpdate(a, items))), tracker)
-        val new = refresher2.findNewContent()
+        val new = findNew(SourceUpdate(a, listOf(item("a2", "a"), item("a1", "a")))).newContent
 
         assertEquals(1, new.size)
         assertEquals(a, new.single().source)
@@ -55,39 +50,37 @@ class ContentRefresherTest {
     }
 
     @Test
-    fun `a source is only surfaced once - re-running without changes reports nothing`() = runTest {
+    fun `new items are re-reported until markDelivered is called`() = runTest {
         val a = feed("a")
-        ContentRefresher(listOf(source(SourceUpdate(a, listOf(item("a1", "a"))))), tracker).findNewContent()
-        val withNew = ContentRefresher(
-            listOf(source(SourceUpdate(a, listOf(item("a2", "a"), item("a1", "a"))))),
-            tracker,
-        )
-        assertEquals(listOf("a2"), withNew.findNewContent().single().items.map { it.id.value })
+        findNew(SourceUpdate(a, listOf(item("a1", "a")))) // bootstrap
 
-        // Same feed again, nothing added -> nothing new.
-        val again = ContentRefresher(
-            listOf(source(SourceUpdate(a, listOf(item("a2", "a"), item("a1", "a"))))),
-            tracker,
-        )
-        assertTrue(again.findNewContent().isEmpty())
+        // Found, but NOT delivered — must appear again next run.
+        val first = findNew(SourceUpdate(a, listOf(item("a2", "a"), item("a1", "a"))))
+        assertEquals(listOf("a2"), first.newContent.single().items.map { it.id.value })
+        val second = findNew(SourceUpdate(a, listOf(item("a2", "a"), item("a1", "a"))))
+        assertEquals(listOf("a2"), second.newContent.single().items.map { it.id.value })
+
+        // Now delivered — gone next run.
+        second.markDelivered()
+        val third = findNew(SourceUpdate(a, listOf(item("a2", "a"), item("a1", "a"))))
+        assertTrue(third.newContent.isEmpty())
     }
 
     @Test
     fun `a failing source is skipped without hiding new content from the others`() = runTest {
         val a = feed("a")
         val b = feed("b")
-        // Bootstrap both.
         ContentRefresher(
             listOf(
                 source(SourceUpdate(a, listOf(item("a1", "a")))),
                 source(SourceUpdate(b, listOf(item("b1", "b")))),
             ),
             tracker,
-        ).findNewContent()
+        ).findNewContent().markDelivered()
 
         val failing = SubscriptionItemsSource { error("network down") }
         val healthy = source(SourceUpdate(b, listOf(item("b2", "b"), item("b1", "b"))))
-        val new = ContentRefresher(listOf(failing, healthy), tracker).findNewContent()
+        val new = ContentRefresher(listOf(failing, healthy), tracker).findNewContent().newContent
 
         assertEquals(listOf("b2"), new.single().items.map { it.id.value })
     }
@@ -96,20 +89,13 @@ class ContentRefresherTest {
     fun `only sources with new items are returned`() = runTest {
         val a = feed("a")
         val b = feed("b")
-        ContentRefresher(
-            listOf(source(SourceUpdate(a, listOf(item("a1", "a"))), SourceUpdate(b, listOf(item("b1", "b"))))),
-            tracker,
-        ).findNewContent()
+        findNew(SourceUpdate(a, listOf(item("a1", "a"))), SourceUpdate(b, listOf(item("b1", "b"))))
+            .markDelivered()
 
-        val new = ContentRefresher(
-            listOf(
-                source(
-                    SourceUpdate(a, listOf(item("a1", "a"))), // unchanged
-                    SourceUpdate(b, listOf(item("b2", "b"), item("b1", "b"))), // b2 is new
-                ),
-            ),
-            tracker,
-        ).findNewContent()
+        val new = findNew(
+            SourceUpdate(a, listOf(item("a1", "a"))), // unchanged
+            SourceUpdate(b, listOf(item("b2", "b"), item("b1", "b"))), // b2 is new
+        ).newContent
 
         assertEquals(1, new.size)
         assertEquals(b, new.single().source)

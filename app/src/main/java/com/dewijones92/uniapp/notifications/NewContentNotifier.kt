@@ -22,18 +22,26 @@ public class NewContentNotifier(private val context: Context) {
 
     private val manager = NotificationManagerCompat.from(context)
 
-    public fun notify(updates: List<SourceUpdate>) {
-        if (updates.isEmpty()) return
-        ensureChannel()
+    /**
+     * Posts a notification per source plus a group summary. Returns whether the
+     * notifications were actually delivered — false when the runtime permission
+     * isn't granted or the post fails — so the caller only advances its
+     * seen-state on a real delivery (else the items are found again next run).
+     */
+    public fun notify(updates: List<SourceUpdate>): Boolean {
+        if (updates.isEmpty()) return true
         if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS) !=
             PackageManager.PERMISSION_GRANTED
         ) {
-            return
+            return false
         }
-        updates.forEach { update ->
-            manager.notify(update.source.id.value.hashCode(), sourceNotification(update))
-        }
-        manager.notify(SUMMARY_ID, summaryNotification(updates))
+        return runCatching {
+            ensureChannel()
+            updates.forEachIndexed { index, update ->
+                manager.notify(NOTIFICATION_ID_BASE + index, sourceNotification(update))
+            }
+            manager.notify(SUMMARY_ID, summaryNotification(updates))
+        }.isSuccess
     }
 
     private fun sourceNotification(update: SourceUpdate) =
@@ -96,7 +104,11 @@ public class NewContentNotifier(private val context: Context) {
     private companion object {
         const val CHANNEL_ID = "new_content"
         const val GROUP_KEY = "com.dewijones92.uniapp.NEW_CONTENT"
-        const val SUMMARY_ID = -1
         const val MAX_LINES = 5
+
+        // Notification ids: fixed summary + per-source BASE+index, so they're distinct
+        // from each other and the summary (unlike a hash of the source id, which can collide).
+        const val SUMMARY_ID = 1
+        const val NOTIFICATION_ID_BASE = 100
     }
 }
