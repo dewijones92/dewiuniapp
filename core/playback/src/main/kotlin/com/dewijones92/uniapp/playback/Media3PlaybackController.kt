@@ -55,6 +55,7 @@ public class Media3PlaybackController(
     private var activeSkipSegments: List<SkipSegment> = emptyList()
     private var activeChapters: List<Chapter> = emptyList()
     private var currentSourceId: SourceId? = null
+    private var playGeneration = 0
     private var skipSilence = false
     private var ticksSinceSave = 0
 
@@ -102,9 +103,11 @@ public class Media3PlaybackController(
     ) {
         val uri = localPath?.let { File(it).toURI().toString() }
             ?: requireNotNull(item.mediaUrl) { "MediaItem ${item.id.value} has no mediaUrl" }.value
-        activeSkipSegments = skipSegments
-        activeChapters = item.chapters
-        currentSourceId = item.sourceId
+        // Each play() claims a generation; only the latest one commits its state and
+        // media item. Guards against two quick play() calls (double-tap, queue
+        // auto-advance) whose async loads resume out of order and would otherwise
+        // leave the player on one item with another's source/segments/chapters.
+        val generation = ++playGeneration
         // A separate audio track (higher-than-muxed qualities) rides along in
         // the request metadata; the service merges it with the video-only URI.
         val requestMetadata = Media3MediaItem.RequestMetadata.Builder()
@@ -135,10 +138,16 @@ public class Media3PlaybackController(
         scope.launch {
             val resumeMs = progressStore.resumePositionMs(item.id) ?: 0L
             val speed = speedStore.speedFor(item.sourceId)
-            ticksSinceSave = 0
             withController { controller ->
+                // A newer play() superseded this one while we were loading — drop it,
+                // so its media item and state never clobber the current item.
+                if (generation != playGeneration) return@withController
+                activeSkipSegments = skipSegments
+                activeChapters = item.chapters
+                currentSourceId = item.sourceId
+                ticksSinceSave = 0
                 controller.setMediaItem(media3Item, resumeMs)
-                controller.setPlaybackSpeed(speed)
+                controller.setPlaybackSpeed(speed.coerceIn(MIN_SPEED, MAX_SPEED))
                 controller.prepare()
                 controller.play()
             }

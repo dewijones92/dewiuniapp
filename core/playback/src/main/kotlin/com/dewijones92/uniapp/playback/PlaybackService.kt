@@ -58,6 +58,11 @@ public class PlaybackService : MediaSessionService() {
     private var castPlayer: CastPlayer? = null
     private var currentPlayer: Player? = null
 
+    // Last item/position handed across a local↔cast switch, so a cast disconnect
+    // (which nulls the CastPlayer's queue) can still resume locally.
+    private var lastHandoffItem: MediaItem? = null
+    private var lastHandoffPositionMs: Long = 0
+
     @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
     override fun onCreate() {
         super.onCreate()
@@ -173,10 +178,18 @@ public class PlaybackService : MediaSessionService() {
     private fun switchTo(target: Player) {
         val previous = currentPlayer ?: return
         if (previous === target) return
-        previous.currentMediaItem?.let { item ->
-            target.setMediaItem(item, previous.currentPosition)
+        // On disconnect the CastPlayer has already torn its queue down, so its
+        // currentMediaItem is null — fall back to the item/position cached when the
+        // cast session started, so ending a cast resumes locally instead of dying.
+        val item = previous.currentMediaItem ?: lastHandoffItem
+        val position = previous.currentMediaItem?.let { previous.currentPosition } ?: lastHandoffPositionMs
+        item?.let {
+            target.setMediaItem(it, position)
             target.playWhenReady = previous.playWhenReady
+            target.playbackParameters = previous.playbackParameters // carry playback speed across the handoff
             target.prepare()
+            lastHandoffItem = it
+            lastHandoffPositionMs = position
         }
         previous.stop()
         currentPlayer = target
