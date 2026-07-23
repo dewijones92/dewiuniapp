@@ -104,6 +104,26 @@ fun AppShell(container: AppContainer, modifier: Modifier = Modifier) {
     }
 }
 
+/** Binds the watch view model to the current video and handles end-of-item advance. */
+@Composable
+private fun BindWatchAndAutoAdvance(
+    state: PlaybackState,
+    watchViewModel: WatchViewModel,
+    container: AppContainer,
+) {
+    // For YouTube videos the item id IS the video id; bind when it's a video.
+    LaunchedEffect(state.itemId, state.hasVideo) {
+        if (state.hasVideo) watchViewModel.bind(state.itemId.value)
+    }
+    // When the current item ends: play the next queued item if there is one;
+    // otherwise a video rolls on to the top related ("up next") video as before.
+    LaunchedEffect(state.hasEnded) {
+        if (state.hasEnded && !container.playbackQueue.playNextInQueue() && state.hasVideo) {
+            watchViewModel.autoplayNext()
+        }
+    }
+}
+
 /** Hosts the full-player overlay, wiring it to the one playback controller. */
 @Composable
 private fun FullPlayerHost(
@@ -113,14 +133,7 @@ private fun FullPlayerHost(
     onDismiss: () -> Unit,
 ) {
     val watchViewModel: WatchViewModel = viewModel(factory = WatchViewModel.factory(container))
-    // For YouTube videos the item id IS the video id; bind when it's a video.
-    LaunchedEffect(state.itemId, state.hasVideo) {
-        if (state.hasVideo) watchViewModel.bind(state.itemId.value)
-    }
-    // When the current video ends, roll on to the top up-next video.
-    LaunchedEffect(state.hasEnded) {
-        if (state.hasEnded && state.hasVideo) watchViewModel.autoplayNext()
-    }
+    BindWatchAndAutoAdvance(state, watchViewModel, container)
     val comments by watchViewModel.comments.collectAsStateWithLifecycle()
     val replies by watchViewModel.replies.collectAsStateWithLifecycle()
     val related by watchViewModel.related.collectAsStateWithLifecycle()

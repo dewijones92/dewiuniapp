@@ -46,6 +46,7 @@ import com.dewijones92.uniapp.notifications.SharedPrefsNewUploadsTracker
 import com.dewijones92.uniapp.playback.Media3PlaybackController
 import com.dewijones92.uniapp.playback.PlaybackController
 import com.dewijones92.uniapp.playback.SleepTimer
+import com.dewijones92.uniapp.queue.PlaybackQueue
 import com.dewijones92.uniapp.settings.AppPreferences
 import com.dewijones92.uniapp.settings.NetworkStatus
 import com.dewijones92.uniapp.settings.SharedPrefsAppPreferences
@@ -79,6 +80,9 @@ interface AppContainer {
 
     /** Sleep timer that pauses playback after a chosen delay. */
     val sleepTimer: SleepTimer
+
+    /** The unified up-next queue (what plays after the current item), both pillars. */
+    val playbackQueue: PlaybackQueue
 
     /** User settings (per-network default quality, …). */
     val appPreferences: AppPreferences
@@ -213,6 +217,10 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
 
     override val sleepTimer: SleepTimer by lazy {
         SleepTimer(playbackController, applicationScope)
+    }
+
+    override val playbackQueue: PlaybackQueue by lazy {
+        PlaybackQueue(playbackController, videoPlaybackLauncher, applicationScope)
     }
 
     private val youTubeWatchHistory: YouTubeWatchHistory by lazy {

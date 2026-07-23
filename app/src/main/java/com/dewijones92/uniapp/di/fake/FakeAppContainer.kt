@@ -34,6 +34,7 @@ import com.dewijones92.uniapp.notifications.NewUploadsTracker
 import com.dewijones92.uniapp.playback.PlaybackController
 import com.dewijones92.uniapp.playback.SleepTimer
 import com.dewijones92.uniapp.playback.fake.FakePlaybackController
+import com.dewijones92.uniapp.queue.PlaybackQueue
 import com.dewijones92.uniapp.settings.AppPreferences
 import com.dewijones92.uniapp.settings.InMemoryAppPreferences
 import com.dewijones92.uniapp.video.AccountSubscriptions
@@ -60,6 +61,8 @@ class FakeAppContainer(
     override val videoPlaybackLauncher: VideoPlaybackLauncher =
         VideoPlaybackLauncher(videoResolver, playbackController, FakeYouTubeWatchHistory()),
     override val sleepTimer: SleepTimer = SleepTimer(playbackController, CoroutineScope(SupervisorJob())),
+    override val playbackQueue: PlaybackQueue =
+        PlaybackQueue(playbackController, videoPlaybackLauncher, CoroutineScope(SupervisorJob())),
     override val appPreferences: AppPreferences = InMemoryAppPreferences(),
     override val youTubeAccount: YouTubeAccount = YouTubeAccount(FakeYouTubeAuth(), InMemoryTokenStore()),
     override val accountSubscriptions: AccountSubscriptions = AccountSubscriptions(
