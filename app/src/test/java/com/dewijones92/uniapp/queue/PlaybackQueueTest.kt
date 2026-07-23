@@ -88,6 +88,30 @@ class PlaybackQueueTest {
     }
 
     @Test
+    fun `playNextInQueue skips an unplayable item and plays the next`() = runTest(dispatcher) {
+        val q = queue()
+        // A podcast with neither a downloaded file nor a stream URL can't play.
+        val unplayable = QueuedItem.Podcast(
+            MediaItem(
+                id = MediaItemId("bad"),
+                sourceId = SourceId("feed"),
+                title = "bad",
+                publishedAt = null,
+                duration = null,
+                mediaUrl = null,
+            ),
+        )
+        q.enqueue(unplayable)
+        q.enqueue(podcast("good"))
+
+        assertTrue(q.playNextInQueue())
+        advanceUntilIdle()
+
+        assertEquals("good", controller.state.value?.itemId?.value)
+        assertTrue(q.upNext.value.isEmpty())
+    }
+
+    @Test
     fun `playNextInQueue on an empty queue returns false and plays nothing`() = runTest(dispatcher) {
         val q = queue()
         assertFalse(q.playNextInQueue())

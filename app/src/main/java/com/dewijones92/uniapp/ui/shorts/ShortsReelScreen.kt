@@ -22,7 +22,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -68,11 +70,15 @@ fun ShortsReelScreen(
     LaunchedEffect(pager.settledPage) {
         shorts.getOrNull(pager.settledPage)?.mediaUrl?.let { launcher.play(it, shorts[pager.settledPage].sourceId) }
     }
-    // When a short finishes, roll on to the next.
-    LaunchedEffect(state?.hasEnded) {
-        if (state?.hasEnded == true && pager.currentPage < shorts.lastIndex) {
-            pager.animateScrollToPage(pager.currentPage + 1)
-        }
+    // When a short finishes, roll on to the next — once per genuine end. Seed the
+    // already-handled id so a retained `hasEnded` from an item that ended before the
+    // reel opened doesn't immediately skip past the first short.
+    var handledEndFor by remember { mutableStateOf(state?.takeIf { it.hasEnded }?.itemId) }
+    LaunchedEffect(state?.itemId, state?.hasEnded) {
+        val current = state ?: return@LaunchedEffect
+        if (!current.hasEnded || handledEndFor == current.itemId) return@LaunchedEffect
+        handledEndFor = current.itemId
+        if (pager.currentPage < shorts.lastIndex) pager.animateScrollToPage(pager.currentPage + 1)
     }
 
     Surface(color = Color.Black, modifier = modifier.fillMaxSize()) {

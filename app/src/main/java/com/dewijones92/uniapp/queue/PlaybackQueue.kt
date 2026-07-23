@@ -78,19 +78,48 @@ class PlaybackQueue(
         scope.launch { play(target) }
     }
 
-    /** Starts the next queued item (removing it from the queue). Returns whether one was started. */
+    /**
+     * Starts the next queued item, skipping any that fail to play (an expired or
+     * private video, a broken item) so one bad entry can't strand the rest of the
+     * queue. Returns whether there was anything to try.
+     */
     fun playNextInQueue(): Boolean {
-        val head = _upNext.value.firstOrNull() ?: return false
-        _upNext.update { it.drop(1) }
-        scope.launch { play(head) }
+        if (_upNext.value.isEmpty()) return false
+        scope.launch {
+            var played = false
+            while (!played) {
+                val head = _upNext.getAndTake() ?: break
+                played = play(head)
+            }
+        }
         return true
     }
 
-    private suspend fun play(queued: QueuedItem) {
-        when (queued) {
-            is QueuedItem.Video -> launcher.play(queued.watchUrl, queued.item.sourceId)
-            is QueuedItem.LocalVideo -> launcher.playLocal(queued.item, queued.localPath)
-            is QueuedItem.Podcast -> controller.play(queued.item, MediaKind.PODCAST, localPath = queued.localPath)
+    /** Pops and returns the head, or null if empty. */
+    private fun MutableStateFlow<List<QueuedItem>>.getAndTake(): QueuedItem? {
+        var head: QueuedItem? = null
+        update { list ->
+            head = list.firstOrNull()
+            if (list.isEmpty()) list else list.drop(1)
+        }
+        return head
+    }
+
+    /** Plays [queued]; returns whether it actually started. */
+    private suspend fun play(queued: QueuedItem): Boolean = when (queued) {
+        is QueuedItem.Video -> launcher.play(queued.watchUrl, queued.item.sourceId)
+        is QueuedItem.LocalVideo -> {
+            launcher.playLocal(queued.item, queued.localPath)
+            true
+        }
+        is QueuedItem.Podcast -> {
+            // A podcast needs either a downloaded file or a stream URL; skip if neither.
+            if (queued.localPath == null && queued.item.mediaUrl == null) {
+                false
+            } else {
+                controller.play(queued.item, MediaKind.PODCAST, localPath = queued.localPath)
+                true
+            }
         }
     }
 }

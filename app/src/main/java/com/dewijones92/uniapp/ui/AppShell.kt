@@ -55,8 +55,12 @@ fun AppShell(container: AppContainer, modifier: Modifier = Modifier) {
     var shortsReel by remember { mutableStateOf<List<MediaItem>?>(null) }
     val playbackState by container.playbackController.state.collectAsStateWithLifecycle()
     val controller = container.playbackController
+    val watchViewModel: WatchViewModel = viewModel(factory = WatchViewModel.factory(container))
 
     RequestNotificationPermissionOnFirstPlay(playbackActive = playbackState != null)
+    // End-of-item advance lives here, always composed — so the queue advances in the
+    // mini player / with the screen off, not only while the full player is expanded.
+    AutoAdvance(playbackState, watchViewModel, container, reelOpen = shortsReel != null)
 
     Box(modifier = modifier.fillMaxSize()) {
         Scaffold(
@@ -104,7 +108,7 @@ fun AppShell(container: AppContainer, modifier: Modifier = Modifier) {
         // Full player overlays the whole app (above the mini player + nav) when
         // expanded; the mini player keeps the audio/video running underneath.
         playbackState?.takeIf { showFullPlayer }?.let { state ->
-            FullPlayerHost(state, controller, container) { showFullPlayer = false }
+            FullPlayerHost(state, controller, container, watchViewModel) { showFullPlayer = false }
         }
 
         // The Shorts reel is a full-screen overlay (above the nav + mini player),
@@ -115,21 +119,31 @@ fun AppShell(container: AppContainer, modifier: Modifier = Modifier) {
     }
 }
 
-/** Binds the watch view model to the current video and handles end-of-item advance. */
+/**
+ * Binds the watch view model to the current video and advances at end-of-item.
+ * Always composed (independent of the full player) so the queue keeps advancing
+ * in the mini player and with the screen off. Fires once per genuine end — a
+ * retained `hasEnded` from a previous item (e.g. on first composition) is seeded
+ * as already-handled so it can't trigger a spurious skip — and stands down while
+ * the Shorts reel, which drives its own advancement, is up.
+ */
 @Composable
-private fun BindWatchAndAutoAdvance(
-    state: PlaybackState,
+private fun AutoAdvance(
+    state: PlaybackState?,
     watchViewModel: WatchViewModel,
     container: AppContainer,
+    reelOpen: Boolean,
 ) {
-    // For YouTube videos the item id IS the video id; bind when it's a video.
-    LaunchedEffect(state.itemId, state.hasVideo) {
-        if (state.hasVideo) watchViewModel.bind(state.itemId.value)
+    LaunchedEffect(state?.itemId, state?.hasVideo) {
+        if (state != null && state.hasVideo) watchViewModel.bind(state.itemId.value)
     }
-    // When the current item ends: play the next queued item if there is one;
-    // otherwise a video rolls on to the top related ("up next") video as before.
-    LaunchedEffect(state.hasEnded) {
-        if (state.hasEnded && !container.playbackQueue.playNextInQueue() && state.hasVideo) {
+    var handledEndFor by remember { mutableStateOf(state?.takeIf { it.hasEnded }?.itemId) }
+    LaunchedEffect(state?.itemId, state?.hasEnded) {
+        if (reelOpen) return@LaunchedEffect
+        val ended = state?.takeIf { it.hasEnded } ?: return@LaunchedEffect
+        if (handledEndFor == ended.itemId) return@LaunchedEffect
+        handledEndFor = ended.itemId
+        if (!container.playbackQueue.playNextInQueue() && ended.hasVideo) {
             watchViewModel.autoplayNext()
         }
     }
@@ -141,10 +155,9 @@ private fun FullPlayerHost(
     state: PlaybackState,
     controller: PlaybackController,
     container: AppContainer,
+    watchViewModel: WatchViewModel,
     onDismiss: () -> Unit,
 ) {
-    val watchViewModel: WatchViewModel = viewModel(factory = WatchViewModel.factory(container))
-    BindWatchAndAutoAdvance(state, watchViewModel, container)
     val comments by watchViewModel.comments.collectAsStateWithLifecycle()
     val replies by watchViewModel.replies.collectAsStateWithLifecycle()
     val related by watchViewModel.related.collectAsStateWithLifecycle()
