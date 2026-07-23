@@ -44,6 +44,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dewijones92.uniapp.R
 import com.dewijones92.uniapp.di.AppContainer
 import com.dewijones92.uniapp.domain.DownloadState
+import com.dewijones92.uniapp.domain.MediaContentKind
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.MediaSource
 import com.dewijones92.uniapp.innertube.feeds.AccountFeed
@@ -61,7 +62,11 @@ import com.dewijones92.uniapp.ui.playlist.PlaylistScreen
 import com.dewijones92.uniapp.ui.playlist.PlaylistsListScreen
 
 @Composable
-fun VideosScreen(container: AppContainer, modifier: Modifier = Modifier) {
+fun VideosScreen(
+    container: AppContainer,
+    modifier: Modifier = Modifier,
+    onOpenShorts: (List<MediaItem>) -> Unit = {},
+) {
     val viewModel: VideosViewModel = viewModel(factory = VideosViewModel.factory(container))
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
@@ -102,6 +107,7 @@ fun VideosScreen(container: AppContainer, modifier: Modifier = Modifier) {
             onSelectFeed = viewModel::selectFeed,
             onChannelClick = { browsingChannel = it },
             onOpenPlaylists = { showPlaylists = true },
+            onOpenShorts = { onOpenShorts(state.videos.filter { it.contentKind == MediaContentKind.SHORT }) },
             onOpenNotifications = { showNotifications = true },
             onRefresh = viewModel::refresh,
             onSetSort = viewModel::setSort,
@@ -123,6 +129,7 @@ internal fun VideosContent(
     onSelectFeed: (AccountFeed?) -> Unit,
     onChannelClick: (MediaSource.VideoChannel) -> Unit,
     onOpenPlaylists: () -> Unit,
+    onOpenShorts: () -> Unit,
     onOpenNotifications: () -> Unit,
     onRefresh: () -> Unit,
     onSetSort: (MediaSort) -> Unit,
@@ -133,14 +140,7 @@ internal fun VideosContent(
     Box(modifier.fillMaxSize()) {
         Column {
             if (state.signedIn) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp),
-                    horizontalArrangement = Arrangement.End,
-                ) {
-                    NotificationsBell(newUploadsCount, onOpenNotifications)
-                }
+                VideosTopBar(newUploadsCount, onOpenNotifications)
             }
             PullToRefreshBox(
                 isRefreshing = state.refreshing,
@@ -162,6 +162,7 @@ internal fun VideosContent(
                         onSelectFeed,
                         onChannelClick = onChannelClick,
                         onOpenPlaylists = onOpenPlaylists,
+                        onOpenShorts = onOpenShorts,
                         onSetSort = onSetSort,
                     )
                 }
@@ -190,6 +191,19 @@ internal fun VideosContent(
     }
 }
 
+/** The top row with the new-uploads bell, shown when signed in. */
+@Composable
+private fun VideosTopBar(newUploadsCount: Int, onOpenNotifications: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp),
+        horizontalArrangement = Arrangement.End,
+    ) {
+        NotificationsBell(newUploadsCount, onOpenNotifications)
+    }
+}
+
 @Composable
 private fun NotificationsBell(count: Int, onClick: () -> Unit) {
     BadgedBox(badge = { if (count > 0) Badge { Text(count.toString()) } }) {
@@ -208,6 +222,7 @@ private fun ChannelsAndVideos(
     onSelectFeed: (AccountFeed?) -> Unit,
     onChannelClick: (MediaSource.VideoChannel) -> Unit,
     onOpenPlaylists: () -> Unit,
+    onOpenShorts: () -> Unit,
     onSetSort: (MediaSort) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -228,7 +243,7 @@ private fun ChannelsAndVideos(
             }
         }
         if (state.signedIn) {
-            item { FeedSelector(state.selectedFeed, onSelectFeed, onOpenPlaylists) }
+            item { FeedSelector(state.selectedFeed, onSelectFeed, onOpenPlaylists, onOpenShorts) }
         }
         when {
             state.feedLoading -> item { FeedLoading() }
@@ -263,6 +278,7 @@ private fun FeedSelector(
     selected: AccountFeed?,
     onSelectFeed: (AccountFeed?) -> Unit,
     onOpenPlaylists: () -> Unit,
+    onOpenShorts: () -> Unit,
 ) {
     LazyRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -276,7 +292,13 @@ private fun FeedSelector(
                 label = { Text(stringResource(feedChipRes(feed))) },
             )
         }
-        // Not a feed filter — opens the playlists list.
+        // Not feed filters — open the Shorts reel and the playlists list.
+        item {
+            AssistChip(
+                onClick = onOpenShorts,
+                label = { Text(stringResource(R.string.shorts_title)) },
+            )
+        }
         item {
             AssistChip(
                 onClick = onOpenPlaylists,
@@ -332,6 +354,7 @@ private fun VideosContentPreview() {
             newUploadsCount = 0,
             onChannelClick = {},
             onOpenPlaylists = {},
+            onOpenShorts = {},
             onOpenNotifications = {},
             onRefresh = {},
             onSetSort = {},

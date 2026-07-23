@@ -14,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -23,6 +24,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dewijones92.uniapp.di.AppContainer
 import com.dewijones92.uniapp.di.fake.FakeAppContainer
+import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.navigation.TopLevelDestination
 import com.dewijones92.uniapp.playback.PlaybackController
 import com.dewijones92.uniapp.playback.PlaybackState
@@ -39,6 +41,7 @@ import com.dewijones92.uniapp.ui.player.WatchActions
 import com.dewijones92.uniapp.ui.player.WatchViewModel
 import com.dewijones92.uniapp.ui.podcasts.PodcastsScreen
 import com.dewijones92.uniapp.ui.search.SearchScreen
+import com.dewijones92.uniapp.ui.shorts.ShortsReelScreen
 import com.dewijones92.uniapp.ui.videos.VideosScreen
 
 /**
@@ -49,6 +52,7 @@ import com.dewijones92.uniapp.ui.videos.VideosScreen
 fun AppShell(container: AppContainer, modifier: Modifier = Modifier) {
     var selected by rememberSaveable { mutableStateOf(TopLevelDestination.Videos) }
     var showFullPlayer by rememberSaveable { mutableStateOf(false) }
+    var shortsReel by remember { mutableStateOf<List<MediaItem>?>(null) }
     val playbackState by container.playbackController.state.collectAsStateWithLifecycle()
     val controller = container.playbackController
 
@@ -88,7 +92,7 @@ fun AppShell(container: AppContainer, modifier: Modifier = Modifier) {
                 label = "top-level-destination",
             ) { destination ->
                 when (destination) {
-                    TopLevelDestination.Videos -> VideosScreen(container)
+                    TopLevelDestination.Videos -> VideosScreen(container, onOpenShorts = { shortsReel = it })
                     TopLevelDestination.Podcasts -> PodcastsScreen(container)
                     TopLevelDestination.Search -> SearchScreen(container)
                     TopLevelDestination.Library -> LibraryScreen(container)
@@ -101,6 +105,12 @@ fun AppShell(container: AppContainer, modifier: Modifier = Modifier) {
         // expanded; the mini player keeps the audio/video running underneath.
         playbackState?.takeIf { showFullPlayer }?.let { state ->
             FullPlayerHost(state, controller, container) { showFullPlayer = false }
+        }
+
+        // The Shorts reel is a full-screen overlay (above the nav + mini player),
+        // so vertical swipes page between shorts without the app chrome in the way.
+        shortsReel?.let { shorts ->
+            ShortsReelScreen(container, shorts, onBack = { shortsReel = null })
         }
     }
 }
