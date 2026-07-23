@@ -63,6 +63,7 @@ import com.dewijones92.uniapp.innertube.feeds.FeedVideo
 import com.dewijones92.uniapp.playback.PlaybackState
 import com.dewijones92.uniapp.playback.SleepTimerState
 import com.dewijones92.uniapp.queue.QueuedItem
+import com.dewijones92.uniapp.ui.cast.CastButton
 import com.dewijones92.uniapp.ui.common.MediaThumbnail
 import com.dewijones92.uniapp.ui.common.PillarBadge
 import com.dewijones92.uniapp.ui.player.WatchViewModel.CommentsState
@@ -282,6 +283,8 @@ private fun PlayerDetails(
     }
     // Says whether this is a YouTube video or a podcast.
     PillarBadge(state.kind, modifier = Modifier.padding(top = 8.dp))
+    // Cast to a TV — self-hides when no Cast device is around.
+    CastButton(modifier = Modifier.padding(top = 8.dp))
 
     // Audio: seek + transport sit below the artwork (video has them overlaid).
     if (!controlsOverlaid) {

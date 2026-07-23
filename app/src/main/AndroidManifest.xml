@@ -13,6 +13,10 @@
         android:supportsRtl="true"
         android:windowSoftInputMode="adjustResize"
         android:theme="@style/Theme.UniApp">
+        <!-- Cast: tells the framework where to find our CastOptions. -->
+        <meta-data
+            android:name="com.google.android.gms.cast.framework.OPTIONS_PROVIDER_CLASS_NAME"
+            android:value="com.dewijones92.uniapp.cast.CastOptionsProvider" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

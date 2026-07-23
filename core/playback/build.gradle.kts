@@ -17,6 +17,9 @@ dependencies {
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.session)
+    // Cast: CastPlayer + CastContext, so playback can hand off to a Chromecast.
+    implementation(libs.media3.cast)
+    implementation(libs.play.services.cast.framework)
 
     testImplementation(project(":core:data"))
     testImplementation(libs.junit)

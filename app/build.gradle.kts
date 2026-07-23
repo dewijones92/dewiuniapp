@@ -110,6 +110,9 @@ dependencies {
   // Video surface for the shared player (podcasts show artwork, videos render here)
   implementation(libs.media3.common)
   implementation(libs.media3.ui.compose)
+  // Cast: the Cast button (MediaRouteButton) + CastContext options provider
+  implementation(libs.play.services.cast.framework)
+  implementation(libs.androidx.mediarouter)
   // Tooling
   debugImplementation(libs.androidx.compose.ui.tooling)
   // Instrumented tests

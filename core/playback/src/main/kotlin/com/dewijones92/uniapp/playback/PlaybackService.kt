@@ -3,6 +3,8 @@ package com.dewijones92.uniapp.playback
 import android.content.Context
 import android.os.Bundle
 import android.util.Log
+import androidx.media3.cast.CastPlayer
+import androidx.media3.cast.SessionAvailabilityListener
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -25,6 +27,7 @@ import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionResult
+import com.google.android.gms.cast.framework.CastContext
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 
@@ -48,6 +51,13 @@ public class PlaybackService : MediaSessionService() {
     // present ⇒ forced off, so audio and video always stay in sync.
     private var skipSilenceEnabled = false
     private var player: ExoPlayer? = null
+
+    // Cast: present only when Google Play Services + a receiver are available.
+    // The session swaps between the local player and this one as a Cast session
+    // comes and goes; null (or no devices) means everything plays locally as before.
+    @UnstableApi
+    private var castPlayer: CastPlayer? = null
+    private var currentPlayer: Player? = null
 
     @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
     override fun onCreate() {
@@ -86,6 +96,7 @@ public class PlaybackService : MediaSessionService() {
             .setSeekForwardIncrementMs(SEEK_FORWARD_MS)
             .build()
         this.player = player
+        currentPlayer = player
         // dewidebug: A/V-sync instrumentation — dropped frames + frame-processing
         // offset (video-timing health) and audio underruns, stamped with skip state.
         player.addAnalyticsListener(AvSyncLogger())
@@ -96,7 +107,8 @@ public class PlaybackService : MediaSessionService() {
                 override fun onTracksChanged(tracks: Tracks) = applyEffectiveSkipSilence()
             },
         )
-        mediaSession = MediaSession.Builder(this, player).setCallback(SkipSilenceCallback()).build()
+        setUpCast(player)
+        mediaSession = MediaSession.Builder(this, currentPlayer ?: player).setCallback(SkipSilenceCallback()).build()
     }
 
     /** Adds the skip-silences custom command and applies it to the audio processor. */
@@ -198,15 +210,48 @@ public class PlaybackService : MediaSessionService() {
         silenceSkipping.setEnabled(effective)
     }
 
+    /** Wires a Cast session in if Play Services + a receiver are reachable; otherwise stays fully local. */
+    @UnstableApi
+    private fun setUpCast(localPlayer: Player) {
+        val castContext = runCatching { CastContext.getSharedInstance(this) }.getOrNull() ?: return
+        val cast = CastPlayer(castContext)
+        cast.setSessionAvailabilityListener(
+            object : SessionAvailabilityListener {
+                override fun onCastSessionAvailable() = switchTo(cast)
+                override fun onCastSessionUnavailable() = switchTo(localPlayer)
+            },
+        )
+        castPlayer = cast
+    }
+
+    /** Hands the current item + position to [target] and points the session at it (local ↔ cast). */
+    @UnstableApi
+    private fun switchTo(target: Player) {
+        val previous = currentPlayer ?: return
+        if (previous === target) return
+        previous.currentMediaItem?.let { item ->
+            target.setMediaItem(item, previous.currentPosition)
+            target.playWhenReady = previous.playWhenReady
+            target.prepare()
+        }
+        previous.stop()
+        currentPlayer = target
+        mediaSession?.player = target
+        Log.i("dewidebug", "cast: player -> ${if (target === castPlayer) "cast" else "local"}")
+    }
+
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = mediaSession
 
+    @UnstableApi
     override fun onDestroy() {
-        mediaSession?.run {
-            player.release()
-            release()
-        }
+        mediaSession?.release()
+        player?.release()
+        castPlayer?.setSessionAvailabilityListener(null)
+        castPlayer?.release()
         mediaSession = null
         player = null
+        castPlayer = null
+        currentPlayer = null
         super.onDestroy()
     }
 
