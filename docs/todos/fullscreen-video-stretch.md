@@ -1,7 +1,7 @@
 ---
 title: Fix video stretched in fullscreen
 kind: todo
-status: open
+status: shipped
 area: playback
 priority: high
 requested: 2026-07-24
