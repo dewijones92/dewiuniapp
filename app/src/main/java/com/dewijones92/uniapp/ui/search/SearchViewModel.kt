@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.dewijones92.uniapp.data.podcast.PodcastRepository
+import com.dewijones92.uniapp.data.search.SearchHistoryStore
 import com.dewijones92.uniapp.data.search.SearchHit
 import com.dewijones92.uniapp.data.search.SearchOutcome
 import com.dewijones92.uniapp.data.search.SearchQuery
@@ -35,12 +36,15 @@ class SearchViewModel(
     private val videoSearch: SearchSource,
     private val podcastRepository: PodcastRepository,
     private val launcher: VideoPlaybackLauncher,
+    private val history: SearchHistoryStore,
 ) : ViewModel() {
 
     data class UiState(
         val results: Results = Results.Idle,
         /** Feed URLs already subscribed, so podcast hits render as such. */
         val subscribedFeeds: Set<String> = emptySet(),
+        /** Recent searches, offered in the idle state. */
+        val history: List<String> = emptyList(),
         /** Watch URL currently being resolved for playback, if any. */
         val resolving: String? = null,
         val resolveFailed: Boolean = false,
@@ -95,8 +99,9 @@ class SearchViewModel(
             }
         },
         playAttempt,
-    ) { results, subscribed, attempt ->
-        UiState(results, subscribed, attempt.resolving, attempt.failed)
+        history.recent(),
+    ) { results, subscribed, attempt, recent ->
+        UiState(results, subscribed, recent, attempt.resolving, attempt.failed)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), UiState())
 
     /** Called on every keystroke; the debounce lives in the results flow. */
@@ -104,9 +109,21 @@ class SearchViewModel(
         typed.value = rawQuery
     }
 
-    /** Explicit submit (search button / IME action); the query text drives the same stream. */
+    /** Explicit submit (search button / IME action / history tap); records to history. */
     fun search(rawQuery: String) {
         typed.value = rawQuery
+        val trimmed = rawQuery.trim()
+        if (trimmed.length >= MIN_QUERY_LENGTH) {
+            viewModelScope.launch { history.record(trimmed) }
+        }
+    }
+
+    fun removeHistory(query: String) {
+        viewModelScope.launch { history.remove(query) }
+    }
+
+    fun clearHistory() {
+        viewModelScope.launch { history.clear() }
     }
 
     private suspend fun runSearch(query: SearchQuery): Results = coroutineScope {
@@ -154,6 +171,7 @@ class SearchViewModel(
                     videoSearch = container.videoSearchSource,
                     podcastRepository = container.podcastRepository,
                     launcher = container.videoPlaybackLauncher,
+                    history = container.searchHistoryStore,
                 )
             }
         }

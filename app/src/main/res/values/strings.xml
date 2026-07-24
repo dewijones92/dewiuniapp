@@ -114,6 +114,9 @@
     <string name="search_empty_headline">Search everything</string>
     <string name="search_empty_supporting">Podcasts and videos, one search box.</string>
     <string name="search_section_failed">This search source couldn\'t be reached.</string>
+    <string name="search_recent">Recent searches</string>
+    <string name="search_clear_all">Clear all</string>
+    <string name="search_remove_recent">Remove</string>
     <string name="subscribed">Subscribed</string>
 
     <string name="account_signed_out_headline">Sign in to YouTube</string>

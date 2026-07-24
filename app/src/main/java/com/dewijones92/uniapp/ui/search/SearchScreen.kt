@@ -13,7 +13,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -58,6 +60,8 @@ fun SearchScreen(container: AppContainer, modifier: Modifier = Modifier) {
         onQueryChange = viewModel::onQueryChange,
         onSubscribe = viewModel::subscribe,
         onPlayVideo = viewModel::playVideo,
+        onRemoveHistory = viewModel::removeHistory,
+        onClearHistory = viewModel::clearHistory,
         modifier = modifier,
     )
 }
@@ -69,6 +73,8 @@ internal fun SearchContent(
     onQueryChange: (String) -> Unit,
     onSubscribe: (SearchHit.Podcast) -> Unit,
     onPlayVideo: (SearchHit.Video) -> Unit,
+    onRemoveHistory: (String) -> Unit,
+    onClearHistory: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var query by rememberSaveable { mutableStateOf("") }
@@ -94,14 +100,88 @@ internal fun SearchContent(
                 .padding(horizontal = 16.dp, vertical = 8.dp),
         )
 
+        val runSearch: (String) -> Unit = { submitted ->
+            query = submitted
+            onSearch(submitted)
+        }
         when (val results = state.results) {
-            Results.Idle -> EmptyState(
-                icon = Icons.Outlined.Search,
-                headline = stringResource(R.string.search_empty_headline),
-                supportingText = stringResource(R.string.search_empty_supporting),
-            )
+            Results.Idle -> SearchIdle(state.history, runSearch, onRemoveHistory, onClearHistory)
             Results.Searching -> LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             is Results.Loaded -> ResultsList(results, state, onSubscribe, onPlayVideo)
+        }
+    }
+}
+
+/** Idle state: recent searches if any, otherwise the empty-state prompt. */
+@Composable
+private fun SearchIdle(
+    history: List<String>,
+    onSearch: (String) -> Unit,
+    onRemove: (String) -> Unit,
+    onClear: () -> Unit,
+) {
+    if (history.isEmpty()) {
+        EmptyState(
+            icon = Icons.Outlined.Search,
+            headline = stringResource(R.string.search_empty_headline),
+            supportingText = stringResource(R.string.search_empty_supporting),
+        )
+    } else {
+        SearchHistory(history, onSearch, onRemove, onClear)
+    }
+}
+
+/** Recent searches (idle state): tap to re-run, X to forget one, Clear all to wipe. */
+@Composable
+private fun SearchHistory(
+    history: List<String>,
+    onSearch: (String) -> Unit,
+    onRemove: (String) -> Unit,
+    onClear: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier.fillMaxSize()) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 16.dp, end = 8.dp, top = 8.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.search_recent),
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(onClick = onClear) { Text(stringResource(R.string.search_clear_all)) }
+        }
+        LazyColumn(modifier = Modifier.fillMaxSize()) {
+            items(history.size) { index ->
+                val recent = history[index]
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onSearch(recent) }
+                        .padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+                ) {
+                    Icon(
+                        Icons.Outlined.History,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.width(16.dp))
+                    Text(
+                        text = recent,
+                        style = MaterialTheme.typography.bodyLarge,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                    IconButton(onClick = { onRemove(recent) }) {
+                        Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.search_remove_recent))
+                    }
+                }
+            }
         }
     }
 }

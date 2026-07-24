@@ -11,9 +11,11 @@ import com.dewijones92.uniapp.data.importexport.OpmlExporter
 import com.dewijones92.uniapp.data.importexport.SubscriptionImportParser
 import com.dewijones92.uniapp.data.podcast.PodcastRepository
 import com.dewijones92.uniapp.data.podcast.fake.FakePodcastRepository
+import com.dewijones92.uniapp.data.search.SearchHistoryStore
 import com.dewijones92.uniapp.data.search.SearchOutcome
 import com.dewijones92.uniapp.data.search.SearchSource
 import com.dewijones92.uniapp.data.search.YtDlpVideoSearchSource
+import com.dewijones92.uniapp.data.search.fake.InMemorySearchHistoryStore
 import com.dewijones92.uniapp.data.sponsorblock.SkipSegmentSource
 import com.dewijones92.uniapp.di.AppContainer
 import com.dewijones92.uniapp.importexport.SubscriptionImporter
@@ -56,6 +58,7 @@ class FakeAppContainer(
         SearchOutcome.Success(emptyList())
     },
     override val videoSearchSource: SearchSource = YtDlpVideoSearchSource(ytDlpEngine),
+    override val searchHistoryStore: SearchHistoryStore = InMemorySearchHistoryStore(),
     override val skipSegmentSource: SkipSegmentSource = SkipSegmentSource { emptyList() },
     override val downloadManager: DownloadManager = FakeDownloadManager(),
     override val videoResolver: VideoResolver = VideoResolver(ytDlpEngine, skipSegmentSource),

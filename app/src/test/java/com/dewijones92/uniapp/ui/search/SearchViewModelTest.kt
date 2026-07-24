@@ -6,6 +6,7 @@ import com.dewijones92.uniapp.data.search.SearchHit
 import com.dewijones92.uniapp.data.search.SearchOutcome
 import com.dewijones92.uniapp.data.search.SearchSource
 import com.dewijones92.uniapp.data.search.YtDlpVideoSearchSource
+import com.dewijones92.uniapp.data.search.fake.InMemorySearchHistoryStore
 import com.dewijones92.uniapp.data.sponsorblock.SkipSegmentSource
 import com.dewijones92.uniapp.domain.SkipSegment
 import com.dewijones92.uniapp.innertube.history.fake.FakeYouTubeWatchHistory
@@ -58,6 +59,7 @@ class SearchViewModelTest {
             playback,
             FakeYouTubeWatchHistory(),
         ),
+        history = InMemorySearchHistoryStore(),
     )
 
     @Before

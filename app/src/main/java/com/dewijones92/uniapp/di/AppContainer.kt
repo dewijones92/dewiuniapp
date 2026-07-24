@@ -18,6 +18,7 @@ import com.dewijones92.uniapp.data.net.OkHttpTextFetcher
 import com.dewijones92.uniapp.data.podcast.DefaultPodcastRepository
 import com.dewijones92.uniapp.data.podcast.PodcastRepository
 import com.dewijones92.uniapp.data.search.ItunesPodcastSearchSource
+import com.dewijones92.uniapp.data.search.SearchHistoryStore
 import com.dewijones92.uniapp.data.search.SearchSource
 import com.dewijones92.uniapp.data.search.YtDlpVideoSearchSource
 import com.dewijones92.uniapp.data.sponsorblock.SkipSegmentSource
@@ -51,6 +52,7 @@ import com.dewijones92.uniapp.playback.PlaybackController
 import com.dewijones92.uniapp.playback.SharedPrefsPlaybackSpeedStore
 import com.dewijones92.uniapp.playback.SleepTimer
 import com.dewijones92.uniapp.queue.PlaybackQueue
+import com.dewijones92.uniapp.search.SharedPrefsSearchHistoryStore
 import com.dewijones92.uniapp.settings.AppPreferences
 import com.dewijones92.uniapp.settings.NetworkStatus
 import com.dewijones92.uniapp.settings.SharedPrefsAppPreferences
@@ -77,6 +79,9 @@ interface AppContainer {
     val playbackController: PlaybackController
     val podcastSearchSource: SearchSource
     val videoSearchSource: SearchSource
+
+    /** Recent search queries, offered again in the search screen's idle state. */
+    val searchHistoryStore: SearchHistoryStore
     val skipSegmentSource: SkipSegmentSource
     val downloadManager: DownloadManager
     val videoResolver: VideoResolver
@@ -194,6 +199,10 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
 
     override val videoSearchSource: SearchSource by lazy {
         YtDlpVideoSearchSource(ytDlpEngine)
+    }
+
+    override val searchHistoryStore: SearchHistoryStore by lazy {
+        SharedPrefsSearchHistoryStore(context)
     }
 
     override val skipSegmentSource: SkipSegmentSource by lazy {
