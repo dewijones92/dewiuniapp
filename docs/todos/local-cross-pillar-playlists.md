@@ -1,7 +1,7 @@
 ---
 title: Local cross-pillar playlists
 kind: todo
-status: in-progress
+status: shipped
 area: library
 priority: high
 requested: 2026-07-24
@@ -53,3 +53,13 @@ detail screen (items via MediaItemRow, Play all → queue, remove); and an
 episode → Podcast handle, feed/channel video → Video watchUrl handle). Note: the
 row overflow (`onAddToQueue`) is currently only wired in PodcastsScreen, so
 add-to-playlist needs wiring across the item screens.
+
+## Shipped 2026-07-24 (commit 8933379)
+
+UI live: Library → Playlists (create/open) → detail (Play all, play-from, remove,
+rename/delete). Add-to-playlist on the MediaItemRow overflow (pillar inferred from
+the media URL), wired in channel tabs + Library downloads. Verified on-device:
+created a playlist, added a channel video, Play all resolved + played.
+
+**Follow-up:** wire add-to-playlist on the podcast + video *feed* rows too (only
+the channel tabs and Library downloads are wired so far).
