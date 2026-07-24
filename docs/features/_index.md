@@ -31,6 +31,7 @@ alone until they need more.
 | New-content notifications (background refresh, both pillars) | notifications | shipped | — |
 | Import / export subscriptions (OPML / NewPipe / Takeout) | subscriptions | shipped | — |
 | Local cross-pillar playlists (mix podcasts + videos) | library | shipped | [../todos/local-cross-pillar-playlists.md](../todos/local-cross-pillar-playlists.md) |
+| Play history (recently played, both pillars) | library | shipped | [play-history.md](play-history.md) |
 | Cast to TV (Chromecast) — best-effort | cast | shipped* | podcast/local only works; video casting fragile |
 | Explore channel content (InnerTube tabs: Videos/Shorts/Playlists) | channel | shipped | [channel-browse.md](channel-browse.md) |
 | Upload dates everywhere (channels shipped; search deferred) | video/search | in-progress | [upload-dates.md](upload-dates.md) |

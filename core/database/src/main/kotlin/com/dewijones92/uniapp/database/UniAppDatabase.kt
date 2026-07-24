@@ -15,8 +15,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         PlaybackProgressEntity::class,
         LocalPlaylistEntity::class,
         LocalPlaylistItemEntity::class,
+        PlayHistoryEntity::class,
     ],
-    version = 8,
+    version = 9,
     exportSchema = false,
 )
 public abstract class UniAppDatabase : RoomDatabase() {
@@ -29,6 +30,8 @@ public abstract class UniAppDatabase : RoomDatabase() {
 
     public abstract fun localPlaylistDao(): LocalPlaylistDao
 
+    public abstract fun playHistoryDao(): PlayHistoryDao
+
     public companion object {
         public fun build(context: Context): UniAppDatabase =
             Room.databaseBuilder(context, UniAppDatabase::class.java, "uniapp.db")
@@ -40,8 +43,21 @@ public abstract class UniAppDatabase : RoomDatabase() {
                     MIGRATION_5_6,
                     MIGRATION_6_7,
                     MIGRATION_7_8,
+                    MIGRATION_8_9,
                 )
                 .build()
+
+        /** v9: play history (recently-played, denormalized like playlist items). */
+        private val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS play_history (" +
+                        "itemId TEXT NOT NULL PRIMARY KEY, lastPlayedAtEpochMs INTEGER NOT NULL, " +
+                        "title TEXT NOT NULL, author TEXT, thumbnailUrl TEXT, sourceId TEXT NOT NULL, " +
+                        "contentKind TEXT NOT NULL, playbackType TEXT NOT NULL, handle TEXT, mediaUrl TEXT)",
+                )
+            }
+        }
 
         /** v8: local (cross-pillar) playlists + their items. */
         private val MIGRATION_7_8 = object : Migration(7, 8) {

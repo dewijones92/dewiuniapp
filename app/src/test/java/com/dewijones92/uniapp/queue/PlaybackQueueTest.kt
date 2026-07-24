@@ -1,6 +1,7 @@
 package com.dewijones92.uniapp.queue
 
 import com.dewijones92.uniapp.common.HttpUrl
+import com.dewijones92.uniapp.data.history.fake.InMemoryPlayHistoryStore
 import com.dewijones92.uniapp.data.sponsorblock.SkipSegmentSource
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.MediaItemId
@@ -29,6 +30,7 @@ class PlaybackQueueTest {
         VideoResolver(FakeYtDlpEngine(), SkipSegmentSource { emptyList() }),
         controller,
         FakeYouTubeWatchHistory(),
+        InMemoryPlayHistoryStore(),
     )
 
     private fun queue() = PlaybackQueue(controller, launcher, CoroutineScope(dispatcher))

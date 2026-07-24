@@ -1,15 +1,10 @@
 package com.dewijones92.uniapp.database
 
-import com.dewijones92.uniapp.common.HttpUrl
 import com.dewijones92.uniapp.data.playlist.LocalPlaylistStore
 import com.dewijones92.uniapp.data.playlist.PlaylistItem
-import com.dewijones92.uniapp.data.playlist.PlaylistPlayback
 import com.dewijones92.uniapp.domain.LocalPlaylist
-import com.dewijones92.uniapp.domain.MediaContentKind
-import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.MediaItemId
 import com.dewijones92.uniapp.domain.PlaylistId
-import com.dewijones92.uniapp.domain.SourceId
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.util.UUID
@@ -21,7 +16,7 @@ public class RoomLocalPlaylistStore(private val dao: LocalPlaylistDao) : LocalPl
         dao.observePlaylists().map { rows -> rows.map { LocalPlaylist(PlaylistId(it.id), it.name, it.itemCount) } }
 
     override fun observeItems(id: PlaylistId): Flow<List<PlaylistItem>> =
-        dao.observeItems(id.value).map { list -> list.mapNotNull { it.toPlaylistItem() } }
+        dao.observeItems(id.value).map { list -> list.mapNotNull(::playlistItemFrom) }
 
     override suspend fun create(name: String): PlaylistId {
         val id = UUID.randomUUID().toString()
@@ -40,32 +35,8 @@ public class RoomLocalPlaylistStore(private val dao: LocalPlaylistDao) : LocalPl
     override suspend fun removeItem(id: PlaylistId, itemId: MediaItemId): Unit =
         dao.deleteItem(id.value, itemId.value)
 
-    private fun LocalPlaylistItemEntity.toPlaylistItem(): PlaylistItem? {
-        val playback = when (playbackType) {
-            "VIDEO" -> PlaylistPlayback.Video(HttpUrl.parse(handle ?: return null) ?: return null)
-            "LOCAL_VIDEO" -> PlaylistPlayback.LocalVideo(handle ?: return null)
-            else -> PlaylistPlayback.Podcast(localPath = handle)
-        }
-        val item = MediaItem(
-            id = MediaItemId(itemId),
-            sourceId = SourceId(sourceId),
-            title = title,
-            publishedAt = null,
-            duration = null,
-            author = author,
-            thumbnailUrl = thumbnailUrl?.let(HttpUrl::parse),
-            mediaUrl = mediaUrl?.let(HttpUrl::parse),
-            contentKind = runCatching { MediaContentKind.valueOf(contentKind) }.getOrDefault(MediaContentKind.STANDARD),
-        )
-        return PlaylistItem(item, playback)
-    }
-
     private fun PlaylistItem.toEntity(playlistId: String, position: Long): LocalPlaylistItemEntity {
-        val (type, handle) = when (val p = playback) {
-            is PlaylistPlayback.Video -> "VIDEO" to p.watchUrl.value
-            is PlaylistPlayback.LocalVideo -> "LOCAL_VIDEO" to p.localPath
-            is PlaylistPlayback.Podcast -> "PODCAST" to p.localPath
-        }
+        val (type, handle) = playback.typeAndHandle()
         return LocalPlaylistItemEntity(
             playlistId = playlistId,
             itemId = item.id.value,

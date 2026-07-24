@@ -7,6 +7,8 @@ import com.dewijones92.uniapp.data.content.SeenItemsTracker
 import com.dewijones92.uniapp.data.content.fake.InMemorySeenItemsTracker
 import com.dewijones92.uniapp.data.download.DownloadManager
 import com.dewijones92.uniapp.data.download.fake.FakeDownloadManager
+import com.dewijones92.uniapp.data.history.PlayHistoryStore
+import com.dewijones92.uniapp.data.history.fake.InMemoryPlayHistoryStore
 import com.dewijones92.uniapp.data.importexport.OpmlExporter
 import com.dewijones92.uniapp.data.importexport.SubscriptionImportParser
 import com.dewijones92.uniapp.data.playlist.LocalPlaylistStore
@@ -63,11 +65,12 @@ class FakeAppContainer(
     },
     override val videoSearchSource: SearchSource = YtDlpVideoSearchSource(ytDlpEngine),
     override val searchHistoryStore: SearchHistoryStore = InMemorySearchHistoryStore(),
+    override val playHistoryStore: PlayHistoryStore = InMemoryPlayHistoryStore(),
     override val skipSegmentSource: SkipSegmentSource = SkipSegmentSource { emptyList() },
     override val downloadManager: DownloadManager = FakeDownloadManager(),
     override val videoResolver: VideoResolver = VideoResolver(ytDlpEngine, skipSegmentSource),
     override val videoPlaybackLauncher: VideoPlaybackLauncher =
-        VideoPlaybackLauncher(videoResolver, playbackController, FakeYouTubeWatchHistory()),
+        VideoPlaybackLauncher(videoResolver, playbackController, FakeYouTubeWatchHistory(), playHistoryStore),
     override val sleepTimer: SleepTimer = SleepTimer(playbackController, CoroutineScope(SupervisorJob())),
     override val playbackQueue: PlaybackQueue =
         PlaybackQueue(playbackController, videoPlaybackLauncher, CoroutineScope(SupervisorJob())),

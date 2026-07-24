@@ -1,7 +1,7 @@
 ---
 title: Play history screen
 kind: todo
-status: open
+status: shipped
 area: library
 priority: medium
 requested: 2026-07-24
@@ -9,6 +9,8 @@ updated: 2026-07-24
 ---
 
 # Play / watch history screen
+
+**Shipped** — see [../features/play-history.md](../features/play-history.md).
 
 **Ask:** a place to see play history.
 

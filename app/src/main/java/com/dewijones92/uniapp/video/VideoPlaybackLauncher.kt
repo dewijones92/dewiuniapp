@@ -1,6 +1,9 @@
 package com.dewijones92.uniapp.video
 
 import com.dewijones92.uniapp.common.HttpUrl
+import com.dewijones92.uniapp.data.history.PlayHistoryStore
+import com.dewijones92.uniapp.data.playlist.PlaylistItem
+import com.dewijones92.uniapp.data.playlist.PlaylistPlayback
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.SourceId
 import com.dewijones92.uniapp.innertube.history.YouTubeWatchHistory
@@ -21,6 +24,7 @@ class VideoPlaybackLauncher(
     private val resolver: VideoResolver,
     private val playback: PlaybackController,
     private val watchHistory: YouTubeWatchHistory,
+    private val playHistory: PlayHistoryStore,
     /** Max video height to auto-pick for the current network (a cap); default: no cap. */
     private val preferredMaxHeight: () -> Int = { Int.MAX_VALUE },
 ) {
@@ -55,6 +59,11 @@ class VideoPlaybackLauncher(
     suspend fun play(watchUrl: HttpUrl, sourceId: SourceId): Boolean {
         val resolved = resolver.resolve(watchUrl, sourceId) ?: return false
         current = resolved
+        // Record the play against the stable watch URL (streaming URLs expire), so
+        // a history replay re-resolves through this same launcher.
+        playHistory.record(
+            PlaylistItem(resolved.item.copy(mediaUrl = watchUrl), PlaylistPlayback.Video(watchUrl)),
+        )
         // Register this video's tracking URLs so its progress can sync to YouTube.
         watchHistory.beginSession(
             resolved.item.id.value,

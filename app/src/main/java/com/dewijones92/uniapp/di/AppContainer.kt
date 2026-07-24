@@ -12,10 +12,13 @@ import com.dewijones92.uniapp.data.download.DownloadManager
 import com.dewijones92.uniapp.data.download.EngineDownloadStrategy
 import com.dewijones92.uniapp.data.download.HttpDownloadStrategy
 import com.dewijones92.uniapp.data.download.RoutedDownloadStrategy
+import com.dewijones92.uniapp.data.history.PlayHistoryStore
 import com.dewijones92.uniapp.data.importexport.OpmlExporter
 import com.dewijones92.uniapp.data.importexport.SubscriptionImportParser
 import com.dewijones92.uniapp.data.net.OkHttpTextFetcher
 import com.dewijones92.uniapp.data.playlist.LocalPlaylistStore
+import com.dewijones92.uniapp.data.playlist.PlaylistItem
+import com.dewijones92.uniapp.data.playlist.PlaylistPlayback
 import com.dewijones92.uniapp.data.podcast.DefaultPodcastRepository
 import com.dewijones92.uniapp.data.podcast.PodcastRepository
 import com.dewijones92.uniapp.data.search.ItunesPodcastSearchSource
@@ -26,10 +29,12 @@ import com.dewijones92.uniapp.data.sponsorblock.SkipSegmentSource
 import com.dewijones92.uniapp.data.sponsorblock.SponsorBlockSegmentSource
 import com.dewijones92.uniapp.database.RoomDownloadStore
 import com.dewijones92.uniapp.database.RoomLocalPlaylistStore
+import com.dewijones92.uniapp.database.RoomPlayHistoryStore
 import com.dewijones92.uniapp.database.RoomPlaybackProgressStore
 import com.dewijones92.uniapp.database.RoomSubscriptionStore
 import com.dewijones92.uniapp.database.UniAppDatabase
 import com.dewijones92.uniapp.domain.MediaItem
+import com.dewijones92.uniapp.domain.MediaKind
 import com.dewijones92.uniapp.importexport.SubscriptionImporter
 import com.dewijones92.uniapp.innertube.actions.HttpYouTubeActions
 import com.dewijones92.uniapp.innertube.actions.YouTubeActions
@@ -99,6 +104,9 @@ interface AppContainer {
 
     /** User-curated local playlists, mixing podcasts and videos. */
     val localPlaylistStore: LocalPlaylistStore
+
+    /** Recently-played items across both pillars. */
+    val playHistoryStore: PlayHistoryStore
 
     /** User settings (per-network default quality, …). */
     val appPreferences: AppPreferences
@@ -198,6 +206,16 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
             applicationScope,
             RoomPlaybackProgressStore(database.playbackProgressDao()),
             SharedPrefsPlaybackSpeedStore(context),
+            // Podcasts play straight through the controller (their enclosure URL is
+            // stable), so record their history here; videos are recorded at the
+            // launcher, which knows the stable watch URL.
+            onPlay = { item, kind ->
+                if (kind == MediaKind.PODCAST) {
+                    applicationScope.launch {
+                        playHistoryStore.record(PlaylistItem(item, PlaylistPlayback.Podcast()))
+                    }
+                }
+            },
         )
     }
 
@@ -254,6 +272,10 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
         RoomLocalPlaylistStore(database.localPlaylistDao())
     }
 
+    override val playHistoryStore: PlayHistoryStore by lazy {
+        RoomPlayHistoryStore(database.playHistoryDao())
+    }
+
     private val youTubeWatchHistory: YouTubeWatchHistory by lazy {
         HttpYouTubeWatchHistory(youTubeAccount, httpClient)
     }
@@ -267,6 +289,7 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
             videoResolver,
             playbackController,
             youTubeWatchHistory,
+            playHistory = playHistoryStore,
             preferredMaxHeight = {
                 val settings = appPreferences.settings.value
                 if (networkStatus.isMetered()) settings.cellularMaxHeight else settings.wifiMaxHeight

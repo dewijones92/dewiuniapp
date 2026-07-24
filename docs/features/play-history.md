@@ -1,0 +1,54 @@
+---
+title: Play history
+kind: feature
+status: shipped
+area: library
+updated: 2026-07-24
+---
+
+# Play history
+
+A "Recently played" list across both pillars, in Library → History. Most-recent
+first, tap to replay, Clear all.
+
+## Seam
+
+`PlayHistoryStore` (port, `:core:data` `data/history/`) — one store for both
+pillars. It reuses `PlaylistItem` (a `MediaItem` + a `PlaylistPlayback` handle),
+the same shape the local-playlist store persists, so a history entry survives
+stream-URL expiry: a video keeps its stable watch URL, a podcast its enclosure.
+
+- Fake: `InMemoryPlayHistoryStore` (dedup-by-item, move-to-front, capped at 50).
+- Impl: `RoomPlayHistoryStore` over `PlayHistoryDao` / `PlayHistoryEntity`
+  (`play_history`, DB v9). Rows denormalize the display fields + play handle.
+- Wired in `AppContainer.playHistoryStore`.
+
+## Recording (one entry per pillar, no double-count)
+
+- **Videos** are recorded in `VideoPlaybackLauncher.play()`, against the stable
+  watch URL — so a replay re-resolves through the launcher (streaming URLs expire).
+- **Podcasts** are recorded via a `Media3PlaybackController.onPlay(item, kind)`
+  callback, guarded to `kind == PODCAST`. All podcast plays go through the
+  controller and their enclosure URL is stable. Videos reach the controller as
+  `kind == VIDEO` (quality switches, Listen mode) and are skipped there — the
+  launcher owns them — so nothing is recorded twice.
+
+## Persistence detail (DRY)
+
+`PlaylistItemColumns` (interface, `:core:database`) is the shared denormalized
+column contract; both `LocalPlaylistItemEntity` and `PlayHistoryEntity` implement
+it, and `playlistItemFrom(columns)` is the single mapper back to a `PlaylistItem`.
+
+## Files
+
+- `core/data/.../data/history/PlayHistoryStore.kt`, `fake/InMemoryPlayHistoryStore.kt`
+- `core/database/.../PlayHistoryEntity.kt`, `RoomPlayHistoryStore.kt`, `PlaylistItemColumns.kt`
+- `app/.../ui/history/PlayHistoryViewModel.kt`, `PlayHistoryScreen.kt`
+- `app/.../ui/library/LibraryScreen.kt` (History nav entry)
+- `app/.../video/VideoPlaybackLauncher.kt`, `core/playback/.../Media3PlaybackController.kt` (recording hooks)
+
+## Tests
+
+`PlayHistoryStoreTest` (order / move-to-front dedup / cap / clear). Verified
+on-device: play a video and a podcast → both appear under Library → History,
+most-recent first; tap replays; Clear all empties it.

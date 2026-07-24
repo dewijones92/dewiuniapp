@@ -1,6 +1,7 @@
 package com.dewijones92.uniapp.ui.podcasts
 
 import com.dewijones92.uniapp.data.download.fake.FakeDownloadManager
+import com.dewijones92.uniapp.data.history.fake.InMemoryPlayHistoryStore
 import com.dewijones92.uniapp.data.podcast.fake.FakePodcastRepository
 import com.dewijones92.uniapp.data.sponsorblock.SkipSegmentSource
 import com.dewijones92.uniapp.innertube.history.fake.FakeYouTubeWatchHistory
@@ -38,6 +39,7 @@ class PodcastsViewModelTest {
             VideoResolver(FakeYtDlpEngine(), SkipSegmentSource { emptyList() }),
             controller,
             FakeYouTubeWatchHistory(),
+            InMemoryPlayHistoryStore(),
         )
         viewModel = PodcastsViewModel(
             FakePodcastRepository(),

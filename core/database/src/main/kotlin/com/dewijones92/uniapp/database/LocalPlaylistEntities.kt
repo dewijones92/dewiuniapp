@@ -33,20 +33,20 @@ public data class LocalPlaylistEntity(
 )
 public data class LocalPlaylistItemEntity(
     public val playlistId: String,
-    public val itemId: String,
+    override val itemId: String,
     public val position: Long,
-    public val title: String,
-    public val author: String?,
-    public val thumbnailUrl: String?,
-    public val sourceId: String,
-    public val contentKind: String,
+    override val title: String,
+    override val author: String?,
+    override val thumbnailUrl: String?,
+    override val sourceId: String,
+    override val contentKind: String,
     /** VIDEO | LOCAL_VIDEO | PODCAST — how to play (mirrors the queue shapes). */
-    public val playbackType: String,
+    override val playbackType: String,
     /** Video watch URL, or a local file path; null for a streamed podcast. */
-    public val handle: String?,
+    override val handle: String?,
     /** A podcast's enclosure URL (its playable media); null for videos. */
-    public val mediaUrl: String?,
-)
+    override val mediaUrl: String?,
+) : PlaylistItemColumns
 
 /** Playlist + its item count, for the list screen. */
 public data class PlaylistCountRow(

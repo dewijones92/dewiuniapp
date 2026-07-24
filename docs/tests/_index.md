@@ -27,6 +27,7 @@ instead).
 |---|---|---|
 | RSS parse, chapters, import/export | JVM unit | `:core:data` — the untrusted-input hot spot |
 | Search (sources, history), content refresher | JVM unit | `:core:data` |
+| Local playlists, play history | JVM unit | `:core:data` (in-memory store contracts) |
 | Downloads (routed/engine/http strategies) | JVM unit | `:core:data` |
 | InnerTube parsers (feeds/related/comments/…) | JVM unit | `:lib:innertube`, against captured fixtures |
 | yt-dlp `BridgeJson` | JVM unit | `:lib:ytdlp-chaquopy` |

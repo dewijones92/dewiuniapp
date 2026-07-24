@@ -1,6 +1,7 @@
 package com.dewijones92.uniapp.ui.search
 
 import com.dewijones92.uniapp.common.HttpUrl
+import com.dewijones92.uniapp.data.history.fake.InMemoryPlayHistoryStore
 import com.dewijones92.uniapp.data.podcast.fake.FakePodcastRepository
 import com.dewijones92.uniapp.data.search.SearchHit
 import com.dewijones92.uniapp.data.search.SearchOutcome
@@ -58,6 +59,7 @@ class SearchViewModelTest {
             VideoResolver(engine, SkipSegmentSource { cannedSegments }),
             playback,
             FakeYouTubeWatchHistory(),
+            InMemoryPlayHistoryStore(),
         ),
         history = InMemorySearchHistoryStore(),
     )

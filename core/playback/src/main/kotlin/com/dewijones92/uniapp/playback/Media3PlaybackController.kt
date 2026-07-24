@@ -44,6 +44,7 @@ public class Media3PlaybackController(
     private val scope: CoroutineScope,
     private val progressStore: PlaybackProgressStore = NoOpPlaybackProgressStore,
     private val speedStore: PlaybackSpeedStore = NoOpPlaybackSpeedStore,
+    private val onPlay: (MediaItem, MediaKind) -> Unit = { _, _ -> },
 ) : PlaybackController {
 
     private val _state = MutableStateFlow<PlaybackState?>(null)
@@ -103,6 +104,7 @@ public class Media3PlaybackController(
     ) {
         val uri = localPath?.let { File(it).toURI().toString() }
             ?: requireNotNull(item.mediaUrl) { "MediaItem ${item.id.value} has no mediaUrl" }.value
+        onPlay(item, kind)
         // Each play() claims a generation; only the latest one commits its state and
         // media item. Guards against two quick play() calls (double-tap, queue
         // auto-advance) whose async loads resume out of order and would otherwise

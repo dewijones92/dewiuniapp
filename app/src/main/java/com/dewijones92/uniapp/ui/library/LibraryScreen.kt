@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.outlined.CollectionsBookmark
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -23,6 +24,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -39,6 +41,7 @@ import com.dewijones92.uniapp.ui.common.MediaItemRow
 import com.dewijones92.uniapp.ui.common.MediaSort
 import com.dewijones92.uniapp.ui.common.SectionHeaderWithSort
 import com.dewijones92.uniapp.ui.common.mediaItemSubtitle
+import com.dewijones92.uniapp.ui.history.PlayHistoryScreen
 import com.dewijones92.uniapp.ui.library.LibraryViewModel.DownloadedItem
 import com.dewijones92.uniapp.ui.playlist.LocalPlaylistDetailScreen
 import com.dewijones92.uniapp.ui.playlist.LocalPlaylistsScreen
@@ -47,6 +50,7 @@ import com.dewijones92.uniapp.ui.playlist.rememberPlaylistAdder
 @Composable
 fun LibraryScreen(container: AppContainer, modifier: Modifier = Modifier) {
     var showPlaylists by remember { mutableStateOf(false) }
+    var showHistory by remember { mutableStateOf(false) }
     var openPlaylist by remember { mutableStateOf<PlaylistId?>(null) }
     val playlist = openPlaylist
 
@@ -60,12 +64,24 @@ fun LibraryScreen(container: AppContainer, modifier: Modifier = Modifier) {
                 onOpen = { openPlaylist = it },
                 modifier = modifier,
             )
-        else -> LibraryHome(container, onOpenPlaylists = { showPlaylists = true }, modifier = modifier)
+        showHistory ->
+            PlayHistoryScreen(container, onBack = { showHistory = false }, modifier = modifier)
+        else -> LibraryHome(
+            container,
+            onOpenPlaylists = { showPlaylists = true },
+            onOpenHistory = { showHistory = true },
+            modifier = modifier,
+        )
     }
 }
 
 @Composable
-private fun LibraryHome(container: AppContainer, onOpenPlaylists: () -> Unit, modifier: Modifier = Modifier) {
+private fun LibraryHome(
+    container: AppContainer,
+    onOpenPlaylists: () -> Unit,
+    onOpenHistory: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val viewModel: LibraryViewModel = viewModel(factory = LibraryViewModel.factory(container))
     val downloaded by viewModel.downloaded.collectAsStateWithLifecycle()
     val sort by viewModel.sortOrder.collectAsStateWithLifecycle()
@@ -75,6 +91,7 @@ private fun LibraryHome(container: AppContainer, onOpenPlaylists: () -> Unit, mo
         downloaded = downloaded,
         sort = sort,
         onOpenPlaylists = onOpenPlaylists,
+        onOpenHistory = onOpenHistory,
         onPlay = viewModel::play,
         onDelete = viewModel::delete,
         onAddToPlaylist = { addToPlaylist(it.item) },
@@ -88,6 +105,7 @@ internal fun LibraryContent(
     downloaded: List<DownloadedItem>,
     sort: MediaSort,
     onOpenPlaylists: () -> Unit,
+    onOpenHistory: () -> Unit,
     onPlay: (DownloadedItem) -> Unit,
     onDelete: (DownloadedItem) -> Unit,
     onAddToPlaylist: (DownloadedItem) -> Unit,
@@ -97,6 +115,7 @@ internal fun LibraryContent(
     Column(modifier = modifier.fillMaxSize()) {
         LazyColumn(modifier = Modifier.weight(1f)) {
             item { PlaylistsEntry(onOpenPlaylists) }
+            item { HistoryEntry(onOpenHistory) }
             if (downloaded.isEmpty()) {
                 item { DownloadsEmpty() }
             } else {
@@ -127,6 +146,16 @@ internal fun LibraryContent(
 
 @Composable
 private fun PlaylistsEntry(onOpen: () -> Unit) {
+    LibraryNavEntry(Icons.AutoMirrored.Filled.PlaylistPlay, R.string.playlists_title, onOpen)
+}
+
+@Composable
+private fun HistoryEntry(onOpen: () -> Unit) {
+    LibraryNavEntry(Icons.Outlined.History, R.string.history_title, onOpen)
+}
+
+@Composable
+private fun LibraryNavEntry(icon: ImageVector, titleRes: Int, onOpen: () -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -134,13 +163,9 @@ private fun PlaylistsEntry(onOpen: () -> Unit) {
             .clickable(onClick = onOpen)
             .padding(horizontal = 16.dp, vertical = 16.dp),
     ) {
-        Icon(
-            Icons.AutoMirrored.Filled.PlaylistPlay,
-            contentDescription = null,
-            modifier = Modifier.padding(end = 16.dp)
-        )
+        Icon(icon, contentDescription = null, modifier = Modifier.padding(end = 16.dp))
         Text(
-            text = stringResource(R.string.playlists_title),
+            text = stringResource(titleRes),
             style = MaterialTheme.typography.titleMedium,
             modifier = Modifier.weight(1f),
         )
