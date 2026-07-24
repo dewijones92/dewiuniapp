@@ -60,6 +60,8 @@ fun MediaItemRow(
     modifier: Modifier = Modifier,
     onPlayNext: (() -> Unit)? = null,
     onAddToQueue: (() -> Unit)? = null,
+    onAddToPlaylist: (() -> Unit)? = null,
+    onRemoveFromPlaylist: (() -> Unit)? = null,
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -94,39 +96,44 @@ fun MediaItemRow(
                 )
             }
         }
-        if (onAddToQueue != null || onPlayNext != null) {
-            QueueMenu(onPlayNext, onAddToQueue)
+        val hasMenu = listOf(onPlayNext, onAddToQueue, onAddToPlaylist, onRemoveFromPlaylist).any { it != null }
+        if (hasMenu) {
+            OverflowMenu(onPlayNext, onAddToQueue, onAddToPlaylist, onRemoveFromPlaylist)
         }
         DownloadControl(downloadState, onDownload, onDeleteDownload)
     }
 }
 
-/** Overflow menu adding the item to the up-next queue (now-next or end). */
+/** Overflow menu: queue actions, add-to-playlist, and remove-from-playlist. */
 @Composable
-private fun QueueMenu(onPlayNext: (() -> Unit)?, onAddToQueue: (() -> Unit)?) {
+private fun OverflowMenu(
+    onPlayNext: (() -> Unit)?,
+    onAddToQueue: (() -> Unit)?,
+    onAddToPlaylist: (() -> Unit)?,
+    onRemoveFromPlaylist: (() -> Unit)?,
+) {
     var expanded by remember { mutableStateOf(false) }
     IconButton(onClick = { expanded = true }) {
         Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.queue_menu))
     }
     DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-        onPlayNext?.let { action ->
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.queue_play_next)) },
-                onClick = {
-                    expanded = false
-                    action()
-                },
-            )
-        }
-        onAddToQueue?.let { action ->
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.queue_add)) },
-                onClick = {
-                    expanded = false
-                    action()
-                },
-            )
-        }
+        MenuAction(onPlayNext, R.string.queue_play_next) { expanded = false }
+        MenuAction(onAddToQueue, R.string.queue_add) { expanded = false }
+        MenuAction(onAddToPlaylist, R.string.playlist_add_to) { expanded = false }
+        MenuAction(onRemoveFromPlaylist, R.string.playlist_remove_from) { expanded = false }
+    }
+}
+
+@Composable
+private fun MenuAction(action: (() -> Unit)?, labelRes: Int, onChosen: () -> Unit) {
+    action?.let {
+        DropdownMenuItem(
+            text = { Text(stringResource(labelRes)) },
+            onClick = {
+                onChosen()
+                it()
+            },
+        )
     }
 }
 

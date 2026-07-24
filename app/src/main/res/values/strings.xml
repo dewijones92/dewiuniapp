@@ -98,6 +98,23 @@
     <string name="channel_tab_videos">Videos</string>
     <string name="channel_tab_shorts">Shorts</string>
     <string name="channel_tab_playlists">Playlists</string>
+
+    <!-- Local (cross-pillar) playlists -->
+    <string name="save">Save</string>
+    <string name="local_playlists_empty">No playlists yet. Create one to mix podcasts and videos.</string>
+    <string name="playlist_new">New playlist</string>
+    <string name="playlist_new_name">Playlist name</string>
+    <string name="playlist_add_to">Add to playlist</string>
+    <string name="playlist_remove_from">Remove from playlist</string>
+    <string name="playlist_create_add">Create &amp; add</string>
+    <string name="playlist_play_all">Play all</string>
+    <string name="playlist_empty">This playlist is empty.</string>
+    <string name="playlist_rename">Rename</string>
+    <string name="playlist_delete">Delete</string>
+    <plurals name="playlist_item_count">
+        <item quantity="one">%1$d item</item>
+        <item quantity="other">%1$d items</item>
+    </plurals>
     <string name="channel_unsubscribe">Unsubscribe</string>
     <string name="error_extraction">That link was recognised but couldn\'t be read (it may be private, removed or geo-blocked).</string>
 

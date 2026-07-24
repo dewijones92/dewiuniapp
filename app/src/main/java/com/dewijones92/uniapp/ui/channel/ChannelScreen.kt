@@ -64,6 +64,7 @@ fun ChannelScreen(
     val viewModel: ChannelViewModel =
         viewModel(key = source.id.value, factory = ChannelViewModel.factory(container, source))
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val addToPlaylist = com.dewijones92.uniapp.ui.playlist.rememberPlaylistAdder(container)
 
     ChannelContent(
         state = state,
@@ -73,6 +74,7 @@ fun ChannelScreen(
         onPlay = viewModel::play,
         onDownload = viewModel::download,
         onDeleteDownload = viewModel::deleteDownload,
+        onAddToPlaylist = addToPlaylist,
         onOpenPlaylist = onOpenPlaylist,
         modifier = modifier,
     )
@@ -88,6 +90,7 @@ internal fun ChannelContent(
     onPlay: (MediaItem) -> Unit,
     onDownload: (MediaItem) -> Unit,
     onDeleteDownload: (MediaItem) -> Unit,
+    onAddToPlaylist: (MediaItem) -> Unit,
     onOpenPlaylist: (Playlist) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -114,14 +117,16 @@ internal fun ChannelContent(
                     state.downloadStates,
                     onPlay,
                     onDownload,
-                    onDeleteDownload
+                    onDeleteDownload,
+                    onAddToPlaylist,
                 )
                 ChannelTab.SHORTS -> MediaItemTab(
                     state.shorts,
                     state.downloadStates,
                     onPlay,
                     onDownload,
-                    onDeleteDownload
+                    onDeleteDownload,
+                    onAddToPlaylist,
                 )
                 ChannelTab.PLAYLISTS -> PlaylistTab(state.playlists, onOpenPlaylist)
             }
@@ -142,6 +147,7 @@ private fun MediaItemTab(
     onPlay: (MediaItem) -> Unit,
     onDownload: (MediaItem) -> Unit,
     onDeleteDownload: (MediaItem) -> Unit,
+    onAddToPlaylist: (MediaItem) -> Unit,
 ) {
     when {
         tab.loading && tab.items.isEmpty() -> CenteredProgress()
@@ -156,6 +162,7 @@ private fun MediaItemTab(
                     onPlay = { onPlay(video) },
                     onDownload = { onDownload(video) },
                     onDeleteDownload = { onDeleteDownload(video) },
+                    onAddToPlaylist = { onAddToPlaylist(video) },
                 )
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
             }

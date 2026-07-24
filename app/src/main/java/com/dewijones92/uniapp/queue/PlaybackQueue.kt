@@ -46,6 +46,13 @@ class PlaybackQueue(
         _upNext.update { it + queued }
     }
 
+    /** Plays [items] as a set: the first now, the rest queued up next. No-op if empty. */
+    fun playAll(items: List<QueuedItem>) {
+        if (items.isEmpty()) return
+        _upNext.value = items.drop(1)
+        scope.launch { play(items.first()) }
+    }
+
     /** Inserts so it plays immediately after the current item. */
     fun playNext(queued: QueuedItem) {
         _upNext.update { listOf(queued) + it }
