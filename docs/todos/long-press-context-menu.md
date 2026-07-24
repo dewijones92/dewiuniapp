@@ -1,7 +1,7 @@
 ---
 title: Long-press context menu on items
 kind: todo
-status: open
+status: shipped
 area: ui
 priority: medium
 requested: 2026-07-24

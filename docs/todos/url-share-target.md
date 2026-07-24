@@ -1,7 +1,7 @@
 ---
 title: Register app as share target for URLs
 kind: todo
-status: open
+status: shipped
 area: integration
 priority: medium
 requested: 2026-07-24
