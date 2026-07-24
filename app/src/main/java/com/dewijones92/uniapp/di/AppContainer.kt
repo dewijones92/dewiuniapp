@@ -34,6 +34,8 @@ import com.dewijones92.uniapp.innertube.actions.YouTubeActions
 import com.dewijones92.uniapp.innertube.auth.HttpYouTubeAuth
 import com.dewijones92.uniapp.innertube.auth.YouTubeAccount
 import com.dewijones92.uniapp.innertube.browse.InnerTubeClient
+import com.dewijones92.uniapp.innertube.channel.HttpYouTubeChannel
+import com.dewijones92.uniapp.innertube.channel.YouTubeChannel
 import com.dewijones92.uniapp.innertube.comments.HttpYouTubeComments
 import com.dewijones92.uniapp.innertube.comments.YouTubeComments
 import com.dewijones92.uniapp.innertube.feeds.HttpYouTubeFeeds
@@ -110,6 +112,9 @@ interface AppContainer {
 
     /** A video's related / "up next" list (public; no sign-in needed). */
     val youTubeRelated: YouTubeRelated
+
+    /** A channel's public tabs — Videos / Shorts / Playlists (no sign-in needed). */
+    val youTubeChannel: YouTubeChannel
 
     /** Authenticated write actions (like, subscribe, comment). */
     val youTubeActions: YouTubeActions
@@ -300,6 +305,10 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
 
     override val youTubeRelated: YouTubeRelated by lazy {
         HttpYouTubeRelated(innerTubeClient)
+    }
+
+    override val youTubeChannel: YouTubeChannel by lazy {
+        HttpYouTubeChannel(innerTubeClient)
     }
 
     override val youTubeActions: YouTubeActions by lazy {

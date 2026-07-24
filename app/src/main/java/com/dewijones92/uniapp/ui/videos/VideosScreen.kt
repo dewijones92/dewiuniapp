@@ -95,7 +95,13 @@ fun VideosScreen(
         showNotifications ->
             NotificationsScreen(notificationsViewModel, onBack = { showNotifications = false }, modifier = modifier)
         channel != null ->
-            ChannelScreen(container, channel, onBack = { browsingChannel = null }, modifier = modifier)
+            ChannelScreen(
+                container,
+                channel,
+                onBack = { browsingChannel = null },
+                onOpenPlaylist = { browsingPlaylist = it },
+                modifier = modifier,
+            )
         else -> VideosContent(
             state = state,
             newUploadsCount = newUploadsCount,

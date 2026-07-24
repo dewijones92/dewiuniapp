@@ -1,140 +1,22 @@
 package com.dewijones92.uniapp.innertube.related
 
-import com.dewijones92.uniapp.common.HttpUrl
-import com.dewijones92.uniapp.innertube.feeds.FeedVideo
-import com.dewijones92.uniapp.innertube.feeds.looksLikePublished
-import com.dewijones92.uniapp.innertube.feeds.parseClockToSeconds
+import com.dewijones92.uniapp.innertube.feeds.LockupParser
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * Extracts the related / "up next" videos from a WEB `next` (watch-page)
- * response. YouTube serves these as `lockupViewModel`s — its newer tile
- * component — under the secondary results. Walks the whole tree and collects
- * every video lockup, so it survives YouTube reshuffling the sections; dedupes
- * by video id, first-seen order preserved. Shape verified against a real
- * watch-page response (2026-07-14).
+ * response. YouTube serves these as `lockupViewModel` tiles under the secondary
+ * results; the shared [LockupParser] does the walking/mapping (the same shape
+ * powers channel tabs), so this only wraps it in a [RelatedResult].
+ * Shape verified against a real watch-page response (2026-07-14).
  */
 internal object RelatedVideosParser {
 
-    private const val VIDEO_CONTENT_TYPE = "LOCKUP_CONTENT_TYPE_VIDEO"
-    private const val SHORTS_CONTENT_TYPE = "LOCKUP_CONTENT_TYPE_SHORTS"
-    private val VIDEO_CONTENT_TYPES = setOf(VIDEO_CONTENT_TYPE, SHORTS_CONTENT_TYPE)
-    private const val LIVE_BADGE_STYLE = "THUMBNAIL_OVERLAY_BADGE_STYLE_LIVE"
     private val json = Json { ignoreUnknownKeys = true }
 
     fun parse(body: String): RelatedResult {
-        val root = runCatching { json.parseToJsonElement(body) }.getOrNull()
+        runCatching { json.parseToJsonElement(body) }.getOrNull()
             ?: return RelatedResult.Failure("Unparseable watch-page response")
-        val videos = LinkedHashMap<String, FeedVideo>()
-        collectVideoLockups(root) { lockup ->
-            lockup.toFeedVideo()?.let { videos.putIfAbsent(it.videoId, it) }
-        }
-        return RelatedResult.Success(videos.values.toList())
+        return RelatedResult.Success(LockupParser.videos(body))
     }
-
-    private fun collectVideoLockups(node: JsonElement, onLockup: (JsonObject) -> Unit) {
-        when (node) {
-            is JsonObject -> {
-                val lockup = node["lockupViewModel"] as? JsonObject
-                if (lockup != null && lockup.stringAt("contentType") in VIDEO_CONTENT_TYPES) onLockup(lockup)
-                node.values.forEach { collectVideoLockups(it, onLockup) }
-            }
-            is JsonArray -> node.forEach { collectVideoLockups(it, onLockup) }
-            else -> Unit
-        }
-    }
-
-    private fun JsonObject.toFeedVideo(): FeedVideo? {
-        val videoId = stringAt("contentId") ?: return null
-        val watchUrl = FeedVideo.watchUrlFor(videoId) ?: return null
-        val metadata = (this["metadata"] as? JsonObject)?.get("lockupMetadataViewModel") as? JsonObject
-        val title = (metadata?.get("title") as? JsonObject)?.stringAt("content") ?: return null
-        return FeedVideo(
-            videoId = videoId,
-            title = title,
-            author = metadata.authorLine(),
-            durationSeconds = durationSeconds(),
-            thumbnailUrl = bestThumbnailUrl(),
-            watchUrl = watchUrl,
-            kind = when {
-                isLive() -> FeedVideo.Kind.LIVE
-                stringAt("contentType") == SHORTS_CONTENT_TYPE -> FeedVideo.Kind.SHORT
-                else -> FeedVideo.Kind.VIDEO
-            },
-            publishedText = metadata.publishedText(),
-        )
-    }
-
-    /** The metadata part YouTube uses for the published date (e.g. "2 days ago"). */
-    private fun JsonObject.publishedText(): String? {
-        val rows = ((this["metadata"] as? JsonObject)?.get("contentMetadataViewModel") as? JsonObject)
-            ?.get("metadataRows") as? JsonArray ?: return null
-        for (row in rows) {
-            val parts = (row as? JsonObject)?.get("metadataParts") as? JsonArray ?: continue
-            for (part in parts) {
-                val text = ((part as? JsonObject)?.get("text") as? JsonObject)?.stringAt("content")
-                if (text != null && text.looksLikePublished()) return text
-            }
-        }
-        return null
-    }
-
-    /** A live lockup carries a thumbnail badge with the LIVE badge style. */
-    private fun JsonObject.isLive(): Boolean {
-        val overlays = thumbnailViewModel()?.get("overlays") as? JsonArray ?: return false
-        return collectBadgeValues(overlays, "badgeStyle").any { it == LIVE_BADGE_STYLE }
-    }
-
-    /** First metadata row's first part is the channel/author line. */
-    private fun JsonObject.authorLine(): String? {
-        val rows = ((this["metadata"] as? JsonObject)?.get("contentMetadataViewModel") as? JsonObject)
-            ?.get("metadataRows") as? JsonArray ?: return null
-        for (row in rows) {
-            val parts = (row as? JsonObject)?.get("metadataParts") as? JsonArray ?: continue
-            val text = ((parts.firstOrNull() as? JsonObject)?.get("text") as? JsonObject)?.stringAt("content")
-            if (text != null) return text
-        }
-        return null
-    }
-
-    /** Duration is the thumbnail's bottom-overlay badge text ("m:ss"/"h:mm:ss"). */
-    private fun JsonObject.durationSeconds(): Long? {
-        val overlays = thumbnailViewModel()?.get("overlays") as? JsonArray ?: return null
-        collectBadgeValues(overlays, "text").forEach { text -> parseClockToSeconds(text)?.let { return it } }
-        return null
-    }
-
-    /** Every thumbnail badge's value at [field] (e.g. "text" for duration, "badgeStyle" for LIVE). */
-    private fun collectBadgeValues(node: JsonElement, field: String): List<String> {
-        val values = mutableListOf<String>()
-        fun walk(n: JsonElement) {
-            when (n) {
-                is JsonObject -> {
-                    (n["thumbnailBadgeViewModel"] as? JsonObject)?.stringAt(field)?.let { values.add(it) }
-                    n.values.forEach { walk(it) }
-                }
-                is JsonArray -> n.forEach { walk(it) }
-                else -> Unit
-            }
-        }
-        walk(node)
-        return values
-    }
-
-    private fun JsonObject.bestThumbnailUrl(): HttpUrl? {
-        val sources = (thumbnailViewModel()?.get("image") as? JsonObject)?.get("sources") as? JsonArray
-            ?: return null
-        return (sources.lastOrNull() as? JsonObject)?.stringAt("url")?.let(HttpUrl::parse)
-    }
-
-    private fun JsonObject.thumbnailViewModel(): JsonObject? =
-        (this["contentImage"] as? JsonObject)?.get("thumbnailViewModel") as? JsonObject
 }
-
-private fun JsonObject.stringAt(key: String): String? =
-    this[key]?.jsonPrimitive?.contentOrNull?.ifBlank { null }

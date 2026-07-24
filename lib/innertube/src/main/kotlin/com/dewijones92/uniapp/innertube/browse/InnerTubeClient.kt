@@ -36,6 +36,19 @@ public class InnerTubeClient(
     public suspend fun next(videoId: String): InnerTubeResponse =
         execute(nextUrl, webContext(""" "videoId":"$videoId" """), bearer = null)
 
+    /**
+     * Browses public content (WEB client, no auth) — e.g. a channel's tabs.
+     * [params] selects a channel tab (Videos/Shorts/Playlists); omit for the
+     * default landing tab.
+     */
+    public suspend fun browseWeb(browseId: String, params: String? = null): InnerTubeResponse {
+        val fields = buildString {
+            append(""" "browseId":"$browseId" """)
+            if (params != null) append(""", "params":"$params" """)
+        }
+        return execute(browseUrl, webContext(fields), bearer = null)
+    }
+
     /** Follows a continuation token (e.g. loading comments; WEB client, no auth). */
     public suspend fun nextContinuation(continuation: String): InnerTubeResponse =
         execute(nextUrl, webContext(""" "continuation":"$continuation" """), bearer = null)

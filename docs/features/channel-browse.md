@@ -1,7 +1,7 @@
 ---
 title: Explore channel content (InnerTube tabs)
 kind: feature
-status: planned
+status: shipped
 area: channel
 updated: 2026-07-24
 ---
@@ -74,3 +74,12 @@ title from `lockupMetadataViewModel`. Reuse `:lib:innertube` `playlists/Playlist
   gotcha — use `as? JsonArray`, never `?.jsonArray`).
 - `@handle` → `UC…` resolution path.
 - Shorts thumbnails came back empty in one probe — confirm the thumbnail source.
+
+## Shipped 2026-07-24
+
+All three tabs live (InnerTube WEB browse). Videos carry upload dates; Shorts are
+tagged SHORT; Playlists are tappable (open the existing playlist screen). Verified
+on-device (3Blue1Brown). Minor follow-ups: Shorts + Playlist tile thumbnails come
+back as placeholders (those lockup shapes hold the image under a different key
+than videos) and a playlist's subtitle is "View full playlist" rather than a
+count — cosmetic.

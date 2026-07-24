@@ -24,6 +24,8 @@ import com.dewijones92.uniapp.innertube.actions.fake.FakeYouTubeActions
 import com.dewijones92.uniapp.innertube.auth.YouTubeAccount
 import com.dewijones92.uniapp.innertube.auth.fake.FakeYouTubeAuth
 import com.dewijones92.uniapp.innertube.auth.fake.InMemoryTokenStore
+import com.dewijones92.uniapp.innertube.channel.YouTubeChannel
+import com.dewijones92.uniapp.innertube.channel.fake.FakeYouTubeChannel
 import com.dewijones92.uniapp.innertube.comments.YouTubeComments
 import com.dewijones92.uniapp.innertube.comments.fake.FakeYouTubeComments
 import com.dewijones92.uniapp.innertube.feeds.YouTubeFeeds
@@ -78,6 +80,7 @@ class FakeAppContainer(
     override val youTubeFeeds: YouTubeFeeds = FakeYouTubeFeeds(),
     override val youTubeComments: YouTubeComments = FakeYouTubeComments(),
     override val youTubeRelated: YouTubeRelated = FakeYouTubeRelated(),
+    override val youTubeChannel: YouTubeChannel = FakeYouTubeChannel(),
     override val youTubeActions: YouTubeActions = FakeYouTubeActions(),
     override val youTubePlaylists: YouTubePlaylists = FakeYouTubePlaylists(),
     override val bellSeenTracker: SeenItemsTracker = InMemorySeenItemsTracker(),

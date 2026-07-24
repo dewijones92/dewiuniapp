@@ -11,7 +11,7 @@ to `shipped` and migrate it to `../features/` once it's a real feature on `main`
 
 | Item | Area | Priority | Status |
 |---|---|---|---|
-| [Explore channel content](../features/channel-browse.md) | channel | high | planned |
+| [Explore channel content](../features/channel-browse.md) | channel | high | shipped |
 | [Upload dates everywhere](../features/upload-dates.md) | video/search | high | planned |
 | [background-audio-listen-mode](background-audio-listen-mode.md) | playback | high | shipped |
 | [fullscreen-video-stretch](fullscreen-video-stretch.md) | playback | high | shipped |

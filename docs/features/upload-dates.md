@@ -1,7 +1,7 @@
 ---
 title: Upload dates everywhere
 kind: feature
-status: planned
+status: in-progress
 area: video/search
 updated: 2026-07-24
 ---

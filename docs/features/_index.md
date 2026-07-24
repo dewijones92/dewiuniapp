@@ -31,8 +31,8 @@ alone until they need more.
 | New-content notifications (background refresh, both pillars) | notifications | shipped | — |
 | Import / export subscriptions (OPML / NewPipe / Takeout) | subscriptions | shipped | — |
 | Cast to TV (Chromecast) — best-effort | cast | shipped* | podcast/local only works; video casting fragile |
-| **Explore channel content (InnerTube tabs: Videos/Shorts/Playlists)** | channel | **planned** | [channel-browse.md](channel-browse.md) |
-| **Upload dates everywhere** | video/search | **planned** | [upload-dates.md](upload-dates.md) |
+| Explore channel content (InnerTube tabs: Videos/Shorts/Playlists) | channel | shipped | [channel-browse.md](channel-browse.md) |
+| Upload dates everywhere (channel done; search pending) | video/search | in-progress | [upload-dates.md](upload-dates.md) |
 
 \* Cast: crash + disconnect-loses-playback fixed; real casting unverified (no hardware).
 
