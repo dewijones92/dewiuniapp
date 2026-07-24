@@ -18,5 +18,8 @@ to `shipped` and migrate it to `../features/` once it's a real feature on `main`
 | [long-press-context-menu](long-press-context-menu.md) | ui | medium | open |
 | [url-share-target](url-share-target.md) | integration | medium | open |
 | [play-history-screen](play-history-screen.md) | library | medium | open |
+| [local-cross-pillar-playlists](local-cross-pillar-playlists.md) | library | high | open |
+| [skip-silence-on-video](skip-silence-on-video.md) | playback | medium | open |
+| [listen-mode-exit-ux](listen-mode-exit-ux.md) | playback | high | open |
 
 All backlog items are Dewi requests captured 2026-07-24.
