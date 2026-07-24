@@ -1,5 +1,6 @@
 package com.dewijones92.uniapp.playback
 
+import android.app.PendingIntent
 import android.content.Context
 import android.os.Bundle
 import android.util.Log
@@ -108,7 +109,10 @@ public class PlaybackService : MediaSessionService() {
             },
         )
         setUpCast(player)
-        mediaSession = MediaSession.Builder(this, currentPlayer ?: player).setCallback(SkipSilenceCallback()).build()
+        mediaSession = MediaSession.Builder(this, currentPlayer ?: player)
+            .setCallback(SkipSilenceCallback())
+            .apply { openAppIntent()?.let { setSessionActivity(it) } }
+            .build()
     }
 
     /** Adds the skip-silences custom command and applies it to the audio processor. */
@@ -195,6 +199,17 @@ public class PlaybackService : MediaSessionService() {
         currentPlayer = target
         mediaSession?.player = target
         Log.i("dewidebug", "cast: player -> ${if (target === castPlayer) "cast" else "local"}")
+    }
+
+    /** Tapping the media notification reopens the app (its launcher activity). */
+    private fun openAppIntent(): PendingIntent? {
+        val launch = packageManager.getLaunchIntentForPackage(packageName) ?: return null
+        return PendingIntent.getActivity(
+            this,
+            0,
+            launch,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = mediaSession
