@@ -21,6 +21,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -50,6 +51,13 @@ import com.dewijones92.uniapp.ui.playlist.rememberPlaylistAdder
 fun PodcastsScreen(container: AppContainer, modifier: Modifier = Modifier) {
     val viewModel: PodcastsViewModel = viewModel(factory = PodcastsViewModel.factory(container))
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    var openFeed by remember { mutableStateOf<MediaSource.PodcastFeed?>(null) }
+
+    val feed = openFeed
+    if (feed != null) {
+        PodcastFeedScreen(container, feed, onBack = { openFeed = null }, modifier = modifier)
+        return
+    }
 
     PodcastsContent(
         state = state,
@@ -63,6 +71,7 @@ fun PodcastsScreen(container: AppContainer, modifier: Modifier = Modifier) {
         onEnqueue = viewModel::enqueue,
         onPlayNext = viewModel::playNext,
         onAddToPlaylist = rememberPlaylistAdder(container),
+        onOpenFeed = { openFeed = it },
         modifier = modifier,
     )
 }
@@ -81,6 +90,7 @@ internal fun PodcastsContent(
     onEnqueue: (MediaItem) -> Unit,
     onPlayNext: (MediaItem) -> Unit,
     onAddToPlaylist: (MediaItem) -> Unit,
+    onOpenFeed: (MediaSource.PodcastFeed) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
@@ -107,6 +117,7 @@ internal fun PodcastsContent(
                     onEnqueue,
                     onPlayNext,
                     onAddToPlaylist,
+                    onOpenFeed,
                 )
             }
         }
@@ -143,6 +154,7 @@ private fun SubscriptionsAndEpisodes(
     onEnqueue: (MediaItem) -> Unit,
     onPlayNext: (MediaItem) -> Unit,
     onAddToPlaylist: (MediaItem) -> Unit,
+    onOpenFeed: (MediaSource.PodcastFeed) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(modifier = modifier.fillMaxSize()) {
@@ -152,7 +164,11 @@ private fun SubscriptionsAndEpisodes(
                 contentPadding = PaddingValues(horizontal = 16.dp),
             ) {
                 items(state.subscriptions) { subscription ->
-                    AssistChip(onClick = {}, label = { Text(subscription.source.title) })
+                    val feed = subscription.source as? MediaSource.PodcastFeed
+                    AssistChip(
+                        onClick = { feed?.let(onOpenFeed) },
+                        label = { Text(subscription.source.title) },
+                    )
                 }
             }
         }
@@ -210,6 +226,7 @@ private fun PodcastsContentPreview() {
             onEnqueue = {},
             onPlayNext = {},
             onAddToPlaylist = {},
+            onOpenFeed = {},
         )
     }
 }
@@ -230,6 +247,7 @@ private fun PodcastsEmptyPreview() {
             onEnqueue = {},
             onPlayNext = {},
             onAddToPlaylist = {},
+            onOpenFeed = {},
         )
     }
 }

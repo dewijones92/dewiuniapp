@@ -14,6 +14,7 @@ import com.dewijones92.uniapp.domain.DownloadState
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.MediaItemId
 import com.dewijones92.uniapp.domain.MediaKind
+import com.dewijones92.uniapp.domain.SourceId
 import com.dewijones92.uniapp.domain.Subscription
 import com.dewijones92.uniapp.playback.PlaybackController
 import com.dewijones92.uniapp.queue.PlaybackQueue
@@ -27,6 +28,10 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+// The pillar's whole UI action surface (play/queue/download/subscribe/sort), each a
+// one-liner delegating to a port. It backs both the feed list and a single feed's
+// page, so splitting it would mean two view models over the same state.
+@Suppress("TooManyFunctions")
 class PodcastsViewModel(
     private val repository: PodcastRepository,
     private val playback: PlaybackController,
@@ -124,6 +129,10 @@ class PodcastsViewModel(
                 is SubscribeResult.Failure.InvalidFeed -> Subscribing.Error.InvalidFeed
             }
         }
+    }
+
+    fun unsubscribe(id: SourceId) {
+        viewModelScope.launch { repository.unsubscribe(id) }
     }
 
     /** Call when the add-podcast dialog closes, so the next attempt starts clean. */

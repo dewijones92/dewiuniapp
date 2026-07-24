@@ -1,0 +1,92 @@
+package com.dewijones92.uniapp.ui.podcasts
+
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.dewijones92.uniapp.R
+import com.dewijones92.uniapp.di.AppContainer
+import com.dewijones92.uniapp.domain.DownloadState
+import com.dewijones92.uniapp.domain.MediaSource
+import com.dewijones92.uniapp.ui.common.MediaItemRow
+import com.dewijones92.uniapp.ui.common.SourceHeader
+import com.dewijones92.uniapp.ui.common.mediaItemSubtitle
+import com.dewijones92.uniapp.ui.common.rememberMediaItemActions
+
+/**
+ * One podcast feed's page — the podcast pillar's counterpart to
+ * [com.dewijones92.uniapp.ui.channel.ChannelScreen]: the same [SourceHeader]
+ * (back / title / subscribe toggle) over this feed's episodes as the same shared
+ * [MediaItemRow]. It's a filtered view of [PodcastsViewModel] rather than a
+ * parallel view model, so play/download/queue behave identically to the feed list.
+ */
+@Composable
+fun PodcastFeedScreen(
+    container: AppContainer,
+    source: MediaSource.PodcastFeed,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val viewModel: PodcastsViewModel = viewModel(factory = PodcastsViewModel.factory(container))
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val actions = rememberMediaItemActions(container)
+    val episodes = state.episodes.filter { it.sourceId == source.id }
+    val subscribed = state.subscriptions.any { it.source.id == source.id }
+
+    Surface(modifier = modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize()) {
+            SourceHeader(
+                title = source.title,
+                subscribed = subscribed,
+                onBack = onBack,
+                onToggleSubscribed = {
+                    if (subscribed) {
+                        viewModel.unsubscribe(source.id)
+                    } else {
+                        viewModel.subscribe(source.feedUrl.value)
+                    }
+                },
+            )
+            if (episodes.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.feed_empty),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(32.dp),
+                )
+            } else {
+                LazyColumn(Modifier.fillMaxSize()) {
+                    items(episodes, key = { it.id.value }) { episode ->
+                        MediaItemRow(
+                            item = episode,
+                            subtitle = mediaItemSubtitle(episode),
+                            downloadState = state.downloadStates[episode.id] ?: DownloadState.NotDownloaded,
+                            onPlay = { viewModel.play(episode) },
+                            onDownload = { viewModel.download(episode) },
+                            onDeleteDownload = { viewModel.deleteDownload(episode) },
+                            onPlayNext = { viewModel.playNext(episode) },
+                            onAddToQueue = { viewModel.enqueue(episode) },
+                            onAddToPlaylist = { actions.addToPlaylist(episode) },
+                        )
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                    }
+                }
+            }
+        }
+    }
+}

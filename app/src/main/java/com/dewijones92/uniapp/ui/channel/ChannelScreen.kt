@@ -12,16 +12,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
@@ -44,6 +38,7 @@ import com.dewijones92.uniapp.innertube.playlists.Playlist
 import com.dewijones92.uniapp.ui.channel.ChannelViewModel.TabState
 import com.dewijones92.uniapp.ui.common.MediaItemRow
 import com.dewijones92.uniapp.ui.common.MediaThumbnail
+import com.dewijones92.uniapp.ui.common.SourceHeader
 import com.dewijones92.uniapp.ui.common.mediaItemSubtitle
 import com.dewijones92.uniapp.ui.channel.ChannelViewModel.Tab as ChannelTab
 
@@ -96,7 +91,7 @@ internal fun ChannelContent(
 ) {
     Surface(modifier = modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
-            ChannelHeader(
+            SourceHeader(
                 title = state.title,
                 subscribed = state.subscribed,
                 onBack = onBack,
@@ -213,43 +208,6 @@ private fun PlaylistRow(playlist: Playlist, onClick: () -> Unit) {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ChannelHeader(
-    title: String,
-    subscribed: Boolean,
-    onBack: () -> Unit,
-    onToggleSubscribed: () -> Unit,
-) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 8.dp),
-    ) {
-        IconButton(onClick = onBack) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
-        }
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleLarge,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier
-                .weight(1f)
-                .padding(horizontal = 8.dp),
-        )
-        if (subscribed) {
-            OutlinedButton(onClick = onToggleSubscribed) {
-                Text(stringResource(R.string.channel_unsubscribe))
-            }
-        } else {
-            FilledTonalButton(onClick = onToggleSubscribed) {
-                Text(stringResource(R.string.channel_subscribe))
             }
         }
     }

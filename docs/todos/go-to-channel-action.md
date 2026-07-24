@@ -32,3 +32,17 @@ for an episode. Then the sheet gains one more `SheetAction`, wired through
 
 **Done when:** long-press any row on either pillar → "Go to channel" (or "Go to
 podcast") opens that source's page.
+
+## Progress 2026-07-24 — destinations now exist on both pillars
+
+The podcast pillar had no source page at all (the Podcasts subscription chips were
+dead: `onClick = {}`), so there was nothing for a podcast row to navigate *to*.
+Shipped: `PodcastFeedScreen` — one feed's episodes, reached by tapping its chip —
+built as a filtered view of `PodcastsViewModel` (not a parallel view model), and
+`ChannelScreen`'s header extracted to a shared `SourceHeader` (back / title /
+subscribe toggle) now used by both pillars' source pages.
+
+Remaining for this item: the channel handle for account-feed videos, and the
+`goToSource` action itself. yt-dlp's `extract` already returns the full info dict
+(which carries `channel_id` / `channel_url`), so the handle can be resolved on tap
+rather than plumbed through every parser — `MediaMetadata` just needs the field.
