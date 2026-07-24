@@ -1,7 +1,9 @@
 package com.dewijones92.uniapp.ui.common
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -12,15 +14,19 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
+import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -30,6 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -47,8 +54,9 @@ private val THUMBNAIL_HEIGHT = 54.dp
  * One media item in a list — used identically for podcast episodes and any
  * other [MediaItem]. Tapping the row plays it; the leading [MediaThumbnail]
  * shows its artwork; the trailing control reflects and drives its offline
- * [DownloadState].
+ * [DownloadState]. Long-press (or the ⋮) opens a bottom sheet of its actions.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MediaItemRow(
     item: MediaItem,
@@ -63,11 +71,17 @@ fun MediaItemRow(
     onAddToPlaylist: (() -> Unit)? = null,
     onRemoveFromPlaylist: (() -> Unit)? = null,
 ) {
+    var showSheet by remember { mutableStateOf(false) }
+    val hasMenu = listOf(onPlayNext, onAddToQueue, onAddToPlaylist, onRemoveFromPlaylist).any { it != null }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
             .fillMaxWidth()
-            .clickable(enabled = item.mediaUrl != null, onClick = onPlay)
+            .combinedClickable(
+                enabled = item.mediaUrl != null || hasMenu,
+                onClick = { if (item.mediaUrl != null) onPlay() },
+                onLongClick = if (hasMenu) ({ showSheet = true }) else null,
+            )
             .padding(16.dp),
     ) {
         MediaThumbnail(
@@ -96,44 +110,71 @@ fun MediaItemRow(
                 )
             }
         }
-        val hasMenu = listOf(onPlayNext, onAddToQueue, onAddToPlaylist, onRemoveFromPlaylist).any { it != null }
         if (hasMenu) {
-            OverflowMenu(onPlayNext, onAddToQueue, onAddToPlaylist, onRemoveFromPlaylist)
+            IconButton(onClick = { showSheet = true }) {
+                Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.queue_menu))
+            }
         }
         DownloadControl(downloadState, onDownload, onDeleteDownload)
     }
+    if (showSheet) {
+        ActionSheet(
+            title = item.title,
+            onPlayNext = onPlayNext,
+            onAddToQueue = onAddToQueue,
+            onAddToPlaylist = onAddToPlaylist,
+            onRemoveFromPlaylist = onRemoveFromPlaylist,
+            onDismiss = { showSheet = false },
+        )
+    }
 }
 
-/** Overflow menu: queue actions, add-to-playlist, and remove-from-playlist. */
+/**
+ * Long-press / overflow action sheet — a Material 3 bottom sheet of the actions
+ * available for the row (what apps like YouTube use). Only non-null actions show.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun OverflowMenu(
+private fun ActionSheet(
+    title: String,
     onPlayNext: (() -> Unit)?,
     onAddToQueue: (() -> Unit)?,
     onAddToPlaylist: (() -> Unit)?,
     onRemoveFromPlaylist: (() -> Unit)?,
+    onDismiss: () -> Unit,
 ) {
-    var expanded by remember { mutableStateOf(false) }
-    IconButton(onClick = { expanded = true }) {
-        Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.queue_menu))
-    }
-    DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-        MenuAction(onPlayNext, R.string.queue_play_next) { expanded = false }
-        MenuAction(onAddToQueue, R.string.queue_add) { expanded = false }
-        MenuAction(onAddToPlaylist, R.string.playlist_add_to) { expanded = false }
-        MenuAction(onRemoveFromPlaylist, R.string.playlist_remove_from) { expanded = false }
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+        )
+        SheetAction(onPlayNext, Icons.AutoMirrored.Filled.PlaylistPlay, R.string.queue_play_next, onDismiss)
+        SheetAction(onAddToQueue, Icons.AutoMirrored.Filled.QueueMusic, R.string.queue_add, onDismiss)
+        SheetAction(onAddToPlaylist, Icons.AutoMirrored.Filled.PlaylistAdd, R.string.playlist_add_to, onDismiss)
+        SheetAction(onRemoveFromPlaylist, Icons.Filled.Delete, R.string.playlist_remove_from, onDismiss)
+        Spacer(Modifier.height(16.dp))
     }
 }
 
 @Composable
-private fun MenuAction(action: (() -> Unit)?, labelRes: Int, onChosen: () -> Unit) {
+private fun SheetAction(action: (() -> Unit)?, icon: ImageVector, labelRes: Int, onDismiss: () -> Unit) {
     action?.let {
-        DropdownMenuItem(
-            text = { Text(stringResource(labelRes)) },
-            onClick = {
-                onChosen()
-                it()
-            },
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {
+                    onDismiss()
+                    it()
+                }
+                .padding(horizontal = 24.dp, vertical = 14.dp),
+        ) {
+            Icon(icon, contentDescription = null, modifier = Modifier.padding(end = 24.dp))
+            Text(stringResource(labelRes), style = MaterialTheme.typography.bodyLarge)
+        }
     }
 }
 
