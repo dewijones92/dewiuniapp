@@ -9,6 +9,12 @@ The original brief lives in `init` at the repo root. Decisions below supersede i
 they conflict (notably: the `ytdlp-kt` fork dependency mentioned in `init` was dropped
 in favour of a from-scratch library — see Decisions).
 
+**Living docs:** `AGENTS.md` → `docs/` holds a maintained hierarchy (frontmatter'd
+markdown) documenting features, the backlog (`docs/todos/`), tests, and architecture.
+Keeping them current is part of "done": ship/change a feature → update
+`docs/features/<name>.md`; start/finish/drop a backlog item → update `docs/todos/`;
+change coverage → update `docs/tests/`. Bump each doc's `updated`.
+
 ## Decisions (agreed with Dewi, July 2026)
 
 | Decision | Choice | Why |
