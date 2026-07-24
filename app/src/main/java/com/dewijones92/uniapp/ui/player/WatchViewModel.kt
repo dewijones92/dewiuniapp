@@ -51,6 +51,9 @@ class WatchViewModel(
     /** Switch the current video to audio-only ("Listen"). */
     fun listen(): Unit = launcher.listen()
 
+    /** Leave audio-only and return to watching the video ("Watch"). */
+    fun watch(): Unit = launcher.watch()
+
     sealed interface CommentsState {
         data object Loading : CommentsState
         data class Loaded(val comments: List<Comment>) : CommentsState

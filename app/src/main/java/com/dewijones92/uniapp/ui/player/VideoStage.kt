@@ -85,11 +85,21 @@ internal fun VideoStageWithControls(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
             ) { controlsVisible = !controlsVisible },
+        contentAlignment = Alignment.Center,
     ) {
+        // Inline, the stage is already the video's shape, so the surface fills it.
+        // Fullscreen the stage fills the (wider) screen, so constrain the surface
+        // to the video's aspect and letterbox it — otherwise the TextureView
+        // stretches the picture to the whole screen.
+        val surfaceModifier = if (fullscreen) {
+            Modifier.aspectRatio(aspect ?: DEFAULT_VIDEO_ASPECT_RATIO, matchHeightConstraintsFirst = true)
+        } else {
+            Modifier.matchParentSize()
+        }
         PlayerSurface(
             player = player,
             surfaceType = SURFACE_TYPE_TEXTURE_VIEW,
-            modifier = Modifier.matchParentSize(),
+            modifier = surfaceModifier,
         )
         // A spinner over the frame whenever the player is buffering, so a stall
         // reads as "loading" rather than a frozen picture. Sits above the surface

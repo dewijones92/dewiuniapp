@@ -76,6 +76,7 @@
     <string name="dislike">Dislike</string>
     <string name="watch_later_save">Save to Watch Later</string>
     <string name="listen">Listen (audio only)</string>
+    <string name="watch_video">Watch video</string>
     <string name="sponsor_segments_title">SponsorBlock skips</string>
     <string name="chapters_title">Chapters</string>
     <string name="queue_menu">More options</string>

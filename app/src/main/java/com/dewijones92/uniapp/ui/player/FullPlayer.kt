@@ -26,7 +26,6 @@ import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material.icons.filled.ThumbDown
 import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material.icons.filled.WatchLater
-import androidx.compose.material.icons.outlined.Headphones
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.ThumbDown
 import androidx.compose.material.icons.outlined.ThumbUp
@@ -309,14 +308,7 @@ private fun PlayerDetails(
         QualitySelector(quality)
     }
 
-    // Listen — drop to audio-only (less data) while a video is playing.
-    if (state.hasVideo && quality.canListen) {
-        Spacer(Modifier.height(4.dp))
-        TextButton(onClick = quality.onListen) {
-            Icon(Icons.Outlined.Headphones, contentDescription = null, modifier = Modifier.size(20.dp))
-            Text(stringResource(R.string.listen), modifier = Modifier.padding(start = 8.dp))
-        }
-    }
+    ListenWatchToggle(quality, state.hasVideo)
 
     // Like / dislike / Watch Later — signed-in write actions for the current video.
     if (state.hasVideo && watchActions.canAct) {

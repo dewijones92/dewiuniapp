@@ -30,6 +30,8 @@ class VideoPlaybackLauncher(
         val selectedId: String? = null,
         /** True when an audio-only stream exists, so "Listen" mode is offered. */
         val canListen: Boolean = false,
+        /** True while playing audio-only ("Listen"); the toggle then offers "Watch". */
+        val listening: Boolean = false,
     )
 
     private val _quality = MutableStateFlow(QualityState())
@@ -53,16 +55,27 @@ class VideoPlaybackLauncher(
     suspend fun play(watchUrl: HttpUrl, sourceId: SourceId): Boolean {
         val resolved = resolver.resolve(watchUrl, sourceId) ?: return false
         current = resolved
-        // Auto-pick the best quality within the network's cap; fall back to the
-        // reliable muxed default when nothing qualifies (or there are no ladders).
-        val chosen = resolved.qualities.filter { it.height <= preferredMaxHeight() }.maxByOrNull { it.height }
-        val selected = chosen?.id ?: resolved.qualities.firstOrNull { it.videoUrl == resolved.item.mediaUrl }?.id
-        _quality.value = QualityState(resolved.qualities, selected, canListen = resolved.audioOnlyUrl != null)
         // Register this video's tracking URLs so its progress can sync to YouTube.
         watchHistory.beginSession(
             resolved.item.id.value,
             resolved.playbackTrackingUrl,
             resolved.watchtimeTrackingUrl,
+        )
+        playVideoQuality(resolved)
+        return true
+    }
+
+    /** Plays [resolved] as video at the best allowed quality — the shared play/"Watch" path. */
+    private fun playVideoQuality(resolved: VideoResolver.Resolved) {
+        // Auto-pick the best quality within the network's cap; fall back to the
+        // reliable muxed default when nothing qualifies (or there are no ladders).
+        val chosen = resolved.qualities.filter { it.height <= preferredMaxHeight() }.maxByOrNull { it.height }
+        val selected = chosen?.id ?: resolved.qualities.firstOrNull { it.videoUrl == resolved.item.mediaUrl }?.id
+        _quality.value = QualityState(
+            options = resolved.qualities,
+            selectedId = selected,
+            canListen = resolved.audioOnlyUrl != null,
+            listening = false,
         )
         if (chosen != null) {
             playback.play(
@@ -73,7 +86,6 @@ class VideoPlaybackLauncher(
         } else {
             playback.play(resolved.item, skipSegments = resolved.skipSegments)
         }
-        return true
     }
 
     /**
@@ -85,8 +97,14 @@ class VideoPlaybackLauncher(
     fun listen() {
         val resolved = current ?: return
         val audio = resolved.audioOnlyUrl ?: return
-        _quality.update { it.copy(selectedId = null) }
+        _quality.update { it.copy(selectedId = null, listening = true) }
         playback.play(resolved.item.copy(mediaUrl = audio), skipSegments = resolved.skipSegments)
+    }
+
+    /** Leaves "Listen" (audio-only) and returns to watching the video, at the saved position. */
+    fun watch() {
+        val resolved = current ?: return
+        playVideoQuality(resolved)
     }
 
     /**
@@ -97,7 +115,7 @@ class VideoPlaybackLauncher(
     fun selectQuality(id: String) {
         val resolved = current ?: return
         val quality = resolved.qualities.firstOrNull { it.id == id } ?: return
-        _quality.update { it.copy(selectedId = id) }
+        _quality.update { it.copy(selectedId = id, listening = false) }
         playback.play(
             resolved.item.copy(mediaUrl = quality.videoUrl),
             skipSegments = resolved.skipSegments,
