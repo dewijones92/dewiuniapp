@@ -13,8 +13,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         EpisodeEntity::class,
         DownloadEntity::class,
         PlaybackProgressEntity::class,
+        LocalPlaylistEntity::class,
+        LocalPlaylistItemEntity::class,
     ],
-    version = 7,
+    version = 8,
     exportSchema = false,
 )
 public abstract class UniAppDatabase : RoomDatabase() {
@@ -24,6 +26,8 @@ public abstract class UniAppDatabase : RoomDatabase() {
     public abstract fun downloadDao(): DownloadDao
 
     public abstract fun playbackProgressDao(): PlaybackProgressDao
+
+    public abstract fun localPlaylistDao(): LocalPlaylistDao
 
     public companion object {
         public fun build(context: Context): UniAppDatabase =
@@ -35,8 +39,31 @@ public abstract class UniAppDatabase : RoomDatabase() {
                     MIGRATION_4_5,
                     MIGRATION_5_6,
                     MIGRATION_6_7,
+                    MIGRATION_7_8,
                 )
                 .build()
+
+        /** v8: local (cross-pillar) playlists + their items. */
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS local_playlists (" +
+                        "id TEXT NOT NULL PRIMARY KEY, name TEXT NOT NULL, createdAtEpochMs INTEGER NOT NULL)",
+                )
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS local_playlist_items (" +
+                        "playlistId TEXT NOT NULL, itemId TEXT NOT NULL, position INTEGER NOT NULL, " +
+                        "title TEXT NOT NULL, author TEXT, thumbnailUrl TEXT, sourceId TEXT NOT NULL, " +
+                        "contentKind TEXT NOT NULL, playbackType TEXT NOT NULL, handle TEXT, mediaUrl TEXT, " +
+                        "PRIMARY KEY(playlistId, itemId), " +
+                        "FOREIGN KEY(playlistId) REFERENCES local_playlists(id) ON DELETE CASCADE)",
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_local_playlist_items_playlistId " +
+                        "ON local_playlist_items(playlistId)",
+                )
+            }
+        }
 
         /** v2: episodes gained an author column (notification artist line). */
         private val MIGRATION_1_2 = object : Migration(1, 2) {

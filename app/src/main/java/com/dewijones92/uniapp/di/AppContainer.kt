@@ -15,6 +15,7 @@ import com.dewijones92.uniapp.data.download.RoutedDownloadStrategy
 import com.dewijones92.uniapp.data.importexport.OpmlExporter
 import com.dewijones92.uniapp.data.importexport.SubscriptionImportParser
 import com.dewijones92.uniapp.data.net.OkHttpTextFetcher
+import com.dewijones92.uniapp.data.playlist.LocalPlaylistStore
 import com.dewijones92.uniapp.data.podcast.DefaultPodcastRepository
 import com.dewijones92.uniapp.data.podcast.PodcastRepository
 import com.dewijones92.uniapp.data.search.ItunesPodcastSearchSource
@@ -24,6 +25,7 @@ import com.dewijones92.uniapp.data.search.YtDlpVideoSearchSource
 import com.dewijones92.uniapp.data.sponsorblock.SkipSegmentSource
 import com.dewijones92.uniapp.data.sponsorblock.SponsorBlockSegmentSource
 import com.dewijones92.uniapp.database.RoomDownloadStore
+import com.dewijones92.uniapp.database.RoomLocalPlaylistStore
 import com.dewijones92.uniapp.database.RoomPlaybackProgressStore
 import com.dewijones92.uniapp.database.RoomSubscriptionStore
 import com.dewijones92.uniapp.database.UniAppDatabase
@@ -94,6 +96,9 @@ interface AppContainer {
 
     /** The unified up-next queue (what plays after the current item), both pillars. */
     val playbackQueue: PlaybackQueue
+
+    /** User-curated local playlists, mixing podcasts and videos. */
+    val localPlaylistStore: LocalPlaylistStore
 
     /** User settings (per-network default quality, …). */
     val appPreferences: AppPreferences
@@ -243,6 +248,10 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
 
     override val playbackQueue: PlaybackQueue by lazy {
         PlaybackQueue(playbackController, videoPlaybackLauncher, applicationScope)
+    }
+
+    override val localPlaylistStore: LocalPlaylistStore by lazy {
+        RoomLocalPlaylistStore(database.localPlaylistDao())
     }
 
     private val youTubeWatchHistory: YouTubeWatchHistory by lazy {

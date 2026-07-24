@@ -9,6 +9,8 @@ import com.dewijones92.uniapp.data.download.DownloadManager
 import com.dewijones92.uniapp.data.download.fake.FakeDownloadManager
 import com.dewijones92.uniapp.data.importexport.OpmlExporter
 import com.dewijones92.uniapp.data.importexport.SubscriptionImportParser
+import com.dewijones92.uniapp.data.playlist.LocalPlaylistStore
+import com.dewijones92.uniapp.data.playlist.fake.InMemoryLocalPlaylistStore
 import com.dewijones92.uniapp.data.podcast.PodcastRepository
 import com.dewijones92.uniapp.data.podcast.fake.FakePodcastRepository
 import com.dewijones92.uniapp.data.search.SearchHistoryStore
@@ -69,6 +71,7 @@ class FakeAppContainer(
     override val sleepTimer: SleepTimer = SleepTimer(playbackController, CoroutineScope(SupervisorJob())),
     override val playbackQueue: PlaybackQueue =
         PlaybackQueue(playbackController, videoPlaybackLauncher, CoroutineScope(SupervisorJob())),
+    override val localPlaylistStore: LocalPlaylistStore = InMemoryLocalPlaylistStore(),
     override val appPreferences: AppPreferences = InMemoryAppPreferences(),
     override val youTubeAccount: YouTubeAccount = YouTubeAccount(FakeYouTubeAuth(), InMemoryTokenStore()),
     override val accountSubscriptions: AccountSubscriptions = AccountSubscriptions(
