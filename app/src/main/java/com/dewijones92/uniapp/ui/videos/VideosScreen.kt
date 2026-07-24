@@ -52,10 +52,12 @@ import com.dewijones92.uniapp.innertube.playlists.Playlist
 import com.dewijones92.uniapp.theme.UniAppTheme
 import com.dewijones92.uniapp.ui.channel.ChannelScreen
 import com.dewijones92.uniapp.ui.common.EmptyState
+import com.dewijones92.uniapp.ui.common.MediaItemActions
 import com.dewijones92.uniapp.ui.common.MediaItemRow
 import com.dewijones92.uniapp.ui.common.MediaSort
 import com.dewijones92.uniapp.ui.common.SectionHeaderWithSort
 import com.dewijones92.uniapp.ui.common.mediaItemSubtitle
+import com.dewijones92.uniapp.ui.common.rememberMediaItemActions
 import com.dewijones92.uniapp.ui.notifications.NotificationsScreen
 import com.dewijones92.uniapp.ui.notifications.NotificationsViewModel
 import com.dewijones92.uniapp.ui.playlist.PlaylistScreen
@@ -105,6 +107,7 @@ fun VideosScreen(
         else -> VideosContent(
             state = state,
             newUploadsCount = newUploadsCount,
+            actions = rememberMediaItemActions(container),
             onSubscribe = viewModel::subscribe,
             onDialogClosed = viewModel::resetSubscribing,
             onPlay = viewModel::play,
@@ -127,6 +130,7 @@ fun VideosScreen(
 internal fun VideosContent(
     state: VideosViewModel.UiState,
     newUploadsCount: Int,
+    actions: MediaItemActions,
     onSubscribe: (String) -> Unit,
     onDialogClosed: () -> Unit,
     onPlay: (MediaItem) -> Unit,
@@ -162,6 +166,7 @@ internal fun VideosContent(
                 } else {
                     ChannelsAndVideos(
                         state,
+                        actions,
                         onPlay,
                         onDownload,
                         onDeleteDownload,
@@ -222,6 +227,7 @@ private fun NotificationsBell(count: Int, onClick: () -> Unit) {
 @Composable
 private fun ChannelsAndVideos(
     state: VideosViewModel.UiState,
+    actions: MediaItemActions,
     onPlay: (MediaItem) -> Unit,
     onDownload: (MediaItem) -> Unit,
     onDeleteDownload: (MediaItem) -> Unit,
@@ -271,6 +277,9 @@ private fun ChannelsAndVideos(
                         onPlay = { onPlay(video) },
                         onDownload = { onDownload(video) },
                         onDeleteDownload = { onDeleteDownload(video) },
+                        onPlayNext = { actions.playNext(video) },
+                        onAddToQueue = { actions.addToQueue(video) },
+                        onAddToPlaylist = { actions.addToPlaylist(video) },
                     )
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                 }
@@ -351,6 +360,7 @@ private fun VideosContentPreview() {
     UniAppTheme {
         VideosContent(
             state = VideosViewModel.UiState(),
+            actions = rememberMediaItemActions(com.dewijones92.uniapp.di.fake.FakeAppContainer()),
             onSubscribe = {},
             onDialogClosed = {},
             onPlay = {},

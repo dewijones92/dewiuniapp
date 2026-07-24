@@ -61,5 +61,8 @@ rename/delete). Add-to-playlist on the MediaItemRow overflow (pillar inferred fr
 the media URL), wired in channel tabs + Library downloads. Verified on-device:
 created a playlist, added a channel video, Play all resolved + played.
 
-**Follow-up:** wire add-to-playlist on the podcast + video *feed* rows too (only
-the channel tabs and Library downloads are wired so far).
+**Follow-up (done 2026-07-24):** add-to-playlist is now on the podcast + video
+*feed* rows too, via the shared `MediaItemActions` seam — see
+[long-press-context-menu](long-press-context-menu.md). Verified on-device: one
+playlist holding two YouTube videos + a podcast episode, added from three
+different screens (channel tab, Videos feed, Podcasts feed).

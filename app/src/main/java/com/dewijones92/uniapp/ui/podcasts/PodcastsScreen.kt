@@ -44,6 +44,7 @@ import com.dewijones92.uniapp.ui.common.MediaItemRow
 import com.dewijones92.uniapp.ui.common.MediaSort
 import com.dewijones92.uniapp.ui.common.SectionHeaderWithSort
 import com.dewijones92.uniapp.ui.common.mediaItemSubtitle
+import com.dewijones92.uniapp.ui.playlist.rememberPlaylistAdder
 
 @Composable
 fun PodcastsScreen(container: AppContainer, modifier: Modifier = Modifier) {
@@ -61,6 +62,7 @@ fun PodcastsScreen(container: AppContainer, modifier: Modifier = Modifier) {
         onSetSort = viewModel::setSort,
         onEnqueue = viewModel::enqueue,
         onPlayNext = viewModel::playNext,
+        onAddToPlaylist = rememberPlaylistAdder(container),
         modifier = modifier,
     )
 }
@@ -78,6 +80,7 @@ internal fun PodcastsContent(
     onSetSort: (MediaSort) -> Unit,
     onEnqueue: (MediaItem) -> Unit,
     onPlayNext: (MediaItem) -> Unit,
+    onAddToPlaylist: (MediaItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
@@ -103,6 +106,7 @@ internal fun PodcastsContent(
                     onSetSort,
                     onEnqueue,
                     onPlayNext,
+                    onAddToPlaylist,
                 )
             }
         }
@@ -138,6 +142,7 @@ private fun SubscriptionsAndEpisodes(
     onSetSort: (MediaSort) -> Unit,
     onEnqueue: (MediaItem) -> Unit,
     onPlayNext: (MediaItem) -> Unit,
+    onAddToPlaylist: (MediaItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(modifier = modifier.fillMaxSize()) {
@@ -168,6 +173,7 @@ private fun SubscriptionsAndEpisodes(
                 onDeleteDownload = { onDeleteDownload(episode) },
                 onPlayNext = { onPlayNext(episode) },
                 onAddToQueue = { onEnqueue(episode) },
+                onAddToPlaylist = { onAddToPlaylist(episode) },
             )
             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
         }
@@ -203,6 +209,7 @@ private fun PodcastsContentPreview() {
             onSetSort = {},
             onEnqueue = {},
             onPlayNext = {},
+            onAddToPlaylist = {},
         )
     }
 }
@@ -222,6 +229,7 @@ private fun PodcastsEmptyPreview() {
             onSetSort = {},
             onEnqueue = {},
             onPlayNext = {},
+            onAddToPlaylist = {},
         )
     }
 }
