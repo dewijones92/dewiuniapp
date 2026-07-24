@@ -33,6 +33,11 @@ in favour of a from-scratch library — see Decisions).
   feature, ask "what is the pillar-agnostic seam?" and build that; pillar
   specifics live in small adapters behind it. A feature implemented twice —
   once per pillar — is a design failure even if neither copy shares a line.
+  **Every feature must be unified across YouTube/video and podcasts by default.**
+  A pillar-specific split is allowed *only* when there is a genuinely strong
+  technical reason it cannot be one seam — and when that happens you must stop
+  and surface the reason to Dewi for a decision, not silently build two paths.
+  (Dewi, explicit, 2026-07-24.)
 - **Testing pyramid**: many fast unit tests; fewer integration tests; few instrumented/UI
   tests. New behaviour lands with tests.
 - **Strictly DRY** — this matters a lot to Dewi. Knowledge lives in exactly one
