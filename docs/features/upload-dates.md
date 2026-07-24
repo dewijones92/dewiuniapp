@@ -39,3 +39,12 @@ Show the video upload date consistently across every list.
 The unified subtitle (`mediaItemSubtitle` / search subtitle) is already the one
 place dates render — this is about feeding it data at the two sources that lack
 it, not a second rendering path.
+
+## Status 2026-07-24
+
+Channel dates: **shipped** (channel browse now uses InnerTube — see channel-browse.md).
+Search-result dates: **deferred**. The yt-dlp search path uses `extract_flat`, whose
+entries don't reliably carry an upload date, and per-result full extraction is
+explicitly out of scope (too slow). Every other surface (feeds, subscriptions,
+related, channel, podcasts) shows dates; search is the one gap, limited by yt-dlp.
+Revisit only if a cheap date source appears in flat search results.

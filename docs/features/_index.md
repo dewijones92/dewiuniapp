@@ -32,7 +32,7 @@ alone until they need more.
 | Import / export subscriptions (OPML / NewPipe / Takeout) | subscriptions | shipped | — |
 | Cast to TV (Chromecast) — best-effort | cast | shipped* | podcast/local only works; video casting fragile |
 | Explore channel content (InnerTube tabs: Videos/Shorts/Playlists) | channel | shipped | [channel-browse.md](channel-browse.md) |
-| Upload dates everywhere (channel done; search pending) | video/search | in-progress | [upload-dates.md](upload-dates.md) |
+| Upload dates everywhere (channels shipped; search deferred) | video/search | in-progress | [upload-dates.md](upload-dates.md) |
 
 \* Cast: crash + disconnect-loses-playback fixed; real casting unverified (no hardware).
 
