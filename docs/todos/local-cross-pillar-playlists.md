@@ -1,7 +1,7 @@
 ---
 title: Local cross-pillar playlists
 kind: todo
-status: open
+status: in-progress
 area: library
 priority: high
 requested: 2026-07-24
@@ -39,3 +39,17 @@ a design failure (the Unified law).
 
 **Done when:** a user can create a local playlist, add both a podcast episode and
 a YouTube video to it, reorder, and play it through.
+
+## Progress 2026-07-24
+
+**Data foundation shipped** (commit 0a67872): `LocalPlaylist` domain, `LocalPlaylistStore`
+port + `PlaylistItem`/`PlaylistPlayback` (mirrors the queue shapes), Room impl +
+DB v7→8 migration, InMemory fake + contract tests, wired into `AppContainer`.
+
+**Remaining (UI):** a `PlaybackQueue.playAll(items)`; QueuedItem↔PlaylistItem
+mapping; a Playlists section/screen in Library (list + create + delete); a playlist
+detail screen (items via MediaItemRow, Play all → queue, remove); and an
+'Add to playlist' entry on the MediaItemRow overflow, wired per pillar (podcast
+episode → Podcast handle, feed/channel video → Video watchUrl handle). Note: the
+row overflow (`onAddToQueue`) is currently only wired in PodcastsScreen, so
+add-to-playlist needs wiring across the item screens.
