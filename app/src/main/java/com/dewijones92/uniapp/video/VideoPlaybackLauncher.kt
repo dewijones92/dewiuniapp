@@ -2,9 +2,9 @@ package com.dewijones92.uniapp.video
 
 import com.dewijones92.uniapp.common.HttpUrl
 import com.dewijones92.uniapp.data.history.PlayHistoryStore
-import com.dewijones92.uniapp.data.playlist.PlaylistItem
-import com.dewijones92.uniapp.data.playlist.PlaylistPlayback
 import com.dewijones92.uniapp.domain.MediaItem
+import com.dewijones92.uniapp.domain.PlayHandle
+import com.dewijones92.uniapp.domain.PlayableItem
 import com.dewijones92.uniapp.domain.SourceId
 import com.dewijones92.uniapp.innertube.history.YouTubeWatchHistory
 import com.dewijones92.uniapp.playback.PlaybackController
@@ -62,7 +62,7 @@ class VideoPlaybackLauncher(
         // Record the play against the stable watch URL (streaming URLs expire), so
         // a history replay re-resolves through this same launcher.
         playHistory.record(
-            PlaylistItem(resolved.item.copy(mediaUrl = watchUrl), PlaylistPlayback.Video(watchUrl)),
+            PlayableItem(resolved.item.copy(mediaUrl = watchUrl), PlayHandle.Video(watchUrl)),
         )
         // Register this video's tracking URLs so its progress can sync to YouTube.
         watchHistory.beginSession(

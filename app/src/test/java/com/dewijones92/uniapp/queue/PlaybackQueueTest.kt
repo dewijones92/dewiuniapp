@@ -5,6 +5,8 @@ import com.dewijones92.uniapp.data.history.fake.InMemoryPlayHistoryStore
 import com.dewijones92.uniapp.data.sponsorblock.SkipSegmentSource
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.MediaItemId
+import com.dewijones92.uniapp.domain.PlayHandle
+import com.dewijones92.uniapp.domain.PlayableItem
 import com.dewijones92.uniapp.domain.SourceId
 import com.dewijones92.uniapp.innertube.history.fake.FakeYouTubeWatchHistory
 import com.dewijones92.uniapp.playback.fake.FakePlaybackController
@@ -35,7 +37,7 @@ class PlaybackQueueTest {
 
     private fun queue() = PlaybackQueue(controller, launcher, CoroutineScope(dispatcher))
 
-    private fun podcast(id: String) = QueuedItem.Podcast(
+    private fun podcast(id: String) = PlayableItem(
         MediaItem(
             id = MediaItemId(id),
             sourceId = SourceId("feed"),
@@ -44,6 +46,7 @@ class PlaybackQueueTest {
             duration = null,
             mediaUrl = HttpUrl.of("https://feeds.example.com/$id.mp3"),
         ),
+        PlayHandle.Podcast(),
     )
 
     @Test
@@ -93,7 +96,7 @@ class PlaybackQueueTest {
     fun `playNextInQueue skips an unplayable item and plays the next`() = runTest(dispatcher) {
         val q = queue()
         // A podcast with neither a downloaded file nor a stream URL can't play.
-        val unplayable = QueuedItem.Podcast(
+        val unplayable = PlayableItem(
             MediaItem(
                 id = MediaItemId("bad"),
                 sourceId = SourceId("feed"),
@@ -102,6 +105,7 @@ class PlaybackQueueTest {
                 duration = null,
                 mediaUrl = null,
             ),
+            PlayHandle.Podcast(),
         )
         q.enqueue(unplayable)
         q.enqueue(podcast("good"))

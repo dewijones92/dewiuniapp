@@ -56,12 +56,12 @@ import androidx.compose.ui.unit.dp
 import androidx.media3.common.Player
 import com.dewijones92.uniapp.R
 import com.dewijones92.uniapp.common.HttpUrl
+import com.dewijones92.uniapp.domain.PlayableItem
 import com.dewijones92.uniapp.innertube.actions.VideoRating
 import com.dewijones92.uniapp.innertube.comments.Comment
 import com.dewijones92.uniapp.innertube.feeds.FeedVideo
 import com.dewijones92.uniapp.playback.PlaybackState
 import com.dewijones92.uniapp.playback.SleepTimerState
-import com.dewijones92.uniapp.queue.QueuedItem
 import com.dewijones92.uniapp.ui.cast.CastButton
 import com.dewijones92.uniapp.ui.common.MediaThumbnail
 import com.dewijones92.uniapp.ui.common.PillarBadge
@@ -389,7 +389,7 @@ private fun NotesChaptersAndSponsors(state: PlaybackState, onSeekTo: (Long) -> U
 
 /** The up-next queue and its interactions, for the full player's queue list. */
 data class QueueControls(
-    val upNext: List<QueuedItem>,
+    val upNext: List<PlayableItem>,
     val onPlay: (Int) -> Unit,
     val onRemove: (Int) -> Unit,
 ) {

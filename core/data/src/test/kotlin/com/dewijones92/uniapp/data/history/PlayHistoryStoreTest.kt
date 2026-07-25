@@ -2,10 +2,10 @@ package com.dewijones92.uniapp.data.history
 
 import com.dewijones92.uniapp.common.HttpUrl
 import com.dewijones92.uniapp.data.history.fake.InMemoryPlayHistoryStore
-import com.dewijones92.uniapp.data.playlist.PlaylistItem
-import com.dewijones92.uniapp.data.playlist.PlaylistPlayback
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.MediaItemId
+import com.dewijones92.uniapp.domain.PlayHandle
+import com.dewijones92.uniapp.domain.PlayableItem
 import com.dewijones92.uniapp.domain.SourceId
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -15,9 +15,9 @@ import org.junit.Test
 
 class PlayHistoryStoreTest {
 
-    private fun video(id: String) = PlaylistItem(
+    private fun video(id: String) = PlayableItem(
         item = MediaItem(MediaItemId(id), SourceId("ch"), id, publishedAt = null, duration = null),
-        playback = PlaylistPlayback.Video(HttpUrl.of("https://youtube.com/watch?v=$id")),
+        handle = PlayHandle.Video(HttpUrl.of("https://youtube.com/watch?v=$id")),
     )
 
     private suspend fun ids(store: InMemoryPlayHistoryStore) =

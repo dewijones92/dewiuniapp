@@ -7,13 +7,12 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.dewijones92.uniapp.data.download.DownloadManager
 import com.dewijones92.uniapp.data.playlist.LocalPlaylistStore
-import com.dewijones92.uniapp.data.playlist.PlaylistItem
 import com.dewijones92.uniapp.di.AppContainer
 import com.dewijones92.uniapp.domain.DownloadState
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.MediaItemId
+import com.dewijones92.uniapp.domain.PlayableItem
 import com.dewijones92.uniapp.domain.PlaylistId
-import com.dewijones92.uniapp.playlist.toQueuedItem
 import com.dewijones92.uniapp.queue.PlaybackQueue
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -37,20 +36,20 @@ class LocalPlaylistDetailViewModel(
         .map { list -> list.firstOrNull { it.id == id }?.name ?: "" }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), "")
 
-    val items: StateFlow<List<PlaylistItem>> = store.observeItems(id)
+    val items: StateFlow<List<PlayableItem>> = store.observeItems(id)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), emptyList())
 
     /** True once the playlist was found empty — so deletion can pop the screen. */
     val deleted = MutableStateFlow(false)
 
     fun playAll() {
-        queue.playAll(items.value.map { it.toQueuedItem() })
+        queue.playAll(items.value)
     }
 
     /** Play from [item] to the end (the tapped item now, the rest queued). */
-    fun playFrom(item: PlaylistItem) {
+    fun playFrom(item: PlayableItem) {
         val from = items.value.dropWhile { it.item.id != item.item.id }
-        queue.playAll(from.map { it.toQueuedItem() })
+        queue.playAll(from)
     }
 
     fun remove(itemId: MediaItemId) {

@@ -1,9 +1,9 @@
 package com.dewijones92.uniapp.database
 
 import com.dewijones92.uniapp.data.playlist.LocalPlaylistStore
-import com.dewijones92.uniapp.data.playlist.PlaylistItem
 import com.dewijones92.uniapp.domain.LocalPlaylist
 import com.dewijones92.uniapp.domain.MediaItemId
+import com.dewijones92.uniapp.domain.PlayableItem
 import com.dewijones92.uniapp.domain.PlaylistId
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -15,7 +15,7 @@ public class RoomLocalPlaylistStore(private val dao: LocalPlaylistDao) : LocalPl
     override fun observePlaylists(): Flow<List<LocalPlaylist>> =
         dao.observePlaylists().map { rows -> rows.map { LocalPlaylist(PlaylistId(it.id), it.name, it.itemCount) } }
 
-    override fun observeItems(id: PlaylistId): Flow<List<PlaylistItem>> =
+    override fun observeItems(id: PlaylistId): Flow<List<PlayableItem>> =
         dao.observeItems(id.value).map { list -> list.mapNotNull(::playlistItemFrom) }
 
     override suspend fun create(name: String): PlaylistId {
@@ -28,15 +28,15 @@ public class RoomLocalPlaylistStore(private val dao: LocalPlaylistDao) : LocalPl
 
     override suspend fun delete(id: PlaylistId): Unit = dao.deletePlaylist(id.value)
 
-    override suspend fun addItem(id: PlaylistId, item: PlaylistItem) {
+    override suspend fun addItem(id: PlaylistId, item: PlayableItem) {
         dao.insertItem(item.toEntity(id.value, dao.nextPosition(id.value)))
     }
 
     override suspend fun removeItem(id: PlaylistId, itemId: MediaItemId): Unit =
         dao.deleteItem(id.value, itemId.value)
 
-    private fun PlaylistItem.toEntity(playlistId: String, position: Long): LocalPlaylistItemEntity {
-        val (type, handle) = playback.typeAndHandle()
+    private fun PlayableItem.toEntity(playlistId: String, position: Long): LocalPlaylistItemEntity {
+        val (type, handle) = handle.typeAndHandle()
         return LocalPlaylistItemEntity(
             playlistId = playlistId,
             itemId = item.id.value,

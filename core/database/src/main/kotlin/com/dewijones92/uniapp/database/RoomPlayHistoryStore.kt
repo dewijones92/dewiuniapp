@@ -1,7 +1,7 @@
 package com.dewijones92.uniapp.database
 
 import com.dewijones92.uniapp.data.history.PlayHistoryStore
-import com.dewijones92.uniapp.data.playlist.PlaylistItem
+import com.dewijones92.uniapp.domain.PlayableItem
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -11,12 +11,12 @@ public class RoomPlayHistoryStore(
     private val limit: Int = 50,
 ) : PlayHistoryStore {
 
-    override fun observe(): Flow<List<PlaylistItem>> = dao.observe(limit).map { rows ->
+    override fun observe(): Flow<List<PlayableItem>> = dao.observe(limit).map { rows ->
         rows.mapNotNull(::playlistItemFrom)
     }
 
-    override suspend fun record(item: PlaylistItem) {
-        val (type, handle) = item.playback.typeAndHandle()
+    override suspend fun record(item: PlayableItem) {
+        val (type, handle) = item.handle.typeAndHandle()
         dao.upsert(
             PlayHistoryEntity(
                 itemId = item.item.id.value,

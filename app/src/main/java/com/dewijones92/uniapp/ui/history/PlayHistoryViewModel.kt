@@ -7,12 +7,11 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.dewijones92.uniapp.data.download.DownloadManager
 import com.dewijones92.uniapp.data.history.PlayHistoryStore
-import com.dewijones92.uniapp.data.playlist.PlaylistItem
 import com.dewijones92.uniapp.di.AppContainer
 import com.dewijones92.uniapp.domain.DownloadState
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.MediaItemId
-import com.dewijones92.uniapp.playlist.toQueuedItem
+import com.dewijones92.uniapp.domain.PlayableItem
 import com.dewijones92.uniapp.queue.PlaybackQueue
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -26,15 +25,15 @@ class PlayHistoryViewModel(
     private val downloads: DownloadManager,
 ) : ViewModel() {
 
-    val items: StateFlow<List<PlaylistItem>> = store.observe()
+    val items: StateFlow<List<PlayableItem>> = store.observe()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), emptyList())
 
     val downloadStates: StateFlow<Map<MediaItemId, DownloadState>> = downloads.observeDownloads()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), emptyMap())
 
     /** Replays a single history entry (re-resolving videos through the launcher). */
-    fun play(item: PlaylistItem) {
-        queue.playAll(listOf(item.toQueuedItem()))
+    fun play(item: PlayableItem) {
+        queue.playAll(listOf(item))
     }
 
     fun download(item: MediaItem) {

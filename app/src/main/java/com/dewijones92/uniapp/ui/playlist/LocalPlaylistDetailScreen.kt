@@ -84,7 +84,7 @@ fun LocalPlaylistDetailScreen(
 
 @Composable
 private fun PlaylistBody(
-    items: List<com.dewijones92.uniapp.data.playlist.PlaylistItem>,
+    items: List<com.dewijones92.uniapp.domain.PlayableItem>,
     downloadStates: Map<com.dewijones92.uniapp.domain.MediaItemId, DownloadState>,
     viewModel: LocalPlaylistDetailViewModel,
 ) {

@@ -1,7 +1,7 @@
 package com.dewijones92.uniapp.data.history.fake
 
 import com.dewijones92.uniapp.data.history.PlayHistoryStore
-import com.dewijones92.uniapp.data.playlist.PlaylistItem
+import com.dewijones92.uniapp.domain.PlayableItem
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
@@ -9,11 +9,11 @@ import kotlinx.coroutines.flow.update
 /** In-memory [PlayHistoryStore] for tests and previews. */
 public class InMemoryPlayHistoryStore(private val limit: Int = 50) : PlayHistoryStore {
 
-    private val history = MutableStateFlow<List<PlaylistItem>>(emptyList())
+    private val history = MutableStateFlow<List<PlayableItem>>(emptyList())
 
-    override fun observe(): Flow<List<PlaylistItem>> = history
+    override fun observe(): Flow<List<PlayableItem>> = history
 
-    override suspend fun record(item: PlaylistItem) {
+    override suspend fun record(item: PlayableItem) {
         history.update { current ->
             (listOf(item) + current.filterNot { it.item.id == item.item.id }).take(limit)
         }

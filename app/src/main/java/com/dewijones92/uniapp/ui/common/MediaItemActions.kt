@@ -7,8 +7,7 @@ import com.dewijones92.uniapp.data.source.SourceLocator
 import com.dewijones92.uniapp.di.AppContainer
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.MediaSource
-import com.dewijones92.uniapp.playlist.toPlaylistItemOrNull
-import com.dewijones92.uniapp.playlist.toQueuedItem
+import com.dewijones92.uniapp.playlist.toPlayableOrNull
 import com.dewijones92.uniapp.queue.PlaybackQueue
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -16,7 +15,7 @@ import kotlinx.coroutines.launch
 /**
  * The per-row long-press actions shared by every feed, both pillars — queue and
  * playlist wiring lives here once so no screen re-implements it. A feed item's
- * pillar/handle is inferred from its media URL ([toPlaylistItemOrNull]); items
+ * pillar/handle is inferred from its media URL ([toPlayableOrNull]); items
  * without a playable URL yet simply can't be queued (the action no-ops).
  */
 class MediaItemActions internal constructor(
@@ -26,11 +25,11 @@ class MediaItemActions internal constructor(
     private val scope: CoroutineScope,
 ) {
     fun playNext(item: MediaItem) {
-        item.toPlaylistItemOrNull()?.toQueuedItem()?.let(queue::playNext)
+        item.toPlayableOrNull()?.let(queue::playNext)
     }
 
     fun addToQueue(item: MediaItem) {
-        item.toPlaylistItemOrNull()?.toQueuedItem()?.let(queue::enqueue)
+        item.toPlayableOrNull()?.let(queue::enqueue)
     }
 
     fun addToPlaylist(item: MediaItem) {

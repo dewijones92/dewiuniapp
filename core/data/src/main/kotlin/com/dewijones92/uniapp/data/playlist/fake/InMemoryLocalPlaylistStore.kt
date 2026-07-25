@@ -1,9 +1,9 @@
 package com.dewijones92.uniapp.data.playlist.fake
 
 import com.dewijones92.uniapp.data.playlist.LocalPlaylistStore
-import com.dewijones92.uniapp.data.playlist.PlaylistItem
 import com.dewijones92.uniapp.domain.LocalPlaylist
 import com.dewijones92.uniapp.domain.MediaItemId
+import com.dewijones92.uniapp.domain.PlayableItem
 import com.dewijones92.uniapp.domain.PlaylistId
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.update
 /** In-memory [LocalPlaylistStore] for tests and previews. */
 public class InMemoryLocalPlaylistStore : LocalPlaylistStore {
 
-    private data class Entry(val name: String, val items: List<PlaylistItem>)
+    private data class Entry(val name: String, val items: List<PlayableItem>)
 
     private val playlists = MutableStateFlow<Map<String, Entry>>(emptyMap())
     private var nextId = 0
@@ -22,7 +22,7 @@ public class InMemoryLocalPlaylistStore : LocalPlaylistStore {
         map.entries.map { (id, e) -> LocalPlaylist(PlaylistId(id), e.name, e.items.size) }
     }
 
-    override fun observeItems(id: PlaylistId): Flow<List<PlaylistItem>> =
+    override fun observeItems(id: PlaylistId): Flow<List<PlayableItem>> =
         playlists.map { it[id.value]?.items.orEmpty() }
 
     override suspend fun create(name: String): PlaylistId {
@@ -39,7 +39,7 @@ public class InMemoryLocalPlaylistStore : LocalPlaylistStore {
         playlists.update { it - id.value }
     }
 
-    override suspend fun addItem(id: PlaylistId, item: PlaylistItem) {
+    override suspend fun addItem(id: PlaylistId, item: PlayableItem) {
         playlists.update { map ->
             val entry = map[id.value] ?: return@update map
             if (entry.items.any { it.item.id == item.item.id }) return@update map

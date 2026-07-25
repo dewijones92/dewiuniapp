@@ -17,8 +17,6 @@ import com.dewijones92.uniapp.data.importexport.OpmlExporter
 import com.dewijones92.uniapp.data.importexport.SubscriptionImportParser
 import com.dewijones92.uniapp.data.net.OkHttpTextFetcher
 import com.dewijones92.uniapp.data.playlist.LocalPlaylistStore
-import com.dewijones92.uniapp.data.playlist.PlaylistItem
-import com.dewijones92.uniapp.data.playlist.PlaylistPlayback
 import com.dewijones92.uniapp.data.podcast.DefaultPodcastRepository
 import com.dewijones92.uniapp.data.podcast.PodcastRepository
 import com.dewijones92.uniapp.data.search.FallbackSearchSource
@@ -39,6 +37,8 @@ import com.dewijones92.uniapp.database.RoomSubscriptionStore
 import com.dewijones92.uniapp.database.UniAppDatabase
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.MediaKind
+import com.dewijones92.uniapp.domain.PlayHandle
+import com.dewijones92.uniapp.domain.PlayableItem
 import com.dewijones92.uniapp.importexport.SubscriptionImporter
 import com.dewijones92.uniapp.innertube.actions.HttpYouTubeActions
 import com.dewijones92.uniapp.innertube.actions.YouTubeActions
@@ -220,7 +220,7 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
             onPlay = { item, kind ->
                 if (kind == MediaKind.PODCAST) {
                     applicationScope.launch {
-                        playHistoryStore.record(PlaylistItem(item, PlaylistPlayback.Podcast()))
+                        playHistoryStore.record(PlayableItem(item, PlayHandle.Podcast()))
                     }
                 }
             },

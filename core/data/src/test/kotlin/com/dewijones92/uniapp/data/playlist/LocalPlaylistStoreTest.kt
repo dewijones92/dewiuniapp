@@ -4,6 +4,8 @@ import com.dewijones92.uniapp.common.HttpUrl
 import com.dewijones92.uniapp.data.playlist.fake.InMemoryLocalPlaylistStore
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.MediaItemId
+import com.dewijones92.uniapp.domain.PlayHandle
+import com.dewijones92.uniapp.domain.PlayableItem
 import com.dewijones92.uniapp.domain.PlaylistId
 import com.dewijones92.uniapp.domain.SourceId
 import kotlinx.coroutines.flow.first
@@ -16,12 +18,12 @@ class LocalPlaylistStoreTest {
 
     private val store = InMemoryLocalPlaylistStore()
 
-    private fun video(id: String) = PlaylistItem(
+    private fun video(id: String) = PlayableItem(
         item = MediaItem(MediaItemId(id), SourceId("ch"), id, publishedAt = null, duration = null),
-        playback = PlaylistPlayback.Video(HttpUrl.of("https://youtube.com/watch?v=$id")),
+        handle = PlayHandle.Video(HttpUrl.of("https://youtube.com/watch?v=$id")),
     )
 
-    private fun podcast(id: String) = PlaylistItem(
+    private fun podcast(id: String) = PlayableItem(
         item = MediaItem(
             MediaItemId(id),
             SourceId("feed"),
@@ -30,7 +32,7 @@ class LocalPlaylistStoreTest {
             duration = null,
             mediaUrl = HttpUrl.of("https://feeds.example.com/$id.mp3"),
         ),
-        playback = PlaylistPlayback.Podcast(),
+        handle = PlayHandle.Podcast(),
     )
 
     private suspend fun items(id: PlaylistId) = store.observeItems(id).first()
@@ -79,8 +81,8 @@ class LocalPlaylistStoreTest {
         store.addItem(id, podcast("p1"))
         val byId = items(id).associateBy { it.item.id.value }
 
-        assertTrue(byId.getValue("v1").playback is PlaylistPlayback.Video)
-        assertTrue(byId.getValue("p1").playback is PlaylistPlayback.Podcast)
+        assertTrue(byId.getValue("v1").handle is PlayHandle.Video)
+        assertTrue(byId.getValue("p1").handle is PlayHandle.Podcast)
         assertEquals("https://feeds.example.com/p1.mp3", byId.getValue("p1").item.mediaUrl?.value)
     }
 }

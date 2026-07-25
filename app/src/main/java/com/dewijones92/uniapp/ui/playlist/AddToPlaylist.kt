@@ -28,7 +28,7 @@ import com.dewijones92.uniapp.di.AppContainer
 import com.dewijones92.uniapp.domain.LocalPlaylist
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.PlaylistId
-import com.dewijones92.uniapp.playlist.toPlaylistItemOrNull
+import com.dewijones92.uniapp.playlist.toPlayableOrNull
 import kotlinx.coroutines.launch
 
 /**
@@ -51,7 +51,7 @@ private fun AddToPlaylistDialog(container: AppContainer, item: MediaItem, onDism
     val playlists by store.observePlaylists().collectAsStateWithLifecycle(emptyList())
     val scope = rememberCoroutineScope()
     var newName by remember { mutableStateOf("") }
-    val toAdd = remember(item) { item.toPlaylistItemOrNull() }
+    val toAdd = remember(item) { item.toPlayableOrNull() }
 
     val addExisting: (PlaylistId) -> Unit = { id ->
         toAdd?.let { pi ->
