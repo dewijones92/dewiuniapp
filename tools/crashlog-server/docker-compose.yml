@@ -1,0 +1,20 @@
+# Deliberately its own compose project rather than an entry in the Pi's main stack:
+# bringing the crash sink up or down must never restart nginx, Jellyfin or the VPN
+# containers. nginx reaches it over host.docker.internal, the same way
+# graidentestdev already does.
+services:
+  crashlog:
+    build: .
+    image: uniapp-crashlog:local
+    container_name: uniapp-crashlog
+    restart: unless-stopped
+    # Bound to loopback: the only way in from outside is through nginx, which gates
+    # everything except /ingest behind Google login.
+    ports:
+      - "127.0.0.1:9140:9140"
+    volumes:
+      # Bind-mounted so reports are readable over plain SSH with cat, even if this
+      # container is down.
+      - /home/pi/crashlog-data:/data
+    environment:
+      CRASHLOG_MAX_TOTAL_MB: "512"

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>UniApp crash log</h1>
+
+<form method="get">
+  <input name="commit" value="{{ commit }}" placeholder="git commit prefix">
+  <input name="exception" value="{{ exception }}" placeholder="exception contains…">
+  <button type="submit">Filter</button>
+  <a href="/latest" class="chip">latest as text</a>
+  <a href="/api/reports" class="chip">JSON</a>
+</form>
+
+{% if totals %}
+<p class="muted">Most common: {% for t in totals %}<span class="chip">{{ t['exception'] or 'unknown' }} × {{ t['n'] }}</span> {% endfor %}</p>
+{% endif %}
+
+<table>
+  <tr><th>When (UTC)</th><th>Kind</th><th>Exception</th><th>Message</th><th>Version</th><th>Commit</th><th>Device</th><th>Events</th></tr>
+  {% for r in rows %}
+  <tr>
+    <td><a href="/report/{{ r['id'] }}">{{ r['received_at'][:19] }}</a></td>
+    <td>{{ r['kind'] or '' }}</td>
+    <td><code>{{ (r['exception'] or '').split('.')[-1] }}</code></td>
+    <td>{{ (r['message'] or '')[:90] }}</td>
+    <td>{{ r['app_version'] or '' }}</td>
+    <td><code>{{ (r['git_commit'] or '')[:8] }}</code></td>
+    <td class="muted">{{ r['device'] or '' }} {{ r['android'] or '' }}</td>
+    <td>{{ r['event_count'] if r['event_count'] is not none else '' }}{% if not r['parsed'] %} <span class="chip">unparsed</span>{% endif %}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% if not rows %}<p class="muted">Nothing reported yet.</p>{% endif %}
+{% endblock %}

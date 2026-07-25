@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}{{ row['id'] }}{% endblock %}
+{% block body %}
+<p><a href="/">&larr; all reports</a> &middot; <a href="/report/{{ row['id'] }}/raw">raw JSON</a></p>
+<h1>{{ (row['exception'] or 'Report').split('.')[-1] }}</h1>
+<p class="muted">
+  {{ row['received_at'][:19] }} UTC &middot; {{ row['app_version'] or '?' }} @ <code>{{ (row['git_commit'] or '?')[:8] }}</code>
+  &middot; {{ row['device'] or '?' }} / Android {{ row['android'] or '?' }} &middot; {{ row['bytes'] }} bytes
+</p>
+
+{% if payload is none %}
+  <h2>Raw body (did not parse as JSON — kept anyway)</h2>
+  <pre>{{ raw }}</pre>
+{% else %}
+  {% if payload.get('message') %}<p><strong>{{ payload['message'] }}</strong></p>{% endif %}
+
+  {% if payload.get('stackTrace') %}
+    <h2>Stack trace</h2>
+    <pre>{{ payload['stackTrace'] }}</pre>
+  {% endif %}
+
+  {% if payload.get('events') %}
+    <h2>Event trail &mdash; {{ payload['events']|length }} events leading up to it</h2>
+    <ul class="timeline">
+      {% for e in payload['events'] %}
+        <li>
+          {% if e is mapping %}
+            <time>{{ e.get('at', '') }}</time>
+            <span>{% if e.get('tag') %}<span class="chip">{{ e['tag'] }}</span> {% endif %}{{ e.get('message', e) }}</span>
+          {% else %}
+            <span>{{ e }}</span>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+
+  <h2>Everything else</h2>
+  <pre>{{ raw }}</pre>
+{% endif %}
+{% endblock %}
