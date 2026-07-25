@@ -14,6 +14,8 @@ class UniAppApplication : Application(), SingletonImageLoader.Factory {
 
     override fun onCreate() {
         super.onCreate()
+        // First thing, so a crash during the rest of startup is still captured.
+        container.installCrashReporting()
         // Fetch the latest yt-dlp in the background so YouTube-breaking changes
         // self-heal; the download applies on the next start.
         container.refreshExtractorEngine()

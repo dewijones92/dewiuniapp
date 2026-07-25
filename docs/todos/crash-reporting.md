@@ -1,7 +1,7 @@
 ---
 title: Crash reporting somewhere Claude can read
 kind: todo
-status: refining
+status: shipped
 area: infrastructure
 priority: high
 requested: 2026-07-25
@@ -81,5 +81,11 @@ Dewi has said "the server", so remote it is. My recommendation: a small endpoint
 so I can read reports directly, and nothing goes to a third party. I'd need to add that
 service on the Pi, so I'll confirm before touching it.
 
-**Done when:** a crash on your phone lands on the server with a full event trail and the
-git commit, and I can read it without you doing anything.
+**Shipped 2026-07-25.** Verified end to end on-device: a forced crash wrote a 154KB
+report, a failed upload kept it, the next launch sent it, and it landed on the Pi indexed
+with its event trail, stack and state. Details in
+[`docs/features/crash-reporting.md`](../features/crash-reporting.md).
+
+Built without ACRA in the end — the library would have added a dependency to do what
+~200 lines does here, and it wouldn't have owned the rolling trail or the unified `Diag`
+call that every module now logs through.

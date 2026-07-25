@@ -3,7 +3,6 @@ package com.dewijones92.uniapp.playback
 import android.app.PendingIntent
 import android.content.Context
 import android.os.Bundle
-import android.util.Log
 import androidx.media3.cast.CastPlayer
 import androidx.media3.cast.SessionAvailabilityListener
 import androidx.media3.common.AudioAttributes
@@ -26,6 +25,7 @@ import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionResult
+import com.dewijones92.uniapp.common.Diag
 import com.google.android.gms.cast.framework.CastContext
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
@@ -166,7 +166,7 @@ public class PlaybackService : MediaSessionService() {
             }
             if (customCommand.customAction == ACTION_SKIP_SILENCE) {
                 val enabled = args.getBoolean(EXTRA_SKIP_SILENCE_ENABLED)
-                Log.i("dewidebug", "skip-silence -> $enabled")
+                Diag.log("playback", "skip-silence -> $enabled")
                 skipSilenceEnabled = enabled
                 applyEffectiveSkipSilence()
                 return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
@@ -193,7 +193,7 @@ public class PlaybackService : MediaSessionService() {
         if (silent == inSilence) return
         inSilence = silent
         val speed = if (silent) (userSpeed * SILENCE_SPEED_MULTIPLIER).coerceAtMost(MAX_SILENCE_SPEED) else userSpeed
-        Log.i("dewidebug", "skip-silence silent=$silent speed=$speed (user=$userSpeed)")
+        Diag.log("playback", "skip-silence silent=$silent speed=$speed (user=$userSpeed)")
         target.setPlaybackSpeed(speed)
     }
 
@@ -216,7 +216,7 @@ public class PlaybackService : MediaSessionService() {
                 setTargetGain(millibels)
                 enabled = true
             }
-        }.onFailure { Log.i("dewidebug", "volume boost unavailable: ${it.message}") }.getOrNull()
+        }.onFailure { Diag.warn("playback", "volume boost unavailable", it) }.getOrNull()
     }
 
     /** Turns the user's intent off cleanly, restoring their speed if we were racing. */
@@ -259,7 +259,7 @@ public class PlaybackService : MediaSessionService() {
         previous.stop()
         currentPlayer = target
         mediaSession?.player = target
-        Log.i("dewidebug", "cast: player -> ${if (target === castPlayer) "cast" else "local"}")
+        Diag.log("cast", "player -> ${if (target === castPlayer) "cast" else "local"}")
     }
 
     /** Tapping the media notification reopens the app (its launcher activity). */

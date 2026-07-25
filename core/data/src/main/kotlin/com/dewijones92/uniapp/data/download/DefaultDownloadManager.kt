@@ -1,5 +1,6 @@
 package com.dewijones92.uniapp.data.download
 
+import com.dewijones92.uniapp.common.Diag
 import com.dewijones92.uniapp.domain.DownloadState
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.MediaItemId
@@ -43,8 +44,16 @@ public class DefaultDownloadManager(
 
         store.put(item.id, DownloadState.Downloading(0, null))
         val target = File(downloadDir.apply { mkdirs() }, item.id.fileName())
+        Diag.log("download", "start audioOnly=$audioOnly ${item.title}")
         scope.launch {
-            strategy.download(item, target, audioOnly).collect { state -> store.put(item.id, state) }
+            strategy.download(item, target, audioOnly).collect { state ->
+                store.put(item.id, state)
+                when (state) {
+                    is DownloadState.Failed -> Diag.warn("download", "failed ${item.title}: ${state.reason}")
+                    is DownloadState.Downloaded -> Diag.log("download", "done ${item.title}")
+                    else -> Unit
+                }
+            }
         }
     }
 

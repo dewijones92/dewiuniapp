@@ -1,6 +1,7 @@
 package com.dewijones92.uniapp.video
 
 import android.media.MediaCodecList
+import com.dewijones92.uniapp.common.Diag
 import android.media.MediaFormat as AndroidMediaFormat
 
 /**
@@ -51,7 +52,7 @@ public class PlatformVideoCodecSupport : VideoCodecSupport {
         // Only rejections are logged: they are rare, and they are exactly what you
         // want to see when a quality you expected isn't on offer.
         if (!decodable) {
-            android.util.Log.i("dewidebug", "no decoder for $codec at ${width}x$height — quality withheld")
+            Diag.log("codec", "no decoder for $codec at ${width}x$height — quality withheld")
         }
         return decodable
     }

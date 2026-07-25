@@ -109,6 +109,10 @@ class FakeAppContainer(
 
     override fun startQueueAutoDownload() = Unit
 
+    override fun installCrashReporting() = Unit
+
+    override fun sendDiagnostics(note: String) = Unit
+
     override fun startWatchHistorySync() = Unit
 
     override fun refreshSubscriptions() = Unit

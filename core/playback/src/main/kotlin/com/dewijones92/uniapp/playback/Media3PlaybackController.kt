@@ -3,7 +3,6 @@ package com.dewijones92.uniapp.playback
 import android.content.ComponentName
 import android.content.Context
 import android.os.Bundle
-import android.util.Log
 import androidx.core.content.ContextCompat
 import androidx.core.os.bundleOf
 import androidx.media3.common.C
@@ -12,6 +11,7 @@ import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionToken
+import com.dewijones92.uniapp.common.Diag
 import com.dewijones92.uniapp.common.HttpUrl
 import com.dewijones92.uniapp.domain.Chapter
 import com.dewijones92.uniapp.domain.MediaItem
@@ -77,8 +77,8 @@ public class Media3PlaybackController(
                                     Player.EVENT_TRACKS_CHANGED,
                                 )
                             ) {
-                                Log.i(
-                                    "dewidebug",
+                                Diag.log(
+                                    "playback",
                                     "video size=${player.videoSize.width}x${player.videoSize.height} " +
                                         "hasVideo=${player.currentTracks.groups.any {
                                             it.type == C.TRACK_TYPE_VIDEO

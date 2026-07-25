@@ -1,5 +1,6 @@
 package com.dewijones92.uniapp.queue
 
+import com.dewijones92.uniapp.common.Diag
 import com.dewijones92.uniapp.data.queue.QueueEntry
 import com.dewijones92.uniapp.data.queue.QueueGroup
 import com.dewijones92.uniapp.data.queue.QueueSnapshot
@@ -189,6 +190,11 @@ class PlaybackQueue(
     private fun mutate(block: (QueueSnapshot) -> QueueSnapshot) {
         touched = true
         _state.update(block)
+        val now = _state.value
+        Diag.log(
+            "queue",
+            "size=${now.entries.size} current=${now.currentIndex} ${now.current?.item?.item?.title ?: "-"}",
+        )
     }
 
     /** Plays [queued]; returns whether it actually started. */

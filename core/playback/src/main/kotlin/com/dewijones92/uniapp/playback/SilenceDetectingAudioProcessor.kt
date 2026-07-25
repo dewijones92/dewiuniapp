@@ -4,6 +4,7 @@ import androidx.annotation.OptIn
 import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.common.audio.BaseAudioProcessor
 import androidx.media3.common.util.UnstableApi
+import com.dewijones92.uniapp.common.Diag
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import kotlin.math.abs
@@ -32,11 +33,12 @@ internal class SilenceDetectingAudioProcessor(
     private var silentBuffers = 0
     private var reportedSilent = false
     private var lastPeak = 0
+    private var silenceCount = 0L
 
     override fun onConfigure(inputAudioFormat: AudioProcessor.AudioFormat): AudioProcessor.AudioFormat {
-        android.util.Log.i(
-            "dewidebug",
-            "silence-detector configured enc=${inputAudioFormat.encoding} " +
+        Diag.log(
+            "silence",
+            "configured enc=${inputAudioFormat.encoding} " +
                 "rate=${inputAudioFormat.sampleRate} ch=${inputAudioFormat.channelCount}",
         )
         // 16-bit PCM is what the sink hands us after decoding; anything else passes
@@ -56,9 +58,14 @@ internal class SilenceDetectingAudioProcessor(
             silentBuffers++
             if (!reportedSilent && silentBuffers >= BUFFERS_TO_ENTER) {
                 reportedSilent = true
-                // Only transitions are logged — infrequent, and the thing you'd want to
-                // see if skipping ever misbehaves.
-                android.util.Log.i("dewidebug", "silence-detector entering silence (peak=$lastPeak)")
+                // Silence is entered every few seconds in speech, so logging each one
+                // would flood the crash-report event trail and evict what matters.
+                // The first tells you detection works at all; a periodic count keeps
+                // proving it without drowning the trail.
+                silenceCount++
+                if (silenceCount == 1L || silenceCount % SILENCE_LOG_EVERY == 0L) {
+                    Diag.log("silence", "entering silence #$silenceCount (peak=$lastPeak)")
+                }
                 onSilenceChanged(true)
             }
         } else {
@@ -114,6 +121,9 @@ internal class SilenceDetectingAudioProcessor(
          * well above the theoretical noise floor.
          */
         const val SILENCE_THRESHOLD = 1024
+
+        /** How often a repeat silence entry is logged, so the event trail stays useful. */
+        const val SILENCE_LOG_EVERY = 50L
 
         /**
          * Consecutive quiet buffers before we call it silence. A buffer here measured

@@ -112,6 +112,11 @@
     <string name="boost_medium">Med</string>
     <string name="boost_high">High</string>
     <string name="settings_downloads_section">Downloads</string>
+    <string name="settings_diagnostics_section">Diagnostics</string>
+    <string name="settings_diagnostics_send">Send diagnostics</string>
+    <string name="settings_diagnostics_sent">Diagnostics sent</string>
+    <string name="settings_diagnostics_summary">Sends the recent event log and app state so a problem can be diagnosed.</string>
+    <string name="settings_diagnostics_note">Sent by hand from Settings</string>
     <string name="settings_auto_download">Download queued audio</string>
     <string name="settings_auto_download_summary">Keeps everything in the queue listenable offline.</string>
     <string name="settings_auto_download_wifi">Wi-Fi only</string>

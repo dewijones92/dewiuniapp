@@ -37,6 +37,9 @@ import com.dewijones92.uniapp.database.RoomPlaybackProgressStore
 import com.dewijones92.uniapp.database.RoomQueueStore
 import com.dewijones92.uniapp.database.RoomSubscriptionStore
 import com.dewijones92.uniapp.database.UniAppDatabase
+import com.dewijones92.uniapp.diagnostics.CrashReporter
+import com.dewijones92.uniapp.diagnostics.DiagnosticsUploader
+import com.dewijones92.uniapp.diagnostics.installAndroidLogSink
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.MediaKind
 import com.dewijones92.uniapp.domain.PlayHandle
@@ -121,6 +124,18 @@ interface AppContainer {
      * auto-download settings), so the queue is listenable offline.
      */
     fun startQueueAutoDownload()
+
+    /**
+     * Installs the crash handler and sends any reports left by a previous run. Called
+     * first at startup so a failure during the rest of it is still reported.
+     */
+    fun installCrashReporting()
+
+    /**
+     * Captures the app's current state and event trail and sends it, with no crash
+     * involved — for "this behaved wrongly", which is how most bugs actually present.
+     */
+    fun sendDiagnostics(note: String)
 
     /** User-curated local playlists, mixing podcasts and videos. */
     val localPlaylistStore: LocalPlaylistStore
@@ -294,6 +309,55 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
     }
 
     override val queueStore: QueueStore by lazy { RoomQueueStore(database.queueDao()) }
+
+    private val crashReporter by lazy { CrashReporter(context, stateProviders = ::diagnosticState) }
+
+    override fun installCrashReporting() {
+        installAndroidLogSink()
+        crashReporter.install()
+        DiagnosticsUploader(context, httpClient, applicationScope).uploadPending()
+    }
+
+    /**
+     * What the app can say about itself when something goes wrong. Verbose on purpose
+     * (Dewi's instruction) — the queue, what's playing and every setting, since those
+     * are what a report is usually missing. Each value is computed defensively: a
+     * diagnostic must never be the thing that crashes.
+     */
+    private fun diagnosticState(): Map<String, String> = buildMap {
+        runCatching {
+            val state = playbackController.state.value
+            put("playing.title", state?.title ?: "nothing")
+            put("playing.itemId", state?.itemId?.value ?: "-")
+            put("playing.kind", state?.kind?.name ?: "-")
+            put("playing.positionMs", state?.positionMs?.toString() ?: "-")
+            put("playing.hasVideo", state?.hasVideo?.toString() ?: "-")
+            put("playing.speed", state?.speed?.toString() ?: "-")
+            put("playing.skipSilence", state?.skipSilence?.toString() ?: "-")
+            put("playing.volumeBoost", state?.volumeBoost?.name ?: "-")
+        }
+        runCatching {
+            val queue = playbackQueue.state.value
+            put("queue.size", queue.entries.size.toString())
+            put("queue.currentIndex", queue.currentIndex.toString())
+            put("queue.items", queue.entries.joinToString(" | ") { "${it.item.item.title}" })
+        }
+        runCatching {
+            val settings = appPreferences.settings.value
+            put("settings.playbackMode", settings.playbackMode.name)
+            put("settings.autoPlayNext", settings.autoPlayNext.toString())
+            put("settings.autoDownloadQueue", settings.autoDownloadQueue.toString())
+            put("settings.autoDownloadWifiOnly", settings.autoDownloadWifiOnly.toString())
+            put("settings.wifiMaxHeight", settings.wifiMaxHeight.toString())
+            put("settings.cellularMaxHeight", settings.cellularMaxHeight.toString())
+        }
+        runCatching { put("network.metered", networkStatus.isMetered().toString()) }
+    }
+
+    override fun sendDiagnostics(note: String) {
+        crashReporter.reportDiagnostics(note)
+        DiagnosticsUploader(context, httpClient, applicationScope).uploadPending()
+    }
 
     override fun startQueueAutoDownload() {
         QueueAutoDownloader(

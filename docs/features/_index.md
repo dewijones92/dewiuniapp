@@ -1,7 +1,7 @@
 ---
 title: Features
 kind: index
-updated: 2026-07-24
+updated: 2026-07-25
 ---
 
 # Features
@@ -37,6 +37,7 @@ alone until they need more.
 | Cast to TV (Chromecast) — best-effort | cast | shipped* | podcast/local only works; video casting fragile |
 | Explore channel content (InnerTube tabs: Videos/Shorts/Playlists) | channel | shipped | [channel-browse.md](channel-browse.md) |
 | Upload dates everywhere (all surfaces incl. search) | video/search | shipped | [upload-dates.md](upload-dates.md) |
+| Crash + diagnostics reporting (verbose reports to the Pi) | infrastructure | shipped | [crash-reporting.md](crash-reporting.md) |
 
 \* Cast: crash + disconnect-loses-playback fixed; real casting unverified (no hardware).
 

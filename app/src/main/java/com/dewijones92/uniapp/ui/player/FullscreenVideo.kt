@@ -4,7 +4,6 @@ import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.pm.ActivityInfo
-import android.util.Log
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.platform.LocalContext
@@ -12,6 +11,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.window.DialogWindowProvider
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import com.dewijones92.uniapp.common.Diag
 
 /**
  * While [active], forces landscape orientation and hides the system bars
@@ -29,9 +29,9 @@ internal fun FullscreenEffect(active: Boolean) {
     val window = dialogWindow ?: activity?.window
 
     DisposableEffect(active) {
-        Log.i(
-            "dewidebug",
-            "FullscreenEffect active=$active dialogWindow=${dialogWindow != null} activity=${activity != null}"
+        Diag.log(
+            "fullscreen",
+            "active=$active dialogWindow=${dialogWindow != null} activity=${activity != null}",
         )
         val insets = window?.let { WindowInsetsControllerCompat(it, view) }
         if (active) {

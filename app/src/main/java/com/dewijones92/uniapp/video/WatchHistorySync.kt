@@ -1,5 +1,6 @@
 package com.dewijones92.uniapp.video
 
+import com.dewijones92.uniapp.common.Diag
 import com.dewijones92.uniapp.innertube.history.YouTubeWatchHistory
 import com.dewijones92.uniapp.playback.PlaybackController
 import kotlinx.coroutines.CoroutineScope
@@ -45,7 +46,7 @@ class WatchHistorySync(
                 // Fire-and-forget so the 500ms state stream is never blocked on the network.
                 scope.launch {
                     val r = history.reportProgress(videoId, positionSec, lengthSec, finished)
-                    android.util.Log.i("dewidebug", "yt-sync $videoId pos=$positionSec fin=$finished -> $r")
+                    Diag.log("yt-sync", "$videoId pos=$positionSec fin=$finished -> $r")
                 }
             }
         }

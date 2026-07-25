@@ -108,6 +108,8 @@ fun SettingsScreen(container: AppContainer, onBack: () -> Unit, modifier: Modifi
                 label = stringResource(R.string.settings_import_export),
                 onClick = { showImportExport = true },
             )
+            SectionTitle(stringResource(R.string.settings_diagnostics_section))
+            DiagnosticsRow(container)
         }
     }
 }
@@ -129,6 +131,40 @@ private fun DownloadSettings(settings: AppPreferences.Settings, prefs: AppPrefer
         onCheckedChange = prefs::setAutoDownloadWifiOnly,
         enabled = settings.autoDownloadQueue,
     )
+}
+
+/**
+ * Sends the current state and event trail to the crash sink. Deliberately available
+ * without a crash: most defects are "it behaved wrongly", not "it died".
+ */
+@Composable
+private fun DiagnosticsRow(container: AppContainer) {
+    var sent by remember { mutableStateOf(false) }
+    val note = stringResource(R.string.settings_diagnostics_note)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = !sent) {
+                container.sendDiagnostics(note)
+                sent = true
+            }
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = stringResource(
+                    if (sent) R.string.settings_diagnostics_sent else R.string.settings_diagnostics_send,
+                ),
+                style = MaterialTheme.typography.bodyLarge,
+            )
+            Text(
+                text = stringResource(R.string.settings_diagnostics_summary),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
 }
 
 @Composable
