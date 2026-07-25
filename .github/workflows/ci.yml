@@ -98,9 +98,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cp app/build/outputs/apk/release/app-release.apk totum.apk
+          # Ship the R8 mapping with the build it belongs to: without it, a crash report
+          # from this APK is a wall of one-letter class names (the trace carries a map id
+          # to match against). Costs nothing and is useless if fetched later.
+          cp app/build/outputs/mapping/release/mapping.txt totum-mapping.txt || true
           gh release delete latest --yes || true
           git push origin :refs/tags/latest || true
-          gh release create latest totum.apk \
+          gh release create latest totum.apk totum-mapping.txt \
             --prerelease \
             --title "Totum main tip (0.1.${GITHUB_RUN_NUMBER})" \
             --notes "Rolling build of main at ${GITHUB_SHA}. Signed; safe to update over previous builds."
