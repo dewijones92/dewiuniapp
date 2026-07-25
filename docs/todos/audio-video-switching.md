@@ -52,20 +52,47 @@ So the **toggle while you're in an item is largely done**; what's missing is the
    video" cost only the video bytes. Nice fit; needs verifying the service accepts a
    file URI as the merged audio source.
 
-## Open questions for Dewi
+## Decided (Dewi, 2026-07-25)
 
-- **Prompt or just a toggle?** A dialog on every queue tap could get annoying fast;
-  the alternatives are (a) prompt once with "don't ask again", (b) no prompt — tap
-  plays audio and the toggle in the player is the switch, (c) prompt only on Wi-Fi→
-  mobile-data transitions. My instinct is (b) plus a clearly visible toggle, with the
-  data warning shown only when you actually switch on mobile data.
-- Where should the toggle live for a **queue row** (not the player)? In the row's
-  long-press sheet ("Watch video" / "Listen only"), which would put it on every feed
-  for free, or only in the Queue tab?
-- Should switching to video **stick** for that item (remembered like playback speed),
-  or reset to audio next time?
+- **No prompt on every tap.** Tapping plays audio; a clearly visible toggle does the
+  switch; the mobile-data warning appears only when you actually switch to video on
+  mobile data. (Dewi: "lets do it yourway".)
+- **The toggle lives in both places** — the row's long-press sheet (so it lands on
+  every feed, both pillars) *and* the Queue tab, alongside the existing one in the
+  full player.
+- **Stickiness is a global mode, not per item.** Dewi's instinct, and it beats the
+  per-item idea: wanting audio is *situational* ("I'm washing up"), not a property of
+  a particular video. Playback speed is per-source because a slow talker is a
+  property of the source; audio-vs-video isn't.
+
+## The mode (proposal)
+
+`PlaybackMode` in `AppPreferences`, persisted across restarts, three states:
+
+| Mode | Behaviour |
+|---|---|
+| **Auto** (default) | Video on Wi-Fi, audio on mobile data — the "smart" default, which also makes the data warning nearly redundant |
+| **Audio** | Everything plays audio-only, preferring the downloaded audio |
+| **Video** | Videos play with picture |
+
+Consulted in exactly one place — `VideoPlaybackLauncher`, when it decides between the
+video ladder and the audio-only stream — so it covers every screen and is a no-op for
+podcasts (no video track to choose).
+
+**Honesty about the global effect:** a row-sheet action that silently changes global
+state reads oddly ("why did this row's menu change everything?"). So the sheet action
+plays *that* item the chosen way **and** sets the mode, and says so — a snackbar
+("Video mode on"). One concept, no hidden per-item state, and no settings-screen hunt.
+
+## Still open
+
+- Does **Auto** as the default feel right, or a plain Audio/Video default?
+- **Shorts and an explicit fullscreen tap** are unambiguous "I want to watch" signals
+  — force video for that item without changing the mode? (Instinct: yes.)
+- **Cast**: a TV receiver is a video device, so casting should probably ignore Audio
+  mode. (Instinct: yes.)
 - When audio is downloaded but you choose video on mobile data: stream video-only and
-  reuse the local audio (point 3), or just stream the normal muxed video?
+  reuse the local audio (point 3 above), or just stream the normal muxed video?
 
 **Done when:** tapping a queue item and switching to video (and back) continues from
 the same position, the data cost is made clear before it's spent, and the switch is
