@@ -1,11 +1,11 @@
 ---
 title: Auto-play next — guaranteed, toggleable, works in fullscreen
 kind: todo
-status: refining
+status: ready
 area: playback
 priority: medium
 requested: 2026-07-24
-updated: 2026-07-24
+updated: 2026-07-25
 ---
 
 # Auto-play next always works
@@ -35,14 +35,12 @@ setting** for it, and fullscreen has not been explicitly verified.
    already handles Video (re-resolves the watch URL just-in-time), LocalVideo and
    Podcast — nothing pillar-specific to add.
 
-## Open decisions
+## Decided
 
-- Toggle placement: in the full player next to Skip silences (discoverable, matches
-  the other playback toggles) or in Settings (tidier)? Proposal: the player.
-- When the queue is **empty** at the end: stop (proposal), or YouTube-style
-  continue-with-a-related-video? You didn't ask for the latter; it would be a
-  separate feature and only exists on one pillar, so it would need a podcast
-  answer too (next episode in the feed) to stay unified.
+- Toggle lives in the full player next to Skip silences (matches the other playback
+  toggles), default on.
+- Empty queue at the end → stop. Continue-with-a-related-video is a separate,
+  not-yet-requested feature and would need a podcast answer to stay unified.
 
 **Done when:** the setting exists (default on), auto-advance is proven on-device in
 both windowed and fullscreen playback, and turning it off stops at the end.

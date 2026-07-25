@@ -1,11 +1,11 @@
 ---
 title: Volume boost / loudness normalization for quiet audio
 kind: todo
-status: refining
+status: ready
 area: playback
 priority: medium
 requested: 2026-07-24
-updated: 2026-07-24
+updated: 2026-07-25
 ---
 
 # Make quiet talkers audible
@@ -42,13 +42,15 @@ one quiet podcast stays boosted without affecting everything else.
 Then, if that isn't enough, add `DynamicsProcessing` as the "Normalize" level (real
 compression) behind the same control.
 
-## Open decisions
+## Decided (Dewi, 2026-07-25)
 
-- **Which first**: simple boost (small, ships now) vs going straight to
-  compression/normalize (better result, more tuning)?
-- **Global or per-source** (proposal: global default with per-source memory,
-  mirroring speed)?
-- Cast: the effect can't apply to a remote receiver — fine to be local-only?
+- **Boost first**: `LoudnessEnhancer` with Off / Low / Medium / High, wired once in
+  `PlaybackController` so both pillars and every screen get it, surfaced in the full
+  player next to Skip silences.
+- Global default with **per-source memory**, mirroring the existing per-source
+  playback speed.
+- Local playback only (a platform effect can't reach a Cast receiver) — accepted.
+- `DynamicsProcessing` "Normalize" can be added later behind the same control.
 
 **Done when:** a quiet item can be made comfortably audible from the player, the
 choice persists, and it applies to both pillars.

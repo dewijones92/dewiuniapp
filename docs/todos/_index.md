@@ -21,13 +21,15 @@ to `shipped` and migrate it to `../features/` once it's a real feature on `main`
 | [play-history-screen](play-history-screen.md) | library | medium | shipped |
 | [local-cross-pillar-playlists](local-cross-pillar-playlists.md) | library | high | shipped |
 | [skip-silence-on-video](skip-silence-on-video.md) | playback | medium | open |
-| [queue-first-playback](queue-first-playback.md) | playback | high | refining |
-| [auto-download-queue](auto-download-queue.md) | downloads | high | refining |
-| [autoplay-next-guaranteed](autoplay-next-guaranteed.md) | playback | medium | refining |
-| [volume-boost-normalize](volume-boost-normalize.md) | playback | medium | refining |
+| [queue-first-playback](queue-first-playback.md) | playback | high | ready (awaiting go) |
+| [auto-download-queue](auto-download-queue.md) | downloads | high | ready (awaiting go) |
+| [autoplay-next-guaranteed](autoplay-next-guaranteed.md) | playback | medium | ready (awaiting go) |
+| [volume-boost-normalize](volume-boost-normalize.md) | playback | medium | ready (awaiting go) |
+| [subtitles-captions](subtitles-captions.md) | playback | medium | refining |
 | [notification-opens-app](notification-opens-app.md) | playback | high | shipped |
 | [listen-mode-exit-ux](listen-mode-exit-ux.md) | playback | high | shipped |
 
-All backlog items are Dewi requests captured 2026-07-24. `refining` = spec written,
-awaiting Dewi's decisions before implementation (explicit instruction: refine first,
-implement on command).
+All backlog items are Dewi requests. `refining` = spec written, decisions still open;
+`ready` = decisions made, implementation waits for Dewi's explicit go (his standing
+instruction on the queue/download/autoplay/volume group: refine first, implement on
+command).

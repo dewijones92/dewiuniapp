@@ -1,11 +1,11 @@
 ---
 title: Auto-download audio for everything in the queue
 kind: todo
-status: refining
+status: ready
 area: downloads
 priority: high
 requested: 2026-07-24
-updated: 2026-07-24
+updated: 2026-07-25
 ---
 
 # Auto-download the queue's audio, and show it
@@ -35,22 +35,29 @@ the spine that lands there.
 2. **Queue membership triggers it.** Entering the queue schedules the download;
    the existing `DownloadState` flows light up the row automatically (spinner →
    check) in the feed, the Queue tab, and Library.
-3. **Auto vs pinned.** Mark auto-downloads with a flag on the download row
-   (DB migration) so leaving the queue can clean them up, while a download the
-   user asked for is never auto-deleted.
+3. **No cleanup, no auto/pinned flag** (decided): an auto-download is a normal
+   download and stays until deleted from Library. Keeps the download row schema
+   untouched — no migration, no reference-counting against queue membership.
 4. **Settings** (`AppPreferences`): "Auto-download queued items" (default **on**)
    and "Wi-Fi only" (default **on** — `NetworkStatus` already exists and already
    drives per-network quality).
 
-## Open decisions
+## Decided (Dewi, 2026-07-25)
 
-- **Videos: audio-only confirmed?** If so, watching a queued video still streams
-  the picture (with the local audio used in listen mode). The alternative —
-  auto-downloading full video — is much heavier and probably not what you meant.
-- **Cleanup on leaving the queue**: delete the auto-download (queue = a cache), or
-  keep it until storage pressure?
-- Should the GUI distinguish "downloaded automatically" from "you downloaded this"
-  (e.g. a different icon tint), or is one Downloaded state enough?
+- **Audio-only** for videos (`bestaudio`, no ffmpeg merge); podcasts their enclosure.
+  Watching a queued video still streams the picture; the local audio is what listen
+  mode and offline playback use.
+- **Nothing is auto-deleted.** Leaving the queue keeps the file; you remove it from
+  Library. So no auto/pinned distinction in the GUI either — one Downloaded state.
+- Wi-Fi-only by default (toggleable), auto-download on by default.
+
+## Watch out
+
+Audio-only files and full merged downloads both land in the same download row keyed
+by `MediaItemId`, so "queued → audio-only downloaded" then "user downloads the full
+video" must not read as already-downloaded. Needs deciding at build time: either
+record which variant a row holds, or let an explicit full download supersede the
+audio-only file.
 
 **Done when:** an item entering the queue downloads its audio by itself (honouring
 the settings), its row shows progress then downloaded, and playback uses the local

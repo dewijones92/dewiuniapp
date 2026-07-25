@@ -1,11 +1,11 @@
 ---
 title: Queue-first playback (AntennaPod-style) + Queue tab
 kind: todo
-status: refining
+status: ready
 area: playback
 priority: high
 requested: 2026-07-24
-updated: 2026-07-24
+updated: 2026-07-25
 ---
 
 # Queue-first playback + a Queue tab
@@ -45,17 +45,15 @@ Unified law (one playback entry point for both pillars).
    listen; today's behaviour), added as one more `SheetAction` in the existing
    `MediaItemRow` sheet, so it lands on every feed on both pillars at once.
 
-## Open decisions
+## Decided (Dewi, 2026-07-25)
 
-- **Bottom bar shape.** Five tabs today (Videos / Podcasts / Search / Library /
-  Account). Adding Queue makes six, past Material 3's 3–5 guidance. Options: move
-  Account off the bar (top-right avatar, or into Library) and keep five, or accept
-  six.
-- **Peek semantics** — confirm "play now, don't touch the queue" (vs a details
-  preview).
-- Does `playNow` on an item **already in** the queue move it, or duplicate it?
-  (Proposal: move it to the current position — no duplicates, matching how play
-  history de-dupes.)
+- **Peek = play without touching the queue.** A one-off listen/watch; the queue is
+  left exactly as it was. Today's tap behaviour, demoted to a long-press action in
+  the existing `MediaItemRow` sheet (so it lands on every feed, both pillars).
+- **Account comes off the bottom bar** (top-right avatar, or inside Library), so the
+  bar stays at five: **Videos / Podcasts / Queue / Search / Library**.
+- `playNow` on an item already queued **moves** it to the current position rather
+  than duplicating (matches how play history de-dupes).
 
 **Done when:** tapping anything anywhere queues-at-current-position and plays;
 the Queue tab shows and edits that one queue; it survives a restart; long-press →
