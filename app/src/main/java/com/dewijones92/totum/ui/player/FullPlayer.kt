@@ -20,6 +20,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Forward30
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay10
@@ -96,6 +97,7 @@ fun FullPlayerOverlay(
     onSeekForward: () -> Unit,
     onSetSpeed: (Float) -> Unit,
     onSetSubtitleLanguage: (String?) -> Unit,
+    onMore: (() -> Unit)?,
     toggles: PlaybackToggles,
     queue: QueueControls = QueueControls.None,
 ) {
@@ -149,6 +151,7 @@ fun FullPlayerOverlay(
                 onSeekForward = onSeekForward,
                 onSetSpeed = onSetSpeed,
                 onSetSubtitleLanguage = onSetSubtitleLanguage,
+                onMore = onMore,
                 toggles = toggles,
             )
         }
@@ -184,6 +187,7 @@ private fun DraggablePlayerContent(
     onSeekForward: () -> Unit,
     onSetSpeed: (Float) -> Unit,
     onSetSubtitleLanguage: (String?) -> Unit,
+    onMore: (() -> Unit)?,
     toggles: PlaybackToggles,
 ) {
     val drag = rememberStageDragDismiss(onDismiss)
@@ -239,6 +243,7 @@ private fun DraggablePlayerContent(
             onSeekBackward = onSeekBackward,
             onSeekForward = onSeekForward,
             onSetSpeed = onSetSpeed,
+            onMore = onMore,
             toggles = toggles,
         )
     }
@@ -268,6 +273,7 @@ private fun PlayerDetails(
     onSeekBackward: () -> Unit,
     onSeekForward: () -> Unit,
     onSetSpeed: (Float) -> Unit,
+    onMore: (() -> Unit)?,
     toggles: PlaybackToggles,
 ) {
     Spacer(Modifier.height(if (state.hasVideo) 16.dp else 48.dp))
@@ -286,8 +292,17 @@ private fun PlayerDetails(
             modifier = Modifier.padding(top = 8.dp),
         )
     }
-    // Says whether this is a YouTube video or a podcast.
-    PillarBadge(state.kind, modifier = Modifier.padding(top = 8.dp))
+    // Says whether this is a YouTube video or a podcast, and — beside it — the same
+    // long-press menu every row has. Sharing that sheet is what guarantees the player
+    // never offers less than a row does.
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        PillarBadge(state.kind, modifier = Modifier.padding(top = 8.dp))
+        onMore?.let {
+            IconButton(onClick = it) {
+                Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.queue_menu))
+            }
+        }
+    }
     // Cast to a TV — self-hides when no Cast device is around.
     CastButton(modifier = Modifier.padding(top = 8.dp))
 

@@ -2,7 +2,6 @@ package com.dewijones92.totum.ui.common
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,27 +13,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
-import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
-import androidx.compose.material.icons.automirrored.filled.QueueMusic
-import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.VerticalAlignBottom
-import androidx.compose.material.icons.filled.VerticalAlignTop
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Download
-import androidx.compose.material.icons.outlined.Headphones
-import androidx.compose.material.icons.outlined.RadioButtonUnchecked
-import androidx.compose.material.icons.outlined.SmartDisplay
-import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -45,7 +31,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -222,84 +207,6 @@ private fun TitleAndSubtitle(
             )
         }
         MediaItemStatus(pillar, playState, downloadState, StatusRowSpacing)
-    }
-}
-
-/**
- * Long-press / overflow action sheet — a Material 3 bottom sheet of the actions
- * available for the row (what apps like YouTube use). Only non-null actions show.
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun ActionSheet(
-    title: String,
-    onPlayNext: (() -> Unit)?,
-    onAddToQueue: (() -> Unit)?,
-    onAddToPlaylist: (() -> Unit)?,
-    onRemoveFromPlaylist: (() -> Unit)?,
-    onPeek: (() -> Unit)?,
-    onDownloadVideo: (() -> Unit)?,
-    onDownload: (() -> Unit)?,
-    onSwitchMode: (() -> Unit)?,
-    audioMode: Boolean,
-    onGoToSource: (() -> Unit)?,
-    goToSourceLabelRes: Int,
-    onMoveToTop: (() -> Unit)?,
-    onMoveToBottom: (() -> Unit)?,
-    onSetPlayed: ((Boolean) -> Unit)?,
-    played: Boolean,
-    onDismiss: () -> Unit,
-) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleMedium,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
-        )
-        SheetAction(onPlayNext, Icons.AutoMirrored.Filled.PlaylistPlay, R.string.queue_play_next, onDismiss)
-        SheetAction(onAddToQueue, Icons.AutoMirrored.Filled.QueueMusic, R.string.queue_add, onDismiss)
-        SheetAction(onAddToPlaylist, Icons.AutoMirrored.Filled.PlaylistAdd, R.string.playlist_add_to, onDismiss)
-        SheetAction(onRemoveFromPlaylist, Icons.Filled.Delete, R.string.playlist_remove_from, onDismiss)
-        SheetAction(onPeek, Icons.Outlined.Visibility, R.string.queue_peek, onDismiss)
-        SheetAction(onDownload, Icons.Outlined.Download, R.string.download, onDismiss)
-        SheetAction(onDownloadVideo, Icons.Outlined.Download, R.string.download_video, onDismiss)
-        SheetAction(
-            onSwitchMode,
-            if (audioMode) Icons.Outlined.SmartDisplay else Icons.Outlined.Headphones,
-            if (audioMode) R.string.play_with_video else R.string.play_audio_only,
-            onDismiss,
-        )
-        SheetAction(onMoveToTop, Icons.Filled.VerticalAlignTop, R.string.queue_move_to_top, onDismiss)
-        SheetAction(onMoveToBottom, Icons.Filled.VerticalAlignBottom, R.string.queue_move_to_bottom, onDismiss)
-        SheetAction(onGoToSource, Icons.Filled.AccountCircle, goToSourceLabelRes, onDismiss)
-        SheetAction(
-            onSetPlayed?.let { { it(!played) } },
-            if (played) Icons.Outlined.RadioButtonUnchecked else Icons.Outlined.CheckCircle,
-            if (played) R.string.mark_unplayed else R.string.mark_played,
-            onDismiss,
-        )
-        Spacer(Modifier.height(16.dp))
-    }
-}
-
-@Composable
-private fun SheetAction(action: (() -> Unit)?, icon: ImageVector, labelRes: Int, onDismiss: () -> Unit) {
-    action?.let {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable {
-                    onDismiss()
-                    it()
-                }
-                .padding(horizontal = 24.dp, vertical = 14.dp),
-        ) {
-            Icon(icon, contentDescription = null, modifier = Modifier.padding(end = 24.dp))
-            Text(stringResource(labelRes), style = MaterialTheme.typography.bodyLarge)
-        }
     }
 }
 

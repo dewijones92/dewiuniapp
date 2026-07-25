@@ -15,6 +15,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -22,16 +23,23 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.dewijones92.totum.R
+import com.dewijones92.totum.data.queue.QueueEntry
 import com.dewijones92.totum.di.AppContainer
 import com.dewijones92.totum.di.fake.FakeAppContainer
+import com.dewijones92.totum.domain.DownloadState
 import com.dewijones92.totum.domain.MediaItem
+import com.dewijones92.totum.domain.PlayableItem
 import com.dewijones92.totum.navigation.TopLevelDestination
 import com.dewijones92.totum.playback.PlaybackController
 import com.dewijones92.totum.playback.PlaybackState
+import com.dewijones92.totum.queue.PlaybackQueue
 import com.dewijones92.totum.theme.TotumTheme
+import com.dewijones92.totum.ui.common.ActionSheet
 import com.dewijones92.totum.ui.common.MiniPlayerBar
 import com.dewijones92.totum.ui.common.ProvidePlayStates
 import com.dewijones92.totum.ui.common.RequestNotificationPermissionOnFirstPlay
+import com.dewijones92.totum.ui.common.rememberMediaItemActions
 import com.dewijones92.totum.ui.library.LibraryScreen
 import com.dewijones92.totum.ui.player.CommentReplies
 import com.dewijones92.totum.ui.player.FullPlayerOverlay
@@ -46,6 +54,7 @@ import com.dewijones92.totum.ui.search.SearchScreen
 import com.dewijones92.totum.ui.shorts.ShortsReelScreen
 import com.dewijones92.totum.ui.videos.VideosScreen
 import com.dewijones92.totum.video.VideoPlaybackLauncher
+import kotlinx.coroutines.launch
 
 /**
  * Top-level scaffold: bottom navigation across the app's pillars with
@@ -180,6 +189,9 @@ private fun FullPlayerHost(
     val quality by watchViewModel.quality.collectAsStateWithLifecycle()
     val queueState by container.playbackQueue.state.collectAsStateWithLifecycle()
     val upNext = queueState.upNext
+    val rowActions = rememberMediaItemActions(container)
+    var showItemSheet by remember { mutableStateOf(false) }
+    val playing = queueState.current?.item
     val currentIndex = queueState.currentIndex
     val settings by container.appPreferences.settings.collectAsStateWithLifecycle()
 
@@ -217,13 +229,68 @@ private fun FullPlayerHost(
         onSetSpeed = controller::setSpeed,
         onSetSubtitleLanguage = controller::setSubtitleLanguage,
         toggles = playbackToggles(state, controller, container, settings.autoPlayNext),
-        queue = QueueControls(
-            upNext = upNext,
-            // The player's list shows what follows the cursor, so its indices are
-            // offset from the queue's own.
-            onPlay = { indexInUpNext -> container.playbackQueue.jumpTo(currentIndex + 1 + indexInUpNext) },
-            onRemove = { indexInUpNext -> container.playbackQueue.removeAt(currentIndex + 1 + indexInUpNext) },
-        ),
+        queue = upNextControls(container.playbackQueue, upNext, currentIndex),
+        onMore = { showItemSheet = true }.takeIf { playing != null },
+    )
+
+    PlayingItemSheet(container, playing, showItemSheet) { showItemSheet = false }
+}
+
+/**
+ * The player's up-next list shows what follows the cursor, so its indices are offset from
+ * the queue's own — done here once rather than inline at the call site.
+ */
+private fun upNextControls(queue: PlaybackQueue, upNext: List<QueueEntry>, currentIndex: Int) =
+    QueueControls(
+        upNext = upNext,
+        onPlay = { i -> queue.jumpTo(currentIndex + 1 + i) },
+        onRemove = { i -> queue.removeAt(currentIndex + 1 + i) },
+    )
+
+/**
+ * The SAME sheet the rows use, for whatever is playing — so the player can never offer less
+ * than a long-press does. Wired to the current QUEUE entry, which carries the real item and
+ * its handle, rather than to a PlaybackState reconstruction.
+ */
+@Composable
+private fun PlayingItemSheet(
+    container: AppContainer,
+    playing: PlayableItem?,
+    visible: Boolean,
+    onDismiss: () -> Unit,
+) {
+    val item = playing?.item ?: return
+    if (!visible) return
+    val rowActions = rememberMediaItemActions(container)
+    val scope = rememberCoroutineScope()
+    val downloads by container.downloadManager.observeDownloads().collectAsStateWithLifecycle(emptyMap())
+    val playStates by remember { container.playbackProgressStore.observeStates() }
+        .collectAsStateWithLifecycle(emptyMap())
+    val local = downloads[item.id]
+    ActionSheet(
+        title = item.title,
+        onPlayNext = { rowActions.playNext(item) },
+        onAddToQueue = { rowActions.addToQueue(item) },
+        onAddToPlaylist = { rowActions.addToPlaylist(item) },
+        onRemoveFromPlaylist = null,
+        onPeek = { rowActions.peek(item) },
+        onDownloadVideo = {
+            scope.launch { container.downloadManager.download(item, audioOnly = false) }
+            Unit
+        }.takeIf { (local as? DownloadState.Downloaded)?.audioOnly == true },
+        onDownload = {
+            scope.launch { container.downloadManager.download(item, audioOnly = true) }
+            Unit
+        }.takeIf { local !is DownloadState.Downloaded && local !is DownloadState.Downloading },
+        onSwitchMode = null,
+        audioMode = rowActions.audioMode,
+        onGoToSource = { rowActions.goToSource(item) { } },
+        goToSourceLabelRes = R.string.go_to_channel,
+        onMoveToTop = null,
+        onMoveToBottom = null,
+        onSetPlayed = { played -> scope.launch { container.playbackProgressStore.setPlayed(item.id, played) } },
+        played = playStates[item.id]?.isPlayed == true,
+        onDismiss = onDismiss,
     )
 }
 
