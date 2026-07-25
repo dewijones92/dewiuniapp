@@ -99,9 +99,14 @@ class VideoPlaybackLauncher(
                 resolved.item.copy(mediaUrl = chosen.videoUrl),
                 skipSegments = resolved.skipSegments,
                 audioUrl = chosen.audioUrl,
+                subtitles = resolved.subtitles,
             )
         } else {
-            playback.play(resolved.item, skipSegments = resolved.skipSegments)
+            playback.play(
+                resolved.item,
+                skipSegments = resolved.skipSegments,
+                subtitles = resolved.subtitles,
+            )
         }
     }
 

@@ -43,6 +43,7 @@ alone until they need more.
 | Brand: Totum name, palette and icon | branding | shipped | [brand.md](brand.md) |
 | Download notifications (progress / done / failed, aggregated) | downloads | shipped | [download-notifications.md](download-notifications.md) |
 | Quality + speed as an on-video overlay | ui | shipped | [video-settings-overlay.md](video-settings-overlay.md) |
+| Subtitles / captions (menu on the video, cues over the picture) | playback | shipped | [subtitles.md](subtitles.md) |
 
 \* Cast: crash + disconnect-loses-playback fixed; real casting unverified (no hardware).
 

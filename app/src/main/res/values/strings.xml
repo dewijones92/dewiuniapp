@@ -239,4 +239,6 @@
         <item quantity="other">%d downloads failed</item>
     </plurals>
     <string name="quality">Quality</string>
+    <string name="subtitles">Subtitles</string>
+    <string name="subtitles_off">Off</string>
 </resources>

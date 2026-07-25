@@ -95,6 +95,7 @@ fun FullPlayerOverlay(
     onSeekBackward: () -> Unit,
     onSeekForward: () -> Unit,
     onSetSpeed: (Float) -> Unit,
+    onSetSubtitleLanguage: (String?) -> Unit,
     toggles: PlaybackToggles,
     queue: QueueControls = QueueControls.None,
 ) {
@@ -108,6 +109,7 @@ fun FullPlayerOverlay(
     // activity's own window (not a Dialog), so landscape rotation for fullscreen
     // is handled by the same window that hosts the app — a Dialog sub-window
     // would stay portrait-sized and leave the video in a stale frame.
+    val videoSettings = rememberVideoSettings(state, quality, onSetSpeed, onSetSubtitleLanguage)
     BackHandler { if (fullscreen) fullscreen = false else onDismiss() }
     FullscreenEffect(active = fullscreen && videoPlayer != null)
     Surface(modifier = Modifier.fillMaxSize()) {
@@ -116,7 +118,7 @@ fun FullPlayerOverlay(
             VideoStageWithControls(
                 state = state,
                 player = videoPlayer,
-                settings = VideoSettings(quality, state.speed, onSetSpeed),
+                settings = videoSettings,
                 fullscreen = true,
                 onToggleFullscreen = { fullscreen = false },
                 onDismiss = onDismiss,
@@ -146,6 +148,7 @@ fun FullPlayerOverlay(
                 onSeekBackward = onSeekBackward,
                 onSeekForward = onSeekForward,
                 onSetSpeed = onSetSpeed,
+                onSetSubtitleLanguage = onSetSubtitleLanguage,
                 toggles = toggles,
             )
         }
@@ -180,9 +183,11 @@ private fun DraggablePlayerContent(
     onSeekBackward: () -> Unit,
     onSeekForward: () -> Unit,
     onSetSpeed: (Float) -> Unit,
+    onSetSubtitleLanguage: (String?) -> Unit,
     toggles: PlaybackToggles,
 ) {
     val drag = rememberStageDragDismiss(onDismiss)
+    val videoSettings = rememberVideoSettings(state, quality, onSetSpeed, onSetSubtitleLanguage)
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -199,7 +204,7 @@ private fun DraggablePlayerContent(
                 VideoStageWithControls(
                     state = state,
                     player = videoPlayer,
-                    settings = VideoSettings(quality, state.speed, onSetSpeed),
+                    settings = videoSettings,
                     fullscreen = false,
                     onToggleFullscreen = onEnterFullscreen,
                     onDismiss = onDismiss,

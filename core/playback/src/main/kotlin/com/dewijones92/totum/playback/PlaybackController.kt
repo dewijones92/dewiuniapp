@@ -2,6 +2,7 @@ package com.dewijones92.totum.playback
 
 import androidx.media3.common.Player
 import com.dewijones92.totum.common.HttpUrl
+import com.dewijones92.totum.common.SubtitleTrack
 import com.dewijones92.totum.domain.Chapter
 import com.dewijones92.totum.domain.MediaItem
 import com.dewijones92.totum.domain.MediaItemId
@@ -40,7 +41,17 @@ public interface PlaybackController {
         skipSegments: List<SkipSegment> = emptyList(),
         localPath: String? = null,
         audioUrl: HttpUrl? = null,
+        subtitles: List<SubtitleTrack> = emptyList(),
     )
+
+    /**
+     * Chooses the caption language to show, or turns captions off with null.
+     *
+     * A language rather than a track index: the player already knows which tracks it has,
+     * and an index would go stale the moment the item changes — which is exactly when a
+     * "keep subtitles on" preference needs to survive.
+     */
+    public fun setSubtitleLanguage(languageCode: String?)
 
     /** Toggles play/pause of the current item; no-op when nothing is queued. */
     public fun togglePlayPause()
@@ -103,6 +114,10 @@ public data class PlaybackState(
     val volumeBoost: VolumeBoost = VolumeBoost.OFF,
     /** Chapters of the current item — marked on the seek bar and listed to tap-jump. */
     val chapters: List<Chapter> = emptyList(),
+    /** Caption tracks available for the current item; empty when it has none. */
+    val subtitles: List<SubtitleTrack> = emptyList(),
+    /** Language code of the caption track showing, or null for off. */
+    val subtitleLanguage: String? = null,
 ) {
     init {
         require(positionMs >= 0) { "positionMs must not be negative" }

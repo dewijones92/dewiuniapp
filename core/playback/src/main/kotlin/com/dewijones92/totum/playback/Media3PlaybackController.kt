@@ -4,6 +4,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.os.Bundle
 import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
 import androidx.core.os.bundleOf
 import androidx.media3.common.C
 import androidx.media3.common.MediaMetadata
@@ -13,6 +14,7 @@ import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionToken
 import com.dewijones92.totum.common.Diag
 import com.dewijones92.totum.common.HttpUrl
+import com.dewijones92.totum.common.SubtitleTrack
 import com.dewijones92.totum.domain.Chapter
 import com.dewijones92.totum.domain.MediaItem
 import com.dewijones92.totum.domain.MediaItemId
@@ -56,6 +58,12 @@ public class Media3PlaybackController(
     private val pendingCommands = mutableListOf<(MediaController) -> Unit>()
     private var activeSkipSegments: List<SkipSegment> = emptyList()
     private var activeChapters: List<Chapter> = emptyList()
+
+    // Held rather than read back from the player's text tracks: the tracks know a
+    // language code but not the label or whether it's machine-generated, and those are
+    // exactly what a menu needs to show.
+    private var activeSubtitles: List<SubtitleTrack> = emptyList()
+    private var subtitleLanguage: String? = null
     private var currentSourceId: SourceId? = null
     private var playGeneration = 0
     private var skipSilence = false
@@ -103,6 +111,7 @@ public class Media3PlaybackController(
         skipSegments: List<SkipSegment>,
         localPath: String?,
         audioUrl: HttpUrl?,
+        subtitles: List<SubtitleTrack>,
     ) {
         val uri = localPath?.let { File(it).toURI().toString() }
             ?: requireNotNull(item.mediaUrl) { "MediaItem ${item.id.value} has no mediaUrl" }.value
@@ -121,6 +130,11 @@ public class Media3PlaybackController(
             .setMediaId(item.id.value)
             .setUri(uri)
             .setRequestMetadata(requestMetadata)
+            // Side-loaded text tracks. DefaultMediaSourceFactory turns these into text
+            // sources itself, and the service's audio-merging wrapper delegates to it, so
+            // captions survive the higher-quality video+audio merge rather than being
+            // dropped by it.
+            .setSubtitleConfigurations(subtitles.map { it.toSubtitleConfiguration() })
             .setMediaMetadata(
                 MediaMetadata.Builder()
                     .setTitle(item.title)
@@ -149,6 +163,7 @@ public class Media3PlaybackController(
                 if (generation != playGeneration) return@withController
                 activeSkipSegments = skipSegments
                 activeChapters = item.chapters
+                activeSubtitles = subtitles
                 currentSourceId = item.sourceId
                 ticksSinceSave = 0
                 controller.setMediaItem(media3Item, resumeMs)
@@ -212,6 +227,22 @@ public class Media3PlaybackController(
             _state.value = it.currentPlaybackState()
         }
         currentSourceId?.let { source -> scope.launch { boostStore.save(source, boost) } }
+    }
+
+    override fun setSubtitleLanguage(languageCode: String?) {
+        subtitleLanguage = languageCode
+        withController { controller ->
+            // Disabling the whole track type is what actually turns captions off: leaving
+            // it enabled with no preferred language lets the player fall back to a default
+            // track, so "off" would quietly still show something.
+            controller.trackSelectionParameters = controller.trackSelectionParameters
+                .buildUpon()
+                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, languageCode == null)
+                .setPreferredTextLanguage(languageCode)
+                .build()
+            _state.value = controller.currentPlaybackState()
+        }
+        Diag.log("subtitles", "language -> ${languageCode ?: "off"}")
     }
 
     override fun setSkipSilence(enabled: Boolean) {
@@ -282,11 +313,20 @@ public class Media3PlaybackController(
             hasEnded = playbackState == Player.STATE_ENDED,
             isBuffering = playbackState == Player.STATE_BUFFERING,
             skipSegments = activeSkipSegments,
+            subtitles = activeSubtitles,
+            subtitleLanguage = subtitleLanguage,
             skipSilence = skipSilence,
             volumeBoost = volumeBoost,
             chapters = activeChapters,
         )
     }
+
+    private fun SubtitleTrack.toSubtitleConfiguration(): Media3MediaItem.SubtitleConfiguration =
+        Media3MediaItem.SubtitleConfiguration.Builder(url.value.toUri())
+            .setMimeType(format.mimeType)
+            .setLanguage(languageCode)
+            .setLabel(label)
+            .build()
 
     private companion object {
         const val POSITION_TICK_MS = 500L

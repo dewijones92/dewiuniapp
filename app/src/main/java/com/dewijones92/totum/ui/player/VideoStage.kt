@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -58,6 +59,24 @@ private fun Modifier.stageSizing(aspect: Float?, fullscreen: Boolean): Modifier 
     else -> fillMaxWidth().aspectRatio(aspect ?: DEFAULT_VIDEO_ASPECT_RATIO)
 }
 
+/**
+ * What's drawn over the picture but under the controls: the buffering spinner, so a stall
+ * reads as "loading" rather than a frozen frame, and the subtitle cues.
+ */
+@Composable
+private fun BoxScope.OverPicture(state: PlaybackState, player: Player, controlsVisible: Boolean) {
+    if (state.isBuffering) {
+        CircularProgressIndicator(color = Color.White, modifier = Modifier.align(Alignment.Center))
+    }
+    // Cues lift clear of the seek bar while the controls show, so the two never overlap.
+    SubtitleCues(
+        player = player,
+        modifier = Modifier
+            .align(Alignment.BottomCenter)
+            .padding(bottom = if (controlsVisible) CUES_BOTTOM_WITH_CONTROLS else CUES_BOTTOM),
+    )
+}
+
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @Composable
 internal fun VideoStageWithControls(
@@ -92,28 +111,18 @@ internal fun VideoStageWithControls(
         contentAlignment = Alignment.Center,
     ) {
         // Inline, the stage is already the video's shape, so the surface fills it.
-        // Fullscreen the stage fills the (wider) screen, so constrain the surface
-        // to the video's aspect and letterbox it — otherwise the TextureView
-        // stretches the picture to the whole screen.
-        val surfaceModifier = if (fullscreen) {
-            Modifier.aspectRatio(aspect ?: DEFAULT_VIDEO_ASPECT_RATIO, matchHeightConstraintsFirst = true)
-        } else {
-            Modifier.matchParentSize()
-        }
+        // Fullscreen the stage fills the (wider) screen, so the surface is constrained to
+        // the video's aspect and letterboxed — else the TextureView stretches the picture.
         PlayerSurface(
             player = player,
             surfaceType = SURFACE_TYPE_TEXTURE_VIEW,
-            modifier = surfaceModifier,
+            modifier = if (fullscreen) {
+                Modifier.aspectRatio(aspect ?: DEFAULT_VIDEO_ASPECT_RATIO, matchHeightConstraintsFirst = true)
+            } else {
+                Modifier.matchParentSize()
+            },
         )
-        // A spinner over the frame whenever the player is buffering, so a stall
-        // reads as "loading" rather than a frozen picture. Sits above the surface
-        // but under the controls scrim.
-        if (state.isBuffering) {
-            CircularProgressIndicator(
-                color = Color.White,
-                modifier = Modifier.align(Alignment.Center),
-            )
-        }
+        OverPicture(state, player, controlsVisible)
         AnimatedVisibility(
             visible = controlsVisible,
             enter = fadeIn(),
@@ -188,6 +197,9 @@ private fun VideoControlsOverlay(
         }
     }
 }
+
+private val CUES_BOTTOM = 12.dp
+private val CUES_BOTTOM_WITH_CONTROLS = 56.dp
 
 private const val CONTROLS_AUTOHIDE_MS = 3_000L
 private const val SCRIM_ALPHA = 0.35f

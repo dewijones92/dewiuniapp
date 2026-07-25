@@ -1,7 +1,7 @@
 ---
 title: Subtitles / captions (and podcast transcripts)
 kind: todo
-status: refining
+status: shipped
 area: playback
 priority: medium
 requested: 2026-07-25
@@ -62,3 +62,13 @@ implementation, which is exactly what the Unified law asks for.
 **Done when:** a video with captions and a podcast with a transcript both show timed
 text through the one player, the language choice sticks, and it works offline for
 downloaded items.
+
+---
+
+## Shipped 2026-07-25
+
+YouTube caption tracks extract, appear in a menu on the video overlay, and render over the
+picture. Detail in [`docs/features/subtitles.md`](../features/subtitles.md).
+
+Still open, and cheap on the same seam: **podcast transcripts** (`podcast:transcript`),
+remembering the language choice across items, and cue styling.

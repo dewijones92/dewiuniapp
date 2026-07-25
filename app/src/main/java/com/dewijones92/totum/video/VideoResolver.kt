@@ -1,6 +1,7 @@
 package com.dewijones92.totum.video
 
 import com.dewijones92.totum.common.HttpUrl
+import com.dewijones92.totum.common.SubtitleTrack
 import com.dewijones92.totum.data.sponsorblock.SkipSegmentSource
 import com.dewijones92.totum.domain.Chapter
 import com.dewijones92.totum.domain.MediaItem
@@ -33,6 +34,8 @@ class VideoResolver(
         /** YouTube watch-progress stats URLs (from yt-dlp's player response), null for non-YouTube. */
         val playbackTrackingUrl: String? = null,
         val watchtimeTrackingUrl: String? = null,
+        /** Renderable caption tracks; empty when the video has none we can use. */
+        val subtitles: List<SubtitleTrack> = emptyList(),
     )
 
     /** Null when the video can't be resolved (private, removed, geo-blocked, …). */
@@ -63,6 +66,7 @@ class VideoResolver(
             audioOnlyUrl = metadata.bestAudioUrl(),
             playbackTrackingUrl = metadata.playbackTrackingUrl,
             watchtimeTrackingUrl = metadata.watchtimeTrackingUrl,
+            subtitles = metadata.subtitles,
         )
     }
 }

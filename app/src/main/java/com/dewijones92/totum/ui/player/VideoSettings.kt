@@ -2,6 +2,8 @@ package com.dewijones92.totum.ui.player
 
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ClosedCaption
+import androidx.compose.material.icons.outlined.ClosedCaptionOff
 import androidx.compose.material.icons.outlined.HighQuality
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -19,17 +21,42 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import com.dewijones92.totum.R
+import com.dewijones92.totum.common.SubtitleTrack
+import com.dewijones92.totum.playback.PlaybackState
 
-/** Quality and speed for the on-video overlay, bundled so the stage keeps one parameter. */
+/** Quality, speed and subtitles for the on-video overlay, bundled so the stage keeps one parameter. */
 data class VideoSettings(
     val quality: QualityControl,
     val speed: Float,
     val onSetSpeed: (Float) -> Unit,
+    val subtitles: List<SubtitleTrack> = emptyList(),
+    /** Language showing, or null for off. */
+    val subtitleLanguage: String? = null,
+    val onSetSubtitleLanguage: (String?) -> Unit = {},
 ) {
     companion object {
         val None: VideoSettings = VideoSettings(QualityControl.None, 1f, {})
     }
 }
+
+/**
+ * Builds the overlay's bundle. Exists so the inline player and the fullscreen player — which
+ * both hand it to the same stage — can't drift apart in what they offer.
+ */
+@Composable
+internal fun rememberVideoSettings(
+    state: PlaybackState,
+    quality: QualityControl,
+    onSetSpeed: (Float) -> Unit,
+    onSetSubtitleLanguage: (String?) -> Unit,
+): VideoSettings = VideoSettings(
+    quality = quality,
+    speed = state.speed,
+    onSetSpeed = onSetSpeed,
+    subtitles = state.subtitles,
+    subtitleLanguage = state.subtitleLanguage,
+    onSetSubtitleLanguage = onSetSubtitleLanguage,
+)
 
 /**
  * Quality and speed as transient menus **on** the video, the way PipePipe does it —
@@ -44,7 +71,44 @@ data class VideoSettings(
 internal fun VideoSettingsControls(settings: VideoSettings, modifier: Modifier = Modifier) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = modifier) {
         SpeedMenu(settings)
+        if (settings.subtitles.isNotEmpty()) SubtitleMenu(settings)
         if (settings.quality.options.size > 1) QualityMenu(settings.quality)
+    }
+}
+
+/**
+ * Caption tracks, with "Off" first — off is the default and the most-wanted row, so it goes
+ * where the thumb already is rather than at the bottom of a list of languages.
+ */
+@Composable
+private fun SubtitleMenu(settings: VideoSettings) {
+    var open by remember { mutableStateOf(false) }
+    val on = settings.subtitleLanguage != null
+    IconButton(onClick = { open = true }) {
+        Icon(
+            if (on) Icons.Filled.ClosedCaption else Icons.Outlined.ClosedCaptionOff,
+            contentDescription = stringResource(R.string.subtitles),
+        )
+    }
+    DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.subtitles_off)) },
+            onClick = {
+                open = false
+                settings.onSetSubtitleLanguage(null)
+            },
+            trailingIcon = { SelectedMark(!on) },
+        )
+        settings.subtitles.forEach { track ->
+            DropdownMenuItem(
+                text = { Text(track.label) },
+                onClick = {
+                    open = false
+                    settings.onSetSubtitleLanguage(track.languageCode)
+                },
+                trailingIcon = { SelectedMark(track.languageCode == settings.subtitleLanguage) },
+            )
+        }
     }
 }
 

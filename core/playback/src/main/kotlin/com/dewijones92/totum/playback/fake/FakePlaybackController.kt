@@ -2,6 +2,7 @@ package com.dewijones92.totum.playback.fake
 
 import androidx.media3.common.Player
 import com.dewijones92.totum.common.HttpUrl
+import com.dewijones92.totum.common.SubtitleTrack
 import com.dewijones92.totum.domain.MediaItem
 import com.dewijones92.totum.domain.MediaKind
 import com.dewijones92.totum.domain.SkipSegment
@@ -39,6 +40,7 @@ public class FakePlaybackController : PlaybackController {
         skipSegments: List<SkipSegment>,
         localPath: String?,
         audioUrl: HttpUrl?,
+        subtitles: List<SubtitleTrack>,
     ) {
         lastSkipSegments = skipSegments
         lastLocalPath = localPath
@@ -56,8 +58,17 @@ public class FakePlaybackController : PlaybackController {
             speed = 1.0f,
             skipSegments = skipSegments,
             chapters = item.chapters,
+            subtitles = subtitles,
+            subtitleLanguage = subtitleLanguage,
         )
     }
+
+    override fun setSubtitleLanguage(languageCode: String?) {
+        subtitleLanguage = languageCode
+        _state.value = _state.value?.copy(subtitleLanguage = languageCode)
+    }
+
+    private var subtitleLanguage: String? = null
 
     override fun togglePlayPause() {
         _state.update { it?.copy(isPlaying = !it.isPlaying) }

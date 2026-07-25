@@ -87,6 +87,7 @@ private fun JsonObject.toMediaMetadata(
     playbackTrackingUrl = playbackTrackingUrl,
     watchtimeTrackingUrl = watchtimeTrackingUrl,
     chapters = arrayAt("chapters").mapNotNull { it.jsonObject.toChapterOrNull() },
+    subtitles = subtitleTracks(),
 )
 
 private fun JsonObject.toChapterOrNull(): ChapterInfo? {
@@ -155,7 +156,7 @@ private fun JsonObject.toSearchEntryOrNull(): VideoSearchEntry? {
     )
 }
 
-private fun JsonObject.stringOrNull(key: String): String? =
+internal fun JsonObject.stringOrNull(key: String): String? =
     this[key]?.jsonPrimitive?.contentOrNull?.ifBlank { null }
 
 /** The array at [key], or empty — tolerant of a missing key AND of a present JSON `null` value. */

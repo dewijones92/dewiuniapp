@@ -1,6 +1,7 @@
 package com.dewijones92.totum.ytdlp
 
 import com.dewijones92.totum.common.HttpUrl
+import com.dewijones92.totum.common.SubtitleTrack
 
 /** Result of asking the engine to extract [MediaMetadata] for a URL. */
 public sealed interface ExtractionResult {
@@ -46,6 +47,12 @@ public data class MediaMetadata(
     val watchtimeTrackingUrl: String? = null,
     /** Chapters yt-dlp parsed from the description/metadata, earliest first; empty if none. */
     val chapters: List<ChapterInfo> = emptyList(),
+    /**
+     * Renderable subtitle tracks, author-provided first then auto-generated. Already
+     * filtered to formats a player can decode and to a sane set of languages — see
+     * the bridge's parsing, where YouTube's ~100 machine translations are dropped.
+     */
+    val subtitles: List<SubtitleTrack> = emptyList(),
 ) {
     init {
         require(id.isNotBlank()) { "id must not be blank" }

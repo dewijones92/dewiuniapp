@@ -215,6 +215,7 @@ private fun FullPlayerHost(
         onSeekBackward = controller::seekBackward,
         onSeekForward = controller::seekForward,
         onSetSpeed = controller::setSpeed,
+        onSetSubtitleLanguage = controller::setSubtitleLanguage,
         toggles = playbackToggles(state, controller, container, settings.autoPlayNext),
         queue = QueueControls(
             upNext = upNext,
