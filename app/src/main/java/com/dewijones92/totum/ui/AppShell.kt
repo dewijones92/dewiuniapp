@@ -15,7 +15,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -38,10 +37,10 @@ import com.dewijones92.totum.queue.PlaybackQueue
 import com.dewijones92.totum.theme.TotumTheme
 import com.dewijones92.totum.ui.channel.ChannelScreen
 import com.dewijones92.totum.ui.common.ActionSheet
+import com.dewijones92.totum.ui.common.LocalItemActions
 import com.dewijones92.totum.ui.common.MiniPlayerBar
 import com.dewijones92.totum.ui.common.ProvidePlayStates
 import com.dewijones92.totum.ui.common.RequestNotificationPermissionOnFirstPlay
-import com.dewijones92.totum.ui.common.rememberMediaItemActions
 import com.dewijones92.totum.ui.library.LibraryScreen
 import com.dewijones92.totum.ui.player.CommentReplies
 import com.dewijones92.totum.ui.player.FullPlayerOverlay
@@ -56,7 +55,6 @@ import com.dewijones92.totum.ui.search.SearchScreen
 import com.dewijones92.totum.ui.shorts.ShortsReelScreen
 import com.dewijones92.totum.ui.videos.VideosScreen
 import com.dewijones92.totum.video.VideoPlaybackLauncher
-import kotlinx.coroutines.launch
 
 /**
  * Top-level scaffold: bottom navigation across the app's pillars with
@@ -201,7 +199,6 @@ private fun FullPlayerHost(
     val quality by watchViewModel.quality.collectAsStateWithLifecycle()
     val queueState by container.playbackQueue.state.collectAsStateWithLifecycle()
     val upNext = queueState.upNext
-    val rowActions = rememberMediaItemActions(container)
     var showItemSheet by remember { mutableStateOf(false) }
     val playing = queueState.current?.item
     val currentIndex = queueState.currentIndex
@@ -262,7 +259,11 @@ private fun upNextControls(queue: PlaybackQueue, upNext: List<QueueEntry>, curre
 /**
  * The SAME sheet the rows use, for whatever is playing — so the player can never offer less
  * than a long-press does. Wired to the current QUEUE entry, which carries the real item and
- * its handle, rather than to a PlaybackState reconstruction.
+ * its handle rather than a PlaybackState reconstruction.
+ *
+ * Every action comes from the app-wide [ItemActions]. It used to re-implement download,
+ * mark-played and go-to-channel here, which is the very duplication that made menus differ
+ * between screens in the first place.
  */
 @Composable
 private fun PlayingItemSheet(
@@ -272,35 +273,31 @@ private fun PlayingItemSheet(
     onDismiss: () -> Unit,
 ) {
     val item = playing?.item ?: return
+    val actions = LocalItemActions.current ?: return
     if (!visible) return
-    val rowActions = rememberMediaItemActions(container)
-    val scope = rememberCoroutineScope()
     val downloads by container.downloadManager.observeDownloads().collectAsStateWithLifecycle(emptyMap())
     val playStates by remember { container.playbackProgressStore.observeStates() }
         .collectAsStateWithLifecycle(emptyMap())
     val local = downloads[item.id]
     ActionSheet(
         title = item.title,
-        onPlayNext = { rowActions.playNext(item) },
-        onAddToQueue = { rowActions.addToQueue(item) },
-        onAddToPlaylist = { rowActions.addToPlaylist(item) },
+        onPlayNext = { actions.playNext(item) },
+        onAddToQueue = { actions.addToQueue(item) },
+        onAddToPlaylist = { actions.addToPlaylist(item) },
         onRemoveFromPlaylist = null,
-        onPeek = { rowActions.peek(item) },
-        onDownloadVideo = {
-            scope.launch { container.downloadManager.download(item, audioOnly = false) }
-            Unit
-        }.takeIf { (local as? DownloadState.Downloaded)?.audioOnly == true },
-        onDownload = {
-            scope.launch { container.downloadManager.download(item, audioOnly = true) }
-            Unit
-        }.takeIf { local !is DownloadState.Downloaded && local !is DownloadState.Downloading },
-        onSwitchMode = null,
-        audioMode = rowActions.audioMode,
-        onGoToSource = { rowActions.goToSource(item) { } },
+        onPeek = { actions.peek(item) },
+        onDownloadVideo = { actions.download(item, audioOnly = false) }
+            .takeIf { (local as? DownloadState.Downloaded)?.audioOnly == true },
+        onDownload = { actions.download(item, audioOnly = true) }
+            .takeIf { local !is DownloadState.Downloaded && local !is DownloadState.Downloading },
+        onSwitchMode = { actions.switchMode(item) },
+        audioMode = actions.audioMode,
+        onGoToSource = { actions.goToSource(item) },
         goToSourceLabelRes = R.string.go_to_channel,
+        // Reordering belongs to the queue screen, where an index exists to move.
         onMoveToTop = null,
         onMoveToBottom = null,
-        onSetPlayed = { played -> scope.launch { container.playbackProgressStore.setPlayed(item.id, played) } },
+        onSetPlayed = { played -> actions.setPlayed(item.id, played) },
         played = playStates[item.id]?.isPlayed == true,
         onDismiss = onDismiss,
     )
