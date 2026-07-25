@@ -116,6 +116,7 @@ fun FullPlayerOverlay(
             VideoStageWithControls(
                 state = state,
                 player = videoPlayer,
+                settings = VideoSettings(quality, state.speed, onSetSpeed),
                 fullscreen = true,
                 onToggleFullscreen = { fullscreen = false },
                 onDismiss = onDismiss,
@@ -198,6 +199,7 @@ private fun DraggablePlayerContent(
                 VideoStageWithControls(
                     state = state,
                     player = videoPlayer,
+                    settings = VideoSettings(quality, state.speed, onSetSpeed),
                     fullscreen = false,
                     onToggleFullscreen = onEnterFullscreen,
                     onDismiss = onDismiss,
@@ -293,16 +295,11 @@ private fun PlayerDetails(
     }
 
     Spacer(Modifier.height(24.dp))
-    SpeedControl(state.speed, onSetSpeed)
+    // Speed lives on the video overlay for video; audio has no overlay to put it on.
+    if (!controlsOverlaid) SpeedControl(state.speed, onSetSpeed)
     SleepTimerControl(sleepTimer, onStartSleep, onCancelSleep)
     PlaybackTogglesRow(skipSilence = state.skipSilence, toggles = toggles)
     BoostControl(state.volumeBoost, toggles.onSetVolumeBoost)
-
-    // Quality — video only, and only when there's a choice to make.
-    if (state.hasVideo && quality.options.size > 1) {
-        Spacer(Modifier.height(8.dp))
-        QualitySelector(quality)
-    }
 
     ListenWatchToggle(quality, state.hasVideo)
 

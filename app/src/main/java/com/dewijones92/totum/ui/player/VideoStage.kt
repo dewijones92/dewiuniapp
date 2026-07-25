@@ -47,11 +47,23 @@ import kotlinx.coroutines.delay
  * auto-hide after a few seconds while playing. Everything else (title,
  * description, comments) scrolls below, in FullPlayer.
  */
+/**
+ * Fullscreen fills the screen; otherwise the video keeps its aspect ratio — except a
+ * portrait video (a Short), which gets a bounded, centred stage, since filling the width
+ * at 9:16 would make the inline player absurdly tall.
+ */
+private fun Modifier.stageSizing(aspect: Float?, fullscreen: Boolean): Modifier = when {
+    fullscreen -> fillMaxSize()
+    aspect != null && aspect < 1f -> fillMaxWidth().height(PORTRAIT_STAGE_HEIGHT)
+    else -> fillMaxWidth().aspectRatio(aspect ?: DEFAULT_VIDEO_ASPECT_RATIO)
+}
+
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @Composable
 internal fun VideoStageWithControls(
     state: PlaybackState,
     player: Player,
+    settings: VideoSettings,
     fullscreen: Boolean,
     onToggleFullscreen: () -> Unit,
     onDismiss: () -> Unit,
@@ -68,16 +80,8 @@ internal fun VideoStageWithControls(
             controlsVisible = false
         }
     }
-    // Fullscreen fills the screen; otherwise the video keeps its aspect ratio —
-    // except a portrait video (a Short) gets a bounded, centred stage, since
-    // filling the width at 9:16 would make the inline player absurdly tall.
     val aspect = state.videoAspectRatio
-    val isPortrait = aspect != null && aspect < 1f
-    val sizing = when {
-        fullscreen -> Modifier.fillMaxSize()
-        isPortrait -> Modifier.fillMaxWidth().height(PORTRAIT_STAGE_HEIGHT)
-        else -> Modifier.fillMaxWidth().aspectRatio(aspect ?: DEFAULT_VIDEO_ASPECT_RATIO)
-    }
+    val sizing = Modifier.stageSizing(aspect, fullscreen)
     Box(
         modifier = sizing
             .background(Color.Black)
@@ -118,6 +122,7 @@ internal fun VideoStageWithControls(
         ) {
             VideoControlsOverlay(
                 state = state,
+                settings = settings,
                 fullscreen = fullscreen,
                 onToggleFullscreen = onToggleFullscreen,
                 onDismiss = onDismiss,
@@ -134,6 +139,7 @@ internal fun VideoStageWithControls(
 @Composable
 private fun VideoControlsOverlay(
     state: PlaybackState,
+    settings: VideoSettings,
     fullscreen: Boolean,
     onToggleFullscreen: () -> Unit,
     onDismiss: () -> Unit,
@@ -156,6 +162,7 @@ private fun VideoControlsOverlay(
                     Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.close))
                 }
             }
+            VideoSettingsControls(settings, modifier = Modifier.align(Alignment.TopEnd))
             TransportControls(
                 state,
                 onTogglePlayPause,

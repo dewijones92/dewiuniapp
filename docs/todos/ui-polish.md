@@ -60,3 +60,17 @@ Both pillars: a podcast has no video surface, so its controls stay in the sheet/
 **Done when:** quality/speed are transient overlay controls on the video, the
 persistent stack beneath it is short, and whichever of the other items you pick are
 done.
+
+---
+
+## Shipped 2026-07-25 — the quality/speed overlay
+
+The headline item is done: quality and speed are transient menus **on** the video, the
+PipePipe pattern Dewi asked for, and the button row beneath the player is gone. Speed keeps
+its inline row for audio, which has no overlay to hang it on. Detail in
+[`docs/features/video-settings-overlay.md`](../features/video-settings-overlay.md).
+
+Also folded in while there: media rows cap titles at two lines (they were running to five),
+and the playback-rate list stopped existing twice.
+
+Still open in this doc: the remaining sweep for rough edges elsewhere in the app.

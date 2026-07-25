@@ -20,8 +20,18 @@ import androidx.compose.ui.unit.dp
 import com.dewijones92.totum.R
 import com.dewijones92.totum.playback.VolumeBoost
 
-/** The offered playback rates. */
-private val SPEEDS = listOf(0.8f, 1.0f, 1.25f, 1.5f, 2.0f)
+/**
+ * The offered playback rates, in one place — the below-artwork audio control and the
+ * on-video overlay menu both read this, so they can't drift apart.
+ *
+ * Reaches 3x because a podcast at 3x is a real use (a slow talker), where a video rarely
+ * is; one list serving both is simpler than two that mostly overlap.
+ */
+internal val PlaybackSpeeds: List<Float> = listOf(0.8f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f, 2.5f, 3.0f)
+
+/** "1x", "1.5x" — trims the pointless ".0" a raw Float would show. */
+internal fun speedLabel(speed: Float): String =
+    if (speed == speed.toInt().toFloat()) "${speed.toInt()}x" else "${speed}x"
 
 /**
  * The full player's playback preferences: rate, silence handling, auto-advance and
@@ -62,10 +72,10 @@ internal fun SpeedControl(speed: Float, onSetSpeed: (Float) -> Unit, modifier: M
             modifier = Modifier.size(20.dp),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        SPEEDS.forEach { option ->
+        PlaybackSpeeds.forEach { option ->
             TextButton(onClick = { onSetSpeed(option) }) {
                 Text(
-                    text = "${option}x",
+                    text = speedLabel(option),
                     color = if (option == speed) {
                         MaterialTheme.colorScheme.primary
                     } else {

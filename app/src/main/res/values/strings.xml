@@ -238,4 +238,5 @@
         <item quantity="one">Download failed</item>
         <item quantity="other">%d downloads failed</item>
     </plurals>
+    <string name="quality">Quality</string>
 </resources>
