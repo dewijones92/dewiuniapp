@@ -3,6 +3,7 @@ package com.dewijones92.uniapp.queue
 import com.dewijones92.uniapp.common.HttpUrl
 import com.dewijones92.uniapp.data.download.fake.FakeDownloadManager
 import com.dewijones92.uniapp.data.queue.QueueEntry
+import com.dewijones92.uniapp.data.queue.QueueSnapshot
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.MediaItemId
 import com.dewijones92.uniapp.domain.PlayHandle
@@ -23,7 +24,7 @@ class QueueAutoDownloaderTest {
 
     private val dispatcher = StandardTestDispatcher()
     private val downloads = FakeDownloadManager()
-    private val queue = MutableStateFlow<List<QueueEntry>>(emptyList())
+    private val queue = MutableStateFlow(QueueSnapshot())
 
     private fun item(id: String, url: String? = "https://example.com/$id.mp3") = MediaItem(
         id = MediaItemId(id),
@@ -48,7 +49,7 @@ class QueueAutoDownloaderTest {
     @Test
     fun `every queued item has its audio fetched`() = runTest(dispatcher) {
         downloader().start()
-        queue.value = listOf(entry("a"), entry("b"))
+        queue.value = QueueSnapshot(listOf(entry("a"), entry("b")))
         advanceUntilIdle()
 
         assertEquals(listOf("a" to true, "b" to true), downloads.requested.map { it.first.value to it.second })
@@ -57,7 +58,7 @@ class QueueAutoDownloaderTest {
     @Test
     fun `it asks for audio only, never the full media`() = runTest(dispatcher) {
         downloader().start()
-        queue.value = listOf(entry("a"))
+        queue.value = QueueSnapshot(listOf(entry("a")))
         advanceUntilIdle()
 
         assertTrue("auto-downloads must be audio-only", downloads.requested.all { it.second })
@@ -66,7 +67,7 @@ class QueueAutoDownloaderTest {
     @Test
     fun `nothing is fetched when the setting is off`() = runTest(dispatcher) {
         downloader(enabled = false).start()
-        queue.value = listOf(entry("a"))
+        queue.value = QueueSnapshot(listOf(entry("a")))
         advanceUntilIdle()
 
         assertTrue(downloads.requested.isEmpty())
@@ -75,7 +76,7 @@ class QueueAutoDownloaderTest {
     @Test
     fun `nothing is fetched on a disallowed network`() = runTest(dispatcher) {
         downloader(allowedOnNetwork = false).start()
-        queue.value = listOf(entry("a"))
+        queue.value = QueueSnapshot(listOf(entry("a")))
         advanceUntilIdle()
 
         assertTrue(downloads.requested.isEmpty())
@@ -87,7 +88,7 @@ class QueueAutoDownloaderTest {
         downloads.requested.clear()
 
         downloader().start()
-        queue.value = listOf(entry("a"), entry("b"))
+        queue.value = QueueSnapshot(listOf(entry("a"), entry("b")))
         advanceUntilIdle()
 
         assertEquals(listOf("b"), downloads.requested.map { it.first.value })
@@ -96,7 +97,7 @@ class QueueAutoDownloaderTest {
     @Test
     fun `an item with nothing fetchable yet is skipped`() = runTest(dispatcher) {
         downloader().start()
-        queue.value = listOf(entry("no-url", url = null))
+        queue.value = QueueSnapshot(listOf(entry("no-url", url = null)))
         advanceUntilIdle()
 
         assertTrue(downloads.requested.isEmpty())
@@ -105,7 +106,8 @@ class QueueAutoDownloaderTest {
     @Test
     fun `an already-local video is not fetched`() = runTest(dispatcher) {
         downloader().start()
-        queue.value = listOf(QueueEntry(PlayableItem(item("local"), PlayHandle.LocalVideo("/tmp/v.mkv"))))
+        val local = PlayableItem(item("local"), PlayHandle.LocalVideo("/tmp/v.mkv"))
+        queue.value = QueueSnapshot(listOf(QueueEntry(local)))
         advanceUntilIdle()
 
         assertTrue(downloads.requested.isEmpty())

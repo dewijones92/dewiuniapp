@@ -170,7 +170,9 @@ private fun FullPlayerHost(
     val inWatchLater by watchViewModel.inWatchLater.collectAsStateWithLifecycle()
     val postState by watchViewModel.postState.collectAsStateWithLifecycle()
     val quality by watchViewModel.quality.collectAsStateWithLifecycle()
-    val upNext by container.playbackQueue.upNext.collectAsStateWithLifecycle()
+    val queueState by container.playbackQueue.state.collectAsStateWithLifecycle()
+    val upNext = queueState.upNext
+    val currentIndex = queueState.currentIndex
     val settings by container.appPreferences.settings.collectAsStateWithLifecycle()
 
     FullPlayerOverlay(
@@ -208,8 +210,10 @@ private fun FullPlayerHost(
         toggles = playbackToggles(state, controller, container, settings.autoPlayNext),
         queue = QueueControls(
             upNext = upNext,
-            onPlay = container.playbackQueue::playFromQueue,
-            onRemove = container.playbackQueue::removeAt,
+            // The player's list shows what follows the cursor, so its indices are
+            // offset from the queue's own.
+            onPlay = { indexInUpNext -> container.playbackQueue.jumpTo(currentIndex + 1 + indexInUpNext) },
+            onRemove = { indexInUpNext -> container.playbackQueue.removeAt(currentIndex + 1 + indexInUpNext) },
         ),
     )
 }

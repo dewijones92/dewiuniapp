@@ -74,6 +74,7 @@ fun PodcastsScreen(container: AppContainer, modifier: Modifier = Modifier) {
         onEnqueue = viewModel::enqueue,
         onPlayNext = viewModel::playNext,
         onAddToPlaylist = rememberPlaylistAdder(container),
+        onPeek = { episode -> actions.peek(episode) },
         onOpenFeed = { openFeed = it },
         onGoToPodcast = { episode ->
             actions.goToSource(episode) { source ->
@@ -98,6 +99,7 @@ internal fun PodcastsContent(
     onEnqueue: (MediaItem) -> Unit,
     onPlayNext: (MediaItem) -> Unit,
     onAddToPlaylist: (MediaItem) -> Unit,
+    onPeek: (MediaItem) -> Unit,
     onOpenFeed: (MediaSource.PodcastFeed) -> Unit,
     onGoToPodcast: (MediaItem) -> Unit,
     modifier: Modifier = Modifier,
@@ -126,6 +128,7 @@ internal fun PodcastsContent(
                     onEnqueue,
                     onPlayNext,
                     onAddToPlaylist,
+                    onPeek,
                     onOpenFeed,
                     onGoToPodcast,
                 )
@@ -164,6 +167,7 @@ private fun SubscriptionsAndEpisodes(
     onEnqueue: (MediaItem) -> Unit,
     onPlayNext: (MediaItem) -> Unit,
     onAddToPlaylist: (MediaItem) -> Unit,
+    onPeek: (MediaItem) -> Unit,
     onOpenFeed: (MediaSource.PodcastFeed) -> Unit,
     onGoToPodcast: (MediaItem) -> Unit,
     modifier: Modifier = Modifier,
@@ -201,6 +205,7 @@ private fun SubscriptionsAndEpisodes(
                 onPlayNext = { onPlayNext(episode) },
                 onAddToQueue = { onEnqueue(episode) },
                 onAddToPlaylist = { onAddToPlaylist(episode) },
+                onPeek = { onPeek(episode) },
                 onGoToSource = { onGoToPodcast(episode) },
                 goToSourceLabelRes = R.string.go_to_podcast,
             )
@@ -239,6 +244,7 @@ private fun PodcastsContentPreview() {
             onEnqueue = {},
             onPlayNext = {},
             onAddToPlaylist = {},
+            onPeek = {},
             onOpenFeed = {},
             onGoToPodcast = {},
         )
@@ -261,6 +267,7 @@ private fun PodcastsEmptyPreview() {
             onEnqueue = {},
             onPlayNext = {},
             onAddToPlaylist = {},
+            onPeek = {},
             onOpenFeed = {},
             onGoToPodcast = {},
         )

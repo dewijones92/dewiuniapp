@@ -290,6 +290,8 @@ private fun ChannelsAndVideos(
                         onPlayNext = { actions.playNext(video) },
                         onAddToQueue = { actions.addToQueue(video) },
                         onAddToPlaylist = { actions.addToPlaylist(video) },
+                        onPeek = { actions.peek(video) },
+                        onDownloadVideo = { onDownload(video) },
                         onGoToSource = { onGoToChannel(video) },
                     )
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))

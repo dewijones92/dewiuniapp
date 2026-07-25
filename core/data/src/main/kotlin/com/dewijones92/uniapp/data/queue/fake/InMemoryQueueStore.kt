@@ -1,16 +1,16 @@
 package com.dewijones92.uniapp.data.queue.fake
 
-import com.dewijones92.uniapp.data.queue.QueueEntry
+import com.dewijones92.uniapp.data.queue.QueueSnapshot
 import com.dewijones92.uniapp.data.queue.QueueStore
 
 /** In-memory [QueueStore] for tests and previews. */
-public class InMemoryQueueStore(initial: List<QueueEntry> = emptyList()) : QueueStore {
+public class InMemoryQueueStore(initial: QueueSnapshot = QueueSnapshot()) : QueueStore {
 
-    private var entries: List<QueueEntry> = initial
+    private var snapshot: QueueSnapshot = initial
 
-    override suspend fun load(): List<QueueEntry> = entries
+    override suspend fun load(): QueueSnapshot = snapshot
 
-    override suspend fun save(entries: List<QueueEntry>) {
-        this.entries = entries
+    override suspend fun save(snapshot: QueueSnapshot) {
+        this.snapshot = snapshot
     }
 }

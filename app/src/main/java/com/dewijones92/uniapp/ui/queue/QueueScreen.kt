@@ -45,17 +45,13 @@ import com.dewijones92.uniapp.ui.common.mediaItemSubtitle
 @Composable
 fun QueueScreen(container: AppContainer, modifier: Modifier = Modifier) {
     val queue = container.playbackQueue
-    val upNext by queue.upNext.collectAsStateWithLifecycle()
-    val playing by container.playbackController.state.collectAsStateWithLifecycle()
+    val snapshot by queue.state.collectAsStateWithLifecycle()
     val downloads by container.downloadManager.observeDownloads().collectAsStateWithLifecycle(emptyMap())
+    val entries = snapshot.entries
 
     Column(modifier = modifier.fillMaxSize()) {
-        QueueHeader(canClear = upNext.isNotEmpty(), onClear = queue::clear)
-        playing?.let { state ->
-            NowPlaying(title = state.title, artist = state.artist)
-            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-        }
-        if (upNext.isEmpty()) {
+        QueueHeader(canClear = entries.isNotEmpty(), onClear = queue::clear)
+        if (entries.isEmpty()) {
             EmptyState(
                 icon = Icons.AutoMirrored.Filled.QueueMusic,
                 headline = stringResource(R.string.queue_title),
@@ -64,10 +60,11 @@ fun QueueScreen(container: AppContainer, modifier: Modifier = Modifier) {
         } else {
             LazyColumn(Modifier.fillMaxSize()) {
                 itemsWithGroupHeaders(
-                    entries = upNext,
+                    entries = entries,
+                    currentIndex = snapshot.currentIndex,
                     downloads = downloads,
                     actions = QueueActions(
-                        onPlay = queue::playFromQueue,
+                        onPlay = queue::jumpTo,
                         onRemove = queue::removeAt,
                         onRemoveGroup = queue::removeGroup,
                         onMove = queue::move,
@@ -92,6 +89,7 @@ private data class QueueActions(
  */
 private fun androidx.compose.foundation.lazy.LazyListScope.itemsWithGroupHeaders(
     entries: List<QueueEntry>,
+    currentIndex: Int,
     downloads: Map<MediaItemId, DownloadState>,
     actions: QueueActions,
 ) {
@@ -105,6 +103,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.itemsWithGroupHeaders
         }
         item(key = "entry-$index-${entry.item.item.id.value}") {
             val media = entry.item.item
+            if (index == currentIndex) NowPlayingLabel()
             MediaItemRow(
                 item = media,
                 subtitle = mediaItemSubtitle(media),
@@ -146,34 +145,15 @@ private fun QueueHeader(canClear: Boolean, onClear: () -> Unit) {
     }
 }
 
+/** Marks the entry the cursor is on — the playing item is a queue member, not a separate box. */
 @Composable
-private fun NowPlaying(title: String, artist: String?) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-    ) {
-        Text(
-            text = stringResource(R.string.queue_now_playing),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.primary,
-        )
-        Text(
-            text = title,
-            style = MaterialTheme.typography.bodyLarge,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
-        artist?.let {
-            Text(
-                text = it,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
+private fun NowPlayingLabel() {
+    Text(
+        text = stringResource(R.string.queue_now_playing),
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(start = 16.dp, top = 8.dp),
+    )
 }
 
 /** The header over a run of entries that arrived together. */

@@ -18,7 +18,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         PlayHistoryEntity::class,
         QueueEntity::class,
     ],
-    version = 11,
+    version = 12,
     exportSchema = false,
 )
 public abstract class UniAppDatabase : RoomDatabase() {
@@ -49,8 +49,16 @@ public abstract class UniAppDatabase : RoomDatabase() {
                     MIGRATION_8_9,
                     MIGRATION_9_10,
                     MIGRATION_10_11,
+                    MIGRATION_11_12,
                 )
                 .build()
+
+        /** v12: the queue remembers which entry is playing, so the cursor survives. */
+        private val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE queue_items ADD COLUMN isCurrent INTEGER NOT NULL DEFAULT 0")
+            }
+        }
 
         /** v11: downloads record whether the local file is audio-only. */
         private val MIGRATION_10_11 = object : Migration(10, 11) {

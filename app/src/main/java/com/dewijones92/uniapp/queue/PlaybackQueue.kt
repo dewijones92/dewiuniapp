@@ -2,6 +2,8 @@ package com.dewijones92.uniapp.queue
 
 import com.dewijones92.uniapp.data.queue.QueueEntry
 import com.dewijones92.uniapp.data.queue.QueueGroup
+import com.dewijones92.uniapp.data.queue.QueueSnapshot
+import com.dewijones92.uniapp.data.queue.QueueSnapshot.Companion.NOTHING_PLAYING
 import com.dewijones92.uniapp.data.queue.QueueStore
 import com.dewijones92.uniapp.data.queue.fake.InMemoryQueueStore
 import com.dewijones92.uniapp.domain.MediaKind
@@ -20,22 +22,26 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * The app's single up-next queue, unified across both pillars. Holds the items
- * to play AFTER the current one; the currently-playing item lives in the
- * playback controller's state. Video items resolve just-in-time when they reach
- * the front, so a queue of videos never pre-extracts expiring URLs.
+ * The app's single queue, unified across both pillars, and the spine of playback:
+ * tapping anything anywhere lands here.
  *
- * Entries are [PlayableItem]s — the same shape local playlists and play history
- * store, so "Play all" and "replay from history" need no conversion. Each carries
- * an optional [QueueGroup] tag naming the run it arrived in; the queue itself
- * stays **flat**, so grouping costs playback nothing.
+ * The playing item is a **member** of the queue, addressed by a cursor, not something
+ * living outside it. That is what makes jumping and advancing non-destructive —
+ * moving the cursor leaves everything before it in place, so you can go back — and it
+ * is what makes [peek] meaningful: playing something that never joins the queue.
  *
- * The queue is persisted through [QueueStore]: hydrated once at construction and
- * saved on every change, so it survives a restart.
+ * Entries are [PlayableItem]s, the same shape local playlists and play history store,
+ * so "Play all" and "replay from history" need no conversion. Each carries an optional
+ * [QueueGroup] tag naming the run it arrived in; the list itself stays flat, so
+ * grouping costs playback nothing.
+ *
+ * Videos resolve just-in-time when they become current, so a queue of videos never
+ * pre-extracts URLs that would expire. The whole thing is persisted through
+ * [QueueStore] — cursor included — so it survives a restart.
  */
 // The queue's whole command surface (add/insert/remove/reorder/jump/advance), each a
-// small operation over one list. Splitting it would scatter the single owner of
-// queue order, which is the point of the class.
+// small operation over one list plus a cursor. Splitting it would scatter the single
+// owner of queue order, which is the point of the class.
 @Suppress("TooManyFunctions")
 class PlaybackQueue(
     private val controller: PlaybackController,
@@ -43,8 +49,10 @@ class PlaybackQueue(
     private val scope: CoroutineScope,
     private val store: QueueStore = InMemoryQueueStore(),
 ) {
-    private val _upNext = MutableStateFlow<List<QueueEntry>>(emptyList())
-    val upNext: StateFlow<List<QueueEntry>> = _upNext.asStateFlow()
+    private val _state = MutableStateFlow(QueueSnapshot())
+
+    /** The queue and where playback is within it. */
+    val state: StateFlow<QueueSnapshot> = _state.asStateFlow()
 
     /**
      * Whether anything has changed the queue yet. Loading is suspending, so the user
@@ -56,114 +64,131 @@ class PlaybackQueue(
     init {
         scope.launch {
             val saved = store.load()
-            if (!touched) _upNext.value = saved
+            if (!touched) _state.value = saved
         }
         // Persist every subsequent change. `drop(1)` skips the initial empty value
         // so an empty start can't wipe a saved queue before hydration lands.
-        _upNext.drop(1).onEach { store.save(it) }.launchIn(scope)
+        _state.drop(1).onEach { store.save(it) }.launchIn(scope)
     }
 
     /** Adds to the end of the queue. */
     fun enqueue(item: PlayableItem, group: QueueGroup? = null) {
-        mutate { it + QueueEntry(item, group) }
+        mutate { it.copy(entries = it.entries + QueueEntry(item, group)) }
+    }
+
+    /** Inserts so it plays immediately after the current entry. */
+    fun playNext(item: PlayableItem, group: QueueGroup? = null) {
+        mutate { snapshot -> snapshot.inserted(listOf(QueueEntry(item, group))) }
     }
 
     /**
-     * Plays [items] as a set: the first now, the rest **inserted after it** as a
-     * tagged run. Deliberately does not replace the queue — an unwanted run is one
+     * The app's normal "tap to play": puts [item] in the queue at the current
+     * position and plays it, so pressing something never discards what was lined up.
+     * An item already queued is moved rather than duplicated.
+     */
+    suspend fun playNow(item: PlayableItem, group: QueueGroup? = null): Boolean {
+        var index = NOTHING_PLAYING
+        mutate { snapshot ->
+            val withoutIt = snapshot.removing { it.item.item.id == item.item.id }
+            withoutIt.inserted(listOf(QueueEntry(item, group))).also { index = it.currentIndex + 1 }
+        }
+        return playAt(index)
+    }
+
+    /**
+     * Plays [items] as a run inserted after the current entry, starting with the
+     * first. Deliberately does not replace the queue — an unwanted run is one
      * "remove these" away, whereas a replaced queue is gone. No-op if empty.
      */
     fun playAll(items: List<PlayableItem>, group: QueueGroup? = null) {
         if (items.isEmpty()) return
-        mutate { existing -> items.drop(1).map { QueueEntry(it, group) } + existing }
-        scope.launch { play(items.first()) }
+        var index = NOTHING_PLAYING
+        mutate { snapshot ->
+            snapshot.inserted(items.map { QueueEntry(it, group) }).also { index = it.currentIndex + 1 }
+        }
+        scope.launch { playAt(index) }
     }
 
     /**
-     * The app's normal "tap to play": plays [item] now and **keeps the queue**, so
-     * pressing something never discards what you had lined up. An item already
-     * queued is moved rather than duplicated. Returns whether it started.
+     * Plays [item] **without it joining the queue** — "peek": a one-off listen or
+     * watch that leaves the queue, and your place in it, exactly as they were. The
+     * cursor is cleared, so the next advance restarts from the queue's beginning
+     * rather than pretending the peeked item was a member.
      */
-    suspend fun playNow(item: PlayableItem): Boolean {
-        mutate { list -> list.filterNot { it.item.item.id == item.item.id } }
+    suspend fun peek(item: PlayableItem): Boolean {
+        mutate { it.copy(currentIndex = NOTHING_PLAYING) }
         return play(item)
     }
 
-    /**
-     * Plays [item] **without touching the queue** — the "peek" action: a one-off
-     * listen or watch that leaves a carefully built queue exactly as it was.
-     * Returns whether it started.
-     */
-    suspend fun peek(item: PlayableItem): Boolean = play(item)
-
-    /** Inserts so it plays immediately after the current item. */
-    fun playNext(item: PlayableItem, group: QueueGroup? = null) {
-        mutate { listOf(QueueEntry(item, group)) + it }
+    /** Plays the entry at [index]; nothing before it is discarded. */
+    fun jumpTo(index: Int) {
+        scope.launch { playAt(index) }
     }
 
     fun removeAt(index: Int) {
-        mutate { list -> list.filterIndexed { i, _ -> i != index } }
+        mutate { snapshot ->
+            if (index !in snapshot.entries.indices) {
+                snapshot
+            } else {
+                snapshot.removingAt(index)
+            }
+        }
     }
 
     /** Drops every entry tagged with [groupId] — the batch action a grouped run offers. */
     fun removeGroup(groupId: String) {
-        mutate { list -> list.filterNot { it.group?.id == groupId } }
+        mutate { snapshot -> snapshot.removing { it.group?.id == groupId } }
     }
 
-    /** Reorders one entry; a no-op if either index is out of range. */
+    /** Reorders one entry, carrying the cursor with the entry it points at. */
     fun move(from: Int, to: Int) {
-        mutate { list ->
-            if (from !in list.indices || to !in list.indices) {
-                list
+        mutate { snapshot ->
+            if (from !in snapshot.entries.indices || to !in snapshot.entries.indices) {
+                snapshot
             } else {
-                list.toMutableList().apply { add(to, removeAt(from)) }
+                val current = snapshot.current
+                val reordered = snapshot.entries.toMutableList().apply { add(to, removeAt(from)) }
+                snapshot.copy(
+                    entries = reordered,
+                    currentIndex = current?.let(reordered::indexOf) ?: snapshot.currentIndex,
+                )
             }
         }
     }
 
     fun clear() {
-        mutate { emptyList() }
-    }
-
-    /** Plays the entry at [index] now, dropping it and everything before it. No-op if out of range. */
-    fun playFromQueue(index: Int) {
-        val list = _upNext.value
-        val target = list.getOrNull(index) ?: return
-        mutate { it.drop(index + 1) }
-        scope.launch { play(target.item) }
-    }
-
-    /** Every change goes through here, so nothing can bypass the hydration guard. */
-    private fun mutate(block: (List<QueueEntry>) -> List<QueueEntry>) {
-        touched = true
-        _upNext.update(block)
+        mutate { QueueSnapshot() }
     }
 
     /**
-     * Starts the next queued item, skipping any that fail to play (an expired or
-     * private video, a broken item) so one bad entry can't strand the rest of the
-     * queue. Returns whether there was anything to try.
+     * Starts the entry after the current one, skipping any that fail to play (an
+     * expired or private video, a broken item) so one bad entry can't strand the
+     * rest. Returns whether there was anything to try.
      */
     fun playNextInQueue(): Boolean {
-        if (_upNext.value.isEmpty()) return false
+        val start = _state.value.currentIndex + 1
+        if (start > _state.value.entries.lastIndex) return false
         scope.launch {
-            var played = false
-            while (!played) {
-                val head = getAndTake() ?: break
-                played = play(head.item)
+            var index = start
+            while (index <= _state.value.entries.lastIndex) {
+                if (playAt(index)) return@launch
+                index++
             }
         }
         return true
     }
 
-    /** Pops and returns the head, or null if empty. */
-    private fun getAndTake(): QueueEntry? {
-        var head: QueueEntry? = null
-        mutate { list ->
-            head = list.firstOrNull()
-            if (list.isEmpty()) list else list.drop(1)
-        }
-        return head
+    /** Moves the cursor to [index] and plays it; false when out of range or unplayable. */
+    private suspend fun playAt(index: Int): Boolean {
+        val entry = _state.value.entries.getOrNull(index) ?: return false
+        mutate { it.copy(currentIndex = index) }
+        return play(entry.item)
+    }
+
+    /** Every change goes through here, so nothing can bypass the hydration guard. */
+    private fun mutate(block: (QueueSnapshot) -> QueueSnapshot) {
+        touched = true
+        _state.update(block)
     }
 
     /** Plays [queued]; returns whether it actually started. */
@@ -183,4 +208,28 @@ class PlaybackQueue(
             }
         }
     }
+}
+
+/** Inserts [run] immediately after the current entry, leaving the cursor put. */
+private fun QueueSnapshot.inserted(run: List<QueueEntry>): QueueSnapshot {
+    val at = (currentIndex + 1).coerceIn(0, entries.size)
+    return copy(entries = entries.take(at) + run + entries.drop(at))
+}
+
+/** Drops matching entries, keeping the cursor on whatever it pointed at. */
+private fun QueueSnapshot.removing(match: (QueueEntry) -> Boolean): QueueSnapshot {
+    val kept = entries.filterNot(match)
+    return copy(entries = kept, currentIndex = current?.let(kept::indexOf) ?: NOTHING_PLAYING)
+}
+
+private fun QueueSnapshot.removingAt(index: Int): QueueSnapshot {
+    val kept = entries.filterIndexed { i, _ -> i != index }
+    // Removing the playing entry leaves nothing current; the next advance starts from
+    // where it was, which is what "remove the thing I'm on" should feel like.
+    val cursor = when {
+        index == currentIndex -> (currentIndex - 1).coerceAtLeast(NOTHING_PLAYING)
+        index < currentIndex -> currentIndex - 1
+        else -> currentIndex
+    }
+    return copy(entries = kept, currentIndex = cursor)
 }

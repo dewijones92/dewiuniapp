@@ -20,6 +20,8 @@ public data class QueueEntity(
     public val position: Long,
     public val groupId: String?,
     public val groupTitle: String?,
+    /** Exactly one row is the playing one, so the cursor survives a restart too. */
+    public val isCurrent: Boolean = false,
     override val itemId: String,
     override val title: String,
     override val author: String?,

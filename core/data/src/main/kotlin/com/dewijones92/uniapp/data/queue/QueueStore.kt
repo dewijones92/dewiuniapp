@@ -9,11 +9,11 @@ import com.dewijones92.uniapp.domain.PlayableItem
 public data class QueueGroup(public val id: String, public val title: String)
 
 /**
- * One entry in the up-next queue: what to play, plus the group it arrived with.
+ * One entry in the queue: what to play, plus the group it arrived with.
  *
  * The queue stays a **flat** list for playback — grouping is rendered by drawing a
  * header over each contiguous run of the same [group]. That means "what does next
- * mean at a group boundary?" never arises, dragging an item out of a run simply
+ * mean at a group boundary?" never arises, dragging an entry out of a run simply
  * splits it, and there is no invariant to repair.
  */
 public data class QueueEntry(
@@ -22,8 +22,34 @@ public data class QueueEntry(
 )
 
 /**
- * Persists the up-next queue so it survives a restart — necessary once the queue
- * is the spine of playback with its own tab, rather than a transient side-car.
+ * The queue and where playback is within it.
+ *
+ * The playing item is a **member of the queue**, addressed by [currentIndex], rather
+ * than living outside it. That is what makes jumping and advancing non-destructive:
+ * moving the cursor leaves everything before it in place, so you can go back. It also
+ * gives "peek" a real meaning — playing something *without* it joining the queue.
+ *
+ * [currentIndex] is [NOTHING_PLAYING] when playback isn't on a queue entry (nothing
+ * has played yet, or the current item was peeked).
+ */
+public data class QueueSnapshot(
+    public val entries: List<QueueEntry> = emptyList(),
+    public val currentIndex: Int = NOTHING_PLAYING,
+) {
+    /** The entry playing now, or null when playback isn't on the queue. */
+    public val current: QueueEntry? get() = entries.getOrNull(currentIndex)
+
+    /** What follows the current entry — what "up next" means. */
+    public val upNext: List<QueueEntry> get() = entries.drop((currentIndex + 1).coerceAtLeast(0))
+
+    public companion object {
+        public const val NOTHING_PLAYING: Int = -1
+    }
+}
+
+/**
+ * Persists the queue so it survives a restart — necessary once the queue is the
+ * spine of playback with its own tab, rather than a transient side-car.
  *
  * Deliberately load/save rather than an observable: the in-memory queue is the
  * authority while the app runs, and an observable store would feed its own writes
@@ -31,9 +57,9 @@ public data class QueueEntry(
  */
 public interface QueueStore {
 
-    /** The saved queue, in order; empty when nothing was saved. */
-    public suspend fun load(): List<QueueEntry>
+    /** The saved queue and cursor; empty when nothing was saved. */
+    public suspend fun load(): QueueSnapshot
 
-    /** Replaces the saved queue with [entries]. */
-    public suspend fun save(entries: List<QueueEntry>)
+    /** Replaces the saved queue with [snapshot]. */
+    public suspend fun save(snapshot: QueueSnapshot)
 }

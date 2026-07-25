@@ -73,6 +73,12 @@ fun MediaItemRow(
     onAddToPlaylist: (() -> Unit)? = null,
     onRemoveFromPlaylist: (() -> Unit)? = null,
     onPeek: (() -> Unit)? = null,
+    /**
+     * Offered when the row's local copy is audio only (what the queue fetches
+     * automatically): the tick already means "offline", so without this there'd be no
+     * way left to ask for the picture too.
+     */
+    onDownloadVideo: (() -> Unit)? = null,
     onGoToSource: (() -> Unit)? = null,
     /** Label for [onGoToSource] — the host knows its pillar ("channel" vs "podcast"). */
     goToSourceLabelRes: Int = R.string.go_to_channel,
@@ -83,8 +89,17 @@ fun MediaItemRow(
     trailing: (@Composable () -> Unit)? = null,
 ) {
     var showSheet by remember { mutableStateOf(false) }
-    val hasMenu = listOf(onPlayNext, onAddToQueue, onAddToPlaylist, onRemoveFromPlaylist, onPeek, onGoToSource)
-        .any { it != null }
+    val audioOnlyLocally = (downloadState as? DownloadState.Downloaded)?.audioOnly == true
+    val downloadVideo = onDownloadVideo?.takeIf { audioOnlyLocally }
+    val hasMenu = listOf(
+        onPlayNext,
+        onAddToQueue,
+        onAddToPlaylist,
+        onRemoveFromPlaylist,
+        onPeek,
+        downloadVideo,
+        onGoToSource,
+    ).any { it != null }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
@@ -118,6 +133,7 @@ fun MediaItemRow(
             onAddToPlaylist = onAddToPlaylist,
             onRemoveFromPlaylist = onRemoveFromPlaylist,
             onPeek = onPeek,
+            onDownloadVideo = downloadVideo,
             onGoToSource = onGoToSource,
             goToSourceLabelRes = goToSourceLabelRes,
             onDismiss = { showSheet = false },
@@ -162,6 +178,7 @@ private fun ActionSheet(
     onAddToPlaylist: (() -> Unit)?,
     onRemoveFromPlaylist: (() -> Unit)?,
     onPeek: (() -> Unit)?,
+    onDownloadVideo: (() -> Unit)?,
     onGoToSource: (() -> Unit)?,
     goToSourceLabelRes: Int,
     onDismiss: () -> Unit,
@@ -179,6 +196,7 @@ private fun ActionSheet(
         SheetAction(onAddToPlaylist, Icons.AutoMirrored.Filled.PlaylistAdd, R.string.playlist_add_to, onDismiss)
         SheetAction(onRemoveFromPlaylist, Icons.Filled.Delete, R.string.playlist_remove_from, onDismiss)
         SheetAction(onPeek, Icons.Outlined.Visibility, R.string.queue_peek, onDismiss)
+        SheetAction(onDownloadVideo, Icons.Outlined.Download, R.string.download_video, onDismiss)
         SheetAction(onGoToSource, Icons.Filled.AccountCircle, goToSourceLabelRes, onDismiss)
         Spacer(Modifier.height(16.dp))
     }

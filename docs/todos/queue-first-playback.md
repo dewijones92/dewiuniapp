@@ -104,7 +104,25 @@ Shipped so far:
 - `PlayableItem` unification landed first, so the queue, playlists and history all
   store one shape.
 
-### Open question for Dewi — is "Peek" meaningful in this model?
+### Resolved: the queue now tracks a cursor, so Peek means something
+
+Asked which way to go, Dewi said "go with what you think is sensible". The current-index
+model won, because it turned out to fix two behaviours **worse** than Peek's ambiguity:
+
+- `playFromQueue` **dropped every entry before** the one you tapped;
+- auto-advance **consumed the head** — so listening destroyed the queue as you went.
+
+With the playing item a queue *member* addressed by a cursor, jumping and advancing
+just move the cursor: nothing is lost, and you can go back. `QueueSnapshot(entries,
+currentIndex)` is the state; `upNext` is derived from it. The cursor persists too
+(`queue_items.isCurrent`, DB v12), so a restart resumes where you were in the queue —
+not just which items were in it.
+
+Peek now genuinely differs: it plays without joining the queue **and clears the
+cursor**, so the next advance restarts from the queue rather than pretending the
+peeked item was a member. It's surfaced on both feeds as "Play once, don't queue it".
+
+#### Previous note (kept for the reasoning)
 
 The queue holds what plays *after* the current item; the currently-playing item
 lives in the playback controller, not in the queue. With tap now preserving the
@@ -119,7 +137,15 @@ item visibly joins the queue and a peeked one doesn't. That's a moderate change 
 the queue's shape and to the Queue tab. Worth doing only if the visible distinction
 matters to you.
 
+### Verified on-device (cursor model)
+
+DB v12 migrated cleanly. Queued two episodes, tapped the **second**: it played, the
+first **survived** at position 0, and `isCurrent=1` landed on the second. After a
+force-stop and relaunch the Queue tab still showed both with "Now playing" on the
+second — cursor restored, not just the list.
+
 ### Not yet done
 
-Drag-to-reorder (currently up/down arrows per row), and routing Search-result taps
-through the queue (search plays an ad-hoc item with no stable id yet).
+Drag-to-reorder (currently up/down arrows per row — Dewi has asked for dragging), and
+routing Search-result taps through the queue (search plays an ad-hoc item with no
+stable id yet).

@@ -2,6 +2,7 @@ package com.dewijones92.uniapp.queue
 
 import com.dewijones92.uniapp.data.download.DownloadManager
 import com.dewijones92.uniapp.data.queue.QueueEntry
+import com.dewijones92.uniapp.data.queue.QueueSnapshot
 import com.dewijones92.uniapp.domain.DownloadState
 import com.dewijones92.uniapp.domain.PlayHandle
 import kotlinx.coroutines.CoroutineScope
@@ -20,7 +21,7 @@ import kotlinx.coroutines.launch
  * file, and it is removed from Library like any other download.
  */
 class QueueAutoDownloader(
-    private val queue: StateFlow<List<QueueEntry>>,
+    private val queue: StateFlow<QueueSnapshot>,
     private val downloads: DownloadManager,
     private val scope: CoroutineScope,
     private val isEnabled: () -> Boolean,
@@ -28,10 +29,10 @@ class QueueAutoDownloader(
 ) {
     fun start() {
         scope.launch {
-            queue.collect { entries ->
+            queue.collect { snapshot ->
                 if (!isEnabled() || !isAllowedOnThisNetwork()) return@collect
                 val states = downloads.observeDownloads().first()
-                entries.forEach { entry -> download(entry, states) }
+                snapshot.entries.forEach { entry -> download(entry, states) }
             }
         }
     }

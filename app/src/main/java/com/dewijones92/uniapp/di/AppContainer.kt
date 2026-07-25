@@ -294,7 +294,7 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
 
     override fun startQueueAutoDownload() {
         QueueAutoDownloader(
-            queue = playbackQueue.upNext,
+            queue = playbackQueue.state,
             downloads = downloadManager,
             scope = applicationScope,
             isEnabled = { appPreferences.settings.value.autoDownloadQueue },

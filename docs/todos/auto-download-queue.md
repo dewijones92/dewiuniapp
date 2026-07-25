@@ -112,3 +112,11 @@ Three honest options:
 
 My preference is (1), with (3) as the fallback if you want full-video offline to be a
 first-class action. Not guessed — flagged.
+
+### Resolved 2026-07-25 — a contextual action, no new visual state
+
+Dewi: "go with what you think is sensible". Neither of my three options was quite it.
+Shipped instead: the row keeps **one** Downloaded state (no new tint, no lie), and the
+long-press sheet gains **"Download video"** — offered *only* when the local copy is
+audio-only. The capability comes back without cluttering the row, and the sheet is
+where per-item actions already live.

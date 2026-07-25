@@ -4,6 +4,7 @@ import com.dewijones92.uniapp.common.HttpUrl
 import com.dewijones92.uniapp.data.history.fake.InMemoryPlayHistoryStore
 import com.dewijones92.uniapp.data.queue.QueueEntry
 import com.dewijones92.uniapp.data.queue.QueueGroup
+import com.dewijones92.uniapp.data.queue.QueueSnapshot
 import com.dewijones92.uniapp.data.queue.QueueStore
 import com.dewijones92.uniapp.data.queue.fake.InMemoryQueueStore
 import com.dewijones92.uniapp.data.sponsorblock.SkipSegmentSource
@@ -63,7 +64,7 @@ class PlaybackQueueTest {
         q.enqueue(podcast("b"))
         q.playNext(podcast("c"))
 
-        assertEquals(listOf("c", "a", "b"), q.upNext.value.map { it.item.item.id.value })
+        assertEquals(listOf("c", "a", "b"), q.state.value.upNext.map { it.item.item.id.value })
     }
 
     @Test
@@ -72,7 +73,7 @@ class PlaybackQueueTest {
         listOf("a", "b", "c").forEach { q.enqueue(podcast(it)) }
         q.removeAt(1)
 
-        assertEquals(listOf("a", "c"), q.upNext.value.map { it.item.item.id.value })
+        assertEquals(listOf("a", "c"), q.state.value.upNext.map { it.item.item.id.value })
     }
 
     @Test
@@ -80,15 +81,16 @@ class PlaybackQueueTest {
         val q = queue()
         listOf("a", "b", "c").forEach { q.enqueue(podcast(it)) }
         q.move(2, 0)
-        assertEquals(listOf("c", "a", "b"), q.upNext.value.map { it.item.item.id.value })
+        assertEquals(listOf("c", "a", "b"), q.state.value.upNext.map { it.item.item.id.value })
 
         q.move(0, 9) // out of range → no change
-        assertEquals(listOf("c", "a", "b"), q.upNext.value.map { it.item.item.id.value })
+        assertEquals(listOf("c", "a", "b"), q.state.value.upNext.map { it.item.item.id.value })
     }
 
     @Test
-    fun `playNextInQueue plays and removes the head`() = runTest(dispatcher) {
+    fun `advancing moves the cursor without consuming entries`() = runTest(dispatcher) {
         val q = queue()
+        advanceUntilIdle()
         q.enqueue(podcast("a"))
         q.enqueue(podcast("b"))
 
@@ -96,7 +98,10 @@ class PlaybackQueueTest {
         advanceUntilIdle()
 
         assertEquals("a", controller.state.value?.itemId?.value)
-        assertEquals(listOf("b"), q.upNext.value.map { it.item.item.id.value })
+        // Both entries remain; only the cursor moved, so you can go back to "a".
+        assertEquals(listOf("a", "b"), q.state.value.entries.map { it.item.item.id.value })
+        assertEquals(0, q.state.value.currentIndex)
+        assertEquals(listOf("b"), q.state.value.upNext.map { it.item.item.id.value })
     }
 
     @Test
@@ -121,7 +126,7 @@ class PlaybackQueueTest {
         advanceUntilIdle()
 
         assertEquals("good", controller.state.value?.itemId?.value)
-        assertTrue(q.upNext.value.isEmpty())
+        assertTrue(q.state.value.upNext.isEmpty())
     }
 
     @Test
@@ -133,15 +138,18 @@ class PlaybackQueueTest {
     }
 
     @Test
-    fun `playFromQueue plays that entry and drops it and everything before it`() = runTest(dispatcher) {
+    fun `jumping plays that entry and keeps everything before it`() = runTest(dispatcher) {
         val q = queue()
+        advanceUntilIdle()
         listOf("a", "b", "c").forEach { q.enqueue(podcast(it)) }
 
-        q.playFromQueue(1)
+        q.jumpTo(1)
         advanceUntilIdle()
 
         assertEquals("b", controller.state.value?.itemId?.value)
-        assertEquals(listOf("c"), q.upNext.value.map { it.item.item.id.value })
+        // "a" survives: jumping is navigation, not consumption.
+        assertEquals(listOf("a", "b", "c"), q.state.value.entries.map { it.item.item.id.value })
+        assertEquals(listOf("c"), q.state.value.upNext.map { it.item.item.id.value })
     }
 
     @Test
@@ -155,18 +163,18 @@ class PlaybackQueueTest {
         // A fresh queue over the same store comes back with the same entries.
         val restored = queue()
         advanceUntilIdle()
-        assertEquals(listOf("a", "b"), restored.upNext.value.map { it.item.item.id.value })
+        assertEquals(listOf("a", "b"), restored.state.value.upNext.map { it.item.item.id.value })
     }
 
     @Test
     fun `hydration does not wipe a saved queue`() = runTest(dispatcher) {
-        val saved = InMemoryQueueStore(listOf(QueueEntry(podcast("kept"))))
+        val saved = InMemoryQueueStore(QueueSnapshot(listOf(QueueEntry(podcast("kept")))))
 
         val q = queue(saved)
         advanceUntilIdle()
 
-        assertEquals(listOf("kept"), q.upNext.value.map { it.item.item.id.value })
-        assertEquals(listOf("kept"), saved.load().map { it.item.item.id.value })
+        assertEquals(listOf("kept"), q.state.value.upNext.map { it.item.item.id.value })
+        assertEquals(listOf("kept"), saved.load().entries.map { it.item.item.id.value })
     }
 
     @Test
@@ -179,11 +187,11 @@ class PlaybackQueueTest {
         advanceUntilIdle()
 
         // The first plays now; the rest are queued, all tagged.
-        assertEquals(listOf("b", "c"), q.upNext.value.map { it.item.item.id.value })
-        assertTrue(q.upNext.value.all { it.group == group })
+        assertEquals(listOf("b", "c"), q.state.value.upNext.map { it.item.item.id.value })
+        assertTrue(q.state.value.upNext.all { it.group == group })
 
         q.removeGroup("pl-1")
-        assertTrue(q.upNext.value.isEmpty())
+        assertTrue(q.state.value.upNext.isEmpty())
     }
 
     @Test
@@ -196,24 +204,24 @@ class PlaybackQueueTest {
 
         q.removeGroup("g1")
 
-        assertEquals(listOf("loose", "b"), q.upNext.value.map { it.item.item.id.value })
+        assertEquals(listOf("loose", "b"), q.state.value.upNext.map { it.item.item.id.value })
     }
 
     @Test
     fun `queueing during startup wins over the restored queue`() = runTest(dispatcher) {
         // Loading is suspending, so the user can act before it lands. Their action
         // must not be silently replaced by the saved queue.
-        val saved = InMemoryQueueStore(listOf(QueueEntry(podcast("old"))))
+        val saved = InMemoryQueueStore(QueueSnapshot(listOf(QueueEntry(podcast("old")))))
         val q = queue(saved)
 
         q.enqueue(podcast("just-added")) // before advanceUntilIdle, i.e. pre-hydration
         advanceUntilIdle()
 
-        assertEquals(listOf("just-added"), q.upNext.value.map { it.item.item.id.value })
+        assertEquals(listOf("just-added"), q.state.value.upNext.map { it.item.item.id.value })
     }
 
     @Test
-    fun `playNow plays the item and keeps the rest of the queue`() = runTest(dispatcher) {
+    fun `playNow joins the queue at the current position and keeps the rest`() = runTest(dispatcher) {
         val q = queue()
         advanceUntilIdle()
         q.enqueue(podcast("lined-up"))
@@ -222,7 +230,9 @@ class PlaybackQueueTest {
         advanceUntilIdle()
 
         assertEquals("tapped", controller.state.value?.itemId?.value)
-        assertEquals(listOf("lined-up"), q.upNext.value.map { it.item.item.id.value })
+        // The tapped item is a queue member now, and what was lined up follows it.
+        assertEquals("tapped", q.state.value.current?.item?.item?.id?.value)
+        assertEquals(listOf("lined-up"), q.state.value.upNext.map { it.item.item.id.value })
     }
 
     @Test
@@ -236,11 +246,11 @@ class PlaybackQueueTest {
         advanceUntilIdle()
 
         assertEquals("b", controller.state.value?.itemId?.value)
-        assertEquals(listOf("a"), q.upNext.value.map { it.item.item.id.value })
+        assertEquals(listOf("a"), q.state.value.upNext.map { it.item.item.id.value })
     }
 
     @Test
-    fun `peek plays without touching the queue`() = runTest(dispatcher) {
+    fun `peek plays without joining the queue`() = runTest(dispatcher) {
         val q = queue()
         advanceUntilIdle()
         q.enqueue(podcast("a"))
@@ -250,7 +260,10 @@ class PlaybackQueueTest {
         advanceUntilIdle()
 
         assertEquals("one-off", controller.state.value?.itemId?.value)
-        assertEquals(listOf("a", "b"), q.upNext.value.map { it.item.item.id.value })
+        // Untouched queue, and the peeked item is not a member of it.
+        assertEquals(listOf("a", "b"), q.state.value.entries.map { it.item.item.id.value })
+        assertEquals(QueueSnapshot.NOTHING_PLAYING, q.state.value.currentIndex)
+        assertEquals(listOf("a", "b"), q.state.value.upNext.map { it.item.item.id.value })
     }
 
     @Test
@@ -264,6 +277,6 @@ class PlaybackQueueTest {
 
         // x plays now; y is queued ahead of what was already there, and "mine" survives.
         assertEquals("x", controller.state.value?.itemId?.value)
-        assertEquals(listOf("y", "mine"), q.upNext.value.map { it.item.item.id.value })
+        assertEquals(listOf("y", "mine"), q.state.value.upNext.map { it.item.item.id.value })
     }
 }
