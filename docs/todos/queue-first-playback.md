@@ -144,8 +144,23 @@ first **survived** at position 0, and `isCurrent=1` landed on the second. After 
 force-stop and relaunch the Queue tab still showed both with "Now playing" on the
 second — cursor restored, not just the list.
 
+### Drag-to-reorder shipped 2026-07-25
+
+Long-press the grip and drag. Hand-rolled (`ReorderState`) rather than adding a
+dependency, and deliberately simple: it accumulates the drag and swaps one position
+each time the distance passes a row's height, instead of mapping pointer positions onto
+item bounds. That reads the same to the user, has no measurement edge cases, and — the
+reason it matters here — works even though this list interleaves **group headers**, so
+its lazy indices don't line up with the entry indices. Moves go straight through
+`PlaybackQueue.move`, which carries the cursor with the entry it points at, so
+reordering never changes what's playing. Three controls per row became two.
+
+Verified on-device with raw motion events (a `swipe` can't express long-press-then-drag,
+so `input motionevent DOWN/MOVE/UP` was needed): a ~535px drag moved the top row down
+one place and persisted immediately; a ~585px drag moved it two places, confirming the
+multi-swap loop. Both landed in the DB with no separate commit step.
+
 ### Not yet done
 
-Drag-to-reorder (currently up/down arrows per row — Dewi has asked for dragging), and
-routing Search-result taps through the queue (search plays an ad-hoc item with no
+Routing Search-result taps through the queue (search plays an ad-hoc item with no
 stable id yet).

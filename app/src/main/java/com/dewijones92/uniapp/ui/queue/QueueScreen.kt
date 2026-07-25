@@ -9,8 +9,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -32,7 +31,10 @@ import com.dewijones92.uniapp.domain.DownloadState
 import com.dewijones92.uniapp.domain.MediaItemId
 import com.dewijones92.uniapp.ui.common.EmptyState
 import com.dewijones92.uniapp.ui.common.MediaItemRow
+import com.dewijones92.uniapp.ui.common.ReorderState
 import com.dewijones92.uniapp.ui.common.mediaItemSubtitle
+import com.dewijones92.uniapp.ui.common.rememberReorderState
+import com.dewijones92.uniapp.ui.common.reorderable
 
 /**
  * The queue: what is playing now and what follows, for both pillars at once.
@@ -58,11 +60,13 @@ fun QueueScreen(container: AppContainer, modifier: Modifier = Modifier) {
                 supportingText = stringResource(R.string.queue_empty),
             )
         } else {
+            val reorder = rememberReorderState(onMove = queue::move)
             LazyColumn(Modifier.fillMaxSize()) {
                 itemsWithGroupHeaders(
                     entries = entries,
                     currentIndex = snapshot.currentIndex,
                     downloads = downloads,
+                    reorder = reorder,
                     actions = QueueActions(
                         onPlay = queue::jumpTo,
                         onRemove = queue::removeAt,
@@ -91,6 +95,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.itemsWithGroupHeaders
     entries: List<QueueEntry>,
     currentIndex: Int,
     downloads: Map<MediaItemId, DownloadState>,
+    reorder: ReorderState,
     actions: QueueActions,
 ) {
     entries.forEachIndexed { index, entry ->
@@ -111,14 +116,14 @@ private fun androidx.compose.foundation.lazy.LazyListScope.itemsWithGroupHeaders
                 onPlay = { actions.onPlay(index) },
                 onDownload = { },
                 onDeleteDownload = { },
+                modifier = Modifier.reorderable(reorder, index),
                 trailing = {
-                    QueueRowControls(
-                        canMoveUp = index > 0,
-                        canMoveDown = index < entries.lastIndex,
-                        onMoveUp = { actions.onMove(index, index - 1) },
-                        onMoveDown = { actions.onMove(index, index + 1) },
-                        onRemove = { actions.onRemove(index) },
-                    )
+                    with(reorder) {
+                        DragHandle(
+                            modifier = Modifier.dragHandle(index, entries.size),
+                            onRemove = { actions.onRemove(index) },
+                        )
+                    }
                 },
             )
             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
@@ -177,24 +182,15 @@ private fun GroupHeader(title: String, onRemoveGroup: () -> Unit) {
     }
 }
 
+/** The grip to long-press and drag, plus remove. Two controls instead of the old three. */
 @Composable
-private fun QueueRowControls(
-    canMoveUp: Boolean,
-    canMoveDown: Boolean,
-    onMoveUp: () -> Unit,
-    onMoveDown: () -> Unit,
-    onRemove: () -> Unit,
-) {
-    if (canMoveUp) {
-        IconButton(onClick = onMoveUp) {
-            Icon(Icons.Filled.KeyboardArrowUp, contentDescription = stringResource(R.string.queue_move_up))
-        }
-    }
-    if (canMoveDown) {
-        IconButton(onClick = onMoveDown) {
-            Icon(Icons.Filled.KeyboardArrowDown, contentDescription = stringResource(R.string.queue_move_down))
-        }
-    }
+private fun DragHandle(modifier: Modifier, onRemove: () -> Unit) {
+    Icon(
+        Icons.Filled.DragHandle,
+        contentDescription = stringResource(R.string.queue_reorder),
+        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = modifier.padding(horizontal = 8.dp),
+    )
     IconButton(onClick = onRemove) {
         Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.queue_remove))
     }

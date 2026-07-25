@@ -55,8 +55,7 @@
     <string name="queue_now_playing">Now playing</string>
     <string name="queue_clear_all">Clear all</string>
     <string name="queue_remove_group">Remove these</string>
-    <string name="queue_move_up">Move up</string>
-    <string name="queue_move_down">Move down</string>
+    <string name="queue_reorder">Drag to reorder</string>
     <string name="go_to_channel">Go to channel</string>
     <string name="go_to_podcast">Go to podcast</string>
     <string name="notifications_title">New uploads</string>
