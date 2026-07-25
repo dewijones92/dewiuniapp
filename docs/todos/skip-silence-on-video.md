@@ -1,7 +1,7 @@
 ---
 title: Skip silence on videos too
 kind: todo
-status: open
+status: ready
 area: playback
 priority: medium
 requested: 2026-07-24
@@ -75,6 +75,7 @@ today's audio-only `SilenceSkippingAudioProcessor` with **one seam for both
 pillars** — which is what the Unified law wants, versus the current
 audio-only/video-unsupported split.
 
-**Needs Dewi's nod before building:** it changes how skip-silence behaves on
-podcasts too (speeding through gaps instead of excising them). That's a behaviour
-change to a shipped feature, so it's his call rather than a silent swap.
+**Approved (Dewi, 2026-07-25): one mechanism, both pillars.** Rate-based replaces
+today's audio-only `SilenceSkippingAudioProcessor`. Accepted trade-off: podcasts will
+*feel* different — a gap becomes a moment of fast audio rather than vanishing — in
+exchange for video support, no possible A/V desync, and the pillar split disappearing.

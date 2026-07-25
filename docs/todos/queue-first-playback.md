@@ -55,6 +55,33 @@ Unified law (one playback entry point for both pillars).
 - `playNow` on an item already queued **moves** it to the current position rather
   than duplicating (matches how play history de-dupes).
 
+## Grouped queue (Dewi's idea, 2026-07-25) — "a list of lists"
+
+Asked whether "Play all" should replace the queue or insert after the current item,
+Dewi proposed a third answer: make the queue **a list of lists** — "Play all" inserts
+a **sub-list** that plays normally but can be batch-selected in the GUI.
+
+That's better than either option I offered, because it dissolves the dilemma:
+replacing loses your queue, inserting buries it — grouping makes inserting *safe*,
+because an unwanted group is one gesture to remove.
+
+**The design discipline that keeps it cheap: flat for playback, grouped for display.**
+
+- Queue rows gain a nullable `groupId` + `groupTitle`. Playback ignores them entirely,
+  so "what does next mean at a group boundary?" never arises — there is no tree in the
+  player, and `playNextInQueue` is untouched.
+- The Queue tab renders a header over each **contiguous run** of the same `groupId`.
+  Drag an item out of a run and the run simply splits — display handles it, so there
+  is no invariant to maintain and no repair logic.
+- Batch actions per group: remove the whole group, move it, play from its start.
+- Pillar-agnostic by construction: a group is a local playlist, a podcast feed, a
+  channel, or an ad-hoc "Play all" — same tag either way.
+
+So **"Play all" inserts a tagged run after the current item and never replaces the
+queue.** The group columns go into the schema from the start — cheap now, painful to
+retrofit into a shipped DB.
+
 **Done when:** tapping anything anywhere queues-at-current-position and plays;
-the Queue tab shows and edits that one queue; it survives a restart; long-press →
-Peek plays without disturbing it.
+the Queue tab shows and edits that one queue, with grouped runs from "Play all"
+removable in one gesture; it survives a restart; long-press → Peek plays without
+disturbing it.

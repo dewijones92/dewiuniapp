@@ -20,7 +20,7 @@ to `shipped` and migrate it to `../features/` once it's a real feature on `main`
 | [url-share-target](url-share-target.md) | integration | medium | shipped |
 | [play-history-screen](play-history-screen.md) | library | medium | shipped |
 | [local-cross-pillar-playlists](local-cross-pillar-playlists.md) | library | high | shipped |
-| [skip-silence-on-video](skip-silence-on-video.md) | playback | medium | open |
+| [skip-silence-on-video](skip-silence-on-video.md) | playback | medium | ready (approved) |
 | [queue-first-playback](queue-first-playback.md) | playback | high | ready (awaiting go) |
 | [auto-download-queue](auto-download-queue.md) | downloads | high | ready (awaiting go) |
 | [autoplay-next-guaranteed](autoplay-next-guaranteed.md) | playback | medium | ready (awaiting go) |

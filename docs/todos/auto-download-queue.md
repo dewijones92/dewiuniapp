@@ -50,6 +50,9 @@ the spine that lands there.
 - **Nothing is auto-deleted.** Leaving the queue keeps the file; you remove it from
   Library. So no auto/pinned distinction in the GUI either — one Downloaded state.
 - Wi-Fi-only by default (toggleable), auto-download on by default.
+- **The whole queue is downloaded**, not a rolling window (Dewi, 2026-07-25) —
+  sequentially so it doesn't hammer the network. Library should surface total size
+  used so a long queue never surprises.
 
 ## Watch out
 
