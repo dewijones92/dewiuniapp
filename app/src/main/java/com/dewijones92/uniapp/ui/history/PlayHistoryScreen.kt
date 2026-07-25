@@ -1,18 +1,15 @@
 package com.dewijones92.uniapp.ui.history
 
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -28,6 +25,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dewijones92.uniapp.R
 import com.dewijones92.uniapp.di.AppContainer
 import com.dewijones92.uniapp.domain.DownloadState
+import com.dewijones92.uniapp.ui.common.BackHeader
 import com.dewijones92.uniapp.ui.common.MediaItemRow
 import com.dewijones92.uniapp.ui.common.mediaItemSubtitle
 import com.dewijones92.uniapp.ui.playlist.rememberPlaylistAdder
@@ -42,7 +40,11 @@ fun PlayHistoryScreen(container: AppContainer, onBack: () -> Unit, modifier: Mod
 
     Surface(modifier = modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
-            HistoryHeader(onBack = onBack, onClear = viewModel::clear, canClear = items.isNotEmpty())
+            BackHeader(stringResource(R.string.history_title), onBack) {
+                if (items.isNotEmpty()) {
+                    TextButton(onClick = viewModel::clear) { Text(stringResource(R.string.history_clear)) }
+                }
+            }
             if (items.isEmpty()) {
                 HistoryEmpty()
             } else {
@@ -61,30 +63,6 @@ fun PlayHistoryScreen(container: AppContainer, onBack: () -> Unit, modifier: Mod
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun HistoryHeader(onBack: () -> Unit, onClear: () -> Unit, canClear: Boolean) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 8.dp),
-    ) {
-        IconButton(onClick = onBack) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
-        }
-        Text(
-            text = stringResource(R.string.history_title),
-            style = MaterialTheme.typography.titleLarge,
-            modifier = Modifier
-                .weight(1f)
-                .padding(horizontal = 8.dp),
-        )
-        if (canClear) {
-            TextButton(onClick = onClear) { Text(stringResource(R.string.history_clear)) }
         }
     }
 }

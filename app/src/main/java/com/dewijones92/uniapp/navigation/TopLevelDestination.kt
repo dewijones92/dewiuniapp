@@ -2,12 +2,12 @@ package com.dewijones92.uniapp.navigation
 
 import androidx.annotation.StringRes
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.automirrored.filled.QueueMusic
+import androidx.compose.material.icons.automirrored.outlined.QueueMusic
 import androidx.compose.material.icons.filled.CollectionsBookmark
 import androidx.compose.material.icons.filled.Podcasts
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SmartDisplay
-import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.CollectionsBookmark
 import androidx.compose.material.icons.outlined.Podcasts
 import androidx.compose.material.icons.outlined.Search
@@ -16,7 +16,11 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import com.dewijones92.uniapp.R
 
 /**
- * The app's top-level pillars, shown in the bottom navigation bar.
+ * The app's top-level destinations, shown in the bottom navigation bar.
+ *
+ * Five entries, per Material 3's 3–5 guidance. The queue earns a place because it
+ * is the spine of playback — everything you tap lands in it. Account does not: it
+ * is visited once to sign in, so it lives inside Library instead.
  */
 enum class TopLevelDestination(
     @StringRes val labelRes: Int,
@@ -33,6 +37,11 @@ enum class TopLevelDestination(
         selectedIcon = Icons.Filled.Podcasts,
         unselectedIcon = Icons.Outlined.Podcasts,
     ),
+    Queue(
+        labelRes = R.string.destination_queue,
+        selectedIcon = Icons.AutoMirrored.Filled.QueueMusic,
+        unselectedIcon = Icons.AutoMirrored.Outlined.QueueMusic,
+    ),
     Search(
         labelRes = R.string.destination_search,
         selectedIcon = Icons.Filled.Search,
@@ -42,10 +51,5 @@ enum class TopLevelDestination(
         labelRes = R.string.destination_library,
         selectedIcon = Icons.Filled.CollectionsBookmark,
         unselectedIcon = Icons.Outlined.CollectionsBookmark,
-    ),
-    Account(
-        labelRes = R.string.destination_account,
-        selectedIcon = Icons.Filled.AccountCircle,
-        unselectedIcon = Icons.Outlined.AccountCircle,
     ),
 }

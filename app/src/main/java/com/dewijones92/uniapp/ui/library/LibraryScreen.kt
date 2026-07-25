@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
+import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.CollectionsBookmark
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material3.HorizontalDivider
@@ -36,6 +37,7 @@ import com.dewijones92.uniapp.di.fake.FakeAppContainer
 import com.dewijones92.uniapp.domain.DownloadState
 import com.dewijones92.uniapp.domain.PlaylistId
 import com.dewijones92.uniapp.theme.UniAppTheme
+import com.dewijones92.uniapp.ui.account.AccountScreen
 import com.dewijones92.uniapp.ui.common.BuildInfoFooter
 import com.dewijones92.uniapp.ui.common.MediaItemRow
 import com.dewijones92.uniapp.ui.common.MediaSort
@@ -51,6 +53,7 @@ import com.dewijones92.uniapp.ui.playlist.rememberPlaylistAdder
 fun LibraryScreen(container: AppContainer, modifier: Modifier = Modifier) {
     var showPlaylists by remember { mutableStateOf(false) }
     var showHistory by remember { mutableStateOf(false) }
+    var showAccount by remember { mutableStateOf(false) }
     var openPlaylist by remember { mutableStateOf<PlaylistId?>(null) }
     val playlist = openPlaylist
 
@@ -66,10 +69,13 @@ fun LibraryScreen(container: AppContainer, modifier: Modifier = Modifier) {
             )
         showHistory ->
             PlayHistoryScreen(container, onBack = { showHistory = false }, modifier = modifier)
+        showAccount ->
+            AccountScreen(container, modifier = modifier, onBack = { showAccount = false })
         else -> LibraryHome(
             container,
             onOpenPlaylists = { showPlaylists = true },
             onOpenHistory = { showHistory = true },
+            onOpenAccount = { showAccount = true },
             modifier = modifier,
         )
     }
@@ -80,6 +86,7 @@ private fun LibraryHome(
     container: AppContainer,
     onOpenPlaylists: () -> Unit,
     onOpenHistory: () -> Unit,
+    onOpenAccount: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val viewModel: LibraryViewModel = viewModel(factory = LibraryViewModel.factory(container))
@@ -92,6 +99,7 @@ private fun LibraryHome(
         sort = sort,
         onOpenPlaylists = onOpenPlaylists,
         onOpenHistory = onOpenHistory,
+        onOpenAccount = onOpenAccount,
         onPlay = viewModel::play,
         onDelete = viewModel::delete,
         onAddToPlaylist = { addToPlaylist(it.item) },
@@ -106,6 +114,7 @@ internal fun LibraryContent(
     sort: MediaSort,
     onOpenPlaylists: () -> Unit,
     onOpenHistory: () -> Unit,
+    onOpenAccount: () -> Unit,
     onPlay: (DownloadedItem) -> Unit,
     onDelete: (DownloadedItem) -> Unit,
     onAddToPlaylist: (DownloadedItem) -> Unit,
@@ -116,6 +125,7 @@ internal fun LibraryContent(
         LazyColumn(modifier = Modifier.weight(1f)) {
             item { PlaylistsEntry(onOpenPlaylists) }
             item { HistoryEntry(onOpenHistory) }
+            item { AccountEntry(onOpenAccount) }
             if (downloaded.isEmpty()) {
                 item { DownloadsEmpty() }
             } else {
@@ -152,6 +162,13 @@ private fun PlaylistsEntry(onOpen: () -> Unit) {
 @Composable
 private fun HistoryEntry(onOpen: () -> Unit) {
     LibraryNavEntry(Icons.Outlined.History, R.string.history_title, onOpen)
+}
+
+// Account lives here rather than on the bottom bar: it's visited once to sign in,
+// so it doesn't earn a permanent tab (the queue does).
+@Composable
+private fun AccountEntry(onOpen: () -> Unit) {
+    LibraryNavEntry(Icons.Outlined.AccountCircle, R.string.destination_account, onOpen)
 }
 
 @Composable

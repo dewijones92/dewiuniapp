@@ -74,6 +74,11 @@ fun MediaItemRow(
     onGoToSource: (() -> Unit)? = null,
     /** Label for [onGoToSource] — the host knows its pillar ("channel" vs "podcast"). */
     goToSourceLabelRes: Int = R.string.go_to_channel,
+    /**
+     * Replaces the download control for rows whose trailing affordances are about
+     * something else — the queue's reorder/remove buttons, for instance.
+     */
+    trailing: (@Composable () -> Unit)? = null,
 ) {
     var showSheet by remember { mutableStateOf(false) }
     val hasMenu = listOf(onPlayNext, onAddToQueue, onAddToPlaylist, onRemoveFromPlaylist, onGoToSource)
@@ -101,7 +106,7 @@ fun MediaItemRow(
                 Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.queue_menu))
             }
         }
-        DownloadControl(downloadState, onDownload, onDeleteDownload)
+        if (trailing != null) trailing() else DownloadControl(downloadState, onDownload, onDeleteDownload)
     }
     if (showSheet) {
         ActionSheet(

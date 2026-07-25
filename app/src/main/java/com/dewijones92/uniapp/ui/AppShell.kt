@@ -29,7 +29,6 @@ import com.dewijones92.uniapp.navigation.TopLevelDestination
 import com.dewijones92.uniapp.playback.PlaybackController
 import com.dewijones92.uniapp.playback.PlaybackState
 import com.dewijones92.uniapp.theme.UniAppTheme
-import com.dewijones92.uniapp.ui.account.AccountScreen
 import com.dewijones92.uniapp.ui.common.MiniPlayerBar
 import com.dewijones92.uniapp.ui.common.RequestNotificationPermissionOnFirstPlay
 import com.dewijones92.uniapp.ui.library.LibraryScreen
@@ -40,6 +39,7 @@ import com.dewijones92.uniapp.ui.player.QueueControls
 import com.dewijones92.uniapp.ui.player.WatchActions
 import com.dewijones92.uniapp.ui.player.WatchViewModel
 import com.dewijones92.uniapp.ui.podcasts.PodcastsScreen
+import com.dewijones92.uniapp.ui.queue.QueueScreen
 import com.dewijones92.uniapp.ui.search.SearchScreen
 import com.dewijones92.uniapp.ui.shorts.ShortsReelScreen
 import com.dewijones92.uniapp.ui.videos.VideosScreen
@@ -98,9 +98,9 @@ fun AppShell(container: AppContainer, modifier: Modifier = Modifier) {
                 when (destination) {
                     TopLevelDestination.Videos -> VideosScreen(container, onOpenShorts = { shortsReel = it })
                     TopLevelDestination.Podcasts -> PodcastsScreen(container)
+                    TopLevelDestination.Queue -> QueueScreen(container)
                     TopLevelDestination.Search -> SearchScreen(container)
                     TopLevelDestination.Library -> LibraryScreen(container)
-                    TopLevelDestination.Account -> AccountScreen(container)
                 }
             }
         }

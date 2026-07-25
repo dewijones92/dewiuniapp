@@ -33,6 +33,7 @@ import com.dewijones92.uniapp.di.fake.FakeAppContainer
 import com.dewijones92.uniapp.theme.UniAppTheme
 import com.dewijones92.uniapp.ui.account.AccountViewModel.FailureReason
 import com.dewijones92.uniapp.ui.account.AccountViewModel.UiState
+import com.dewijones92.uniapp.ui.common.BackHeader
 import com.dewijones92.uniapp.ui.common.EmptyState
 import com.dewijones92.uniapp.ui.settings.SettingsScreen
 
@@ -43,7 +44,7 @@ import com.dewijones92.uniapp.ui.settings.SettingsScreen
  * [AccountViewModel] state.
  */
 @Composable
-fun AccountScreen(container: AppContainer, modifier: Modifier = Modifier) {
+fun AccountScreen(container: AppContainer, modifier: Modifier = Modifier, onBack: (() -> Unit)? = null) {
     val viewModel: AccountViewModel = viewModel(factory = AccountViewModel.factory(container))
     val state by viewModel.state.collectAsStateWithLifecycle()
     var showSettings by rememberSaveable { mutableStateOf(false) }
@@ -57,6 +58,7 @@ fun AccountScreen(container: AppContainer, modifier: Modifier = Modifier) {
             onCancel = viewModel::cancel,
             onSignOut = viewModel::signOut,
             onOpenSettings = { showSettings = true },
+            onBack = onBack,
             modifier = modifier,
         )
     }
@@ -70,8 +72,11 @@ internal fun AccountContent(
     onSignOut: () -> Unit,
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
+    onBack: (() -> Unit)? = null,
 ) {
     Column(modifier = modifier.fillMaxSize()) {
+        // Account is reached from inside Library, so it needs its own way back.
+        onBack?.let { BackHeader(stringResource(R.string.destination_account), it) }
         when (state) {
             UiState.SignedOut -> SignedOut(onSignIn)
             UiState.Starting -> Centered { CircularProgressIndicator() }
