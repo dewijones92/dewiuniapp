@@ -76,7 +76,6 @@ fun VideosScreen(
     // tapped playlist), and the new-uploads notifications.
     val notificationsViewModel: NotificationsViewModel =
         viewModel(factory = NotificationsViewModel.factory(container))
-    val newUploadsCount by notificationsViewModel.count.collectAsStateWithLifecycle()
     var browsingChannel by remember { mutableStateOf<MediaSource.VideoChannel?>(null) }
     var showPlaylists by remember { mutableStateOf(false) }
     var showNotifications by remember { mutableStateOf(false) }
@@ -85,6 +84,7 @@ fun VideosScreen(
     val playlist = browsingPlaylist
 
     val actions = rememberMediaItemActions(container)
+    val switchMode = rememberModeSwitch(actions)
 
     when {
         playlist != null ->
@@ -108,7 +108,7 @@ fun VideosScreen(
             )
         else -> VideosContent(
             state = state,
-            newUploadsCount = newUploadsCount,
+            newUploadsCount = notificationsViewModel.count.collectAsStateWithLifecycle().value,
             actions = actions,
             onSubscribe = viewModel::subscribe,
             onDialogClosed = viewModel::resetSubscribing,
@@ -117,6 +117,7 @@ fun VideosScreen(
             onDeleteDownload = viewModel::deleteDownload,
             onSelectFeed = viewModel::selectFeed,
             onChannelClick = { browsingChannel = it },
+            onSwitchMode = switchMode,
             onGoToChannel = { item ->
                 actions.goToSource(item) { source ->
                     (source as? MediaSource.VideoChannel)?.let { browsingChannel = it }
@@ -128,6 +129,25 @@ fun VideosScreen(
             onRefresh = viewModel::refresh,
             onSetSort = viewModel::setSort,
             modifier = modifier,
+        )
+    }
+}
+
+/**
+ * The row action that flips between listening and watching. It sets the **mode**, not
+ * just this item, and says so — a row action quietly changing a global setting would
+ * be baffling.
+ */
+@Composable
+private fun rememberModeSwitch(actions: MediaItemActions): (MediaItem) -> Unit {
+    val audioOn = stringResource(R.string.mode_audio_on)
+    val videoOn = stringResource(R.string.mode_video_on)
+    return { item ->
+        actions.switchMode(
+            item = item,
+            toAudio = !actions.audioMode,
+            audioOnMessage = audioOn,
+            videoOnMessage = videoOn,
         )
     }
 }
@@ -145,6 +165,7 @@ internal fun VideosContent(
     onDeleteDownload: (MediaItem) -> Unit,
     onSelectFeed: (AccountFeed?) -> Unit,
     onChannelClick: (MediaSource.VideoChannel) -> Unit,
+    onSwitchMode: (MediaItem) -> Unit,
     onGoToChannel: (MediaItem) -> Unit,
     onOpenPlaylists: () -> Unit,
     onOpenShorts: () -> Unit,
@@ -180,6 +201,7 @@ internal fun VideosContent(
                         onDeleteDownload,
                         onSelectFeed,
                         onChannelClick = onChannelClick,
+                        onSwitchMode = onSwitchMode,
                         onGoToChannel = onGoToChannel,
                         onOpenPlaylists = onOpenPlaylists,
                         onOpenShorts = onOpenShorts,
@@ -242,6 +264,7 @@ private fun ChannelsAndVideos(
     onDeleteDownload: (MediaItem) -> Unit,
     onSelectFeed: (AccountFeed?) -> Unit,
     onChannelClick: (MediaSource.VideoChannel) -> Unit,
+    onSwitchMode: (MediaItem) -> Unit,
     onGoToChannel: (MediaItem) -> Unit,
     onOpenPlaylists: () -> Unit,
     onOpenShorts: () -> Unit,
@@ -292,6 +315,8 @@ private fun ChannelsAndVideos(
                         onAddToPlaylist = { actions.addToPlaylist(video) },
                         onPeek = { actions.peek(video) },
                         onDownloadVideo = { onDownload(video) },
+                        onSwitchMode = { onSwitchMode(video) },
+                        audioMode = actions.audioMode,
                         onGoToSource = { onGoToChannel(video) },
                     )
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
@@ -382,6 +407,7 @@ private fun VideosContentPreview() {
             onSelectFeed = {},
             newUploadsCount = 0,
             onChannelClick = {},
+            onSwitchMode = {},
             onGoToChannel = {},
             onOpenPlaylists = {},
             onOpenShorts = {},

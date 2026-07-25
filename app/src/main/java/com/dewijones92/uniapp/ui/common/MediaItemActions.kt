@@ -1,14 +1,19 @@
 package com.dewijones92.uniapp.ui.common
 
+import android.widget.Toast
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
 import com.dewijones92.uniapp.data.source.SourceLocator
 import com.dewijones92.uniapp.di.AppContainer
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.MediaSource
 import com.dewijones92.uniapp.playlist.toPlayableOrNull
 import com.dewijones92.uniapp.queue.PlaybackQueue
+import com.dewijones92.uniapp.settings.AppPreferences
+import com.dewijones92.uniapp.settings.PlaybackMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -23,7 +28,23 @@ class MediaItemActions internal constructor(
     private val openPlaylistPicker: (MediaItem) -> Unit,
     private val locator: SourceLocator,
     private val scope: CoroutineScope,
+    private val preferences: AppPreferences,
+    private val announce: (String) -> Unit,
 ) {
+    /** The mode right now, so a row can label its action "Listen only" vs "Watch with video". */
+    val audioMode: Boolean get() = preferences.settings.value.playbackMode == PlaybackMode.AUDIO
+
+    /**
+     * Plays [item] the other way round and **makes that the mode**, announcing it —
+     * a row action that silently changed a global setting would be baffling, and
+     * hiding the mode in a settings screen would be worse.
+     */
+    fun switchMode(item: MediaItem, toAudio: Boolean, audioOnMessage: String, videoOnMessage: String) {
+        preferences.setPlaybackMode(if (toAudio) PlaybackMode.AUDIO else PlaybackMode.VIDEO)
+        announce(if (toAudio) audioOnMessage else videoOnMessage)
+        val playable = item.toPlayableOrNull() ?: return
+        scope.launch { queue.playNow(playable) }
+    }
     fun playNext(item: MediaItem) {
         item.toPlayableOrNull()?.let(queue::playNext)
     }
@@ -57,11 +78,33 @@ class MediaItemActions internal constructor(
 }
 
 /** Wires [MediaItemActions] from the container and hosts the add-to-playlist picker dialog. */
+/**
+ * Wires [MediaItemActions] from the container, hosting the add-to-playlist picker and
+ * the snackbar its mode switch announces through. [snackbar] lets a screen that
+ * already has a host share it; otherwise messages fall back to a toast.
+ */
 @Composable
-fun rememberMediaItemActions(container: AppContainer): MediaItemActions {
+fun rememberMediaItemActions(
+    container: AppContainer,
+    snackbar: SnackbarHostState? = null,
+): MediaItemActions {
     val adder = com.dewijones92.uniapp.ui.playlist.rememberPlaylistAdder(container)
     val scope = rememberCoroutineScope()
-    return remember(container, adder, scope) {
-        MediaItemActions(container.playbackQueue, adder, container.sourceLocator, scope)
+    val context = LocalContext.current
+    return remember(container, adder, scope, snackbar) {
+        MediaItemActions(
+            queue = container.playbackQueue,
+            openPlaylistPicker = adder,
+            locator = container.sourceLocator,
+            scope = scope,
+            preferences = container.appPreferences,
+            announce = { message ->
+                if (snackbar != null) {
+                    scope.launch { snackbar.showSnackbar(message) }
+                } else {
+                    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                }
+            },
+        )
     }
 }

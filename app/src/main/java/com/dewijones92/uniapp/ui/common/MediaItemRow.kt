@@ -22,6 +22,8 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.Headphones
+import androidx.compose.material.icons.outlined.SmartDisplay
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -79,6 +81,10 @@ fun MediaItemRow(
      * way left to ask for the picture too.
      */
     onDownloadVideo: (() -> Unit)? = null,
+    /** Switches between listening and watching (and sets the mode); videos only. */
+    onSwitchMode: (() -> Unit)? = null,
+    /** True when the mode is audio, so the action reads "Watch with video" instead. */
+    audioMode: Boolean = false,
     onGoToSource: (() -> Unit)? = null,
     /** Label for [onGoToSource] — the host knows its pillar ("channel" vs "podcast"). */
     goToSourceLabelRes: Int = R.string.go_to_channel,
@@ -134,6 +140,8 @@ fun MediaItemRow(
             onRemoveFromPlaylist = onRemoveFromPlaylist,
             onPeek = onPeek,
             onDownloadVideo = downloadVideo,
+            onSwitchMode = onSwitchMode,
+            audioMode = audioMode,
             onGoToSource = onGoToSource,
             goToSourceLabelRes = goToSourceLabelRes,
             onDismiss = { showSheet = false },
@@ -179,6 +187,8 @@ private fun ActionSheet(
     onRemoveFromPlaylist: (() -> Unit)?,
     onPeek: (() -> Unit)?,
     onDownloadVideo: (() -> Unit)?,
+    onSwitchMode: (() -> Unit)?,
+    audioMode: Boolean,
     onGoToSource: (() -> Unit)?,
     goToSourceLabelRes: Int,
     onDismiss: () -> Unit,
@@ -197,6 +207,12 @@ private fun ActionSheet(
         SheetAction(onRemoveFromPlaylist, Icons.Filled.Delete, R.string.playlist_remove_from, onDismiss)
         SheetAction(onPeek, Icons.Outlined.Visibility, R.string.queue_peek, onDismiss)
         SheetAction(onDownloadVideo, Icons.Outlined.Download, R.string.download_video, onDismiss)
+        SheetAction(
+            onSwitchMode,
+            if (audioMode) Icons.Outlined.SmartDisplay else Icons.Outlined.Headphones,
+            if (audioMode) R.string.play_with_video else R.string.play_audio_only,
+            onDismiss,
+        )
         SheetAction(onGoToSource, Icons.Filled.AccountCircle, goToSourceLabelRes, onDismiss)
         Spacer(Modifier.height(16.dp))
     }

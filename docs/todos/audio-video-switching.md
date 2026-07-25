@@ -107,3 +107,34 @@ Spec is complete — implementation waits on Dewi's go (it sits on top of
 **Done when:** tapping a queue item and switching to video (and back) continues from
 the same position, the data cost is made clear before it's spent, and the switch is
 reachable both in the player and from the queue.
+
+## Shipped 2026-07-25 — the mode
+
+- `PlaybackMode` (**AUTO** default / AUDIO / VIDEO) in `AppPreferences`, persisted.
+- Resolved in `AppContainer` (the only thing that knows about the network — AUTO means
+  video on Wi-Fi, audio on mobile data) and handed to `VideoPlaybackLauncher` as a
+  single `audioPreferred()` question. The launcher consults it in **one** place, so the
+  mode holds no matter which screen started playback.
+- The player's Listen/Watch toggle now **sets the mode** rather than only affecting the
+  current item; `watchOnce()` exists for the one-off case.
+- Row action on the Videos feed: "Listen only" / "Watch with video", which switches
+  **and announces it** ("Audio mode on"), because a row action silently changing a
+  global setting would be baffling.
+- **Shorts force video** for that item with the mode left alone, and say so via a toast
+  ("Watching this one — audio mode kept").
+
+### Verified on-device
+
+Switched a video row to "Listen only" → `playback_mode=AUDIO` persisted, playback had
+**no video decoder** (`hasVideo=false`, aac only). Tapped a **different** video → still
+audio-only, proving the mode is global rather than per-item. Switched back with "Watch
+with video" → `hasVideo=true`, h264 decoder, `playback_mode=VIDEO`.
+
+### Still to do
+
+**Reusing downloaded audio when switching to video** (the piece you picked over the
+muxed shortcut): stream the video-only track and merge the *local* audio file. The
+merge machinery exists (`EXTRA_AUDIO_URL`), but it is typed as an `HttpUrl`, so it
+needs to accept a local path — and then the "does Media3 merge a `file://` audio source
+with a remote video stream?" question gets answered for real. Falls back to the normal
+muxed stream if it won't.

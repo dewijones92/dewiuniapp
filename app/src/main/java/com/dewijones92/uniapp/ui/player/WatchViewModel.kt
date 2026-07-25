@@ -18,6 +18,8 @@ import com.dewijones92.uniapp.innertube.comments.YouTubeComments
 import com.dewijones92.uniapp.innertube.feeds.FeedVideo
 import com.dewijones92.uniapp.innertube.related.RelatedResult
 import com.dewijones92.uniapp.innertube.related.YouTubeRelated
+import com.dewijones92.uniapp.settings.AppPreferences
+import com.dewijones92.uniapp.settings.PlaybackMode
 import com.dewijones92.uniapp.video.VideoPlaybackLauncher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -41,6 +43,7 @@ class WatchViewModel(
     private val actions: YouTubeActions,
     private val account: YouTubeAccount,
     private val launcher: VideoPlaybackLauncher,
+    private val preferences: AppPreferences,
 ) : ViewModel() {
 
     /** The current video's selectable qualities; switching replays from the same spot. */
@@ -49,10 +52,27 @@ class WatchViewModel(
     fun selectQuality(id: String): Unit = launcher.selectQuality(id)
 
     /** Switch the current video to audio-only ("Listen"). */
-    fun listen(): Unit = launcher.listen()
+    /**
+     * Switches to audio and makes that the mode, so the next item plays the same way —
+     * wanting audio is situational, not per-video.
+     */
+    fun listen() {
+        preferences.setPlaybackMode(PlaybackMode.AUDIO)
+        launcher.listen()
+    }
 
     /** Leave audio-only and return to watching the video ("Watch"). */
-    fun watch(): Unit = launcher.watch()
+    /** Switches to video and makes that the mode. */
+    fun watch() {
+        preferences.setPlaybackMode(PlaybackMode.VIDEO)
+        launcher.watch()
+    }
+
+    /**
+     * Watches **this item only**, leaving the mode alone — for the unambiguous
+     * "I want to see this" signals (Shorts, an explicit fullscreen tap).
+     */
+    fun watchOnce(): Unit = launcher.watch()
 
     sealed interface CommentsState {
         data object Loading : CommentsState
@@ -228,6 +248,7 @@ class WatchViewModel(
                     container.youTubeActions,
                     container.youTubeAccount,
                     container.videoPlaybackLauncher,
+                    container.appPreferences,
                 )
             }
         }

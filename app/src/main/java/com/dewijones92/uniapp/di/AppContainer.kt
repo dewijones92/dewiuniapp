@@ -72,6 +72,7 @@ import com.dewijones92.uniapp.queue.QueueAutoDownloader
 import com.dewijones92.uniapp.search.SharedPrefsSearchHistoryStore
 import com.dewijones92.uniapp.settings.AppPreferences
 import com.dewijones92.uniapp.settings.NetworkStatus
+import com.dewijones92.uniapp.settings.PlaybackMode
 import com.dewijones92.uniapp.settings.SharedPrefsAppPreferences
 import com.dewijones92.uniapp.video.AccountSubscriptions
 import com.dewijones92.uniapp.video.PlatformVideoCodecSupport
@@ -334,6 +335,15 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
             playbackController,
             youTubeWatchHistory,
             playHistory = playHistoryStore,
+            // Auto means "video on Wi-Fi, audio on mobile data"; the launcher only ever
+            // sees the resolved answer.
+            audioPreferred = {
+                when (appPreferences.settings.value.playbackMode) {
+                    PlaybackMode.AUDIO -> true
+                    PlaybackMode.VIDEO -> false
+                    PlaybackMode.AUTO -> networkStatus.isMetered()
+                }
+            },
             preferredMaxHeight = {
                 val settings = appPreferences.settings.value
                 if (networkStatus.isMetered()) settings.cellularMaxHeight else settings.wifiMaxHeight

@@ -1,5 +1,6 @@
 package com.dewijones92.uniapp.ui.shorts
 
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -28,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -40,6 +42,7 @@ import com.dewijones92.uniapp.R
 import com.dewijones92.uniapp.di.AppContainer
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.playback.PlaybackState
+import com.dewijones92.uniapp.settings.PlaybackMode
 
 /**
  * A full-screen vertical Shorts reel: swipe up/down between shorts, each playing
@@ -63,12 +66,25 @@ fun ShortsReelScreen(
     }
     val playback = container.playbackController
     val launcher = container.videoPlaybackLauncher
+    val audioMode = container.appPreferences.settings.collectAsStateWithLifecycle().value.playbackMode ==
+        PlaybackMode.AUDIO
+    val context = LocalContext.current
+    val kept = stringResource(R.string.watching_this_one)
+    // Say so once per reel, so forcing video here never looks like the mode changed.
+    LaunchedEffect(audioMode) {
+        if (audioMode) Toast.makeText(context, kept, Toast.LENGTH_SHORT).show()
+    }
     val state by playback.state.collectAsStateWithLifecycle()
     val pager = rememberPagerState(pageCount = { shorts.size })
 
     // Resolve + play whichever short the pager rests on (URLs expire, so play at rest).
     LaunchedEffect(pager.settledPage) {
-        shorts.getOrNull(pager.settledPage)?.mediaUrl?.let { launcher.play(it, shorts[pager.settledPage].sourceId) }
+        shorts.getOrNull(pager.settledPage)?.mediaUrl?.let { url ->
+            launcher.play(url, shorts[pager.settledPage].sourceId)
+            // A Shorts reel is inherently visual: show the picture even in audio mode,
+            // for this item only. The mode itself is left alone (and said so, below).
+            launcher.watch()
+        }
     }
     // When a short finishes, roll on to the next — once per genuine end. Seed the
     // already-handled id so a retained `hasEnded` from an item that ended before the

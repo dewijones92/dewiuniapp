@@ -27,6 +27,12 @@ class VideoPlaybackLauncher(
     private val playHistory: PlayHistoryStore,
     /** Max video height to auto-pick for the current network (a cap); default: no cap. */
     private val preferredMaxHeight: () -> Int = { Int.MAX_VALUE },
+    /**
+     * Whether playback should be audio-only right now — the resolved playback mode
+     * (Auto having already been turned into audio-or-video by whoever knows about the
+     * network). Consulted in exactly one place, so the mode covers every entry point.
+     */
+    private val audioPreferred: () -> Boolean = { false },
 ) {
     /** The current video's quality options and which one is playing. */
     data class QualityState(
@@ -70,7 +76,9 @@ class VideoPlaybackLauncher(
             resolved.playbackTrackingUrl,
             resolved.watchtimeTrackingUrl,
         )
-        playVideoQuality(resolved)
+        // One place decides audio vs video, so the mode holds no matter which screen
+        // started playback. A one-off "watch this" is expressed by [watch].
+        if (audioPreferred() && resolved.audioOnlyUrl != null) listen() else playVideoQuality(resolved)
         return true
     }
 

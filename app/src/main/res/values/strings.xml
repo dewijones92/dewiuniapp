@@ -46,6 +46,11 @@
     <string name="queue_title">Queue</string>
     <string name="queue_peek">Play once, don\u2019t queue it</string>
     <string name="download_video">Download video</string>
+    <string name="watching_this_one">Watching this one \u2014 audio mode kept</string>
+    <string name="mode_audio_on">Audio mode on</string>
+    <string name="mode_video_on">Video mode on</string>
+    <string name="play_audio_only">Listen only</string>
+    <string name="play_with_video">Watch with video</string>
     <string name="queue_empty">Nothing queued. Tap anything to play it — it lands here.</string>
     <string name="queue_now_playing">Now playing</string>
     <string name="queue_clear_all">Clear all</string>

@@ -14,6 +14,22 @@ import kotlinx.coroutines.flow.update
  * that doesn't exceed the cap for the current network, so mobile data is saved
  * without forcing a lower quality than needed on Wi-Fi. [UNCAPPED] means "best".
  */
+/**
+ * Whether videos play with the picture. Situational rather than per-item — wanting
+ * audio is about what you're doing ("washing up"), not about a particular video — so
+ * it's one global mode rather than a property remembered per video.
+ */
+enum class PlaybackMode {
+    /** Video on Wi-Fi, audio on mobile data. The default, and why the data warning is rarely needed. */
+    AUTO,
+
+    /** Everything plays audio-only, preferring a downloaded copy. */
+    AUDIO,
+
+    /** Videos play with the picture. */
+    VIDEO,
+}
+
 interface AppPreferences {
     val settings: StateFlow<Settings>
     fun setWifiMaxHeight(height: Int)
@@ -21,6 +37,7 @@ interface AppPreferences {
     fun setAutoPlayNext(enabled: Boolean)
     fun setAutoDownloadQueue(enabled: Boolean)
     fun setAutoDownloadWifiOnly(enabled: Boolean)
+    fun setPlaybackMode(mode: PlaybackMode)
 
     data class Settings(
         val wifiMaxHeight: Int = DEFAULT_WIFI_MAX_HEIGHT,
@@ -31,6 +48,7 @@ interface AppPreferences {
         val autoDownloadQueue: Boolean = true,
         /** Restricts automatic downloads to Wi-Fi, so a long queue can't eat data. */
         val autoDownloadWifiOnly: Boolean = true,
+        val playbackMode: PlaybackMode = PlaybackMode.AUTO,
     )
 
     companion object {
@@ -53,6 +71,9 @@ class SharedPrefsAppPreferences(context: Context) : AppPreferences {
             autoPlayNext = prefs.getBoolean(KEY_AUTOPLAY, true),
             autoDownloadQueue = prefs.getBoolean(KEY_AUTO_DOWNLOAD, true),
             autoDownloadWifiOnly = prefs.getBoolean(KEY_AUTO_DOWNLOAD_WIFI, true),
+            playbackMode = prefs.getString(KEY_PLAYBACK_MODE, null)
+                ?.let { name -> runCatching { PlaybackMode.valueOf(name) }.getOrNull() }
+                ?: PlaybackMode.AUTO,
         ),
     )
     override val settings: StateFlow<AppPreferences.Settings> = _settings.asStateFlow()
@@ -82,12 +103,18 @@ class SharedPrefsAppPreferences(context: Context) : AppPreferences {
         _settings.update { it.copy(autoDownloadWifiOnly = enabled) }
     }
 
+    override fun setPlaybackMode(mode: PlaybackMode) {
+        prefs.edit { putString(KEY_PLAYBACK_MODE, mode.name) }
+        _settings.update { it.copy(playbackMode = mode) }
+    }
+
     private companion object {
         const val KEY_WIFI = "wifi_max_height"
         const val KEY_CELLULAR = "cellular_max_height"
         const val KEY_AUTOPLAY = "auto_play_next"
         const val KEY_AUTO_DOWNLOAD = "auto_download_queue"
         const val KEY_AUTO_DOWNLOAD_WIFI = "auto_download_wifi_only"
+        const val KEY_PLAYBACK_MODE = "playback_mode"
     }
 }
 
@@ -101,4 +128,5 @@ class InMemoryAppPreferences : AppPreferences {
     override fun setAutoDownloadQueue(enabled: Boolean) = _settings.update { it.copy(autoDownloadQueue = enabled) }
     override fun setAutoDownloadWifiOnly(enabled: Boolean) =
         _settings.update { it.copy(autoDownloadWifiOnly = enabled) }
+    override fun setPlaybackMode(mode: PlaybackMode) = _settings.update { it.copy(playbackMode = mode) }
 }
