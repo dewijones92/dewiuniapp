@@ -18,6 +18,7 @@ import com.dewijones92.uniapp.domain.MediaSource
 import com.dewijones92.uniapp.domain.PlayHandle
 import com.dewijones92.uniapp.domain.PlayableItem
 import com.dewijones92.uniapp.domain.SourceId
+import com.dewijones92.uniapp.domain.videoFileOrNull
 import com.dewijones92.uniapp.innertube.feeds.AccountFeed
 import com.dewijones92.uniapp.innertube.feeds.FeedResult
 import com.dewijones92.uniapp.innertube.feeds.FeedVideo
@@ -228,7 +229,9 @@ class VideosViewModel(
      * was lined up behind it.
      */
     fun play(video: MediaItem) {
-        val local = (uiState.value.downloadStates[video.id] as? DownloadState.Downloaded)?.localPath
+        // Only a full download stands in for the video; an audio-only one (the queue's
+        // automatic fetch) would play sound with a blank picture.
+        val local = uiState.value.downloadStates[video.id]?.videoFileOrNull()
         val handle = local?.let(PlayHandle::LocalVideo)
             ?: PlayHandle.Video(video.mediaUrl ?: return)
         viewModelScope.launch {

@@ -25,4 +25,23 @@ class DownloadStateTest {
     fun `downloaded requires a path`() {
         assertThrows(IllegalArgumentException::class.java) { DownloadState.Downloaded(" ") }
     }
+
+    @Test
+    fun `an audio-only download is not a video file`() {
+        // Playing the queue's automatic audio fetch for a video request gives sound
+        // and a blank picture — this is the guard against that.
+        assertNull(DownloadState.Downloaded("/tmp/a.m4a", audioOnly = true).videoFileOrNull())
+    }
+
+    @Test
+    fun `a full download is the video file`() {
+        assertEquals("/tmp/v.mkv", DownloadState.Downloaded("/tmp/v.mkv").videoFileOrNull())
+    }
+
+    @Test
+    fun `an unfinished download is not a video file`() {
+        assertNull(DownloadState.NotDownloaded.videoFileOrNull())
+        assertNull(DownloadState.Downloading(1, 2).videoFileOrNull())
+        assertNull(DownloadState.Failed("boom").videoFileOrNull())
+    }
 }

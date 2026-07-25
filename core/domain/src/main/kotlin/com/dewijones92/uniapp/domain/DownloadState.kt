@@ -41,3 +41,13 @@ public sealed interface DownloadState {
 
     public data class Failed(val reason: String) : DownloadState
 }
+
+/**
+ * The local file to play *as video*, or null.
+ *
+ * An audio-only download (what the queue fetches automatically) deliberately does
+ * not qualify: playing it for a video request gives sound and a blank picture. Audio
+ * playback uses [DownloadState.Downloaded.localPath] directly.
+ */
+public fun DownloadState.videoFileOrNull(): String? =
+    (this as? DownloadState.Downloaded)?.takeIf { !it.audioOnly }?.localPath

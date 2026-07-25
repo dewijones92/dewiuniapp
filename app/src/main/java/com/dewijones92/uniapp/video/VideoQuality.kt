@@ -16,6 +16,8 @@ public data class VideoQuality(
     val height: Int,
     val videoUrl: HttpUrl,
     val audioUrl: HttpUrl?,
+    /** The stream's video codec, for diagnostics and codec-aware selection. */
+    val codec: String? = null,
 )
 
 /**
@@ -30,20 +32,35 @@ public fun MediaMetadata.bestAudioUrl(): HttpUrl? = formats
     .maxByOrNull { it.fileSizeBytes ?: 0 }
     ?.url?.let(HttpUrl::parse)
 
-public fun MediaMetadata.videoQualities(): List<VideoQuality> {
+/**
+ * The selectable qualities, **filtered to what this device can actually decode**.
+ *
+ * Above 1080p YouTube publishes only video-only VP9/AV1, so every high quality goes
+ * down the merge path with an arbitrary codec. Offering one the device can't decode
+ * meant selecting it just stopped playback, which is why [support] is consulted here
+ * rather than left to fail at the decoder. Where several codecs are decodable at a
+ * height, the most likely to be hardware-accelerated wins.
+ */
+public fun MediaMetadata.videoQualities(
+    support: VideoCodecSupport = VideoCodecSupport.Permissive,
+): List<VideoQuality> {
     val bestAudio = bestAudioUrl()
 
     return formats
         .filter { it.hasVideo && it.height != null && it.url != null }
+        .filter { support.canDecode(it.videoCodec, it.width, it.height) }
         .groupBy { it.height!! }
         .mapNotNull { (height, atHeight) ->
-            val muxed = atHeight.firstOrNull { it.hasAudio }
+            val decodable = atHeight.sortedBy { it.videoCodec.codecPreference() }
+            val muxed = decodable.firstOrNull { it.hasAudio }
             when {
                 muxed != null -> HttpUrl.parse(muxed.url!!)?.let { video ->
-                    VideoQuality("$height", "${height}p", height, video, audioUrl = null)
+                    VideoQuality("$height", "${height}p", height, video, audioUrl = null, codec = muxed.videoCodec)
                 }
-                bestAudio != null -> HttpUrl.parse(atHeight.first().url!!)?.let { video ->
-                    VideoQuality("$height", "${height}p", height, video, audioUrl = bestAudio)
+                bestAudio != null -> decodable.first().let { best ->
+                    HttpUrl.parse(best.url!!)?.let { video ->
+                        VideoQuality("$height", "${height}p", height, video, bestAudio, best.videoCodec)
+                    }
                 }
                 else -> null // video-only with no audio to merge — not playable on its own
             }

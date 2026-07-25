@@ -67,6 +67,15 @@ public data class MediaFormat(
     val fileSizeBytes: Long?,
     /** Direct stream URL when the extractor provides one. */
     val url: String?,
+    /**
+     * The extractor's codec strings (e.g. `vp09.00.50.08`, `av01.0.08M.08`,
+     * `avc1.640028`, `mp4a.40.2`), or null when unknown. Needed because a device
+     * that can't decode a codec must not be offered that stream: above 1080p
+     * YouTube only publishes VP9/AV1, and picking blind means silent playback
+     * failure.
+     */
+    val videoCodec: String? = null,
+    val audioCodec: String? = null,
 ) {
     init {
         require(formatId.isNotBlank()) { "formatId must not be blank" }

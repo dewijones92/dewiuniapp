@@ -28,6 +28,7 @@ to `shipped` and migrate it to `../features/` once it's a real feature on `main`
 | [subtitles-captions](subtitles-captions.md) | playback | medium | refining |
 | [youtube-progress-two-way-sync](youtube-progress-two-way-sync.md) | video | medium | refining |
 | [ui-polish](ui-polish.md) | ui | medium | refining |
+| [high-quality-playback-fix](high-quality-playback-fix.md) | video | high | shipped |
 | [audio-video-switching](audio-video-switching.md) | playback | high | ready (awaiting go) |
 | [notification-opens-app](notification-opens-app.md) | playback | high | shipped |
 | [listen-mode-exit-ux](listen-mode-exit-ux.md) | playback | high | shipped |

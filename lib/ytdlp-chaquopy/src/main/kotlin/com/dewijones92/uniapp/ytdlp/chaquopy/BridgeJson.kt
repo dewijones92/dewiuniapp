@@ -111,6 +111,8 @@ private fun JsonObject.toMediaFormatOrNull(): MediaFormat? {
         fileSizeBytes = this["filesize"]?.jsonPrimitive?.longOrNull
             ?: this["filesize_approx"]?.jsonPrimitive?.longOrNull,
         url = stringOrNull("url"),
+        videoCodec = stringOrNull("vcodec")?.takeIf { it != "none" },
+        audioCodec = stringOrNull("acodec")?.takeIf { it != "none" },
     )
 }
 

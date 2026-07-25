@@ -74,6 +74,7 @@ import com.dewijones92.uniapp.settings.AppPreferences
 import com.dewijones92.uniapp.settings.NetworkStatus
 import com.dewijones92.uniapp.settings.SharedPrefsAppPreferences
 import com.dewijones92.uniapp.video.AccountSubscriptions
+import com.dewijones92.uniapp.video.PlatformVideoCodecSupport
 import com.dewijones92.uniapp.video.VideoPlaybackLauncher
 import com.dewijones92.uniapp.video.VideoResolver
 import com.dewijones92.uniapp.video.WatchHistorySync
@@ -282,7 +283,7 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
     }
 
     override val videoResolver: VideoResolver by lazy {
-        VideoResolver(ytDlpEngine, skipSegmentSource)
+        VideoResolver(ytDlpEngine, skipSegmentSource, PlatformVideoCodecSupport())
     }
 
     override val sleepTimer: SleepTimer by lazy {

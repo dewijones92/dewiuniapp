@@ -211,4 +211,13 @@ when driven on the emulator. Verify real flows on a device, not just via tests.
   in this repo's Actions secrets (CI signing; write-only), and backed up in
   the PRIVATE repo `dewijones92/uniapp-signing-backup` (survives laptop
   loss). versionCode is `100 + run number`, so it only ever increases.
-- Temporary debug logging must be prefixed `dewidebug` and never committed.
+- Debug logging must be prefixed `dewidebug`. **Keep it committed** until Dewi says
+  otherwise (his standing rule, which reverses the earlier strip-before-commit one):
+  these lines are often useful again. Make a chatty one reasonable — log only the
+  interesting case, or lower its frequency — rather than deleting it.
+- **Own the repo.** Dewi's explicit steer (2026-07-25): *"feel empowered to make big
+  moves e.g. refactoring — you own this repo"*. So take the structurally right option
+  rather than the timid one: collapse duplicated types, rename for honesty, move code
+  to where it belongs. The guardrails stay — gate green, verify on-device, one
+  coherent commit per move, and surface a decision that's genuinely Dewi's (a
+  behaviour change to something shipped, or a trade-off with no clear default).

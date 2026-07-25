@@ -20,6 +20,8 @@ import kotlin.time.Duration.Companion.seconds
 class VideoResolver(
     private val engine: YtDlpEngine,
     private val skipSegments: SkipSegmentSource,
+    /** Keeps undecodable streams out of the quality ladder (see [VideoCodecSupport]). */
+    private val codecSupport: VideoCodecSupport = VideoCodecSupport.Permissive,
 ) {
     data class Resolved(
         val item: MediaItem,
@@ -57,7 +59,7 @@ class VideoResolver(
                 },
             ),
             skipSegments = skipSegments.segmentsFor(metadata.id),
-            qualities = metadata.videoQualities(),
+            qualities = metadata.videoQualities(codecSupport),
             audioOnlyUrl = metadata.bestAudioUrl(),
             playbackTrackingUrl = metadata.playbackTrackingUrl,
             watchtimeTrackingUrl = metadata.watchtimeTrackingUrl,
