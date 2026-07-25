@@ -113,6 +113,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.itemsWithGroupHeaders
                 item = media,
                 subtitle = mediaItemSubtitle(media),
                 downloadState = downloads[media.id] ?: DownloadState.NotDownloaded,
+                pillar = entry.item.handle.pillar,
                 onPlay = { actions.onPlay(index) },
                 onDownload = { },
                 onDeleteDownload = { },

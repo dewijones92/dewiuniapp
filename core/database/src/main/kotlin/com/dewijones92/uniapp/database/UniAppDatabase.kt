@@ -18,7 +18,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         PlayHistoryEntity::class,
         QueueEntity::class,
     ],
-    version = 12,
+    version = 13,
     exportSchema = false,
 )
 public abstract class UniAppDatabase : RoomDatabase() {
@@ -50,8 +50,20 @@ public abstract class UniAppDatabase : RoomDatabase() {
                     MIGRATION_9_10,
                     MIGRATION_10_11,
                     MIGRATION_11_12,
+                    MIGRATION_12_13,
                 )
                 .build()
+
+        /**
+         * v13: a finished item keeps its progress row, marked completed, instead of
+         * being deleted — which is what makes "played" distinguishable from "never
+         * started". Existing rows are all part-way by definition, so the default is null.
+         */
+        private val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE playback_progress ADD COLUMN completedAtEpochMs INTEGER")
+            }
+        }
 
         /** v12: the queue remembers which entry is playing, so the cursor survives. */
         private val MIGRATION_11_12 = object : Migration(11, 12) {

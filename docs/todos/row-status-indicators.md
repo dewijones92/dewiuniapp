@@ -1,7 +1,7 @@
 ---
 title: Every row states its pillar, played state and offline status
 kind: todo
-status: refining
+status: shipped
 area: ui
 priority: high
 requested: 2026-07-25
@@ -60,5 +60,9 @@ screens pass it directly. So no URL-sniffing and no new field on `MediaItem`.
 - Auto-advance skipping already-played items (optional).
 - A more honest Library: "3 played, 12 unplayed" rather than a flat list.
 
-**Done when:** any row in any list shows its pillar, its progress/played state and
-whether it's offline — from one component, with a real play state behind it.
+**Shipped 2026-07-25** — with the real `PlayState` behind it (migration v12 -> v13), one
+status component, and play state provided once at the shell so no screen needed plumbing.
+Details in [`docs/features/row-status.md`](../features/row-status.md).
+
+The "hide played" filter and played-skipping auto-advance listed below are now cheap and
+remain open.

@@ -36,6 +36,7 @@ import com.dewijones92.uniapp.common.HttpUrl
 import com.dewijones92.uniapp.di.AppContainer
 import com.dewijones92.uniapp.domain.DownloadState
 import com.dewijones92.uniapp.domain.MediaItem
+import com.dewijones92.uniapp.domain.MediaKind
 import com.dewijones92.uniapp.domain.MediaSource
 import com.dewijones92.uniapp.domain.SourceId
 import com.dewijones92.uniapp.domain.Subscription
@@ -199,6 +200,7 @@ private fun SubscriptionsAndEpisodes(
                 item = episode,
                 subtitle = mediaItemSubtitle(episode),
                 downloadState = state.downloadStates[episode.id] ?: DownloadState.NotDownloaded,
+                pillar = MediaKind.PODCAST,
                 onPlay = { onPlayEpisode(episode) },
                 onDownload = { onDownload(episode) },
                 onDeleteDownload = { onDeleteDownload(episode) },

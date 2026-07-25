@@ -11,6 +11,16 @@ public sealed interface PlayHandle {
     public data class Video(public val watchUrl: HttpUrl) : PlayHandle
     public data class LocalVideo(public val localPath: String) : PlayHandle
     public data class Podcast(public val localPath: String? = null) : PlayHandle
+
+    /**
+     * Which pillar this came from. Mixed lists (queue, history, playlists) label their
+     * rows from this rather than sniffing a URL — the handle already knows, exactly.
+     */
+    public val pillar: MediaKind
+        get() = when (this) {
+            is Video, is LocalVideo -> MediaKind.VIDEO
+            is Podcast -> MediaKind.PODCAST
+        }
 }
 
 /**

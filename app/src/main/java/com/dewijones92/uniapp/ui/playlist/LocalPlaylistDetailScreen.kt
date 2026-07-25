@@ -113,6 +113,7 @@ private fun PlaylistBody(
                 item = media,
                 subtitle = mediaItemSubtitle(media),
                 downloadState = downloadStates[media.id] ?: DownloadState.NotDownloaded,
+                pillar = playlistItem.handle.pillar,
                 onPlay = { viewModel.playFrom(playlistItem) },
                 onDownload = { viewModel.download(media) },
                 onDeleteDownload = { viewModel.deleteDownload(media.id) },

@@ -3,6 +3,8 @@ package com.dewijones92.uniapp.database
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.dewijones92.uniapp.domain.MediaItemId
+import com.dewijones92.uniapp.domain.PlayState
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -53,5 +55,53 @@ class RoomPlaybackProgressStoreTest {
     @Test
     fun unknownItemResumesFromTheStart() = runTest {
         assertNull(store.resumePositionMs(MediaItemId("never-played")))
+    }
+
+    /** The whole point of keeping the row: played and never-started must differ. */
+    @Test
+    fun finishingMarksPlayedRatherThanForgetting() = runTest {
+        store.save(id, positionMs = 599_000, durationMs = 600_000)
+
+        assertEquals(PlayState.Played, store.observeStates().first()[id])
+        assertNull(store.observeStates().first()[MediaItemId("never-played")])
+    }
+
+    @Test
+    fun apartWayItemReportsItsProgress() = runTest {
+        store.save(id, positionMs = 150_000, durationMs = 600_000)
+
+        assertEquals(PlayState.InProgress(150_000, 600_000), store.observeStates().first()[id])
+        assertEquals(0.25f, (store.observeStates().first()[id] as PlayState.InProgress).fraction)
+    }
+
+    @Test
+    fun markingPlayedByHandNeedsNoPriorPlayback() = runTest {
+        store.setPlayed(id, played = true)
+
+        assertEquals(PlayState.Played, store.observeStates().first()[id])
+        assertNull(store.resumePositionMs(id))
+    }
+
+    @Test
+    fun markingUnplayedClearsTheStateEntirely() = runTest {
+        store.save(id, positionMs = 150_000, durationMs = 600_000)
+
+        store.setPlayed(id, played = false)
+
+        assertNull(store.observeStates().first()[id])
+        assertNull(store.resumePositionMs(id))
+    }
+
+    /**
+     * Replaying a finished item ticks through small positions first. Those must not
+     * clear the played mark, or every replay would silently mark the item unplayed.
+     */
+    @Test
+    fun replayingAPlayedItemKeepsItPlayedUntilRealProgress() = runTest {
+        store.setPlayed(id, played = true)
+
+        store.save(id, positionMs = 1_000, durationMs = 600_000)
+
+        assertEquals(PlayState.Played, store.observeStates().first()[id])
     }
 }

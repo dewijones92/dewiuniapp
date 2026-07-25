@@ -35,6 +35,7 @@ import com.dewijones92.uniapp.R
 import com.dewijones92.uniapp.di.AppContainer
 import com.dewijones92.uniapp.di.fake.FakeAppContainer
 import com.dewijones92.uniapp.domain.DownloadState
+import com.dewijones92.uniapp.domain.MediaKind
 import com.dewijones92.uniapp.domain.PlaylistId
 import com.dewijones92.uniapp.theme.UniAppTheme
 import com.dewijones92.uniapp.ui.account.AccountScreen
@@ -141,6 +142,7 @@ internal fun LibraryContent(
                         item = entry.item,
                         subtitle = mediaItemSubtitle(entry.item),
                         downloadState = DownloadState.Downloaded(entry.localPath),
+                        pillar = MediaKind.PODCAST,
                         onPlay = { onPlay(entry) },
                         onDownload = { },
                         onDeleteDownload = { onDelete(entry) },

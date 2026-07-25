@@ -29,6 +29,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dewijones92.uniapp.R
 import com.dewijones92.uniapp.di.AppContainer
 import com.dewijones92.uniapp.domain.DownloadState
+import com.dewijones92.uniapp.domain.MediaKind
 import com.dewijones92.uniapp.innertube.playlists.Playlist
 import com.dewijones92.uniapp.ui.common.MediaItemRow
 import com.dewijones92.uniapp.ui.common.SectionHeaderWithSort
@@ -85,6 +86,7 @@ fun PlaylistScreen(
                                 item = video,
                                 subtitle = mediaItemSubtitle(video),
                                 downloadState = state.downloadStates[video.id] ?: DownloadState.NotDownloaded,
+                                pillar = MediaKind.VIDEO,
                                 onPlay = { viewModel.play(video) },
                                 onDownload = { viewModel.download(video) },
                                 onDeleteDownload = { viewModel.deleteDownload(video) },

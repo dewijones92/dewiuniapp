@@ -46,6 +46,7 @@ import com.dewijones92.uniapp.di.AppContainer
 import com.dewijones92.uniapp.domain.DownloadState
 import com.dewijones92.uniapp.domain.MediaContentKind
 import com.dewijones92.uniapp.domain.MediaItem
+import com.dewijones92.uniapp.domain.MediaKind
 import com.dewijones92.uniapp.domain.MediaSource
 import com.dewijones92.uniapp.innertube.feeds.AccountFeed
 import com.dewijones92.uniapp.innertube.playlists.Playlist
@@ -307,6 +308,7 @@ private fun ChannelsAndVideos(
                         item = video,
                         subtitle = mediaItemSubtitle(video),
                         downloadState = state.downloadStates[video.id] ?: DownloadState.NotDownloaded,
+                        pillar = MediaKind.VIDEO,
                         onPlay = { onPlay(video) },
                         onDownload = { onDownload(video) },
                         onDeleteDownload = { onDeleteDownload(video) },

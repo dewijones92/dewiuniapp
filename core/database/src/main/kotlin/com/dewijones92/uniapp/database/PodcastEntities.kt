@@ -45,8 +45,12 @@ public data class DownloadEntity(
 )
 
 /**
- * Resume position for an item, keyed by media item id. One row per item that
- * has been played part-way; finished items are deleted so they restart.
+ * Play state for an item, keyed by media item id. One row per item that has been
+ * started or finished.
+ *
+ * A finished item keeps its row with [completedAtEpochMs] set, rather than being
+ * deleted: without it, "played" and "never started" were the same absence, and no
+ * list could tell them apart. Resume still starts such an item from the beginning.
  */
 @Entity(tableName = "playback_progress")
 public data class PlaybackProgressEntity(
@@ -54,6 +58,7 @@ public data class PlaybackProgressEntity(
     val positionMs: Long,
     val durationMs: Long?,
     val updatedAtEpochMs: Long,
+    val completedAtEpochMs: Long? = null,
 )
 
 @Entity(

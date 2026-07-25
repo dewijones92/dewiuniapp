@@ -44,7 +44,9 @@ import com.dewijones92.uniapp.innertube.playlists.fake.FakeYouTubePlaylists
 import com.dewijones92.uniapp.innertube.related.YouTubeRelated
 import com.dewijones92.uniapp.innertube.related.fake.FakeYouTubeRelated
 import com.dewijones92.uniapp.innertube.subscriptions.fake.FakeYouTubeSubscriptions
+import com.dewijones92.uniapp.playback.NoOpPlaybackProgressStore
 import com.dewijones92.uniapp.playback.PlaybackController
+import com.dewijones92.uniapp.playback.PlaybackProgressStore
 import com.dewijones92.uniapp.playback.SleepTimer
 import com.dewijones92.uniapp.playback.fake.FakePlaybackController
 import com.dewijones92.uniapp.queue.PlaybackQueue
@@ -70,6 +72,7 @@ class FakeAppContainer(
     override val videoSearchSource: SearchSource = YtDlpVideoSearchSource(ytDlpEngine),
     override val searchHistoryStore: SearchHistoryStore = InMemorySearchHistoryStore(),
     override val playHistoryStore: PlayHistoryStore = InMemoryPlayHistoryStore(),
+    override val playbackProgressStore: PlaybackProgressStore = NoOpPlaybackProgressStore,
     override val sourceLocator: SourceLocator = DefaultSourceLocator(podcastRepository, ytDlpEngine),
     override val skipSegmentSource: SkipSegmentSource = SkipSegmentSource { emptyList() },
     override val downloadManager: DownloadManager = FakeDownloadManager(),

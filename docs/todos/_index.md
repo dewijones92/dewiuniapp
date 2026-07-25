@@ -1,7 +1,7 @@
 ---
 title: Backlog
 kind: index
-updated: 2026-07-24
+updated: 2026-07-25
 ---
 
 # Backlog
@@ -29,8 +29,8 @@ to `shipped` and migrate it to `../features/` once it's a real feature on `main`
 | [youtube-progress-two-way-sync](youtube-progress-two-way-sync.md) | video | medium | refining |
 | [ui-polish](ui-polish.md) | ui | medium | refining |
 | [rebrand](rebrand.md) | branding | medium | refining (needs a name + applicationId call) |
-| [crash-reporting](crash-reporting.md) | infrastructure | high | ready (collect-everything; Pi endpoint to confirm) |
-| [row-status-indicators](row-status-indicators.md) | ui | high | refining |
+| [crash-reporting](crash-reporting.md) | infrastructure | high | shipped (verbose reports live on the Pi) |
+| [row-status-indicators](row-status-indicators.md) | ui | high | shipped (real PlayState behind it) |
 | [high-quality-playback-fix](high-quality-playback-fix.md) | video | high | shipped |
 | [feature-gap-review](feature-gap-review.md) | planning | — | triage of the AI review |
 | [feed-pagination](feed-pagination.md) | video | high | refining |
@@ -38,6 +38,7 @@ to `shipped` and migrate it to `../features/` once it's a real feature on `main`
 | [audio-video-switching](audio-video-switching.md) | playback | high | shipped (local-audio merge outstanding) |
 | [notification-opens-app](notification-opens-app.md) | playback | high | shipped |
 | [listen-mode-exit-ux](listen-mode-exit-ux.md) | playback | high | shipped |
+| [library-downloads-podcast-only](library-downloads-podcast-only.md) | downloads | medium | open |
 
 All backlog items are Dewi requests. `refining` = spec written, decisions still open;
 `ready` = decisions made, implementation waits for Dewi's explicit go (his standing

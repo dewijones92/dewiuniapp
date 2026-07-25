@@ -23,6 +23,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.dewijones92.uniapp.R
 import com.dewijones92.uniapp.domain.DownloadState
+import com.dewijones92.uniapp.domain.MediaKind
 import com.dewijones92.uniapp.ui.common.MediaItemRow
 import com.dewijones92.uniapp.ui.common.mediaItemSubtitle
 
@@ -68,6 +69,7 @@ fun NotificationsScreen(
                             item = video,
                             subtitle = mediaItemSubtitle(video),
                             downloadState = DownloadState.NotDownloaded,
+                            pillar = MediaKind.VIDEO,
                             onPlay = { viewModel.play(video) },
                             onDownload = {},
                             onDeleteDownload = {},

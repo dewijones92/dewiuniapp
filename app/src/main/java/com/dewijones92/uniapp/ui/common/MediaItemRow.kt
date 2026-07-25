@@ -21,8 +21,10 @@ import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Headphones
+import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material.icons.outlined.SmartDisplay
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.CircularProgressIndicator
@@ -39,6 +41,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
@@ -48,9 +51,13 @@ import com.dewijones92.uniapp.R
 import com.dewijones92.uniapp.domain.DownloadState
 import com.dewijones92.uniapp.domain.MediaContentKind
 import com.dewijones92.uniapp.domain.MediaItem
+import com.dewijones92.uniapp.domain.MediaKind
+import com.dewijones92.uniapp.domain.PlayState
 
 // A 16:9 leading thumbnail — the shape video stills want; square podcast art
 // centre-crops into it cleanly.
+private const val TITLE_MAX_LINES = 2
+
 private val THUMBNAIL_WIDTH = 96.dp
 private val THUMBNAIL_HEIGHT = 54.dp
 
@@ -59,6 +66,11 @@ private val THUMBNAIL_HEIGHT = 54.dp
  * other [MediaItem]. Tapping the row plays it; the leading [MediaThumbnail]
  * shows its artwork; the trailing control reflects and drives its offline
  * [DownloadState]. Long-press (or the ⋮) opens a bottom sheet of its actions.
+ *
+ * Every row states what it is: its [pillar], whether it's held offline, and its
+ * [playState]. [pillar] is required rather than inferred — mixed lists know it from
+ * the item's `PlayHandle` and single-pillar screens know it outright, so guessing from
+ * a URL would be both lossy and unnecessary.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -66,6 +78,7 @@ fun MediaItemRow(
     item: MediaItem,
     subtitle: String?,
     downloadState: DownloadState,
+    pillar: MediaKind,
     onPlay: () -> Unit,
     onDownload: () -> Unit,
     onDeleteDownload: () -> Unit,
@@ -85,6 +98,10 @@ fun MediaItemRow(
     onSwitchMode: (() -> Unit)? = null,
     /** True when the mode is audio, so the action reads "Watch with video" instead. */
     audioMode: Boolean = false,
+    /** Defaults to the app-wide play state, so no screen has to plumb it. */
+    playState: PlayState = LocalPlayStates.current[item.id] ?: PlayState.Unplayed,
+    /** Marks the item played or unplayed by hand — AntennaPod's most-used action. */
+    onSetPlayed: ((Boolean) -> Unit)? = LocalSetPlayed.current?.let { set -> { played -> set(item.id, played) } },
     onGoToSource: (() -> Unit)? = null,
     /** Label for [onGoToSource] — the host knows its pillar ("channel" vs "podcast"). */
     goToSourceLabelRes: Int = R.string.go_to_channel,
@@ -105,6 +122,7 @@ fun MediaItemRow(
         onPeek,
         downloadVideo,
         onGoToSource,
+        onSetPlayed,
     ).any { it != null }
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -117,13 +135,9 @@ fun MediaItemRow(
             )
             .padding(16.dp),
     ) {
-        MediaThumbnail(
-            url = item.thumbnailUrl,
-            contentDescription = item.title,
-            modifier = Modifier.size(width = THUMBNAIL_WIDTH, height = THUMBNAIL_HEIGHT),
-        )
+        ThumbnailWithProgress(item, playState)
         Spacer(Modifier.width(12.dp))
-        TitleAndSubtitle(item, subtitle, Modifier.weight(1f))
+        TitleAndSubtitle(item, subtitle, pillar, playState, downloadState, Modifier.weight(1f))
         if (hasMenu) {
             IconButton(onClick = { showSheet = true }) {
                 Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.queue_menu))
@@ -144,13 +158,35 @@ fun MediaItemRow(
             audioMode = audioMode,
             onGoToSource = onGoToSource,
             goToSourceLabelRes = goToSourceLabelRes,
+            onSetPlayed = onSetPlayed,
+            played = playState.isPlayed,
             onDismiss = { showSheet = false },
         )
     }
 }
 
+/** The artwork with a progress sliver beneath it, so "you are here" needs no words. */
 @Composable
-private fun TitleAndSubtitle(item: MediaItem, subtitle: String?, modifier: Modifier = Modifier) {
+private fun ThumbnailWithProgress(item: MediaItem, playState: PlayState) {
+    Column {
+        MediaThumbnail(
+            url = item.thumbnailUrl,
+            contentDescription = item.title,
+            modifier = Modifier.size(width = THUMBNAIL_WIDTH, height = THUMBNAIL_HEIGHT),
+        )
+        PlayProgressSliver(playState, Modifier.width(THUMBNAIL_WIDTH))
+    }
+}
+
+@Composable
+private fun TitleAndSubtitle(
+    item: MediaItem,
+    subtitle: String?,
+    pillar: MediaKind,
+    playState: PlayState,
+    downloadState: DownloadState,
+    modifier: Modifier = Modifier,
+) {
     Column(modifier = modifier) {
         if (item.contentKind != MediaContentKind.STANDARD) {
             ContentKindBadge(item.contentKind)
@@ -160,6 +196,11 @@ private fun TitleAndSubtitle(item: MediaItem, subtitle: String?, modifier: Modif
             text = item.title,
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurface,
+            // Two lines keeps a list scannable; long podcast titles were running to
+            // five, which made every row a paragraph.
+            maxLines = TITLE_MAX_LINES,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.alpha(playedTitleAlpha(playState)),
         )
         subtitle?.let {
             Text(
@@ -170,6 +211,7 @@ private fun TitleAndSubtitle(item: MediaItem, subtitle: String?, modifier: Modif
                 overflow = TextOverflow.Ellipsis,
             )
         }
+        MediaItemStatus(pillar, playState, downloadState, StatusRowSpacing)
     }
 }
 
@@ -191,6 +233,8 @@ private fun ActionSheet(
     audioMode: Boolean,
     onGoToSource: (() -> Unit)?,
     goToSourceLabelRes: Int,
+    onSetPlayed: ((Boolean) -> Unit)?,
+    played: Boolean,
     onDismiss: () -> Unit,
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
@@ -214,6 +258,12 @@ private fun ActionSheet(
             onDismiss,
         )
         SheetAction(onGoToSource, Icons.Filled.AccountCircle, goToSourceLabelRes, onDismiss)
+        SheetAction(
+            onSetPlayed?.let { { it(!played) } },
+            if (played) Icons.Outlined.RadioButtonUnchecked else Icons.Outlined.CheckCircle,
+            if (played) R.string.mark_unplayed else R.string.mark_played,
+            onDismiss,
+        )
         Spacer(Modifier.height(16.dp))
     }
 }

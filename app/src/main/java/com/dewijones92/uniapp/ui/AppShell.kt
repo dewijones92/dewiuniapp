@@ -30,6 +30,7 @@ import com.dewijones92.uniapp.playback.PlaybackController
 import com.dewijones92.uniapp.playback.PlaybackState
 import com.dewijones92.uniapp.theme.UniAppTheme
 import com.dewijones92.uniapp.ui.common.MiniPlayerBar
+import com.dewijones92.uniapp.ui.common.ProvidePlayStates
 import com.dewijones92.uniapp.ui.common.RequestNotificationPermissionOnFirstPlay
 import com.dewijones92.uniapp.ui.library.LibraryScreen
 import com.dewijones92.uniapp.ui.player.CommentReplies
@@ -64,59 +65,66 @@ fun AppShell(container: AppContainer, modifier: Modifier = Modifier) {
     // mini player / with the screen off, not only while the full player is expanded.
     AutoAdvance(playbackState, watchViewModel, container, reelOpen = shortsReel != null)
 
-    Box(modifier = modifier.fillMaxSize()) {
-        Scaffold(
-            bottomBar = {
-                Column {
-                    playbackState?.let { state ->
-                        MiniPlayerBar(
-                            state = state,
-                            onTogglePlayPause = controller::togglePlayPause,
-                            onExpand = { showFullPlayer = true },
-                        )
-                    }
-                    NavigationBar {
-                        TopLevelDestination.entries.forEach { destination ->
-                            val isSelected = destination == selected
-                            NavigationBarItem(
-                                selected = isSelected,
-                                onClick = { selected = destination },
-                                icon = {
-                                    val icon = if (isSelected) destination.selectedIcon else destination.unselectedIcon
-                                    Icon(imageVector = icon, contentDescription = null)
-                                },
-                                label = { Text(stringResource(destination.labelRes)) },
+    ProvidePlayStates(container) {
+        Box(modifier = modifier.fillMaxSize()) {
+            Scaffold(
+                bottomBar = {
+                    Column {
+                        playbackState?.let { state ->
+                            MiniPlayerBar(
+                                state = state,
+                                onTogglePlayPause = controller::togglePlayPause,
+                                onExpand = { showFullPlayer = true },
                             )
                         }
+                        TopLevelNavigationBar(selected, onSelect = { selected = it })
+                    }
+                },
+            ) { innerPadding ->
+                AnimatedContent(
+                    targetState = selected,
+                    modifier = Modifier.padding(innerPadding),
+                    label = "top-level-destination",
+                ) { destination ->
+                    when (destination) {
+                        TopLevelDestination.Videos -> VideosScreen(container, onOpenShorts = { shortsReel = it })
+                        TopLevelDestination.Podcasts -> PodcastsScreen(container)
+                        TopLevelDestination.Queue -> QueueScreen(container)
+                        TopLevelDestination.Search -> SearchScreen(container)
+                        TopLevelDestination.Library -> LibraryScreen(container)
                     }
                 }
-            },
-        ) { innerPadding ->
-            AnimatedContent(
-                targetState = selected,
-                modifier = Modifier.padding(innerPadding),
-                label = "top-level-destination",
-            ) { destination ->
-                when (destination) {
-                    TopLevelDestination.Videos -> VideosScreen(container, onOpenShorts = { shortsReel = it })
-                    TopLevelDestination.Podcasts -> PodcastsScreen(container)
-                    TopLevelDestination.Queue -> QueueScreen(container)
-                    TopLevelDestination.Search -> SearchScreen(container)
-                    TopLevelDestination.Library -> LibraryScreen(container)
-                }
+            }
+
+            // Full player overlays the whole app (above the mini player + nav) when
+            // expanded; the mini player keeps the audio/video running underneath.
+            playbackState?.takeIf { showFullPlayer }?.let { state ->
+                FullPlayerHost(state, controller, container, watchViewModel) { showFullPlayer = false }
+            }
+
+            // The Shorts reel is a full-screen overlay (above the nav + mini player),
+            // so vertical swipes page between shorts without the app chrome in the way.
+            shortsReel?.let { shorts ->
+                ShortsReelScreen(container, shorts, onBack = { shortsReel = null })
             }
         }
+    }
+}
 
-        // Full player overlays the whole app (above the mini player + nav) when
-        // expanded; the mini player keeps the audio/video running underneath.
-        playbackState?.takeIf { showFullPlayer }?.let { state ->
-            FullPlayerHost(state, controller, container, watchViewModel) { showFullPlayer = false }
-        }
-
-        // The Shorts reel is a full-screen overlay (above the nav + mini player),
-        // so vertical swipes page between shorts without the app chrome in the way.
-        shortsReel?.let { shorts ->
-            ShortsReelScreen(container, shorts, onBack = { shortsReel = null })
+@Composable
+private fun TopLevelNavigationBar(selected: TopLevelDestination, onSelect: (TopLevelDestination) -> Unit) {
+    NavigationBar {
+        TopLevelDestination.entries.forEach { destination ->
+            val isSelected = destination == selected
+            NavigationBarItem(
+                selected = isSelected,
+                onClick = { onSelect(destination) },
+                icon = {
+                    val icon = if (isSelected) destination.selectedIcon else destination.unselectedIcon
+                    Icon(imageVector = icon, contentDescription = null)
+                },
+                label = { Text(stringResource(destination.labelRes)) },
+            )
         }
     }
 }

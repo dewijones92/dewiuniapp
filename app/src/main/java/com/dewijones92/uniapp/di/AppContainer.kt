@@ -68,6 +68,7 @@ import com.dewijones92.uniapp.notifications.SharedPrefsSeenItemsTracker
 import com.dewijones92.uniapp.notifications.YouTubeSubscriptionItemsSource
 import com.dewijones92.uniapp.playback.Media3PlaybackController
 import com.dewijones92.uniapp.playback.PlaybackController
+import com.dewijones92.uniapp.playback.PlaybackProgressStore
 import com.dewijones92.uniapp.playback.SharedPrefsPlaybackSpeedStore
 import com.dewijones92.uniapp.playback.SharedPrefsVolumeBoostStore
 import com.dewijones92.uniapp.playback.SleepTimer
@@ -145,6 +146,12 @@ interface AppContainer {
 
     /** Finds the source (channel / feed) a media row came from, for "go to channel". */
     val sourceLocator: SourceLocator
+
+    /**
+     * Resume positions and played/unplayed state. Exposed so every list can label its
+     * rows from one source, rather than each screen carrying its own copy.
+     */
+    val playbackProgressStore: PlaybackProgressStore
 
     /** User settings (per-network default quality, …). */
     val appPreferences: AppPreferences
@@ -238,11 +245,15 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
 
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
+    override val playbackProgressStore: PlaybackProgressStore by lazy {
+        RoomPlaybackProgressStore(database.playbackProgressDao())
+    }
+
     override val playbackController: PlaybackController by lazy {
         Media3PlaybackController(
             context,
             applicationScope,
-            RoomPlaybackProgressStore(database.playbackProgressDao()),
+            playbackProgressStore,
             SharedPrefsPlaybackSpeedStore(context),
             SharedPrefsVolumeBoostStore(context),
             // Podcasts play straight through the controller (their enclosure URL is

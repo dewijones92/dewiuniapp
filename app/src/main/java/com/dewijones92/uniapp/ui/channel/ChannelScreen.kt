@@ -33,6 +33,7 @@ import com.dewijones92.uniapp.R
 import com.dewijones92.uniapp.di.AppContainer
 import com.dewijones92.uniapp.domain.DownloadState
 import com.dewijones92.uniapp.domain.MediaItem
+import com.dewijones92.uniapp.domain.MediaKind
 import com.dewijones92.uniapp.domain.MediaSource
 import com.dewijones92.uniapp.innertube.playlists.Playlist
 import com.dewijones92.uniapp.ui.channel.ChannelViewModel.TabState
@@ -154,6 +155,7 @@ private fun MediaItemTab(
                     item = video,
                     subtitle = mediaItemSubtitle(video),
                     downloadState = downloadStates[video.id] ?: DownloadState.NotDownloaded,
+                    pillar = MediaKind.VIDEO,
                     onPlay = { onPlay(video) },
                     onDownload = { onDownload(video) },
                     onDeleteDownload = { onDeleteDownload(video) },

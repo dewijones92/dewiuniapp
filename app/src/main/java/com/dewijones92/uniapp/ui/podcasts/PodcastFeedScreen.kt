@@ -20,6 +20,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dewijones92.uniapp.R
 import com.dewijones92.uniapp.di.AppContainer
 import com.dewijones92.uniapp.domain.DownloadState
+import com.dewijones92.uniapp.domain.MediaKind
 import com.dewijones92.uniapp.domain.MediaSource
 import com.dewijones92.uniapp.ui.common.MediaItemRow
 import com.dewijones92.uniapp.ui.common.SourceHeader
@@ -76,6 +77,7 @@ fun PodcastFeedScreen(
                             item = episode,
                             subtitle = mediaItemSubtitle(episode),
                             downloadState = state.downloadStates[episode.id] ?: DownloadState.NotDownloaded,
+                            pillar = MediaKind.PODCAST,
                             onPlay = { viewModel.play(episode) },
                             onDownload = { viewModel.download(episode) },
                             onDeleteDownload = { viewModel.deleteDownload(episode) },

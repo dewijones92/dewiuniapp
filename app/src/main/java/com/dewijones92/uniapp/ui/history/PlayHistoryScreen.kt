@@ -54,6 +54,7 @@ fun PlayHistoryScreen(container: AppContainer, onBack: () -> Unit, modifier: Mod
                             item = entry.item,
                             subtitle = mediaItemSubtitle(entry.item),
                             downloadState = downloadStates[entry.item.id] ?: DownloadState.NotDownloaded,
+                            pillar = entry.handle.pillar,
                             onPlay = { viewModel.play(entry) },
                             onDownload = { viewModel.download(entry.item) },
                             onDeleteDownload = { viewModel.deleteDownload(entry.item.id) },

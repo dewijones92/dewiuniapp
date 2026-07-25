@@ -38,6 +38,7 @@ alone until they need more.
 | Explore channel content (InnerTube tabs: Videos/Shorts/Playlists) | channel | shipped | [channel-browse.md](channel-browse.md) |
 | Upload dates everywhere (all surfaces incl. search) | video/search | shipped | [upload-dates.md](upload-dates.md) |
 | Crash + diagnostics reporting (verbose reports to the Pi) | infrastructure | shipped | [crash-reporting.md](crash-reporting.md) |
+| Row status (pillar / played / offline on every row) | ui | shipped | [row-status.md](row-status.md) |
 
 \* Cast: crash + disconnect-loses-playback fixed; real casting unverified (no hardware).
 
