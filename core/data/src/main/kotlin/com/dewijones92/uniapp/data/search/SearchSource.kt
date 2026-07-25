@@ -45,5 +45,7 @@ public sealed interface SearchHit {
         override val artworkUrl: HttpUrl?,
         val watchUrl: HttpUrl,
         val durationSeconds: Long?,
+        /** How the source renders the upload date ("1 year ago"); null when unknown. */
+        val publishedText: String? = null,
     ) : SearchHit
 }

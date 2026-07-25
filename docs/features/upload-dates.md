@@ -1,9 +1,9 @@
 ---
 title: Upload dates everywhere
 kind: feature
-status: in-progress
+status: shipped
 area: video/search
-updated: 2026-07-24
+updated: 2026-07-25
 ---
 
 # Upload dates everywhere
@@ -48,3 +48,26 @@ entries don't reliably carry an upload date, and per-result full extraction is
 explicitly out of scope (too slow). Every other surface (feeds, subscriptions,
 related, channel, podcasts) shows dates; search is the one gap, limited by yt-dlp.
 Revisit only if a cheap date source appears in flat search results.
+
+## Shipped 2026-07-25 — search dates too, via a source we already owned
+
+The deferral assumed yt-dlp was the only video-search backend. It isn't: the app
+owns an InnerTube client, and a live probe of `youtubei/v1/search` (WEB client, no
+auth) showed **every** result carrying `publishedTimeText`, plus duration, views,
+channel and thumbnail. So the limitation was the backend, not the data.
+
+- `:lib:innertube` `search/`: `YouTubeSearch` port, `SearchedVideo`,
+  `HttpYouTubeSearch`, `SearchResultsParser` (search still answers with the classic
+  `videoRenderer` shape, not `lockupViewModel`, so it's its own parser — reusing
+  `parseClockToSeconds` and `FeedVideo.watchUrlFor`), fake, and a unit test against
+  the captured `search_web_sample.json`.
+- `:core:data`: `InnerTubeVideoSearchSource` → `SearchHit.Video.publishedText`, with
+  `FallbackSearchSource` keeping yt-dlp's `ytsearch` as the fallback if YouTube's
+  shape changes (tested: primary wins, failure and empty both fall back).
+- Bonus DRY: the search row had its own subtitle assembly. Both it and
+  `mediaItemSubtitle` now go through one `mediaSubtitle(author, dateText,
+  durationMinutes)`, so search rows read like every other list.
+
+Verified on-device: "Fireship · 4 years ago · 2 min".
+
+**Every surface now shows dates** — the table above has no ❌ rows left.

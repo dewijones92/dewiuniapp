@@ -3,6 +3,7 @@ package com.dewijones92.uniapp.innertube.browse
 import com.dewijones92.uniapp.innertube.auth.AccessToken
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.JsonPrimitive
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -25,6 +26,7 @@ public class InnerTubeClient(
     private val client: OkHttpClient,
     private val browseUrl: String = BROWSE_URL,
     private val nextUrl: String = NEXT_URL,
+    private val searchUrl: String = SEARCH_URL,
     private val tvClientVersion: String = TV_CLIENT_VERSION,
     private val webClientVersion: String = WEB_CLIENT_VERSION,
 ) {
@@ -48,6 +50,16 @@ public class InnerTubeClient(
         }
         return execute(browseUrl, webContext(fields), bearer = null)
     }
+
+    /**
+     * Public video search (WEB client, no auth). The WEB response carries each
+     * result's upload date, which yt-dlp's flat `ytsearch` does not.
+     *
+     * Unlike the other endpoints' ids, a query is arbitrary user text, so it is
+     * JSON-encoded rather than interpolated.
+     */
+    public suspend fun search(query: String): InnerTubeResponse =
+        execute(searchUrl, webContext(" \"query\":" + JsonPrimitive(query)), bearer = null)
 
     /** Follows a continuation token (e.g. loading comments; WEB client, no auth). */
     public suspend fun nextContinuation(continuation: String): InnerTubeResponse =
@@ -93,6 +105,7 @@ public class InnerTubeClient(
         private const val BASE: String = "https://www.youtube.com/youtubei/v1"
         public const val BROWSE_URL: String = "$BASE/browse?prettyPrint=false"
         public const val NEXT_URL: String = "$BASE/next?prettyPrint=false"
+        public const val SEARCH_URL: String = "$BASE/search?prettyPrint=false"
         public const val LIKE_URL: String = "$BASE/like/like?prettyPrint=false"
         public const val DISLIKE_URL: String = "$BASE/like/dislike?prettyPrint=false"
         public const val REMOVE_LIKE_URL: String = "$BASE/like/removelike?prettyPrint=false"

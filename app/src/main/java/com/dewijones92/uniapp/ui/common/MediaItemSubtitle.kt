@@ -16,6 +16,16 @@ fun mediaItemSubtitle(item: MediaItem): String? {
     val date = item.publishedText ?: item.publishedAt?.let {
         DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withZone(ZoneId.systemDefault()).format(it)
     }
-    val duration = item.duration?.let { stringResource(R.string.duration_minutes, it.inWholeMinutes) }
-    return listOfNotNull(item.author, date, duration).joinToString(" · ").ifBlank { null }
+    return mediaSubtitle(item.author, date, item.duration?.inWholeMinutes)
+}
+
+/**
+ * The one place that formats "author · date · duration". Takes the parts rather
+ * than a [MediaItem] so search hits — which aren't media items yet — read
+ * identically to every other list instead of composing their own subtitle.
+ */
+@Composable
+fun mediaSubtitle(author: String?, dateText: String?, durationMinutes: Long?): String? {
+    val duration = durationMinutes?.let { stringResource(R.string.duration_minutes, it) }
+    return listOfNotNull(author, dateText, duration).joinToString(" · ").ifBlank { null }
 }

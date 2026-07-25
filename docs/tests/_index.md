@@ -29,7 +29,7 @@ instead).
 | Search (sources, history), content refresher | JVM unit | `:core:data` |
 | Local playlists, play history | JVM unit | `:core:data` (in-memory store contracts) |
 | Downloads (routed/engine/http strategies) | JVM unit | `:core:data` |
-| InnerTube parsers (feeds/related/comments/…) | JVM unit | `:lib:innertube`, against captured fixtures |
+| InnerTube parsers (feeds/related/comments/search/…) | JVM unit | `:lib:innertube`, against captured fixtures |
 | yt-dlp `BridgeJson` | JVM unit | `:lib:ytdlp-chaquopy` |
 | Room DAOs / stores | instrumented | `:core:database` |
 | `Media3PlaybackController` / service | instrumented + on-device | `:core:playback` |

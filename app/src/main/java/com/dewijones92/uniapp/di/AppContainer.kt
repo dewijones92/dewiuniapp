@@ -21,6 +21,8 @@ import com.dewijones92.uniapp.data.playlist.PlaylistItem
 import com.dewijones92.uniapp.data.playlist.PlaylistPlayback
 import com.dewijones92.uniapp.data.podcast.DefaultPodcastRepository
 import com.dewijones92.uniapp.data.podcast.PodcastRepository
+import com.dewijones92.uniapp.data.search.FallbackSearchSource
+import com.dewijones92.uniapp.data.search.InnerTubeVideoSearchSource
 import com.dewijones92.uniapp.data.search.ItunesPodcastSearchSource
 import com.dewijones92.uniapp.data.search.SearchHistoryStore
 import com.dewijones92.uniapp.data.search.SearchSource
@@ -55,6 +57,7 @@ import com.dewijones92.uniapp.innertube.playlists.HttpYouTubePlaylists
 import com.dewijones92.uniapp.innertube.playlists.YouTubePlaylists
 import com.dewijones92.uniapp.innertube.related.HttpYouTubeRelated
 import com.dewijones92.uniapp.innertube.related.YouTubeRelated
+import com.dewijones92.uniapp.innertube.search.HttpYouTubeSearch
 import com.dewijones92.uniapp.innertube.subscriptions.HttpYouTubeSubscriptions
 import com.dewijones92.uniapp.notifications.SharedPrefsSeenItemsTracker
 import com.dewijones92.uniapp.notifications.YouTubeSubscriptionItemsSource
@@ -231,7 +234,12 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
     }
 
     override val videoSearchSource: SearchSource by lazy {
-        YtDlpVideoSearchSource(ytDlpEngine)
+        // InnerTube first (it carries upload dates and needs no Python); the
+        // engine's ytsearch stays as the fallback if YouTube's shape changes.
+        FallbackSearchSource(
+            primary = InnerTubeVideoSearchSource(HttpYouTubeSearch(innerTubeClient)),
+            fallback = YtDlpVideoSearchSource(ytDlpEngine),
+        )
     }
 
     override val searchHistoryStore: SearchHistoryStore by lazy {

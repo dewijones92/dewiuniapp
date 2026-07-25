@@ -46,6 +46,7 @@ import com.dewijones92.uniapp.di.fake.FakeAppContainer
 import com.dewijones92.uniapp.theme.UniAppTheme
 import com.dewijones92.uniapp.ui.common.EmptyState
 import com.dewijones92.uniapp.ui.common.MediaThumbnail
+import com.dewijones92.uniapp.ui.common.mediaSubtitle
 import com.dewijones92.uniapp.ui.search.SearchViewModel.Results
 import com.dewijones92.uniapp.ui.search.SearchViewModel.UiState
 
@@ -303,10 +304,11 @@ private fun VideoHitRow(
             modifier = Modifier.size(width = VIDEO_HIT_THUMBNAIL_WIDTH, height = VIDEO_HIT_THUMBNAIL_HEIGHT),
         )
         Spacer(Modifier.width(12.dp))
-        val subtitle = listOfNotNull(
-            hit.subtitle,
-            hit.durationSeconds?.let { stringResource(R.string.duration_minutes, it / SECONDS_PER_MINUTE) },
-        ).joinToString(" · ").ifBlank { null }
+        val subtitle = mediaSubtitle(
+            author = hit.subtitle,
+            dateText = hit.publishedText,
+            durationMinutes = hit.durationSeconds?.let { it / SECONDS_PER_MINUTE },
+        )
         HitTitles(hit.title, subtitle, Modifier.weight(1f))
         if (resolving) {
             CircularProgressIndicator(modifier = Modifier.size(20.dp))
