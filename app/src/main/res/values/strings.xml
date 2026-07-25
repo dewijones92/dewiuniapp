@@ -102,6 +102,11 @@
     <string name="shorts_empty">No Shorts in this feed</string>
     <string name="skip_silence">Skip silences</string>
     <string name="auto_play_next">Auto-play next</string>
+    <string name="settings_downloads_section">Downloads</string>
+    <string name="settings_auto_download">Download queued audio</string>
+    <string name="settings_auto_download_summary">Keeps everything in the queue listenable offline.</string>
+    <string name="settings_auto_download_wifi">Wi-Fi only</string>
+    <string name="settings_auto_download_wifi_summary">Never use mobile data for automatic downloads.</string>
     <string name="pillar_video">YouTube</string>
     <string name="pillar_podcast">Podcast</string>
     <string name="comment_hint">Add a comment…</string>

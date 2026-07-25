@@ -36,6 +36,12 @@ public data class DownloadEntity(
     val totalBytes: Long?,
     val localPath: String?,
     val failureReason: String?,
+    /**
+     * Whether the local file is audio only (what the queue's automatic downloads
+     * take). Not shown in the UI; it stops a later request for the full video being
+     * mistaken for "already downloaded".
+     */
+    val audioOnly: Boolean = false,
 )
 
 /**

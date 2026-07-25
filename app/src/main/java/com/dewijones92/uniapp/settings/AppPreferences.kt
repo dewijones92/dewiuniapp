@@ -19,12 +19,18 @@ interface AppPreferences {
     fun setWifiMaxHeight(height: Int)
     fun setCellularMaxHeight(height: Int)
     fun setAutoPlayNext(enabled: Boolean)
+    fun setAutoDownloadQueue(enabled: Boolean)
+    fun setAutoDownloadWifiOnly(enabled: Boolean)
 
     data class Settings(
         val wifiMaxHeight: Int = DEFAULT_WIFI_MAX_HEIGHT,
         val cellularMaxHeight: Int = DEFAULT_CELLULAR_MAX_HEIGHT,
         /** Whether the queue advances when an item ends. On by default. */
         val autoPlayNext: Boolean = true,
+        /** Whether queued items have their audio fetched for offline listening. */
+        val autoDownloadQueue: Boolean = true,
+        /** Restricts automatic downloads to Wi-Fi, so a long queue can't eat data. */
+        val autoDownloadWifiOnly: Boolean = true,
     )
 
     companion object {
@@ -45,6 +51,8 @@ class SharedPrefsAppPreferences(context: Context) : AppPreferences {
             wifiMaxHeight = prefs.getInt(KEY_WIFI, AppPreferences.DEFAULT_WIFI_MAX_HEIGHT),
             cellularMaxHeight = prefs.getInt(KEY_CELLULAR, AppPreferences.DEFAULT_CELLULAR_MAX_HEIGHT),
             autoPlayNext = prefs.getBoolean(KEY_AUTOPLAY, true),
+            autoDownloadQueue = prefs.getBoolean(KEY_AUTO_DOWNLOAD, true),
+            autoDownloadWifiOnly = prefs.getBoolean(KEY_AUTO_DOWNLOAD_WIFI, true),
         ),
     )
     override val settings: StateFlow<AppPreferences.Settings> = _settings.asStateFlow()
@@ -64,10 +72,22 @@ class SharedPrefsAppPreferences(context: Context) : AppPreferences {
         _settings.update { it.copy(autoPlayNext = enabled) }
     }
 
+    override fun setAutoDownloadQueue(enabled: Boolean) {
+        prefs.edit { putBoolean(KEY_AUTO_DOWNLOAD, enabled) }
+        _settings.update { it.copy(autoDownloadQueue = enabled) }
+    }
+
+    override fun setAutoDownloadWifiOnly(enabled: Boolean) {
+        prefs.edit { putBoolean(KEY_AUTO_DOWNLOAD_WIFI, enabled) }
+        _settings.update { it.copy(autoDownloadWifiOnly = enabled) }
+    }
+
     private companion object {
         const val KEY_WIFI = "wifi_max_height"
         const val KEY_CELLULAR = "cellular_max_height"
         const val KEY_AUTOPLAY = "auto_play_next"
+        const val KEY_AUTO_DOWNLOAD = "auto_download_queue"
+        const val KEY_AUTO_DOWNLOAD_WIFI = "auto_download_wifi_only"
     }
 }
 
@@ -78,4 +98,7 @@ class InMemoryAppPreferences : AppPreferences {
     override fun setWifiMaxHeight(height: Int) = _settings.update { it.copy(wifiMaxHeight = height) }
     override fun setCellularMaxHeight(height: Int) = _settings.update { it.copy(cellularMaxHeight = height) }
     override fun setAutoPlayNext(enabled: Boolean) = _settings.update { it.copy(autoPlayNext = enabled) }
+    override fun setAutoDownloadQueue(enabled: Boolean) = _settings.update { it.copy(autoDownloadQueue = enabled) }
+    override fun setAutoDownloadWifiOnly(enabled: Boolean) =
+        _settings.update { it.copy(autoDownloadWifiOnly = enabled) }
 }

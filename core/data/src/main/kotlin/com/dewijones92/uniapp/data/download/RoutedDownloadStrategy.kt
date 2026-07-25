@@ -16,7 +16,7 @@ public class RoutedDownloadStrategy(
     private val fallback: DownloadStrategy,
 ) : DownloadStrategy {
 
-    override fun download(item: MediaItem, target: File): Flow<DownloadState> =
+    override fun download(item: MediaItem, target: File, audioOnly: Boolean): Flow<DownloadState> =
         (routes.firstOrNull { (matches, _) -> matches(item) }?.second ?: fallback)
-            .download(item, target)
+            .download(item, target, audioOnly)
 }

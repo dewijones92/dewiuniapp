@@ -56,7 +56,12 @@ public class FakeYtDlpEngine : YtDlpEngine {
         channels[url]?.let { it.copy(videos = it.videos.take(maxVideos)) }
             ?: ChannelResult.Failure.NotAChannel(url)
 
+    /** The last download asked for — lets tests assert the format selector used. */
+    public var lastRequest: DownloadRequest? = null
+        private set
+
     override fun download(request: DownloadRequest): Flow<DownloadEvent> = flow {
+        lastRequest = request
         emit(DownloadEvent.Started(request.url))
         val metadata = mediaByUrl[request.url]
         if (metadata == null) {

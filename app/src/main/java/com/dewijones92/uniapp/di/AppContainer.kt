@@ -68,6 +68,7 @@ import com.dewijones92.uniapp.playback.PlaybackController
 import com.dewijones92.uniapp.playback.SharedPrefsPlaybackSpeedStore
 import com.dewijones92.uniapp.playback.SleepTimer
 import com.dewijones92.uniapp.queue.PlaybackQueue
+import com.dewijones92.uniapp.queue.QueueAutoDownloader
 import com.dewijones92.uniapp.search.SharedPrefsSearchHistoryStore
 import com.dewijones92.uniapp.settings.AppPreferences
 import com.dewijones92.uniapp.settings.NetworkStatus
@@ -111,6 +112,12 @@ interface AppContainer {
 
     /** Persists the queue so it survives a restart. */
     val queueStore: QueueStore
+
+    /**
+     * Starts fetching the audio of everything in the queue (honouring the
+     * auto-download settings), so the queue is listenable offline.
+     */
+    fun startQueueAutoDownload()
 
     /** User-curated local playlists, mixing podcasts and videos. */
     val localPlaylistStore: LocalPlaylistStore
@@ -283,6 +290,18 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
     }
 
     override val queueStore: QueueStore by lazy { RoomQueueStore(database.queueDao()) }
+
+    override fun startQueueAutoDownload() {
+        QueueAutoDownloader(
+            queue = playbackQueue.upNext,
+            downloads = downloadManager,
+            scope = applicationScope,
+            isEnabled = { appPreferences.settings.value.autoDownloadQueue },
+            isAllowedOnThisNetwork = {
+                !appPreferences.settings.value.autoDownloadWifiOnly || !networkStatus.isMetered()
+            },
+        ).start()
+    }
 
     override val playbackQueue: PlaybackQueue by lazy {
         PlaybackQueue(playbackController, videoPlaybackLauncher, applicationScope, queueStore)

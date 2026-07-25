@@ -25,7 +25,7 @@ public class RoomDownloadStore(private val dao: DownloadDao) : DownloadStore {
 
     private fun DownloadEntity.toState(): DownloadState = when (status) {
         STATUS_DOWNLOADING -> DownloadState.Downloading(downloadedBytes, totalBytes)
-        STATUS_DOWNLOADED -> DownloadState.Downloaded(localPath.orEmpty())
+        STATUS_DOWNLOADED -> DownloadState.Downloaded(localPath.orEmpty(), audioOnly)
         STATUS_FAILED -> DownloadState.Failed(failureReason.orEmpty())
         else -> DownloadState.NotDownloaded
     }
@@ -36,7 +36,7 @@ public class RoomDownloadStore(private val dao: DownloadDao) : DownloadStore {
         is DownloadState.Downloading ->
             DownloadEntity(id, STATUS_DOWNLOADING, downloadedBytes, totalBytes, null, null)
         is DownloadState.Downloaded ->
-            DownloadEntity(id, STATUS_DOWNLOADED, 0, null, localPath, null)
+            DownloadEntity(id, STATUS_DOWNLOADED, 0, null, localPath, null, audioOnly)
         is DownloadState.Failed ->
             DownloadEntity(id, STATUS_FAILED, 0, null, null, reason)
     }

@@ -25,7 +25,7 @@ public class EngineDownloadStrategy(
     private val sponsorBlockCategories: Set<String> = emptySet(),
 ) : DownloadStrategy {
 
-    override fun download(item: MediaItem, target: File): Flow<DownloadState> = flow {
+    override fun download(item: MediaItem, target: File, audioOnly: Boolean): Flow<DownloadState> = flow {
         val url = item.mediaUrl
         if (url == null) {
             emit(DownloadState.Failed("Nothing to download"))
@@ -39,7 +39,7 @@ public class EngineDownloadStrategy(
             val request = DownloadRequest(
                 url = url,
                 targetDirectory = work,
-                formatId = BEST_MERGED,
+                formatId = if (audioOnly) BEST_AUDIO else BEST_MERGED,
                 sponsorBlockCategories = sponsorBlockCategories,
             )
             engine.download(request).collect { event ->
@@ -51,7 +51,9 @@ public class EngineDownloadStrategy(
                         // Same filesystem (temp dir is under target's parent), so a
                         // rename is instant; copy only if the platform refuses it.
                         if (!event.file.renameTo(target)) event.file.copyTo(target, overwrite = true)
-                        emit(DownloadState.Downloaded(target.absolutePath))
+                        // Stamp the variant so a later request for the full video isn't
+                        // mistaken for satisfied by an audio-only file.
+                        emit(DownloadState.Downloaded(target.absolutePath, audioOnly = audioOnly))
                     }
                     is DownloadEvent.Failed -> emit(DownloadState.Failed(event.reason.toString()))
                 }
@@ -71,6 +73,9 @@ public class EngineDownloadStrategy(
     public companion object {
         /** Best video + best audio, merged; falls back to the best single stream. */
         private const val BEST_MERGED = "bv*+ba/b"
+
+        /** Best audio-only stream, no merge needed — small and quick. */
+        private const val BEST_AUDIO = "ba/b"
 
         private val STREAMING_HOSTS = listOf("youtube.com", "youtu.be")
 

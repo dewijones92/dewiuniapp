@@ -21,6 +21,8 @@ class UniAppApplication : Application(), SingletonImageLoader.Factory {
         container.startWatchHistorySync()
         // Load the account's subscribed channels (read live, never copied locally).
         container.refreshSubscriptions()
+        // Keep the queue listenable offline: fetch each queued item's audio.
+        container.startQueueAutoDownload()
         // Periodically check every subscription (both pillars) and notify on new content.
         NewContentWorker.schedule(this)
     }

@@ -16,6 +16,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -97,6 +98,7 @@ fun SettingsScreen(container: AppContainer, onBack: () -> Unit, modifier: Modifi
                 current = settings.cellularMaxHeight,
                 onSelect = prefs::setCellularMaxHeight,
             )
+            DownloadSettings(settings, prefs)
             Text(
                 text = stringResource(R.string.settings_subscriptions_section),
                 style = MaterialTheme.typography.titleMedium,
@@ -107,6 +109,60 @@ fun SettingsScreen(container: AppContainer, onBack: () -> Unit, modifier: Modifi
                 onClick = { showImportExport = true },
             )
         }
+    }
+}
+
+/** Automatic-download preferences: whether, and on which networks. */
+@Composable
+private fun DownloadSettings(settings: AppPreferences.Settings, prefs: AppPreferences) {
+    SectionTitle(stringResource(R.string.settings_downloads_section))
+    SwitchRow(
+        label = stringResource(R.string.settings_auto_download),
+        summary = stringResource(R.string.settings_auto_download_summary),
+        checked = settings.autoDownloadQueue,
+        onCheckedChange = prefs::setAutoDownloadQueue,
+    )
+    SwitchRow(
+        label = stringResource(R.string.settings_auto_download_wifi),
+        summary = stringResource(R.string.settings_auto_download_wifi_summary),
+        checked = settings.autoDownloadWifiOnly,
+        onCheckedChange = prefs::setAutoDownloadWifiOnly,
+        enabled = settings.autoDownloadQueue,
+    )
+}
+
+@Composable
+private fun SectionTitle(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleMedium,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+    )
+}
+
+@Composable
+private fun SwitchRow(
+    label: String,
+    summary: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    enabled: Boolean = true,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(text = label, style = MaterialTheme.typography.bodyLarge)
+            Text(
+                text = summary,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Switch(checked = checked, onCheckedChange = onCheckedChange, enabled = enabled)
     }
 }
 

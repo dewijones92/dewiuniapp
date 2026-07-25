@@ -24,7 +24,7 @@ class RoutedDownloadStrategyTest {
     )
 
     private fun labelled(label: String) =
-        DownloadStrategy { _, _ -> flowOf(DownloadState.Downloaded(label)) }
+        DownloadStrategy { _, _, _ -> flowOf(DownloadState.Downloaded(label)) }
 
     private val routed = RoutedDownloadStrategy(
         routes = listOf({ i: MediaItem -> i.mediaUrl?.value?.contains("match") == true } to labelled("routed")),
@@ -33,13 +33,13 @@ class RoutedDownloadStrategyTest {
 
     @Test
     fun `uses the first matching route`() = runTest {
-        val state = routed.download(item("https://x/match"), File("t")).first()
+        val state = routed.download(item("https://x/match"), File("t"), audioOnly = false).first()
         assertEquals("routed", (state as DownloadState.Downloaded).localPath)
     }
 
     @Test
     fun `falls back when no route matches`() = runTest {
-        val state = routed.download(item("https://x/other"), File("t")).first()
+        val state = routed.download(item("https://x/other"), File("t"), audioOnly = false).first()
         assertEquals("fallback", (state as DownloadState.Downloaded).localPath)
     }
 }

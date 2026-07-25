@@ -38,15 +38,25 @@ public class DefaultDownloadManager(
     override fun observe(id: MediaItemId): Flow<DownloadState> =
         store.observeAll().map { it[id] ?: DownloadState.NotDownloaded }.distinctUntilChanged()
 
-    override suspend fun download(item: MediaItem) {
-        val existing = store.get(item.id)
-        if (existing is DownloadState.Downloaded || existing is DownloadState.Downloading) return
+    override suspend fun download(item: MediaItem, audioOnly: Boolean) {
+        if (store.get(item.id).satisfies(audioOnly)) return
 
         store.put(item.id, DownloadState.Downloading(0, null))
         val target = File(downloadDir.apply { mkdirs() }, item.id.fileName())
         scope.launch {
-            strategy.download(item, target).collect { state -> store.put(item.id, state) }
+            strategy.download(item, target, audioOnly).collect { state -> store.put(item.id, state) }
         }
+    }
+
+    /**
+     * Whether an existing record already covers a request. An audio-only file does
+     * NOT cover a request for the full media — otherwise the queue's automatic audio
+     * download would make "Download" look done when the video was never fetched.
+     */
+    private fun DownloadState.satisfies(audioOnly: Boolean): Boolean = when (this) {
+        is DownloadState.Downloading -> true
+        is DownloadState.Downloaded -> audioOnly || !this.audioOnly
+        else -> false
     }
 
     override suspend fun delete(id: MediaItemId) {

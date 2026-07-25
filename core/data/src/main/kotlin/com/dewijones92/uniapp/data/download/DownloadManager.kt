@@ -18,8 +18,13 @@ public interface DownloadManager {
     /** State of a single item (defaults to NotDownloaded). */
     public fun observe(id: MediaItemId): Flow<DownloadState>
 
-    /** Starts downloading [item]; progress is observable via [observe]. Idempotent. */
-    public suspend fun download(item: MediaItem)
+    /**
+     * Starts downloading [item]; progress is observable via [observe]. Idempotent —
+     * except that an existing **audio-only** download does not satisfy a request for
+     * the full media, so asking for video after the queue auto-downloaded the audio
+     * re-fetches rather than silently reporting "already downloaded".
+     */
+    public suspend fun download(item: MediaItem, audioOnly: Boolean = false)
 
     /** Removes the local file and forgets the download. */
     public suspend fun delete(id: MediaItemId)

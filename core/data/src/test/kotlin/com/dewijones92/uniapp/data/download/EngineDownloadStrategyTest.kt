@@ -37,7 +37,7 @@ class EngineDownloadStrategyTest {
         engine.registerMedia(watchUrl, FakeYtDlpEngine.sampleMetadata(id = "abc"))
         val target = temp.newFile("out.media")
 
-        val states = EngineDownloadStrategy(engine).download(videoItem(), target).toList()
+        val states = EngineDownloadStrategy(engine).download(videoItem(), target, audioOnly = false).toList()
 
         assertTrue(states.first() is DownloadState.Downloading)
         val done = states.last() as DownloadState.Downloaded
@@ -50,7 +50,7 @@ class EngineDownloadStrategyTest {
     @Test
     fun `reports failure when the item has no url`() = runTest {
         val states = EngineDownloadStrategy(engine)
-            .download(videoItem(url = null), temp.newFile("x.media")).toList()
+            .download(videoItem(url = null), temp.newFile("x.media"), audioOnly = false).toList()
 
         assertTrue(states.single() is DownloadState.Failed)
     }
@@ -58,7 +58,7 @@ class EngineDownloadStrategyTest {
     @Test
     fun `surfaces an engine failure for an unresolvable video`() = runTest {
         val states = EngineDownloadStrategy(engine)
-            .download(videoItem(), temp.newFile("x.media")).toList()
+            .download(videoItem(), temp.newFile("x.media"), audioOnly = false).toList()
 
         assertTrue(states.last() is DownloadState.Failed)
     }
@@ -69,5 +69,17 @@ class EngineDownloadStrategyTest {
         assertTrue(EngineDownloadStrategy.handles(videoItem(HttpUrl.of("https://youtu.be/abc"))))
         assertFalse(EngineDownloadStrategy.handles(videoItem(HttpUrl.of("https://cdn.example.com/a.mp3"))))
         assertFalse(EngineDownloadStrategy.handles(videoItem(url = null)))
+    }
+
+    @Test
+    fun `an audio-only download asks for bestaudio and records the variant`() = runTest {
+        engine.registerMedia(watchUrl, FakeYtDlpEngine.sampleMetadata(id = "abc"))
+        val target = temp.newFile("out.media")
+
+        val states = EngineDownloadStrategy(engine).download(videoItem(), target, audioOnly = true).toList()
+
+        assertEquals("ba/b", engine.lastRequest?.formatId)
+        val done = states.last() as DownloadState.Downloaded
+        assertTrue("an audio-only file must be marked as such", done.audioOnly)
     }
 }

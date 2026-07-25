@@ -19,9 +19,15 @@ public class FakeDownloadManager : DownloadManager {
     override fun observe(id: MediaItemId): Flow<DownloadState> =
         downloads.map { it[id] ?: DownloadState.NotDownloaded }
 
-    override suspend fun download(item: MediaItem) {
-        downloads.update { it + (item.id to DownloadState.Downloaded("/fake/${item.id.value}.media")) }
+    override suspend fun download(item: MediaItem, audioOnly: Boolean) {
+        requested.add(item.id to audioOnly)
+        downloads.update {
+            it + (item.id to DownloadState.Downloaded("/fake/${item.id.value}.media", audioOnly = audioOnly))
+        }
     }
+
+    /** Every item asked for, in order, with the variant requested — for assertions. */
+    public val requested: MutableList<Pair<MediaItemId, Boolean>> = mutableListOf()
 
     override suspend fun delete(id: MediaItemId) {
         downloads.update { it - id }

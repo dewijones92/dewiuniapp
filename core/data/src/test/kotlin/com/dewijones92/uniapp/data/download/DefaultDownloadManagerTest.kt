@@ -43,7 +43,7 @@ class DefaultDownloadManagerTest {
 
     @Test
     fun `download records progress then completion`() = runTest {
-        val strategy = DownloadStrategy { _, target ->
+        val strategy = DownloadStrategy { _, target, _ ->
             flowOf(
                 DownloadState.Downloading(500, 1000),
                 DownloadState.Downloaded(target.absolutePath),
@@ -60,7 +60,7 @@ class DefaultDownloadManagerTest {
     fun `already-downloaded item is not re-downloaded`() = runTest {
         store.put(item.id, DownloadState.Downloaded("/somewhere.media"))
         var called = false
-        val strategy = DownloadStrategy { _, _ ->
+        val strategy = DownloadStrategy { _, _, _ ->
             called = true
             flowOf()
         }
@@ -75,7 +75,7 @@ class DefaultDownloadManagerTest {
         store.put(item.id, DownloadState.Downloading(500, 1000))
 
         // Unconfined so the manager's init cleanup runs eagerly at construction.
-        manager(DownloadStrategy { _, _ -> flowOf() }, CoroutineScope(UnconfinedTestDispatcher(testScheduler)))
+        manager(DownloadStrategy { _, _, _ -> flowOf() }, CoroutineScope(UnconfinedTestDispatcher(testScheduler)))
         advanceUntilIdle()
 
         assertEquals(DownloadState.NotDownloaded, store.get(item.id))
@@ -86,10 +86,50 @@ class DefaultDownloadManagerTest {
         val file = tempFolder.newFile("dl.media").apply { writeText("data") }
         store.put(item.id, DownloadState.Downloaded(file.absolutePath))
 
-        manager(DownloadStrategy { _, _ -> flowOf() }, backgroundScope).delete(item.id)
+        manager(DownloadStrategy { _, _, _ -> flowOf() }, backgroundScope).delete(item.id)
 
         assertFalse(file.exists())
         assertEquals(DownloadState.NotDownloaded, store.get(item.id))
+    }
+
+    @Test
+    fun `an audio-only download does not satisfy a later request for the full media`() = runTest {
+        val requested = mutableListOf<Boolean>()
+        val manager = manager(
+            DownloadStrategy { _, target, audioOnly ->
+                requested.add(audioOnly)
+                flowOf(DownloadState.Downloaded(target.path, audioOnly = audioOnly))
+            },
+            CoroutineScope(UnconfinedTestDispatcher(testScheduler)),
+        )
+
+        manager.download(item, audioOnly = true)
+        advanceUntilIdle()
+        manager.download(item, audioOnly = false)
+        advanceUntilIdle()
+
+        // Both ran: the queue's audio grab must not make "Download" look done.
+        assertEquals(listOf(true, false), requested)
+        assertEquals(false, (manager.observe(item.id).first() as DownloadState.Downloaded).audioOnly)
+    }
+
+    @Test
+    fun `a full download satisfies a later audio-only request`() = runTest {
+        val requested = mutableListOf<Boolean>()
+        val manager = manager(
+            DownloadStrategy { _, target, audioOnly ->
+                requested.add(audioOnly)
+                flowOf(DownloadState.Downloaded(target.path, audioOnly = audioOnly))
+            },
+            CoroutineScope(UnconfinedTestDispatcher(testScheduler)),
+        )
+
+        manager.download(item, audioOnly = false)
+        advanceUntilIdle()
+        manager.download(item, audioOnly = true)
+        advanceUntilIdle()
+
+        assertEquals(listOf(false), requested)
     }
 }
 

@@ -1,7 +1,7 @@
 ---
 title: Auto-download audio for everything in the queue
 kind: todo
-status: ready
+status: in-progress
 area: downloads
 priority: high
 requested: 2026-07-24
@@ -65,3 +65,50 @@ audio-only file.
 **Done when:** an item entering the queue downloads its audio by itself (honouring
 the settings), its row shows progress then downloaded, and playback uses the local
 file offline.
+
+## Shipped 2026-07-25
+
+- **Audio-only download variant.** `DownloadStrategy.download(item, target, audioOnly)`;
+  the engine strategy selects `ba/b` (bestaudio, no ffmpeg merge) instead of
+  `bv*+ba/b`. `HttpDownloadStrategy` ignores the flag — a podcast enclosure *is* the
+  audio, which also makes its recorded variant correctly "full".
+- **The variant is persisted** (`downloads.audioOnly`, DB v11) and
+  `DefaultDownloadManager` treats an audio-only file as **not** satisfying a request
+  for the full media. Two tests lock both directions.
+- **`QueueAutoDownloader`** observes the queue and fetches each item's audio
+  sequentially (a long queue must not saturate the connection or starve playback),
+  skipping already-downloaded/downloading items, local files, and items with no
+  fetchable URL yet. Started from `UniAppApplication`.
+- **Settings** (Settings → Downloads): "Download queued audio" (default on) and
+  "Wi-Fi only" (default on, disabled when auto-download is off).
+
+### Verified on-device
+
+- v10 → v11 migrated cleanly (`audioOnly` column present, no crash).
+- Queuing a podcast episode auto-downloaded it (117MB enclosure) → `downloaded`,
+  variant recorded as full (correct — an enclosure is the whole thing).
+- Queuing a **video** auto-downloaded its audio → `downloaded` with **audioOnly=1**.
+  (Caught while testing: the engine strategy initially failed to stamp the variant on
+  its finished state, which would have re-opened the exact trap the flag exists to
+  prevent. Fixed and covered by a test.)
+
+## Open UX question this exposes — how do I get the full video offline?
+
+You asked for **no GUI distinction** between an automatic and a manual download. The
+consequence: once the queue has grabbed a video's audio, its row shows the
+"downloaded" tick, and tapping that tick **deletes** — so there is no longer any way
+from the row to ask for the full video offline. The manager would honour such a
+request; the UI just can't express it.
+
+Three honest options:
+
+1. **Getting the video is the audio↔video switch's job**, not the Download button
+   (see [audio-video-switching](audio-video-switching.md)): downloads exist for
+   listening, watching offline isn't promised. Coherent, and needs no UI change.
+2. **Show audio-only downloads as not-downloaded** in the row, so Download still
+   offers the full video — but then the tick lies about what's offline.
+3. **A small distinction after all** (e.g. a headphones-tinted tick), reversing the
+   "one Downloaded state" decision.
+
+My preference is (1), with (3) as the fallback if you want full-video offline to be a
+first-class action. Not guessed — flagged.

@@ -107,6 +107,8 @@ class FakeAppContainer(
 ) : AppContainer {
     override fun refreshExtractorEngine() = Unit
 
+    override fun startQueueAutoDownload() = Unit
+
     override fun startWatchHistorySync() = Unit
 
     override fun refreshSubscriptions() = Unit

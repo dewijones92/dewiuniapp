@@ -25,8 +25,15 @@ public sealed interface DownloadState {
             get() = totalBytes?.takeIf { it > 0 }?.let { (downloadedBytes.toFloat() / it).coerceIn(0f, 1f) }
     }
 
-    /** Complete and playable offline from [localPath]. */
-    public data class Downloaded(val localPath: String) : DownloadState {
+    /**
+     * Complete and playable offline from [localPath].
+     *
+     * [audioOnly] marks a file fetched as audio only — what the queue's automatic
+     * downloads take, since they exist so you can *listen* offline. It is not shown
+     * in the UI (a download is a download); it exists so that asking for the full
+     * video afterwards isn't mistaken for "already downloaded".
+     */
+    public data class Downloaded(val localPath: String, val audioOnly: Boolean = false) : DownloadState {
         init {
             require(localPath.isNotBlank()) { "localPath must not be blank" }
         }

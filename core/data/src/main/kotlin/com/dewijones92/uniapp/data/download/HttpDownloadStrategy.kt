@@ -17,7 +17,8 @@ import java.io.IOException
  */
 public class HttpDownloadStrategy(private val client: OkHttpClient) : DownloadStrategy {
 
-    override fun download(item: MediaItem, target: File): Flow<DownloadState> = flow {
+    // audioOnly is moot here: a podcast enclosure is the audio.
+    override fun download(item: MediaItem, target: File, audioOnly: Boolean): Flow<DownloadState> = flow {
         val url = item.mediaUrl
         if (url == null) {
             emit(DownloadState.Failed("Nothing to download"))
