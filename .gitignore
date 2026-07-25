@@ -14,7 +14,8 @@ build/
 local.properties
 
 # Never commit signing material. The release key lives outside this repo
-# (~/code/dewiuniapp-signing), in Actions secrets, and in the private backup repo —
+# (~/code/dewiuniapp-signing — kept its old name deliberately), in Actions secrets,
+# and in the private backup repo —
 # these patterns are the safety net against a stray local copy.
 *.jks
 *.keystore

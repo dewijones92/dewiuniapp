@@ -6,7 +6,7 @@
 # cheap hedge for future audio extraction.
 set -euo pipefail
 
-WORK=/home/dewi/code/dewiuniapp-ffmpeg-build
+WORK=/home/dewi/code/totum-ffmpeg-build
 SRC="$WORK/ffmpeg-7.1.1"
 NDK=/home/dewi/code/android-sdk/ndk/28.2.13676358
 TOOLCHAIN="$NDK/toolchains/llvm/prebuilt/linux-x86_64"
