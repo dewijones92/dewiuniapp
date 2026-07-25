@@ -126,11 +126,25 @@ internal class SilenceDetectingAudioProcessor(
         const val SILENCE_LOG_EVERY = 50L
 
         /**
-         * Consecutive quiet buffers before we call it silence. A buffer here measured
-         * ~25ms, so this is ~150ms — again matching Media3's own minimum, and short
-         * enough that a real pause is caught while a gap between words isn't.
+         * Consecutive quiet buffers before we call it silence. A buffer measured ~25ms, so
+         * this is ~500ms.
+         *
+         * It was 6 (~150ms), copying Media3's own minimum, with a comment asserting that a
+         * gap between words wouldn't trip it. Measurement said otherwise: on a 160-minute
+         * podcast-style video this fired **242 times in 90 seconds**, flapping 1x/4x within
+         * milliseconds —
+         *
+         *     19:44:00.894 silent=true  speed=4.0
+         *     19:44:00.974 silent=false speed=1.0
+         *     19:44:00.994 silent=true  speed=4.0
+         *
+         * Every change reconfigures the audio sink, which is heard as stutter and, on a
+         * phone with a slower link, drags the buffer down. Inter-word gaps run 50-200ms
+         * while real dead air runs past half a second, so raising the threshold separates
+         * them. Leaving silence stays immediate — hysteresis on the way out would clip the
+         * first syllable of speech, which is a worse bug than the one being fixed.
          */
-        const val BUFFERS_TO_ENTER = 6
+        const val BUFFERS_TO_ENTER = 20
 
         /** Bytes between sampled frames (2 bytes per sample, so this is every 32nd frame). */
         const val STRIDE_BYTES = 64
