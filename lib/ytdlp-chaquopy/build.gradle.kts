@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.dewijones92.uniapp.ytdlp.chaquopy"
+    namespace = "com.dewijones92.totum.ytdlp.chaquopy"
     defaultConfig {
         ndk {
             abiFilters += listOf("arm64-v8a", "x86_64")

@@ -4,7 +4,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
 
     <application
-        android:name=".UniAppApplication"
+        android:name=".TotumApplication"
         android:networkSecurityConfig="@xml/network_security_config"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@mipmap/ic_launcher"
@@ -12,11 +12,11 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:windowSoftInputMode="adjustResize"
-        android:theme="@style/Theme.UniApp">
+        android:theme="@style/Theme.Totum">
         <!-- Cast: tells the framework where to find our CastOptions. -->
         <meta-data
             android:name="com.google.android.gms.cast.framework.OPTIONS_PROVIDER_CLASS_NAME"
-            android:value="com.dewijones92.uniapp.cast.CastOptionsProvider" />
+            android:value="com.dewijones92.totum.cast.CastOptionsProvider" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

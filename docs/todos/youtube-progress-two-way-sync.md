@@ -39,9 +39,9 @@ Nothing reads a position back from YouTube. Grep for `resumePosition` /
 `startTimeSeconds` / resume-overlay parsing finds nothing outside this note. The
 app's resume is entirely local (`PlaybackProgressStore`, Room), so:
 
-- Watch 10 minutes on the TV, open UniApp → it starts from 0 (or from *its own*
+- Watch 10 minutes on the TV, open Totum → it starts from 0 (or from *its own*
   saved position).
-- Two devices both running UniApp don't converge either; each has its own local
+- Two devices both running Totum don't converge either; each has its own local
   store.
 
 ## What two-way would take

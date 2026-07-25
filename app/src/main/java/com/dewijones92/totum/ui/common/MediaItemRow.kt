@@ -1,0 +1,337 @@
+package com.dewijones92.totum.ui.common
+
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
+import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
+import androidx.compose.material.icons.automirrored.filled.QueueMusic
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.Headphones
+import androidx.compose.material.icons.outlined.RadioButtonUnchecked
+import androidx.compose.material.icons.outlined.SmartDisplay
+import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import com.dewijones92.totum.R
+import com.dewijones92.totum.domain.DownloadState
+import com.dewijones92.totum.domain.MediaContentKind
+import com.dewijones92.totum.domain.MediaItem
+import com.dewijones92.totum.domain.MediaKind
+import com.dewijones92.totum.domain.PlayState
+
+// A 16:9 leading thumbnail — the shape video stills want; square podcast art
+// centre-crops into it cleanly.
+private const val TITLE_MAX_LINES = 2
+
+private val THUMBNAIL_WIDTH = 96.dp
+private val THUMBNAIL_HEIGHT = 54.dp
+
+/**
+ * One media item in a list — used identically for podcast episodes and any
+ * other [MediaItem]. Tapping the row plays it; the leading [MediaThumbnail]
+ * shows its artwork; the trailing control reflects and drives its offline
+ * [DownloadState]. Long-press (or the ⋮) opens a bottom sheet of its actions.
+ *
+ * Every row states what it is: its [pillar], whether it's held offline, and its
+ * [playState]. [pillar] is required rather than inferred — mixed lists know it from
+ * the item's `PlayHandle` and single-pillar screens know it outright, so guessing from
+ * a URL would be both lossy and unnecessary.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun MediaItemRow(
+    item: MediaItem,
+    subtitle: String?,
+    downloadState: DownloadState,
+    pillar: MediaKind,
+    onPlay: () -> Unit,
+    onDownload: () -> Unit,
+    onDeleteDownload: () -> Unit,
+    modifier: Modifier = Modifier,
+    onPlayNext: (() -> Unit)? = null,
+    onAddToQueue: (() -> Unit)? = null,
+    onAddToPlaylist: (() -> Unit)? = null,
+    onRemoveFromPlaylist: (() -> Unit)? = null,
+    onPeek: (() -> Unit)? = null,
+    /**
+     * Offered when the row's local copy is audio only (what the queue fetches
+     * automatically): the tick already means "offline", so without this there'd be no
+     * way left to ask for the picture too.
+     */
+    onDownloadVideo: (() -> Unit)? = null,
+    /** Switches between listening and watching (and sets the mode); videos only. */
+    onSwitchMode: (() -> Unit)? = null,
+    /** True when the mode is audio, so the action reads "Watch with video" instead. */
+    audioMode: Boolean = false,
+    /** Defaults to the app-wide play state, so no screen has to plumb it. */
+    playState: PlayState = LocalPlayStates.current[item.id] ?: PlayState.Unplayed,
+    /** Marks the item played or unplayed by hand — AntennaPod's most-used action. */
+    onSetPlayed: ((Boolean) -> Unit)? = LocalSetPlayed.current?.let { set -> { played -> set(item.id, played) } },
+    onGoToSource: (() -> Unit)? = null,
+    /** Label for [onGoToSource] — the host knows its pillar ("channel" vs "podcast"). */
+    goToSourceLabelRes: Int = R.string.go_to_channel,
+    /**
+     * Replaces the download control for rows whose trailing affordances are about
+     * something else — the queue's reorder/remove buttons, for instance.
+     */
+    trailing: (@Composable () -> Unit)? = null,
+) {
+    var showSheet by remember { mutableStateOf(false) }
+    val audioOnlyLocally = (downloadState as? DownloadState.Downloaded)?.audioOnly == true
+    val downloadVideo = onDownloadVideo?.takeIf { audioOnlyLocally }
+    val hasMenu = listOf(
+        onPlayNext,
+        onAddToQueue,
+        onAddToPlaylist,
+        onRemoveFromPlaylist,
+        onPeek,
+        downloadVideo,
+        onGoToSource,
+        onSetPlayed,
+    ).any { it != null }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier
+            .fillMaxWidth()
+            .combinedClickable(
+                enabled = item.mediaUrl != null || hasMenu,
+                onClick = { if (item.mediaUrl != null) onPlay() },
+                onLongClick = if (hasMenu) ({ showSheet = true }) else null,
+            )
+            .padding(16.dp),
+    ) {
+        ThumbnailWithProgress(item, playState)
+        Spacer(Modifier.width(12.dp))
+        TitleAndSubtitle(item, subtitle, pillar, playState, downloadState, Modifier.weight(1f))
+        if (hasMenu) {
+            IconButton(onClick = { showSheet = true }) {
+                Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.queue_menu))
+            }
+        }
+        if (trailing != null) trailing() else DownloadControl(downloadState, onDownload, onDeleteDownload)
+    }
+    if (showSheet) {
+        ActionSheet(
+            title = item.title,
+            onPlayNext = onPlayNext,
+            onAddToQueue = onAddToQueue,
+            onAddToPlaylist = onAddToPlaylist,
+            onRemoveFromPlaylist = onRemoveFromPlaylist,
+            onPeek = onPeek,
+            onDownloadVideo = downloadVideo,
+            onSwitchMode = onSwitchMode,
+            audioMode = audioMode,
+            onGoToSource = onGoToSource,
+            goToSourceLabelRes = goToSourceLabelRes,
+            onSetPlayed = onSetPlayed,
+            played = playState.isPlayed,
+            onDismiss = { showSheet = false },
+        )
+    }
+}
+
+/** The artwork with a progress sliver beneath it, so "you are here" needs no words. */
+@Composable
+private fun ThumbnailWithProgress(item: MediaItem, playState: PlayState) {
+    Column {
+        MediaThumbnail(
+            url = item.thumbnailUrl,
+            contentDescription = item.title,
+            modifier = Modifier.size(width = THUMBNAIL_WIDTH, height = THUMBNAIL_HEIGHT),
+        )
+        PlayProgressSliver(playState, Modifier.width(THUMBNAIL_WIDTH))
+    }
+}
+
+@Composable
+private fun TitleAndSubtitle(
+    item: MediaItem,
+    subtitle: String?,
+    pillar: MediaKind,
+    playState: PlayState,
+    downloadState: DownloadState,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier) {
+        if (item.contentKind != MediaContentKind.STANDARD) {
+            ContentKindBadge(item.contentKind)
+            Spacer(Modifier.height(2.dp))
+        }
+        Text(
+            text = item.title,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+            // Two lines keeps a list scannable; long podcast titles were running to
+            // five, which made every row a paragraph.
+            maxLines = TITLE_MAX_LINES,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.alpha(playedTitleAlpha(playState)),
+        )
+        subtitle?.let {
+            Text(
+                text = it,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        MediaItemStatus(pillar, playState, downloadState, StatusRowSpacing)
+    }
+}
+
+/**
+ * Long-press / overflow action sheet — a Material 3 bottom sheet of the actions
+ * available for the row (what apps like YouTube use). Only non-null actions show.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ActionSheet(
+    title: String,
+    onPlayNext: (() -> Unit)?,
+    onAddToQueue: (() -> Unit)?,
+    onAddToPlaylist: (() -> Unit)?,
+    onRemoveFromPlaylist: (() -> Unit)?,
+    onPeek: (() -> Unit)?,
+    onDownloadVideo: (() -> Unit)?,
+    onSwitchMode: (() -> Unit)?,
+    audioMode: Boolean,
+    onGoToSource: (() -> Unit)?,
+    goToSourceLabelRes: Int,
+    onSetPlayed: ((Boolean) -> Unit)?,
+    played: Boolean,
+    onDismiss: () -> Unit,
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+        )
+        SheetAction(onPlayNext, Icons.AutoMirrored.Filled.PlaylistPlay, R.string.queue_play_next, onDismiss)
+        SheetAction(onAddToQueue, Icons.AutoMirrored.Filled.QueueMusic, R.string.queue_add, onDismiss)
+        SheetAction(onAddToPlaylist, Icons.AutoMirrored.Filled.PlaylistAdd, R.string.playlist_add_to, onDismiss)
+        SheetAction(onRemoveFromPlaylist, Icons.Filled.Delete, R.string.playlist_remove_from, onDismiss)
+        SheetAction(onPeek, Icons.Outlined.Visibility, R.string.queue_peek, onDismiss)
+        SheetAction(onDownloadVideo, Icons.Outlined.Download, R.string.download_video, onDismiss)
+        SheetAction(
+            onSwitchMode,
+            if (audioMode) Icons.Outlined.SmartDisplay else Icons.Outlined.Headphones,
+            if (audioMode) R.string.play_with_video else R.string.play_audio_only,
+            onDismiss,
+        )
+        SheetAction(onGoToSource, Icons.Filled.AccountCircle, goToSourceLabelRes, onDismiss)
+        SheetAction(
+            onSetPlayed?.let { { it(!played) } },
+            if (played) Icons.Outlined.RadioButtonUnchecked else Icons.Outlined.CheckCircle,
+            if (played) R.string.mark_unplayed else R.string.mark_played,
+            onDismiss,
+        )
+        Spacer(Modifier.height(16.dp))
+    }
+}
+
+@Composable
+private fun SheetAction(action: (() -> Unit)?, icon: ImageVector, labelRes: Int, onDismiss: () -> Unit) {
+    action?.let {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {
+                    onDismiss()
+                    it()
+                }
+                .padding(horizontal = 24.dp, vertical = 14.dp),
+        ) {
+            Icon(icon, contentDescription = null, modifier = Modifier.padding(end = 24.dp))
+            Text(stringResource(labelRes), style = MaterialTheme.typography.bodyLarge)
+        }
+    }
+}
+
+/** A small pill tagging a live stream or a Short in the unified feed. */
+@Composable
+private fun ContentKindBadge(kind: MediaContentKind) {
+    val (label, color) = when (kind) {
+        MediaContentKind.LIVE -> stringResource(R.string.tag_live) to MaterialTheme.colorScheme.error
+        MediaContentKind.SHORT -> stringResource(R.string.tag_short) to MaterialTheme.colorScheme.tertiary
+        MediaContentKind.STANDARD -> return
+    }
+    Text(
+        text = label,
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.surface,
+        modifier = Modifier
+            .clip(RoundedCornerShape(4.dp))
+            .background(color)
+            .padding(horizontal = 6.dp, vertical = 1.dp),
+    )
+}
+
+@Composable
+private fun DownloadControl(
+    state: DownloadState,
+    onDownload: () -> Unit,
+    onDeleteDownload: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    when (state) {
+        DownloadState.NotDownloaded, is DownloadState.Failed ->
+            IconButton(onClick = onDownload, modifier = modifier) {
+                Icon(Icons.Outlined.Download, contentDescription = stringResource(R.string.download))
+            }
+        is DownloadState.Downloading ->
+            CircularProgressIndicator(
+                progress = { state.fraction ?: 0f },
+                modifier = modifier
+                    .padding(12.dp)
+                    .size(20.dp),
+            )
+        is DownloadState.Downloaded ->
+            IconButton(onClick = onDeleteDownload, modifier = modifier) {
+                Icon(
+                    Icons.Filled.CheckCircle,
+                    contentDescription = stringResource(R.string.downloaded_delete),
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            }
+    }
+}

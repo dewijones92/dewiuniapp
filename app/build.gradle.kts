@@ -6,9 +6,9 @@ plugins {
 
 // compileSdk/minSdk, Java level, and lint policy come from the root build's androidDefaults.
 android {
-    namespace = "com.dewijones92.uniapp"
+    namespace = "com.dewijones92.totum"
     defaultConfig {
-        applicationId = "com.dewijones92.uniapp"
+        applicationId = "com.dewijones92.totum"
         targetSdk = libs.versions.targetSdk.get().toInt()
         // CI passes monotonically increasing values (-PversionCode / -PversionName)
         // so Obtainium sees every main-tip build as an upgrade.

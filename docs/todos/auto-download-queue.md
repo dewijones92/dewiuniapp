@@ -78,7 +78,7 @@ file offline.
 - **`QueueAutoDownloader`** observes the queue and fetches each item's audio
   sequentially (a long queue must not saturate the connection or starve playback),
   skipping already-downloaded/downloading items, local files, and items with no
-  fetchable URL yet. Started from `UniAppApplication`.
+  fetchable URL yet. Started from `TotumApplication`.
 - **Settings** (Settings → Downloads): "Download queued audio" (default on) and
   "Wi-Fi only" (default on, disabled when auto-download is off).
 

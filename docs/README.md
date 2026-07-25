@@ -1,12 +1,12 @@
 ---
-title: UniApp docs
+title: Totum docs
 kind: index
-updated: 2026-07-24
+updated: 2026-07-25
 ---
 
-# UniApp documentation
+# Totum documentation
 
-Living documentation for UniApp — the single Android app replacing PipePipe
+Living documentation for Totum — the single Android app replacing PipePipe
 (YouTube) and AntennaPod (podcasts) with one unified domain model. `CLAUDE.md`
 (repo root) holds the binding decisions and quality bar; these docs track the
 detail and keep it current.
@@ -31,7 +31,7 @@ kind: feature | todo | index | reference
 status: shipped | in-progress | planned | dropped   # features & todos
 priority: high | medium | low                        # todos
 area: search | playback | channel | downloads | …
-updated: 2026-07-24                                  # bump when you edit
+updated: 2026-07-25
 ---
 ```
 

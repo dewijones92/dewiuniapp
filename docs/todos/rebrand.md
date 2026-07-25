@@ -1,7 +1,7 @@
 ---
 title: Whole-app rename / rebrand (name, package, colours, icon)
 kind: todo
-status: refining
+status: shipped
 area: branding
 priority: medium
 requested: 2026-07-25
@@ -35,7 +35,7 @@ So the rename must come with a decision:
 | **Change it and accept a fresh start** | Clean, but you reinstall and lose local state unless we ship an export/import first |
 | **Change it with a migration** | Only real option if you want both: export to a file from the old build, import into the new one — which is exactly [the backup/restore feature](feature-gap-review.md) the AI review flagged. Build that *first*, then rename |
 
-**Kotlin package** (`com.dewijones92.uniapp.*`) is a different matter — renaming that is
+**Kotlin package** (`com.dewijones92.totum.*`) is a different matter — renaming that is
 a safe, mechanical refactor with no user-visible effect, independent of `applicationId`.
 
 ## What a rebrand actually touches
@@ -44,7 +44,7 @@ a safe, mechanical refactor with no user-visible effect, independent of `applica
    `CLAUDE.md`, docs, the CI workflow's artefact names, the release notes.
 2. **Kotlin package** — ~200 files' `package`/`import` lines, plus `AndroidManifest`
    references and the custom session-command action strings
-   (`com.dewijones92.uniapp.SKIP_SILENCE` etc. — these are just strings, but they must
+   (`com.dewijones92.totum.SKIP_SILENCE` etc. — these are just strings, but they must
    stay internally consistent).
 3. **Colours / theme** — currently Material 3 dynamic colour with a fallback scheme. A
    brand identity means a deliberate seed colour and a considered scheme for light and
@@ -70,3 +70,16 @@ a safe, mechanical refactor with no user-visible effect, independent of `applica
 1. Name + colours + icon (visible, reversible, no risk).
 2. Kotlin package rename (mechanical, gated).
 3. `applicationId` **only** if you've chosen to, and only after backup/restore exists.
+
+---
+
+## Shipped 2026-07-25 — Totum
+
+Name **Totum** ("the whole"), `applicationId` `com.dewijones92.totum`, bright tangerine /
+cyan / lemon palette, new adaptive icon, dynamic colour turned off so the brand is
+actually visible. Clean slate rather than a data migration, per Dewi.
+
+Full detail in [`docs/features/brand.md`](../features/brand.md).
+
+**Two manual steps left for Dewi:** uninstall the old UniApp, and re-add the app in
+Obtainium (it tracks by package, so the old entry stops updating silently).

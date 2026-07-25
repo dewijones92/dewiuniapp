@@ -1,5 +1,5 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="app_name">UniApp</string>
+    <string name="app_name">Totum</string>
 
     <string name="destination_videos">Videos</string>
     <string name="destination_podcasts">Podcasts</string>

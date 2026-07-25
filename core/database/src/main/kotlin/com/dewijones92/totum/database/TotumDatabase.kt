@@ -1,0 +1,189 @@
+package com.dewijones92.totum.database
+
+import android.content.Context
+import androidx.room.Database
+import androidx.room.Room
+import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
+
+@Database(
+    entities = [
+        FeedEntity::class,
+        EpisodeEntity::class,
+        DownloadEntity::class,
+        PlaybackProgressEntity::class,
+        LocalPlaylistEntity::class,
+        LocalPlaylistItemEntity::class,
+        PlayHistoryEntity::class,
+        QueueEntity::class,
+    ],
+    version = 13,
+    exportSchema = false,
+)
+public abstract class TotumDatabase : RoomDatabase() {
+
+    public abstract fun podcastDao(): PodcastDao
+
+    public abstract fun downloadDao(): DownloadDao
+
+    public abstract fun playbackProgressDao(): PlaybackProgressDao
+
+    public abstract fun localPlaylistDao(): LocalPlaylistDao
+
+    public abstract fun playHistoryDao(): PlayHistoryDao
+
+    public abstract fun queueDao(): QueueDao
+
+    public companion object {
+        public fun build(context: Context): TotumDatabase =
+            Room.databaseBuilder(context, TotumDatabase::class.java, "totum.db")
+                .addMigrations(
+                    MIGRATION_1_2,
+                    MIGRATION_2_3,
+                    MIGRATION_3_4,
+                    MIGRATION_4_5,
+                    MIGRATION_5_6,
+                    MIGRATION_6_7,
+                    MIGRATION_7_8,
+                    MIGRATION_8_9,
+                    MIGRATION_9_10,
+                    MIGRATION_10_11,
+                    MIGRATION_11_12,
+                    MIGRATION_12_13,
+                )
+                .build()
+
+        /**
+         * v13: a finished item keeps its progress row, marked completed, instead of
+         * being deleted — which is what makes "played" distinguishable from "never
+         * started". Existing rows are all part-way by definition, so the default is null.
+         */
+        private val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE playback_progress ADD COLUMN completedAtEpochMs INTEGER")
+            }
+        }
+
+        /** v12: the queue remembers which entry is playing, so the cursor survives. */
+        private val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE queue_items ADD COLUMN isCurrent INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        /** v11: downloads record whether the local file is audio-only. */
+        private val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE downloads ADD COLUMN audioOnly INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        /** v10: the up-next queue, persisted so it survives a restart. */
+        private val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS queue_items (" +
+                        "rowId INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, position INTEGER NOT NULL, " +
+                        "groupId TEXT, groupTitle TEXT, itemId TEXT NOT NULL, title TEXT NOT NULL, " +
+                        "author TEXT, thumbnailUrl TEXT, sourceId TEXT NOT NULL, contentKind TEXT NOT NULL, " +
+                        "playbackType TEXT NOT NULL, handle TEXT, mediaUrl TEXT)",
+                )
+            }
+        }
+
+        /** v9: play history (recently-played, denormalized like playlist items). */
+        private val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS play_history (" +
+                        "itemId TEXT NOT NULL PRIMARY KEY, lastPlayedAtEpochMs INTEGER NOT NULL, " +
+                        "title TEXT NOT NULL, author TEXT, thumbnailUrl TEXT, sourceId TEXT NOT NULL, " +
+                        "contentKind TEXT NOT NULL, playbackType TEXT NOT NULL, handle TEXT, mediaUrl TEXT)",
+                )
+            }
+        }
+
+        /** v8: local (cross-pillar) playlists + their items. */
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS local_playlists (" +
+                        "id TEXT NOT NULL PRIMARY KEY, name TEXT NOT NULL, createdAtEpochMs INTEGER NOT NULL)",
+                )
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS local_playlist_items (" +
+                        "playlistId TEXT NOT NULL, itemId TEXT NOT NULL, position INTEGER NOT NULL, " +
+                        "title TEXT NOT NULL, author TEXT, thumbnailUrl TEXT, sourceId TEXT NOT NULL, " +
+                        "contentKind TEXT NOT NULL, playbackType TEXT NOT NULL, handle TEXT, mediaUrl TEXT, " +
+                        "PRIMARY KEY(playlistId, itemId), " +
+                        "FOREIGN KEY(playlistId) REFERENCES local_playlists(id) ON DELETE CASCADE)",
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_local_playlist_items_playlistId " +
+                        "ON local_playlist_items(playlistId)",
+                )
+            }
+        }
+
+        /** v2: episodes gained an author column (notification artist line). */
+        private val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE podcast_episodes ADD COLUMN author TEXT")
+            }
+        }
+
+        /** v3: downloads table (offline media). */
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS downloads (" +
+                        "mediaItemId TEXT NOT NULL PRIMARY KEY, " +
+                        "status TEXT NOT NULL, " +
+                        "downloadedBytes INTEGER NOT NULL, " +
+                        "totalBytes INTEGER, " +
+                        "localPath TEXT, " +
+                        "failureReason TEXT)",
+                )
+            }
+        }
+
+        /** v4: sources gained a sourceType ('podcast' | 'channel'); existing rows are podcasts. */
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE podcast_feeds ADD COLUMN sourceType TEXT NOT NULL DEFAULT 'podcast'")
+            }
+        }
+
+        /** v5: playback_progress table (resume position per item). */
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS playback_progress (" +
+                        "mediaItemId TEXT NOT NULL PRIMARY KEY, " +
+                        "positionMs INTEGER NOT NULL, " +
+                        "durationMs INTEGER, " +
+                        "updatedAtEpochMs INTEGER NOT NULL)",
+                )
+            }
+        }
+
+        /**
+         * v6: sources gained an `origin` ('manual' | 'youtube_import'). Existing
+         * rows default to 'manual' — the safe choice, since it means an account
+         * sync never prunes anything already here; new imports mark themselves.
+         */
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE podcast_feeds ADD COLUMN origin TEXT NOT NULL DEFAULT 'manual'")
+            }
+        }
+
+        /** v7: episodes gained a `chapters` JSON column (nullable); existing rows have none. */
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE podcast_episodes ADD COLUMN chapters TEXT")
+            }
+        }
+    }
+}

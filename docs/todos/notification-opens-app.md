@@ -20,5 +20,5 @@ where the PendingIntent launches `MainActivity` (FLAG_ACTIVITY_SINGLE_TOP /
 CLEAR_TOP + FLAG_IMMUTABLE). Ideally deep-link straight to the full player for the
 current item.
 
-**Done when:** tapping the media notification (lock screen / shade) opens UniApp
+**Done when:** tapping the media notification (lock screen / shade) opens Totum
 (and, ideally, the now-playing full player), verified on-device.

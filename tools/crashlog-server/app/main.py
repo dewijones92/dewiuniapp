@@ -1,4 +1,4 @@
-"""Crash and diagnostics sink for UniApp.
+"""Crash and diagnostics sink for Totum.
 
 Design rules, in priority order:
 
@@ -41,7 +41,7 @@ MAX_TOTAL_MB = int(os.environ.get("CRASHLOG_MAX_TOTAL_MB", "512"))
 
 TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
-app = FastAPI(title="UniApp crash log", docs_url="/api/docs", redoc_url=None)
+app = FastAPI(title="Totum crash log", docs_url="/api/docs", redoc_url=None)
 
 
 def _connect() -> sqlite3.Connection:

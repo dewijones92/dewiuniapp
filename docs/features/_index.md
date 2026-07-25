@@ -40,6 +40,7 @@ alone until they need more.
 | Crash + diagnostics reporting (verbose reports to the Pi) | infrastructure | shipped | [crash-reporting.md](crash-reporting.md) |
 | Row status (pillar / played / offline on every row) | ui | shipped | [row-status.md](row-status.md) |
 | Feed pagination (infinite scroll on account feeds) | video | shipped | [feed-pagination.md](feed-pagination.md) |
+| Brand: Totum name, palette and icon | branding | shipped | [brand.md](brand.md) |
 
 \* Cast: crash + disconnect-loses-playback fixed; real casting unverified (no hardware).
 

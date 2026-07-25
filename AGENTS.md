@@ -1,12 +1,12 @@
 ---
-title: UniApp — agent entry point
+title: Totum — agent entry point
 kind: index
-updated: 2026-07-24
+updated: 2026-07-25
 ---
 
 # AGENTS.md
 
-Entry point for anyone (human or agent) working on UniApp. Start here, then read
+Entry point for anyone (human or agent) working on Totum (formerly UniApp). Start here, then read
 what's relevant.
 
 1. **`CLAUDE.md`** (repo root) — the binding project context: decisions, the

@@ -21,14 +21,14 @@ to `shipped` and migrate it to `../features/` once it's a real feature on `main`
 | [play-history-screen](play-history-screen.md) | library | medium | shipped |
 | [local-cross-pillar-playlists](local-cross-pillar-playlists.md) | library | high | shipped |
 | [skip-silence-on-video](skip-silence-on-video.md) | playback | medium | shipped |
-| [queue-first-playback](queue-first-playback.md) | playback | high | shipped (drag-reorder outstanding) |
+| [queue-first-playback](queue-first-playback.md) | playback | high | shipped (incl. drag-reorder) |
 | [auto-download-queue](auto-download-queue.md) | downloads | high | shipped |
 | [autoplay-next-guaranteed](autoplay-next-guaranteed.md) | playback | medium | shipped |
 | [volume-boost-normalize](volume-boost-normalize.md) | playback | medium | shipped |
 | [subtitles-captions](subtitles-captions.md) | playback | medium | refining |
 | [youtube-progress-two-way-sync](youtube-progress-two-way-sync.md) | video | medium | refining |
 | [ui-polish](ui-polish.md) | ui | medium | refining |
-| [rebrand](rebrand.md) | branding | medium | refining (needs a name + applicationId call) |
+| [rebrand](rebrand.md) | branding | medium | shipped as **Totum** |
 | [crash-reporting](crash-reporting.md) | infrastructure | high | shipped (verbose reports live on the Pi) |
 | [row-status-indicators](row-status-indicators.md) | ui | high | shipped (real PlayState behind it) |
 | [high-quality-playback-fix](high-quality-playback-fix.md) | video | high | shipped |

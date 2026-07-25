@@ -1,4 +1,8 @@
-# UniApp
+# Totum
+
+**Totum** — Latin for "the whole". One app for all of it; the name deliberately avoids
+"duo"/"uni" so a third pillar wouldn't make it a lie. Named 2026-07-25 (was UniApp);
+`applicationId` is `com.dewijones92.totum`.
 
 One Android app that replaces two: **PipePipe** (YouTube-style streaming client) and
 **AntennaPod** (podcast manager). Streaming and podcasts are both first-class pillars
@@ -27,7 +31,8 @@ change coverage → update `docs/tests/`. Bump each doc's `updated`.
 | ffmpeg | **Bundled** — minimal static build in jniLibs | Merges best-quality DASH streams and removes SponsorBlock from downloads |
 | CI/CD | GitHub Actions; signed APKs on GitHub Releases | No Play Store (yt-dlp app) |
 | YouTube account (July 2026) | Own minimal InnerTube client (`:lib:innertube`) + **TV device-code OAuth**, SmartTube-style; yt-dlp stays for extraction/playback | Signed-in features (subs, history, comments, likes) need auth + writes; yt-dlp is read-only and removed OAuth login; Google blocks WebView logins, and the device flow is the login it expects from TVs |
-| UI bar | Genuinely nice, modern | Material 3 expressive, dynamic colour, dark/light, edge-to-edge, considered motion — never template-default |
+| UI bar | Genuinely nice, modern | Material 3 expressive, dark/light, edge-to-edge, considered motion — never template-default |
+| Brand (July 2026) | **Bright and playful** — tangerine hero, cyan counterpart, lemon highlight; **dynamic colour OFF by default** | Dewi's explicit choice. Dynamic colour would substitute the wallpaper's palette on every modern device, so a defined brand would never actually be seen. Palette lives only in `theme/Color.kt` |
 
 ## Quality bar (from the brief, non-negotiable)
 
@@ -165,7 +170,7 @@ when driven on the emulator. Verify real flows on a device, not just via tests.
   sealed results), `bestPlayableFormat()` selection. Deliberately independent
   of `:core:domain` (standalone, reusable).
 - `:lib:ytdlp-chaquopy` — the real engine: yt-dlp on embedded CPython 3.12
-  via Chaquopy 17 (MIT). `uniapp_ytdlp.py` is a thin JSON-in/JSON-out bridge;
+  via Chaquopy 17 (MIT). `totum_ytdlp.py` is a thin JSON-in/JSON-out bridge;
   `BridgeJson.kt` parses it (JVM unit-tested); `ChaquopyYtDlpEngine`
   implements the API. Chaquopy constraints: exactly ONE module per app may
   apply the plugin; build-host Python minor version must match the target
@@ -173,7 +178,7 @@ when driven on the emulator. Verify real flows on a device, not just via tests.
   gradle.properties because of this). ABIs: arm64-v8a + x86_64. Adds ~80MB
   to the APK (Python runtime per ABI). **yt-dlp self-updates at runtime**:
   `YtDlpUpdater` fetches the latest wheel from PyPI on every launch (background,
-  SHA-256-verified, never starts Python) into a cache dir; `uniapp_bootstrap.py`
+  SHA-256-verified, never starts Python) into a cache dir; `totum_bootstrap.py`
   prepends it to `sys.path` before `import yt_dlp` so a YouTube-breaking fix
   applies on the next start without an app update — a bad wheel is dropped and
   the bundled copy used. The interpreter and ffmpeg can't self-update (W^X).
@@ -198,12 +203,15 @@ when driven on the emulator. Verify real flows on a device, not just via tests.
 - detekt, the Android lint policy, and Android build defaults
   (compileSdk/minSdk/Java level) apply to every module automatically from the
   root build — never configure them per module.
-- Package root: `com.dewijones92.uniapp`.
+- Package root: `com.dewijones92.totum`.
 
 ## Working agreements
 
 - Commit as you go — small, coherent commits at each green state.
-- Remote: `github.com/dewijones92/dewiuniapp` (public). Default branch is
+- Remote: `github.com/dewijones92/dewiuniapp` (public) — the **repo** name still says
+  `dewiuniapp`, as do the local clone path and the signing directory. Deliberate: renaming
+  a remote and a working copy mid-flight buys nothing and breaks tooling. Only the *app*
+  is Totum. Default branch is
   `main`; pushing to it is fine and CI (GitHub Actions) must stay green.
 - Every push to main publishes a signed APK to the rolling `latest`
   prerelease (consumed by Dewi's Obtainium). Release signing key lives in

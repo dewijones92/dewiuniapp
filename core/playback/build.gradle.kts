@@ -3,7 +3,7 @@ plugins {
 }
 
 android {
-    namespace = "com.dewijones92.uniapp.playback"
+    namespace = "com.dewijones92.totum.playback"
 }
 
 kotlin {

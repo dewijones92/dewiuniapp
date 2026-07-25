@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.dewijones92.uniapp.database"
+    namespace = "com.dewijones92.totum.database"
 }
 
 kotlin {
@@ -16,7 +16,7 @@ dependencies {
     api(project(":core:data"))
     // Implements the playback module's PlaybackProgressStore port with Room.
     api(project(":core:playback"))
-    // api: UniAppDatabase extends RoomDatabase, so Room is part of this module's ABI.
+    // api: TotumDatabase extends RoomDatabase, so Room is part of this module's ABI.
     api(libs.room.runtime)
     implementation(libs.kotlinx.coroutines.core)
     ksp(libs.room.compiler)

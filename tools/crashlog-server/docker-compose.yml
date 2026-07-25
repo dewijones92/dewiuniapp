@@ -5,6 +5,9 @@
 services:
   crashlog:
     build: .
+    # Image and container names deliberately lag the Totum rebrand: the Pi's nginx
+    # config resolves this service by container name, so renaming it here without a
+    # coordinated nginx change would 502 the live crash sink.
     image: uniapp-crashlog:local
     container_name: uniapp-crashlog
     restart: unless-stopped

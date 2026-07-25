@@ -23,5 +23,5 @@ the existing seams — a video watch URL → resolve + play; a channel URL → c
 page; a podcast feed URL → subscribe/preview. Keep routing unified (one intent →
 `HttpUrl` → the same resolve/open paths the in-app UI uses).
 
-**Done when:** sharing a YouTube link from a browser offers UniApp, and picking
+**Done when:** sharing a YouTube link from a browser offers Totum, and picking
 it opens/plays the right thing.
