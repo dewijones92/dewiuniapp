@@ -29,12 +29,14 @@ import com.dewijones92.totum.di.AppContainer
 import com.dewijones92.totum.di.fake.FakeAppContainer
 import com.dewijones92.totum.domain.DownloadState
 import com.dewijones92.totum.domain.MediaItem
+import com.dewijones92.totum.domain.MediaSource
 import com.dewijones92.totum.domain.PlayableItem
 import com.dewijones92.totum.navigation.TopLevelDestination
 import com.dewijones92.totum.playback.PlaybackController
 import com.dewijones92.totum.playback.PlaybackState
 import com.dewijones92.totum.queue.PlaybackQueue
 import com.dewijones92.totum.theme.TotumTheme
+import com.dewijones92.totum.ui.channel.ChannelScreen
 import com.dewijones92.totum.ui.common.ActionSheet
 import com.dewijones92.totum.ui.common.MiniPlayerBar
 import com.dewijones92.totum.ui.common.ProvidePlayStates
@@ -65,6 +67,8 @@ fun AppShell(container: AppContainer, modifier: Modifier = Modifier) {
     var selected by rememberSaveable { mutableStateOf(TopLevelDestination.Videos) }
     var showFullPlayer by rememberSaveable { mutableStateOf(false) }
     var shortsReel by remember { mutableStateOf<List<MediaItem>?>(null) }
+    // "Go to channel" works from ANY row because the shell hosts the destination once.
+    var shellChannel by remember { mutableStateOf<MediaSource.VideoChannel?>(null) }
     val playbackState by container.playbackController.state.collectAsStateWithLifecycle()
     val controller = container.playbackController
     val watchViewModel: WatchViewModel = viewModel(factory = WatchViewModel.factory(container))
@@ -74,7 +78,7 @@ fun AppShell(container: AppContainer, modifier: Modifier = Modifier) {
     // mini player / with the screen off, not only while the full player is expanded.
     AutoAdvance(playbackState, watchViewModel, container, reelOpen = shortsReel != null)
 
-    ProvidePlayStates(container) {
+    ProvidePlayStates(container, onOpenChannel = { shellChannel = it }) {
         Box(modifier = modifier.fillMaxSize()) {
             Scaffold(
                 bottomBar = {
@@ -115,6 +119,14 @@ fun AppShell(container: AppContainer, modifier: Modifier = Modifier) {
             // so vertical swipes page between shorts without the app chrome in the way.
             shortsReel?.let { shorts ->
                 ShortsReelScreen(container, shorts, onBack = { shortsReel = null })
+            }
+            shellChannel?.let { channel ->
+                ChannelScreen(
+                    container,
+                    channel,
+                    onBack = { shellChannel = null },
+                    onOpenPlaylist = {},
+                )
             }
         }
     }

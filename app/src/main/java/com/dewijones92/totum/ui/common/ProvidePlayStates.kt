@@ -8,6 +8,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dewijones92.totum.di.AppContainer
 import com.dewijones92.totum.domain.MediaItemId
+import com.dewijones92.totum.domain.MediaSource
 import kotlinx.coroutines.launch
 
 /**
@@ -16,7 +17,11 @@ import kotlinx.coroutines.launch
  * screen, and no view model, has to know that lists show played/part-way status.
  */
 @Composable
-internal fun ProvidePlayStates(container: AppContainer, content: @Composable () -> Unit) {
+internal fun ProvidePlayStates(
+    container: AppContainer,
+    onOpenChannel: (MediaSource.VideoChannel) -> Unit,
+    content: @Composable () -> Unit,
+) {
     val store = container.playbackProgressStore
     val states by remember(store) { store.observeStates() }.collectAsStateWithLifecycle(emptyMap())
     val scope = rememberCoroutineScope()
@@ -27,9 +32,12 @@ internal fun ProvidePlayStates(container: AppContainer, content: @Composable () 
             Unit
         }
     }
+    // Row capabilities are provided together, in one place: play state, and everything a
+    // row can DO. Both exist so no screen has to remember to wire them.
     CompositionLocalProvider(
         LocalPlayStates provides states,
         LocalSetPlayed provides setPlayed,
-        content = content,
-    )
+    ) {
+        ProvideItemActions(container, onOpenChannel, content)
+    }
 }

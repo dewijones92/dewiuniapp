@@ -92,7 +92,7 @@ fun MediaItemRow(
     /** Queue-only: jump this entry to the front / back of the up-next order. */
     onMoveToTop: (() -> Unit)? = null,
     onMoveToBottom: (() -> Unit)? = null,
-    onGoToSource: (() -> Unit)? = null,
+    onGoToSource: (() -> Unit)? = LocalItemActions.current?.let { a -> { a.goToSource(item) } },
     /** Label for [onGoToSource] — the host knows its pillar ("channel" vs "podcast"). */
     goToSourceLabelRes: Int = R.string.go_to_channel,
     /**
