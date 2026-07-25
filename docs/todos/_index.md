@@ -29,7 +29,8 @@ to `shipped` and migrate it to `../features/` once it's a real feature on `main`
 | [youtube-progress-two-way-sync](youtube-progress-two-way-sync.md) | video | medium | refining |
 | [ui-polish](ui-polish.md) | ui | medium | refining |
 | [rebrand](rebrand.md) | branding | medium | refining (needs a name + applicationId call) |
-| [crash-reporting](crash-reporting.md) | infrastructure | high | refining (needs a destination call) |
+| [crash-reporting](crash-reporting.md) | infrastructure | high | ready (collect-everything; Pi endpoint to confirm) |
+| [row-status-indicators](row-status-indicators.md) | ui | high | refining |
 | [high-quality-playback-fix](high-quality-playback-fix.md) | video | high | shipped |
 | [feature-gap-review](feature-gap-review.md) | planning | — | triage of the AI review |
 | [feed-pagination](feed-pagination.md) | video | high | refining |

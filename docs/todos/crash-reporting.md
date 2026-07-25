@@ -42,25 +42,44 @@ reporting to a small endpoint on your Pi:
 - **Offline-safe:** written to disk first and retried, so a crash on the Tube still
   reaches me later.
 
-### Privacy — this needs deliberate care
+### Collection policy (Dewi, 2026-07-25): collect everything
 
-A naive crash reporter would leak your viewing life. Non-negotiables:
+I raised privacy; Dewi's explicit instruction overrides it: *"Forget about PII or data
+sensitivity until I say so, prioritise collecting data!!!"* It's his app, his data and
+his server, so that's his call — **collect verbosely**: titles, channel names, feed and
+watch URLs, item ids, queue contents, settings, device and network state.
 
-- **Never** the OAuth token or any credential (the token value classes already redact
-  themselves in `toString()`, which helps, but the reporter must not read the store).
-- **No** video/podcast titles, channel names, feed URLs or watch URLs — a report should
-  say "playing a video from source #3", not what it was.
-- Report **ids and shapes, not content**: `MediaItemId` is fine, a title is not.
-- Nothing goes anywhere until you've seen a sample report and agreed it's clean.
+**One security exception, which is not a privacy preference:** credentials stay out —
+the YouTube OAuth access/refresh tokens. A token in a transmitted log is an
+account-takeover risk rather than a disclosure of viewing habits, and the reports land
+somewhere readable. Trivial to include later if you ever actually want it; say so and
+it goes in.
 
-## Questions for you
+## The rolling event log (Dewi's design)
 
-1. **Pi endpoint** — happy for the app to POST to something on `333133333.xyz`? I'd add
-   a small service beside the existing ones (behind the same nginx, its own path, no
-   auth needed for POST but the *reading* side stays private).
-2. Or would you rather I keep it **on-device only** for now (a report file you can share
-   when something happens) and skip the network entirely?
-3. **Opt-out switch** in Settings, or always on for your own app?
+> "store in the app a log of the previous 30 events … a rolling log … send it to the
+> server on a crash so we have a lot of context"
 
-**Done when:** a crash on your phone produces a verbose, redacted report that I can read
-without you doing anything, and it maps to a git commit.
+- An in-memory ring buffer of the last **N events** (N configurable; 30 is a good
+  start, but it's cheap to hold a few hundred — I'd default higher and cap by size).
+- Every `dewidebug` line feeds it automatically, so all the instrumentation already in
+  the app becomes crash context for free: playback transitions, codec rejections,
+  silence detection, queue mutations, download progress, InnerTube failures.
+- Each entry timestamped and tagged with the screen and the playing item, so the
+  sequence reads as a story rather than a pile of lines.
+- Mirrored to disk continuously (small append-only file, rotated), so a **hard kill**
+  — a native crash or the system killing us — still leaves the trail behind for the
+  next launch to upload.
+- Uploaded with the crash, and also on demand ("send diagnostics" in Settings) so a
+  *misbehaviour* that isn't a crash can be diagnosed too. That last bit matters: most
+  of this session's bugs weren't crashes.
+
+## Remaining question — just the destination
+
+Dewi has said "the server", so remote it is. My recommendation: a small endpoint on
+**your Pi** (`333133333.xyz`), beside the existing services — I already have SSH there,
+so I can read reports directly, and nothing goes to a third party. I'd need to add that
+service on the Pi, so I'll confirm before touching it.
+
+**Done when:** a crash on your phone lands on the server with a full event trail and the
+git commit, and I can read it without you doing anything.
