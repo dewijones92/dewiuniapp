@@ -7,7 +7,8 @@ import android.system.OsConstants
 import java.io.File
 
 /**
- * Exposes the bundled ffmpeg (shipped as `libffmpeg.so`) to yt-dlp.
+ * Exposes the bundled ffmpeg **and ffprobe** (shipped as `libffmpeg.so` / `libffprobe.so`)
+ * to yt-dlp.
  *
  * Under Android 14's W^X policy the only app-private place a binary stays
  * executable is `nativeLibraryDir`, where the installer extracts native libs —
@@ -15,6 +16,11 @@ import java.io.File
  * named `ffmpeg`. So we symlink `<filesDir>/ffmpeg-bin/ffmpeg` at the extracted
  * `libffmpeg.so`: exec follows the link to the executable inode, and no binary
  * is ever written to app storage.
+ *
+ * ffprobe is linked into the SAME directory, because that is where yt-dlp looks for it —
+ * `ffmpeg_location` names a directory, not a file. Without it the SponsorBlock
+ * `ModifyChapters` postprocessor cannot read a duration and every audio download of a video
+ * fails with "ffprobe not found", which is exactly what happened on Dewi's phone.
  */
 internal object FfmpegBinary {
 
@@ -26,18 +32,27 @@ internal object FfmpegBinary {
      * call so an app update that moves the native dir can't leave it dangling.
      */
     fun locationDir(context: Context): String? {
-        val lib = File(context.applicationInfo.nativeLibraryDir, "libffmpeg.so")
-        if (!lib.exists()) return null
+        val nativeDir = context.applicationInfo.nativeLibraryDir
+        // ffmpeg is required; ffprobe is linked when present so an older build that shipped
+        // without it still merges streams rather than failing outright.
+        if (!File(nativeDir, "libffmpeg.so").exists()) return null
 
         val dir = File(context.filesDir, LINK_DIR).apply { mkdirs() }
-        val link = File(dir, "ffmpeg")
-        try {
-            if (link.exists() || isSymlink(link)) link.delete()
-            Os.symlink(lib.absolutePath, link.absolutePath)
-        } catch (e: ErrnoException) {
-            if (e.errno != OsConstants.EEXIST) return null
-        }
+        if (!link(File(nativeDir, "libffmpeg.so"), File(dir, "ffmpeg"))) return null
+        link(File(nativeDir, "libffprobe.so"), File(dir, "ffprobe"))
         return dir.absolutePath
+    }
+
+    /** Points [link] at [target], replacing any stale link. False when the target is absent. */
+    private fun link(target: File, link: File): Boolean {
+        if (!target.exists()) return false
+        return try {
+            if (link.exists() || isSymlink(link)) link.delete()
+            Os.symlink(target.absolutePath, link.absolutePath)
+            true
+        } catch (e: ErrnoException) {
+            e.errno == OsConstants.EEXIST
+        }
     }
 
     private fun isSymlink(file: File): Boolean =

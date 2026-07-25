@@ -23,7 +23,13 @@ build_abi() {
   local CC="$TOOLCHAIN/bin/${triple}${API}-clang"
 
   # Remux-only build: yt-dlp merges streams and cuts SponsorBlock segments with
-  # `-c copy`, so no decoders/encoders are needed; ffprobe is not used either.
+  # `-c copy`, so no decoders/encoders are needed.
+  #
+  # ffprobe IS built, despite costing another binary per ABI. yt-dlp's ModifyChapters
+  # postprocessor — the one that cuts SponsorBlock segments — asks ffprobe for the media
+  # duration, and without it every queue auto-download of a video's audio died with
+  # "Unable to determine video duration: ffprobe not found" (seen on Dewi's Pixel, 2026-07-25).
+  # Size is not a constraint here; a feature that always fails is worse than a bigger APK.
   # Demuxers, muxers, parsers, bitstream filters and the file protocol are kept
   # (defaults) so every real YouTube container/codec can be remuxed.
   "$SRC/configure" \
@@ -42,7 +48,7 @@ build_abi() {
     --disable-shared --enable-static \
     --enable-pic \
     --disable-doc --disable-htmlpages --disable-manpages --disable-podpages --disable-txtpages \
-    --disable-ffplay --disable-ffprobe --disable-avdevice \
+    --disable-ffplay --disable-avdevice \
     --disable-network \
     --disable-debug \
     --disable-decoders --disable-encoders \
