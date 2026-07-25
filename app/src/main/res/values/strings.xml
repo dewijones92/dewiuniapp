@@ -224,4 +224,18 @@
     <string name="status_played">Played</string>
     <string name="mark_played">Mark as played</string>
     <string name="mark_unplayed">Mark as unplayed</string>
+    <string name="download_channel_name">Downloads</string>
+    <string name="download_channel_description">Progress and results for offline downloads.</string>
+    <plurals name="download_progress_title">
+        <item quantity="one">Downloading</item>
+        <item quantity="other">Downloading %d items</item>
+    </plurals>
+    <plurals name="download_done_title">
+        <item quantity="one">Downloaded</item>
+        <item quantity="other">Downloaded %d items</item>
+    </plurals>
+    <plurals name="download_failed_title">
+        <item quantity="one">Download failed</item>
+        <item quantity="other">%d downloads failed</item>
+    </plurals>
 </resources>

@@ -6,6 +6,8 @@ import com.dewijones92.totum.domain.MediaItem
 import com.dewijones92.totum.domain.MediaItemId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -34,6 +36,12 @@ public class DefaultDownloadManager(
         }
     }
 
+    // Replay nothing and never suspend the producer: a download must not be held up by
+    // whether anyone is listening to notifications.
+    private val _events = MutableSharedFlow<DownloadEvent>(extraBufferCapacity = EVENT_BUFFER)
+
+    override fun events(): Flow<DownloadEvent> = _events.asSharedFlow()
+
     override fun observeDownloads(): Flow<Map<MediaItemId, DownloadState>> = store.observeAll()
 
     override fun observe(id: MediaItemId): Flow<DownloadState> =
@@ -43,11 +51,13 @@ public class DefaultDownloadManager(
         if (store.get(item.id).satisfies(audioOnly)) return
 
         store.put(item.id, DownloadState.Downloading(0, null))
+        _events.tryEmit(DownloadEvent(item, DownloadState.Downloading(0, null)))
         val target = File(downloadDir.apply { mkdirs() }, item.id.fileName())
         Diag.log("download", "start audioOnly=$audioOnly ${item.title}")
         scope.launch {
             strategy.download(item, target, audioOnly).collect { state ->
                 store.put(item.id, state)
+                _events.tryEmit(DownloadEvent(item, state))
                 when (state) {
                     is DownloadState.Failed -> Diag.warn("download", "failed ${item.title}: ${state.reason}")
                     is DownloadState.Downloaded -> Diag.log("download", "done ${item.title}")
@@ -71,6 +81,10 @@ public class DefaultDownloadManager(
     override suspend fun delete(id: MediaItemId) {
         (store.get(id) as? DownloadState.Downloaded)?.let { File(it.localPath).delete() }
         store.remove(id)
+    }
+
+    private companion object {
+        const val EVENT_BUFFER = 64
     }
 
     /** Opaque, filesystem-safe name derived from the stable item id. */

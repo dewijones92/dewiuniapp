@@ -41,6 +41,7 @@ alone until they need more.
 | Row status (pillar / played / offline on every row) | ui | shipped | [row-status.md](row-status.md) |
 | Feed pagination (infinite scroll on account feeds) | video | shipped | [feed-pagination.md](feed-pagination.md) |
 | Brand: Totum name, palette and icon | branding | shipped | [brand.md](brand.md) |
+| Download notifications (progress / done / failed, aggregated) | downloads | shipped | [download-notifications.md](download-notifications.md) |
 
 \* Cast: crash + disconnect-loses-playback fixed; real casting unverified (no hardware).
 

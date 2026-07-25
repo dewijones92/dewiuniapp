@@ -112,6 +112,8 @@ class FakeAppContainer(
 
     override fun startQueueAutoDownload() = Unit
 
+    override fun startDownloadNotifications() = Unit
+
     override fun installCrashReporting() = Unit
 
     override fun sendDiagnostics(note: String) = Unit

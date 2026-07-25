@@ -64,6 +64,7 @@ import com.dewijones92.totum.innertube.related.HttpYouTubeRelated
 import com.dewijones92.totum.innertube.related.YouTubeRelated
 import com.dewijones92.totum.innertube.search.HttpYouTubeSearch
 import com.dewijones92.totum.innertube.subscriptions.HttpYouTubeSubscriptions
+import com.dewijones92.totum.notifications.DownloadNotifier
 import com.dewijones92.totum.notifications.SharedPrefsSeenItemsTracker
 import com.dewijones92.totum.notifications.YouTubeSubscriptionItemsSource
 import com.dewijones92.totum.playback.Media3PlaybackController
@@ -125,6 +126,9 @@ interface AppContainer {
      * auto-download settings), so the queue is listenable offline.
      */
     fun startQueueAutoDownload()
+
+    /** Starts reporting download progress, completions and failures in the shade. */
+    fun startDownloadNotifications()
 
     /**
      * Installs the crash handler and sends any reports left by a previous run. Called
@@ -322,6 +326,10 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
     override val queueStore: QueueStore by lazy { RoomQueueStore(database.queueDao()) }
 
     private val crashReporter by lazy { CrashReporter(context, stateProviders = ::diagnosticState) }
+
+    override fun startDownloadNotifications() {
+        DownloadNotifier(context, downloadManager, applicationScope).start()
+    }
 
     override fun installCrashReporting() {
         installAndroidLogSink()

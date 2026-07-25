@@ -25,6 +25,7 @@ class TotumApplication : Application(), SingletonImageLoader.Factory {
         container.refreshSubscriptions()
         // Keep the queue listenable offline: fetch each queued item's audio.
         container.startQueueAutoDownload()
+        container.startDownloadNotifications()
         // Periodically check every subscription (both pillars) and notify on new content.
         NewContentWorker.schedule(this)
     }

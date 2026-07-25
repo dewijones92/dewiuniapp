@@ -19,6 +19,13 @@ public interface DownloadManager {
     public fun observe(id: MediaItemId): Flow<DownloadState>
 
     /**
+     * Every state change as it happens, with the item attached. A hot stream of
+     * transitions rather than current state, for consumers that react to a download
+     * *becoming* something — notifications — instead of rendering what it is.
+     */
+    public fun events(): Flow<DownloadEvent>
+
+    /**
      * Starts downloading [item]; progress is observable via [observe]. Idempotent —
      * except that an existing **audio-only** download does not satisfy a request for
      * the full media, so asking for video after the queue auto-downloaded the audio
