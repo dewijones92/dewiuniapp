@@ -6,7 +6,11 @@ plugins {
 
 android {
     namespace = "com.dewijones92.totum.ytdlp.chaquopy"
+
     defaultConfig {
+        // Travels with the module: Python calls ProgressListener.onProgress by name.
+        consumerProguardFiles("consumer-rules.pro")
+
         ndk {
             abiFilters += listOf("arm64-v8a", "x86_64")
         }
