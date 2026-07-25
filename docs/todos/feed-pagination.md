@@ -1,7 +1,7 @@
 ---
 title: We only surface the FIRST page of every feed
 kind: todo
-status: refining
+status: in progress
 area: video
 priority: high
 requested: 2026-07-25
@@ -65,3 +65,20 @@ One pagination seam rather than per-feed loops:
 
 **Done when:** scrolling a feed loads more (Home, Subscriptions, channel tabs,
 search), through one shared seam rather than per-screen paging code.
+
+---
+
+## Status 2026-07-25 — account feeds shipped
+
+The seam (`Page`/`PageToken` in `:lib:common`, `Continuations`, `BrowseTarget`,
+`LoadMoreOnScrollToEnd`) is in, and the four account feeds page end to end — verified on
+device: 45 items became 149 across six continuations. See
+[`docs/features/feed-pagination.md`](../features/feed-pagination.md).
+
+Still on page one, and now cheap to add on the same seam:
+
+- **channel tabs** (Videos / Shorts / Playlists) — `browseWeb` already takes a
+  `BrowseTarget`, so this is `LockupParser` + `ChannelViewModel` work only
+- **search results**
+- **podcast episode lists** — a no-op by nature (RSS returns the whole feed), but the
+  seam should be threaded so every screen is uniform rather than some being special

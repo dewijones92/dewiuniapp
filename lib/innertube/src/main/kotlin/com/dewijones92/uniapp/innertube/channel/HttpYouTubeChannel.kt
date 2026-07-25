@@ -1,5 +1,6 @@
 package com.dewijones92.uniapp.innertube.channel
 
+import com.dewijones92.uniapp.innertube.browse.BrowseTarget
 import com.dewijones92.uniapp.innertube.browse.InnerTubeClient
 import com.dewijones92.uniapp.innertube.browse.InnerTubeResponse
 import com.dewijones92.uniapp.innertube.feeds.LockupParser
@@ -15,21 +16,21 @@ public class HttpYouTubeChannel(
 ) : YouTubeChannel {
 
     override suspend fun videos(channelId: String): ChannelVideos =
-        when (val r = innerTube.browseWeb(channelId, VIDEOS_PARAMS)) {
+        when (val r = innerTube.browseWeb(BrowseTarget.Id(channelId, VIDEOS_PARAMS))) {
             is InnerTubeResponse.Success -> ChannelVideos.Success(LockupParser.videos(r.body))
             InnerTubeResponse.Unauthorized -> ChannelVideos.Failure("Unauthorized")
             is InnerTubeResponse.Failure -> ChannelVideos.Failure(r.detail)
         }
 
     override suspend fun shorts(channelId: String): ChannelVideos =
-        when (val r = innerTube.browseWeb(channelId, SHORTS_PARAMS)) {
+        when (val r = innerTube.browseWeb(BrowseTarget.Id(channelId, SHORTS_PARAMS))) {
             is InnerTubeResponse.Success -> ChannelVideos.Success(LockupParser.shorts(r.body))
             InnerTubeResponse.Unauthorized -> ChannelVideos.Failure("Unauthorized")
             is InnerTubeResponse.Failure -> ChannelVideos.Failure(r.detail)
         }
 
     override suspend fun playlists(channelId: String): ChannelPlaylists =
-        when (val r = innerTube.browseWeb(channelId, PLAYLISTS_PARAMS)) {
+        when (val r = innerTube.browseWeb(BrowseTarget.Id(channelId, PLAYLISTS_PARAMS))) {
             is InnerTubeResponse.Success -> ChannelPlaylists.Success(LockupParser.playlists(r.body))
             InnerTubeResponse.Unauthorized -> ChannelPlaylists.Failure("Unauthorized")
             is InnerTubeResponse.Failure -> ChannelPlaylists.Failure(r.detail)

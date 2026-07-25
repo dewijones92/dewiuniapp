@@ -1,6 +1,7 @@
 package com.dewijones92.uniapp.innertube.feeds
 
 import com.dewijones92.uniapp.common.HttpUrl
+import com.dewijones92.uniapp.innertube.browse.Continuations
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -27,7 +28,10 @@ internal object VideoTileParser {
         collectVideoTiles(root) { tile ->
             tile.toFeedVideo()?.let { videos.putIfAbsent(it.videoId, it) }
         }
-        return FeedResult.Success(videos.values.toList())
+        // No token means the last page. A response that parsed but yielded no tiles is
+        // also the end, whatever it claims, or "load more" would spin forever.
+        val next = Continuations.find(root).takeIf { videos.isNotEmpty() }
+        return FeedResult.Success(videos.values.toList(), next)
     }
 
     private fun collectVideoTiles(node: JsonElement, onTile: (JsonObject) -> Unit) {

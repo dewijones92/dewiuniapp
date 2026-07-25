@@ -15,7 +15,8 @@ import java.io.IOException
  *
  * - [browse] — authenticated, impersonating the living-room TV app (the same
  *   client our device-code OAuth authenticates as; the WEB client rejects a TV
- *   token, verified against YouTube). Serves every account feed.
+ *   token, verified against YouTube). Serves every account feed, first page or
+ *   later, depending on its [BrowseTarget].
  * - [next] — the watch-page endpoint used unauthenticated with the WEB client
  *   for public data like comments (no token needed, and the WEB comment format
  *   is far simpler than the TV one).
@@ -31,25 +32,16 @@ public class InnerTubeClient(
     private val webClientVersion: String = WEB_CLIENT_VERSION,
 ) {
 
-    public suspend fun browse(browseId: String, accessToken: AccessToken): InnerTubeResponse =
-        execute(browseUrl, tvContext(""" "browseId":"$browseId" """), accessToken)
+    public suspend fun browse(target: BrowseTarget, accessToken: AccessToken): InnerTubeResponse =
+        execute(browseUrl, tvContext(target.fields()), accessToken)
 
     /** Watch-page data for a video (WEB client, no auth). */
     public suspend fun next(videoId: String): InnerTubeResponse =
         execute(nextUrl, webContext(""" "videoId":"$videoId" """), bearer = null)
 
-    /**
-     * Browses public content (WEB client, no auth) — e.g. a channel's tabs.
-     * [params] selects a channel tab (Videos/Shorts/Playlists); omit for the
-     * default landing tab.
-     */
-    public suspend fun browseWeb(browseId: String, params: String? = null): InnerTubeResponse {
-        val fields = buildString {
-            append(""" "browseId":"$browseId" """)
-            if (params != null) append(""", "params":"$params" """)
-        }
-        return execute(browseUrl, webContext(fields), bearer = null)
-    }
+    /** Browses public content (WEB client, no auth) — e.g. a channel's tabs. */
+    public suspend fun browseWeb(target: BrowseTarget): InnerTubeResponse =
+        execute(browseUrl, webContext(target.fields()), bearer = null)
 
     /**
      * Public video search (WEB client, no auth). The WEB response carries each
@@ -119,6 +111,27 @@ public class InnerTubeClient(
         private const val HTTP_FORBIDDEN = 403
         private val JSON = "application/json".toMediaType()
     }
+}
+
+/**
+ * What to browse: a feed/channel id, or a continuation token for a later page. A sealed
+ * pair rather than two nullable parameters, because sending both is meaningless — a
+ * continuation already encodes what it continues — and this makes that unrepresentable.
+ */
+public sealed interface BrowseTarget {
+    /** [params] selects a channel tab (Videos/Shorts/Playlists); omit for the default. */
+    public data class Id(public val browseId: String, public val params: String? = null) : BrowseTarget
+
+    public data class Continuation(public val token: String) : BrowseTarget
+}
+
+/** The request-body fields that select this target. */
+internal fun BrowseTarget.fields(): String = when (this) {
+    is BrowseTarget.Id -> buildString {
+        append(""" "browseId":"$browseId" """)
+        if (params != null) append(""", "params":"$params" """)
+    }
+    is BrowseTarget.Continuation -> """ "continuation":"$token" """
 }
 
 /** Result of an InnerTube POST (browse or next). */

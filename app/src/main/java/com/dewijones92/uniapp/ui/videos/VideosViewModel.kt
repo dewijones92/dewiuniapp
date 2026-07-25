@@ -5,7 +5,9 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.dewijones92.uniapp.common.Diag
 import com.dewijones92.uniapp.common.HttpUrl
+import com.dewijones92.uniapp.common.PageToken
 import com.dewijones92.uniapp.data.channel.ChannelRepository
 import com.dewijones92.uniapp.data.channel.ChannelVideosResult
 import com.dewijones92.uniapp.data.download.DownloadManager
@@ -62,6 +64,10 @@ class VideosViewModel(
         val feedError: Boolean = false,
         /** Pull-to-refresh in progress (keeps content visible, unlike [feedLoading]). */
         val refreshing: Boolean = false,
+        /** Whether a further page exists, so the list knows to keep asking. */
+        val canLoadMore: Boolean = false,
+        /** A further page is in flight — drives the footer spinner and blocks re-asking. */
+        val loadingMore: Boolean = false,
         val sort: MediaSort = MediaSort.DEFAULT,
     )
 
@@ -88,6 +94,9 @@ class VideosViewModel(
         val loading: Boolean = false,
         val videos: List<MediaItem> = emptyList(),
         val error: Boolean = false,
+        /** Where the next page starts; null once the feed has no more to give. */
+        val next: PageToken? = null,
+        val loadingMore: Boolean = false,
     )
 
     private val feedState = MutableStateFlow(FeedState())
@@ -128,6 +137,8 @@ class VideosViewModel(
             feedLoading = feed.loading,
             feedError = feed.error,
             refreshing = refreshing,
+            canLoadMore = feed.next != null,
+            loadingMore = feed.loadingMore,
             sort = sort,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), UiState())
@@ -142,8 +153,12 @@ class VideosViewModel(
         viewModelScope.launch {
             feedState.update { it.copy(loading = true) }
             feedState.value = when (val result = loadFeed(feed)) {
-                is FeedResult.Success ->
-                    FeedState(feed, loading = false, videos = result.videos.map { it.toMediaItem(feed) })
+                is FeedResult.Success -> FeedState(
+                    selected = feed,
+                    loading = false,
+                    videos = result.videos.map { it.toMediaItem(feed) },
+                    next = result.next,
+                )
                 FeedResult.SignedOut -> {
                     // Token died mid-session — re-check, which clears signedIn app-wide.
                     accountSubscriptions.refresh()
@@ -168,7 +183,10 @@ class VideosViewModel(
                 when (val result = loadFeed(feed)) {
                     is FeedResult.Success -> {
                         val items = result.videos.map { it.toMediaItem(feed) }
-                        feedState.update { it.copy(videos = items, error = false) }
+                        // A refresh replaces the feed, so paging restarts from this
+                        // page's token — keeping the old one would append pages that
+                        // continue a list the user can no longer see.
+                        feedState.update { it.copy(videos = items, error = false, next = result.next) }
                     }
                     FeedResult.SignedOut -> accountSubscriptions.refresh()
                     is FeedResult.Failure -> Unit // keep what's shown
@@ -178,11 +196,50 @@ class VideosViewModel(
         }
     }
 
-    private suspend fun loadFeed(feed: AccountFeed): FeedResult = when (feed) {
-        AccountFeed.RECOMMENDED -> youtube.feeds.recommended()
-        AccountFeed.SUBSCRIPTIONS -> youtube.feeds.subscriptionsFeed()
-        AccountFeed.WATCH_LATER -> youtube.feeds.watchLater()
-        AccountFeed.HISTORY -> youtube.feeds.history()
+    /**
+     * Loads the next page of the current feed, appending it. Guarded so scrolling
+     * cannot fire overlapping requests, and so it no-ops once the feed is exhausted —
+     * the list asks whenever it nears the end, and asking is cheap only if repeats are.
+     */
+    fun loadMore() {
+        val state = feedState.value
+        val feed = state.selected ?: return
+        val after = state.next ?: return
+        if (state.loadingMore || state.loading) return
+        feedState.update { it.copy(loadingMore = true) }
+        viewModelScope.launch {
+            when (val result = loadFeed(feed, after)) {
+                is FeedResult.Success -> feedState.update { current ->
+                    Diag.log(
+                        "feed",
+                        "$feed page +${result.videos.size} (had ${current.videos.size}) more=${result.next != null}",
+                    )
+                    // Dedupe: YouTube does return overlapping pages, and a duplicate id
+                    // in a LazyColumn key is a crash, not a cosmetic problem.
+                    val existing = current.videos.map { it.id }.toSet()
+                    val fresh = result.videos.map { it.toMediaItem(feed) }.filter { it.id !in existing }
+                    current.copy(
+                        videos = current.videos + fresh,
+                        next = result.next,
+                        loadingMore = false,
+                    )
+                }
+                FeedResult.SignedOut -> {
+                    accountSubscriptions.refresh()
+                    feedState.value = FeedState()
+                }
+                // A failed page keeps the token, so scrolling again retries rather than
+                // permanently ending the feed on one flaky request.
+                is FeedResult.Failure -> feedState.update { it.copy(loadingMore = false) }
+            }
+        }
+    }
+
+    private suspend fun loadFeed(feed: AccountFeed, after: PageToken? = null): FeedResult = when (feed) {
+        AccountFeed.RECOMMENDED -> youtube.feeds.recommended(after)
+        AccountFeed.SUBSCRIPTIONS -> youtube.feeds.subscriptionsFeed(after)
+        AccountFeed.WATCH_LATER -> youtube.feeds.watchLater(after)
+        AccountFeed.HISTORY -> youtube.feeds.history(after)
     }
 
     private fun FeedVideo.toMediaItem(feed: AccountFeed) = toMediaItem(SourceId("ytfeed:${feed.name}"))

@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.Notifications
@@ -53,6 +54,8 @@ import com.dewijones92.uniapp.innertube.playlists.Playlist
 import com.dewijones92.uniapp.theme.UniAppTheme
 import com.dewijones92.uniapp.ui.channel.ChannelScreen
 import com.dewijones92.uniapp.ui.common.EmptyState
+import com.dewijones92.uniapp.ui.common.LoadMoreOnScrollToEnd
+import com.dewijones92.uniapp.ui.common.LoadingMoreFooter
 import com.dewijones92.uniapp.ui.common.MediaItemActions
 import com.dewijones92.uniapp.ui.common.MediaItemRow
 import com.dewijones92.uniapp.ui.common.MediaSort
@@ -77,36 +80,12 @@ fun VideosScreen(
     // tapped playlist), and the new-uploads notifications.
     val notificationsViewModel: NotificationsViewModel =
         viewModel(factory = NotificationsViewModel.factory(container))
-    var browsingChannel by remember { mutableStateOf<MediaSource.VideoChannel?>(null) }
-    var showPlaylists by remember { mutableStateOf(false) }
-    var showNotifications by remember { mutableStateOf(false) }
-    var browsingPlaylist by remember { mutableStateOf<Playlist?>(null) }
-    val channel = browsingChannel
-    val playlist = browsingPlaylist
-
+    val nav = remember { VideosNav() }
     val actions = rememberMediaItemActions(container)
     val switchMode = rememberModeSwitch(actions)
 
     when {
-        playlist != null ->
-            PlaylistScreen(container, playlist, onBack = { browsingPlaylist = null }, modifier = modifier)
-        showPlaylists ->
-            PlaylistsListScreen(
-                container,
-                onOpen = { browsingPlaylist = it },
-                onBack = { showPlaylists = false },
-                modifier = modifier,
-            )
-        showNotifications ->
-            NotificationsScreen(notificationsViewModel, onBack = { showNotifications = false }, modifier = modifier)
-        channel != null ->
-            ChannelScreen(
-                container,
-                channel,
-                onBack = { browsingChannel = null },
-                onOpenPlaylist = { browsingPlaylist = it },
-                modifier = modifier,
-            )
+        nav.overlayShowing -> VideosOverlay(container, nav, notificationsViewModel, modifier)
         else -> VideosContent(
             state = state,
             newUploadsCount = notificationsViewModel.count.collectAsStateWithLifecycle().value,
@@ -117,18 +96,19 @@ fun VideosScreen(
             onDownload = viewModel::download,
             onDeleteDownload = viewModel::deleteDownload,
             onSelectFeed = viewModel::selectFeed,
-            onChannelClick = { browsingChannel = it },
+            onChannelClick = { nav.channel = it },
             onSwitchMode = switchMode,
             onGoToChannel = { item ->
                 actions.goToSource(item) { source ->
-                    (source as? MediaSource.VideoChannel)?.let { browsingChannel = it }
+                    (source as? MediaSource.VideoChannel)?.let { nav.channel = it }
                 }
             },
-            onOpenPlaylists = { showPlaylists = true },
+            onOpenPlaylists = { nav.showPlaylists = true },
             onOpenShorts = { onOpenShorts(state.videos.filter { it.contentKind == MediaContentKind.SHORT }) },
-            onOpenNotifications = { showNotifications = true },
+            onOpenNotifications = { nav.showNotifications = true },
             onRefresh = viewModel::refresh,
             onSetSort = viewModel::setSort,
+            onLoadMore = viewModel::loadMore,
             modifier = modifier,
         )
     }
@@ -153,6 +133,57 @@ private fun rememberModeSwitch(actions: MediaItemActions): (MediaItem) -> Unit {
     }
 }
 
+/**
+ * Which full-screen overlay the Videos tab is showing, if any. A holder rather than four
+ * loose booleans: the states are mutually exclusive in practice, and naming the concept
+ * keeps the screen's `when` readable as "an overlay, or the feed".
+ */
+private class VideosNav {
+    var channel by mutableStateOf<MediaSource.VideoChannel?>(null)
+    var playlist by mutableStateOf<Playlist?>(null)
+    var showPlaylists by mutableStateOf(false)
+    var showNotifications by mutableStateOf(false)
+
+    val overlayShowing: Boolean
+        get() = channel != null || playlist != null || showPlaylists || showNotifications
+}
+
+/**
+ * The overlays that sit over the feed. Order matters: a tapped playlist wins over the
+ * playlists list that opened it, so backing out returns to the list rather than the feed.
+ */
+@Composable
+private fun VideosOverlay(
+    container: AppContainer,
+    nav: VideosNav,
+    notificationsViewModel: NotificationsViewModel,
+    modifier: Modifier = Modifier,
+) {
+    val playlist = nav.playlist
+    val channel = nav.channel
+    when {
+        playlist != null ->
+            PlaylistScreen(container, playlist, onBack = { nav.playlist = null }, modifier = modifier)
+        nav.showPlaylists ->
+            PlaylistsListScreen(
+                container,
+                onOpen = { nav.playlist = it },
+                onBack = { nav.showPlaylists = false },
+                modifier = modifier,
+            )
+        nav.showNotifications ->
+            NotificationsScreen(notificationsViewModel, onBack = { nav.showNotifications = false }, modifier = modifier)
+        channel != null ->
+            ChannelScreen(
+                container,
+                channel,
+                onBack = { nav.channel = null },
+                onOpenPlaylist = { nav.playlist = it },
+                modifier = modifier,
+            )
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun VideosContent(
@@ -173,6 +204,7 @@ internal fun VideosContent(
     onOpenNotifications: () -> Unit,
     onRefresh: () -> Unit,
     onSetSort: (MediaSort) -> Unit,
+    onLoadMore: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
@@ -207,6 +239,7 @@ internal fun VideosContent(
                         onOpenPlaylists = onOpenPlaylists,
                         onOpenShorts = onOpenShorts,
                         onSetSort = onSetSort,
+                        onLoadMore = onLoadMore,
                     )
                 }
             }
@@ -270,9 +303,12 @@ private fun ChannelsAndVideos(
     onOpenPlaylists: () -> Unit,
     onOpenShorts: () -> Unit,
     onSetSort: (MediaSort) -> Unit,
+    onLoadMore: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    LazyColumn(modifier = modifier.fillMaxSize()) {
+    val listState = rememberLazyListState()
+    LoadMoreOnScrollToEnd(listState, enabled = state.canLoadMore && !state.loadingMore, loadMore = onLoadMore)
+    LazyColumn(state = listState, modifier = modifier.fillMaxSize()) {
         if (state.subscriptions.isNotEmpty()) {
             item {
                 LazyRow(
@@ -323,6 +359,7 @@ private fun ChannelsAndVideos(
                     )
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                 }
+                if (state.loadingMore) item { LoadingMoreFooter() }
             }
         }
     }
@@ -416,6 +453,7 @@ private fun VideosContentPreview() {
             onOpenNotifications = {},
             onRefresh = {},
             onSetSort = {},
+            onLoadMore = {},
         )
     }
 }

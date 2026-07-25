@@ -2,6 +2,7 @@ package com.dewijones92.uniapp.innertube.subscriptions
 
 import com.dewijones92.uniapp.innertube.auth.AccessTokenResult
 import com.dewijones92.uniapp.innertube.auth.YouTubeAccount
+import com.dewijones92.uniapp.innertube.browse.BrowseTarget
 import com.dewijones92.uniapp.innertube.browse.InnerTubeClient
 import com.dewijones92.uniapp.innertube.browse.InnerTubeResponse
 
@@ -21,7 +22,7 @@ public class HttpYouTubeSubscriptions(
             AccessTokenResult.SignedOut -> return SubscriptionsResult.SignedOut
             is AccessTokenResult.Failure -> return SubscriptionsResult.Failure(result.detail)
         }
-        return when (val browsed = innerTube.browse(SUBSCRIPTIONS_BROWSE_ID, token)) {
+        return when (val browsed = innerTube.browse(BrowseTarget.Id(SUBSCRIPTIONS_BROWSE_ID), token)) {
             is InnerTubeResponse.Success -> SubscriptionsResponseParser.parse(browsed.body)
             InnerTubeResponse.Unauthorized -> SubscriptionsResult.SignedOut
             is InnerTubeResponse.Failure -> SubscriptionsResult.Failure(browsed.detail)

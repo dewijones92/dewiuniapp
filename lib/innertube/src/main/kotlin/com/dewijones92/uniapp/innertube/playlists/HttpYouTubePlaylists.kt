@@ -2,6 +2,7 @@ package com.dewijones92.uniapp.innertube.playlists
 
 import com.dewijones92.uniapp.innertube.auth.AccessTokenResult
 import com.dewijones92.uniapp.innertube.auth.YouTubeAccount
+import com.dewijones92.uniapp.innertube.browse.BrowseTarget
 import com.dewijones92.uniapp.innertube.browse.InnerTubeClient
 import com.dewijones92.uniapp.innertube.browse.InnerTubeResponse
 import com.dewijones92.uniapp.innertube.feeds.FeedResult
@@ -24,7 +25,7 @@ public class HttpYouTubePlaylists(
             AccessTokenResult.SignedOut -> return PlaylistsResult.SignedOut
             is AccessTokenResult.Failure -> return PlaylistsResult.Failure(result.detail)
         }
-        return when (val browsed = innerTube.browse(PLAYLISTS_BROWSE_ID, token)) {
+        return when (val browsed = innerTube.browse(BrowseTarget.Id(PLAYLISTS_BROWSE_ID), token)) {
             is InnerTubeResponse.Success -> PlaylistsResponseParser.parse(browsed.body)
             InnerTubeResponse.Unauthorized -> PlaylistsResult.SignedOut
             is InnerTubeResponse.Failure -> PlaylistsResult.Failure(browsed.detail)
@@ -37,7 +38,7 @@ public class HttpYouTubePlaylists(
             AccessTokenResult.SignedOut -> return PlaylistVideosResult.SignedOut
             is AccessTokenResult.Failure -> return PlaylistVideosResult.Failure(result.detail)
         }
-        return when (val browsed = innerTube.browse(browseId, token)) {
+        return when (val browsed = innerTube.browse(BrowseTarget.Id(browseId), token)) {
             is InnerTubeResponse.Success -> when (val parsed = VideoTileParser.parse(browsed.body)) {
                 is FeedResult.Success -> PlaylistVideosResult.Success(parsed.videos)
                 FeedResult.SignedOut -> PlaylistVideosResult.SignedOut
