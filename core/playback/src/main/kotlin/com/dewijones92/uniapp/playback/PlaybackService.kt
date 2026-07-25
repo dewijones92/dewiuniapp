@@ -62,6 +62,9 @@ public class PlaybackService : MediaSessionService() {
 
     private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
 
+    /** Platform gain for quiet audio; null when off or unavailable on this device. */
+    private var loudness: android.media.audiofx.LoudnessEnhancer? = null
+
     /** Notices the user's own speed changes so a silent stretch restores the right rate. */
     private val speedWatcher = object : Player.Listener {
         override fun onPlaybackParametersChanged(playbackParameters: androidx.media3.common.PlaybackParameters) {
@@ -146,6 +149,7 @@ public class PlaybackService : MediaSessionService() {
                 .setAvailableSessionCommands(
                     MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS.buildUpon()
                         .add(SessionCommand(ACTION_SKIP_SILENCE, Bundle.EMPTY))
+                        .add(SessionCommand(ACTION_VOLUME_BOOST, Bundle.EMPTY))
                         .build(),
                 )
                 .build()
@@ -156,6 +160,10 @@ public class PlaybackService : MediaSessionService() {
             customCommand: SessionCommand,
             args: Bundle,
         ): ListenableFuture<SessionResult> {
+            if (customCommand.customAction == ACTION_VOLUME_BOOST) {
+                applyVolumeBoost(args.getInt(EXTRA_VOLUME_BOOST_MILLIBELS, 0))
+                return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+            }
             if (customCommand.customAction == ACTION_SKIP_SILENCE) {
                 val enabled = args.getBoolean(EXTRA_SKIP_SILENCE_ENABLED)
                 Log.i("dewidebug", "skip-silence -> $enabled")
@@ -187,6 +195,28 @@ public class PlaybackService : MediaSessionService() {
         val speed = if (silent) (userSpeed * SILENCE_SPEED_MULTIPLIER).coerceAtMost(MAX_SILENCE_SPEED) else userSpeed
         Log.i("dewidebug", "skip-silence silent=$silent speed=$speed (user=$userSpeed)")
         target.setPlaybackSpeed(speed)
+    }
+
+    /**
+     * Applies gain to the player's audio session with the platform's own enhancer.
+     * A session effect can't reach a Cast receiver, so this is local playback only —
+     * accepted rather than half-built.
+     */
+    @UnstableApi
+    private fun applyVolumeBoost(millibels: Int) {
+        val sessionId = player?.audioSessionId ?: return
+        if (sessionId == C.AUDIO_SESSION_ID_UNSET) return
+        // Recreated on change: the enhancer is bound to a session, and a stale one
+        // after a session change would silently do nothing.
+        runCatching { loudness?.release() }
+        loudness = null
+        if (millibels <= 0) return
+        loudness = runCatching {
+            android.media.audiofx.LoudnessEnhancer(sessionId).apply {
+                setTargetGain(millibels)
+                enabled = true
+            }
+        }.onFailure { Log.i("dewidebug", "volume boost unavailable: ${it.message}") }.getOrNull()
     }
 
     /** Turns the user's intent off cleanly, restoring their speed if we were racing. */
@@ -273,6 +303,8 @@ public class PlaybackService : MediaSessionService() {
 
 /** Custom session command to toggle silence-skipping; the bool rides in [EXTRA_SKIP_SILENCE_ENABLED]. */
 internal const val ACTION_SKIP_SILENCE: String = "com.dewijones92.uniapp.SKIP_SILENCE"
+internal const val ACTION_VOLUME_BOOST: String = "com.dewijones92.uniapp.VOLUME_BOOST"
+internal const val EXTRA_VOLUME_BOOST_MILLIBELS: String = "gain_millibels"
 internal const val EXTRA_SKIP_SILENCE_ENABLED: String = "enabled"
 
 /**

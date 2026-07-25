@@ -66,6 +66,7 @@ import com.dewijones92.uniapp.notifications.YouTubeSubscriptionItemsSource
 import com.dewijones92.uniapp.playback.Media3PlaybackController
 import com.dewijones92.uniapp.playback.PlaybackController
 import com.dewijones92.uniapp.playback.SharedPrefsPlaybackSpeedStore
+import com.dewijones92.uniapp.playback.SharedPrefsVolumeBoostStore
 import com.dewijones92.uniapp.playback.SleepTimer
 import com.dewijones92.uniapp.queue.PlaybackQueue
 import com.dewijones92.uniapp.queue.QueueAutoDownloader
@@ -228,6 +229,7 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
             applicationScope,
             RoomPlaybackProgressStore(database.playbackProgressDao()),
             SharedPrefsPlaybackSpeedStore(context),
+            SharedPrefsVolumeBoostStore(context),
             // Podcasts play straight through the controller (their enclosure URL is
             // stable), so record their history here; videos are recorded at the
             // launcher, which knows the stable watch URL.

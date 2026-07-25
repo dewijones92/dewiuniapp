@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.PlaylistPlay
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Forward30
 import androidx.compose.material.icons.filled.Pause
@@ -27,8 +26,6 @@ import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material.icons.filled.ThumbDown
 import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material.icons.filled.WatchLater
-import androidx.compose.material.icons.outlined.GraphicEq
-import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.ThumbDown
 import androidx.compose.material.icons.outlined.ThumbUp
 import androidx.compose.material.icons.outlined.WatchLater
@@ -299,6 +296,7 @@ private fun PlayerDetails(
     SpeedControl(state.speed, onSetSpeed)
     SleepTimerControl(sleepTimer, onStartSleep, onCancelSleep)
     PlaybackTogglesRow(skipSilence = state.skipSilence, toggles = toggles)
+    BoostControl(state.volumeBoost, toggles.onSetVolumeBoost)
 
     // Quality — video only, and only when there's a choice to make.
     if (state.hasVideo && quality.options.size > 1) {
@@ -330,25 +328,6 @@ private fun PlayerDetails(
         Spacer(Modifier.height(32.dp))
         CommentsSection(comments, watchActions, replies)
     }
-}
-
-/** The player's on/off preferences. */
-@Composable
-private fun PlaybackTogglesRow(skipSilence: Boolean, toggles: PlaybackToggles) {
-    // Both pillars now: silence is handled by raising the playback rate, which retimes
-    // audio and video together, so the old audio-only restriction is gone.
-    PlayerToggle(
-        icon = Icons.Outlined.GraphicEq,
-        labelRes = R.string.skip_silence,
-        checked = skipSilence,
-        onCheckedChange = toggles.onSetSkipSilence,
-    )
-    PlayerToggle(
-        icon = Icons.AutoMirrored.Outlined.PlaylistPlay,
-        labelRes = R.string.auto_play_next,
-        checked = toggles.autoPlayNext,
-        onCheckedChange = toggles.onSetAutoPlayNext,
-    )
 }
 
 /** The up-next queue: a titled list, tap an entry to jump to it, X to remove it. */
@@ -590,34 +569,6 @@ internal fun TransportControls(
     }
 }
 
-@Composable
-private fun SpeedControl(speed: Float, onSetSpeed: (Float) -> Unit, modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier,
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Icon(
-            Icons.Outlined.Speed,
-            contentDescription = null,
-            modifier = Modifier.size(20.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        SPEEDS.forEach { option ->
-            TextButton(onClick = { onSetSpeed(option) }) {
-                Text(
-                    text = "${option}x",
-                    color = if (option == speed) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
-                )
-            }
-        }
-    }
-}
-
 /** "m:ss", or "h:mm:ss" once past an hour — used for positions and durations alike. */
 internal fun formatTime(millis: Long): String {
     val totalSeconds = TimeUnit.MILLISECONDS.toSeconds(millis)
@@ -631,7 +582,6 @@ internal fun formatTime(millis: Long): String {
     }
 }
 
-private val SPEEDS = listOf(0.8f, 1.0f, 1.25f, 1.5f, 2.0f)
 private const val SECONDS_PER_MINUTE = 60L
 private const val SECONDS_PER_HOUR = 3600L
 internal const val DEFAULT_VIDEO_ASPECT_RATIO = 16f / 9f

@@ -1,7 +1,7 @@
 ---
 title: Volume boost / loudness normalization for quiet audio
 kind: todo
-status: ready
+status: shipped
 area: playback
 priority: medium
 requested: 2026-07-24
@@ -54,3 +54,29 @@ compression) behind the same control.
 
 **Done when:** a quiet item can be made comfortably audible from the player, the
 choice persists, and it applies to both pillars.
+
+## Shipped 2026-07-25
+
+- `VolumeBoost` (Off / Low +3dB / Med +7dB / High +12dB, in millibels — the unit
+  `LoudnessEnhancer` takes) plus a `VolumeBoostStore` port, mirroring
+  `PlaybackSpeedStore` exactly: keyed by `SourceId`, so a quietly recorded podcast
+  stays boosted without shouting everywhere else.
+- Applied in the service by attaching the platform's `LoudnessEnhancer` to the player's
+  audio session, recreated on change (a stale effect bound to an old session would
+  silently do nothing). Wrapped in `runCatching` — some devices refuse the effect, and
+  that should degrade to "no boost", not a crash.
+- Restored per source on play, alongside the remembered speed.
+- Levels selector in the full player under the toggles.
+
+While in here, `FullPlayer.kt` had outgrown its function limit, so the playback
+preferences (rate, silence, auto-advance, boost) moved into `PlaybackPreferences.kt` —
+which is also where they need to be for the UI-polish plan to collapse them behind one
+settings affordance on the video.
+
+### Verified on-device
+
+Off / Low / Med / High render in the player; tapping **Med** persisted
+`https://feed.syntax.fm/rss → MEDIUM` (per-source, as intended) and the enhancer was
+created with **no** "unavailable" failure. Honest caveat: the *audible* effect isn't
+verified by ear from here — what's verified is that the platform effect instantiates,
+takes the gain, and the choice sticks to the right source.

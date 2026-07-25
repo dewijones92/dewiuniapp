@@ -54,4 +54,5 @@ data class PlaybackToggles(
     val onSetSkipSilence: (Boolean) -> Unit = {},
     val autoPlayNext: Boolean = true,
     val onSetAutoPlayNext: (Boolean) -> Unit = {},
+    val onSetVolumeBoost: (com.dewijones92.uniapp.playback.VolumeBoost) -> Unit = {},
 )

@@ -59,6 +59,9 @@ public interface PlaybackController {
 
     /** Toggles skipping of near-silent stretches (trims dead air, podcast-style). */
     public fun setSkipSilence(enabled: Boolean)
+
+    /** Lifts quiet audio; remembered per source. Local playback only (not Cast). */
+    public fun setVolumeBoost(boost: VolumeBoost)
 }
 
 /** What the UI needs to render a player for the current item. */
@@ -97,6 +100,7 @@ public data class PlaybackState(
     val skipSegments: List<SkipSegment> = emptyList(),
     /** Whether silence-skipping (dead-air trimming) is currently on. */
     val skipSilence: Boolean = false,
+    val volumeBoost: VolumeBoost = VolumeBoost.OFF,
     /** Chapters of the current item — marked on the seek bar and listed to tap-jump. */
     val chapters: List<Chapter> = emptyList(),
 ) {

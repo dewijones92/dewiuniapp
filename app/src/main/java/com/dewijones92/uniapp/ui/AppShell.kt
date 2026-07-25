@@ -241,6 +241,7 @@ private fun playbackToggles(
     onSetSkipSilence = controller::setSkipSilence,
     autoPlayNext = autoPlayNext,
     onSetAutoPlayNext = container.appPreferences::setAutoPlayNext,
+    onSetVolumeBoost = controller::setVolumeBoost,
 )
 
 @Preview(showBackground = true)

@@ -44,6 +44,7 @@ public class Media3PlaybackController(
     private val scope: CoroutineScope,
     private val progressStore: PlaybackProgressStore = NoOpPlaybackProgressStore,
     private val speedStore: PlaybackSpeedStore = NoOpPlaybackSpeedStore,
+    private val boostStore: VolumeBoostStore = NoOpVolumeBoostStore,
     private val onPlay: (MediaItem, MediaKind) -> Unit = { _, _ -> },
 ) : PlaybackController {
 
@@ -58,6 +59,7 @@ public class Media3PlaybackController(
     private var currentSourceId: SourceId? = null
     private var playGeneration = 0
     private var skipSilence = false
+    private var volumeBoost = VolumeBoost.OFF
     private var ticksSinceSave = 0
 
     init {
@@ -140,6 +142,7 @@ public class Media3PlaybackController(
         scope.launch {
             val resumeMs = progressStore.resumePositionMs(item.id) ?: 0L
             val speed = speedStore.speedFor(item.sourceId)
+            val boost = boostStore.boostFor(item.sourceId)
             withController { controller ->
                 // A newer play() superseded this one while we were loading — drop it,
                 // so its media item and state never clobber the current item.
@@ -150,6 +153,7 @@ public class Media3PlaybackController(
                 ticksSinceSave = 0
                 controller.setMediaItem(media3Item, resumeMs)
                 controller.setPlaybackSpeed(speed.coerceIn(MIN_SPEED, MAX_SPEED))
+                if (boost != volumeBoost) setVolumeBoost(boost)
                 controller.prepare()
                 controller.play()
             }
@@ -196,6 +200,18 @@ public class Media3PlaybackController(
             _state.value = it.currentPlaybackState()
         }
         currentSourceId?.let { source -> scope.launch { speedStore.save(source, clamped) } }
+    }
+
+    override fun setVolumeBoost(boost: VolumeBoost) {
+        volumeBoost = boost
+        withController {
+            it.sendCustomCommand(
+                SessionCommand(ACTION_VOLUME_BOOST, Bundle.EMPTY),
+                bundleOf(EXTRA_VOLUME_BOOST_MILLIBELS to boost.gainMillibels),
+            )
+            _state.value = it.currentPlaybackState()
+        }
+        currentSourceId?.let { source -> scope.launch { boostStore.save(source, boost) } }
     }
 
     override fun setSkipSilence(enabled: Boolean) {
@@ -267,6 +283,7 @@ public class Media3PlaybackController(
             isBuffering = playbackState == Player.STATE_BUFFERING,
             skipSegments = activeSkipSegments,
             skipSilence = skipSilence,
+            volumeBoost = volumeBoost,
             chapters = activeChapters,
         )
     }

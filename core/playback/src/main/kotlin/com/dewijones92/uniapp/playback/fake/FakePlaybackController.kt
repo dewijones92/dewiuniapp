@@ -7,6 +7,7 @@ import com.dewijones92.uniapp.domain.MediaKind
 import com.dewijones92.uniapp.domain.SkipSegment
 import com.dewijones92.uniapp.playback.PlaybackController
 import com.dewijones92.uniapp.playback.PlaybackState
+import com.dewijones92.uniapp.playback.VolumeBoost
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -76,6 +77,10 @@ public class FakePlaybackController : PlaybackController {
 
     override fun setSpeed(speed: Float) {
         _state.update { it?.copy(speed = speed) }
+    }
+
+    override fun setVolumeBoost(boost: VolumeBoost) {
+        _state.update { it?.copy(volumeBoost = boost) }
     }
 
     override fun setSkipSilence(enabled: Boolean) {

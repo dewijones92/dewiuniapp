@@ -21,10 +21,10 @@ to `shipped` and migrate it to `../features/` once it's a real feature on `main`
 | [play-history-screen](play-history-screen.md) | library | medium | shipped |
 | [local-cross-pillar-playlists](local-cross-pillar-playlists.md) | library | high | shipped |
 | [skip-silence-on-video](skip-silence-on-video.md) | playback | medium | shipped |
-| [queue-first-playback](queue-first-playback.md) | playback | high | ready (awaiting go) |
-| [auto-download-queue](auto-download-queue.md) | downloads | high | ready (awaiting go) |
+| [queue-first-playback](queue-first-playback.md) | playback | high | shipped (drag-reorder outstanding) |
+| [auto-download-queue](auto-download-queue.md) | downloads | high | shipped |
 | [autoplay-next-guaranteed](autoplay-next-guaranteed.md) | playback | medium | shipped |
-| [volume-boost-normalize](volume-boost-normalize.md) | playback | medium | ready (awaiting go) |
+| [volume-boost-normalize](volume-boost-normalize.md) | playback | medium | shipped |
 | [subtitles-captions](subtitles-captions.md) | playback | medium | refining |
 | [youtube-progress-two-way-sync](youtube-progress-two-way-sync.md) | video | medium | refining |
 | [ui-polish](ui-polish.md) | ui | medium | refining |
@@ -32,7 +32,7 @@ to `shipped` and migrate it to `../features/` once it's a real feature on `main`
 | [feature-gap-review](feature-gap-review.md) | planning | — | triage of the AI review |
 | [feed-pagination](feed-pagination.md) | video | high | refining |
 | [testing-depth](testing-depth.md) | tests | medium | refining |
-| [audio-video-switching](audio-video-switching.md) | playback | high | ready (awaiting go) |
+| [audio-video-switching](audio-video-switching.md) | playback | high | shipped (local-audio merge outstanding) |
 | [notification-opens-app](notification-opens-app.md) | playback | high | shipped |
 | [listen-mode-exit-ux](listen-mode-exit-ux.md) | playback | high | shipped |
 
