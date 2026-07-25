@@ -99,6 +99,29 @@ silently reverted the sink to 504 with nothing to explain why. Three habits from
 - **Don't anchor edits on `include … oauth2.partial`** — it appears in *five* server blocks,
   so a first-match insert lands in the wrong one. `server_name crashlog.…` is unique.
 
-**Never run `generate.sh` casually.** It takes domain arguments and regenerates the whole
-nginx config for every service on the Pi; getting an argument wrong breaks far more than
-this sink. Patch the one line in both copies instead.
+**`generate.sh` is Dewi's to run, not mine.** Its documented invocation
+(`serverconfig/code/server_docker/README`) pulls `secret_url`, `duckdns_token`,
+`cloudflare_api_token` and a MAC address out of **Bitwarden** via `bw list items`. Without an
+unlocked vault it would regenerate the whole Pi's nginx config — every service, not just this
+sink — with blanks where those secrets go. It is also **not** invoked by `run.sh` or at boot,
+so `bin/` simply persists.
+
+Which means patching both copies by hand is the correct procedure, and regeneration can be
+*proved* equivalent without running it:
+
+```bash
+D=/home/pi/code/dot-files/serverconfig/code/server_docker
+diff <(sudo sed -n '/server_name crashlog/,/^}/p' $D/data/nginx/app.conf | sed 's/{{TK_DOMAIN}}/333133333.xyz/g') \
+     <(sudo sed -n '/server_name crashlog/,/^}/p' $D/bin/data/nginx/app.conf)
+```
+
+**Testing "does it survive a reboot" without rebooting.** A reboot restarts nginx, which
+re-resolves its bind mounts and so picks up the *current* host file — the thing the inode
+divergence hides. Mount it into a throwaway container to see exactly what a fresh start gets:
+
+```bash
+sudo docker run --rm -v $D/bin/data/nginx/app.conf:/x:ro alpine grep -n 'set $crashlog' /x
+```
+
+That is the check which proves the half-done fix above is really fixed: before it, a reboot
+would have silently restored the 504.
