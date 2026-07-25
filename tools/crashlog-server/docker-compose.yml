@@ -5,11 +5,11 @@
 services:
   crashlog:
     build: .
-    # Image and container names deliberately lag the Totum rebrand: the Pi's nginx
-    # config resolves this service by container name, so renaming it here without a
-    # coordinated nginx change would 502 the live crash sink.
-    image: uniapp-crashlog:local
-    container_name: uniapp-crashlog
+    # The Pi's nginx resolves this service BY CONTAINER NAME (`set $crashlog …` in
+    # data/nginx/app.conf), so this name and that config must change together or the
+    # live sink 502s. Both were renamed in lockstep on 2026-07-25.
+    image: totum-crashlog:local
+    container_name: totum-crashlog
     restart: unless-stopped
     # No published host port at all. The container joins nginx's own docker network,
     # so nginx reaches it by container name and nothing is exposed to the LAN. (A

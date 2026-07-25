@@ -208,13 +208,22 @@ when driven on the emulator. Verify real flows on a device, not just via tests.
 ## Working agreements
 
 - Commit as you go — small, coherent commits at each green state.
-- Remote: `github.com/dewijones92/dewiuniapp` (public) — the **repo** name still says
-  `dewiuniapp`, as do the local clone path and the signing directory. Deliberate: renaming
-  a remote and a working copy mid-flight buys nothing and breaks tooling. Only the *app*
-  is Totum. Default branch is
+- Remote: `github.com/dewijones92/totum` (public; renamed from `dewiuniapp` on
+  2026-07-25 — GitHub redirects the old URL, so stale clones keep working). Local
+  clone is `~/code/totum`, and the Pi's is `~/code/totum`. The **signing**
+  directories keep their old names on purpose (`~/code/dewiuniapp-signing`, the
+  private `dewijones92/uniapp-signing-backup`): renaming anything holding release
+  keys buys tidiness at the cost of risk. Default branch is
   `main`; pushing to it is fine and CI (GitHub Actions) must stay green.
 - Every push to main publishes a signed APK to the rolling `latest`
-  prerelease (consumed by Dewi's Obtainium). Release signing key lives in
+  prerelease (consumed by Dewi's Obtainium).
+- **Never re-run an older `main` CI run while one is in flight.** `ci.yml` sets
+  `concurrency: cancel-in-progress` on `${{ github.ref }}`, so re-running an old
+  run *cancels the current one* — and since the tip run is what publishes the
+  rolling APK, that silently leaves Obtainium without a build. If an old run
+  failed spuriously (it happens — a run can complete with zero jobs, which is a
+  GitHub scheduling fault, not a test failure), just let the newer commit prove
+  it: the tip is a superset. Learned 2026-07-25, at the cost of the Totum APK. Release signing key lives in
   three places, never this repo: locally at `/home/dewi/code/dewiuniapp-signing/`,
   in this repo's Actions secrets (CI signing; write-only), and backed up in
   the PRIVATE repo `dewijones92/uniapp-signing-backup` (survives laptop

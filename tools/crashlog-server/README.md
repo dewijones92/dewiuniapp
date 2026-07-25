@@ -1,4 +1,4 @@
-# UniApp crash / diagnostics sink
+# Totum crash / diagnostics sink
 
 Receives crash and diagnostics reports from the app and makes them readable. Runs as a
 container on the Pi, reached through the existing nginx at
@@ -38,7 +38,7 @@ Google login.**
 ## Deploying / updating on the Pi
 
 ```bash
-cd ~/code/dewiuniapp && git pull
+cd ~/code/totum && git pull
 cd tools/crashlog-server && docker compose up -d --build
 ```
 
@@ -60,7 +60,7 @@ ssh pi@333133333.xyz 'cat "$(ls -t /home/pi/crashlog-data/reports/*/*.json | hea
 ssh pi@333133333.xyz 'ls -t /home/pi/crashlog-data/reports/*/*.json | head'
 
 # the service's own pretty view / API
-ssh pi@333133333.xyz 'docker exec uniapp-crashlog python -c "import urllib.request;print(urllib.request.urlopen(\"http://localhost:9140/latest\").read().decode())"'
+ssh pi@333133333.xyz 'docker exec totum-crashlog python -c "import urllib.request;print(urllib.request.urlopen(\"http://localhost:9140/latest\").read().decode())"'
 ```
 
 ## Pi deployment notes (paid for once, worth keeping)
