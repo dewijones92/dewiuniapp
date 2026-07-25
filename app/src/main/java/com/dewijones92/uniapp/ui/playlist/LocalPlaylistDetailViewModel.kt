@@ -7,6 +7,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.dewijones92.uniapp.data.download.DownloadManager
 import com.dewijones92.uniapp.data.playlist.LocalPlaylistStore
+import com.dewijones92.uniapp.data.queue.QueueGroup
 import com.dewijones92.uniapp.di.AppContainer
 import com.dewijones92.uniapp.domain.DownloadState
 import com.dewijones92.uniapp.domain.MediaItem
@@ -42,15 +43,19 @@ class LocalPlaylistDetailViewModel(
     /** True once the playlist was found empty — so deletion can pop the screen. */
     val deleted = MutableStateFlow(false)
 
+    /** Queues the whole playlist as one removable run, starting it now. */
     fun playAll() {
-        queue.playAll(items.value)
+        queue.playAll(items.value, group())
     }
 
-    /** Play from [item] to the end (the tapped item now, the rest queued). */
+    /** Play from [item] to the end (the tapped item now, the rest queued as a run). */
     fun playFrom(item: PlayableItem) {
         val from = items.value.dropWhile { it.item.id != item.item.id }
-        queue.playAll(from)
+        queue.playAll(from, group())
     }
+
+    /** The playlist as a queue group, so its run is labelled and removable together. */
+    private fun group() = QueueGroup(id.value, name.value)
 
     fun remove(itemId: MediaItemId) {
         viewModelScope.launch { store.removeItem(id, itemId) }

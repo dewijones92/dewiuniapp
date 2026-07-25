@@ -10,8 +10,9 @@ import com.dewijones92.uniapp.data.podcast.PodcastRepository
 import com.dewijones92.uniapp.di.AppContainer
 import com.dewijones92.uniapp.domain.DownloadState
 import com.dewijones92.uniapp.domain.MediaItem
-import com.dewijones92.uniapp.domain.MediaKind
-import com.dewijones92.uniapp.playback.PlaybackController
+import com.dewijones92.uniapp.domain.PlayHandle
+import com.dewijones92.uniapp.domain.PlayableItem
+import com.dewijones92.uniapp.queue.PlaybackQueue
 import com.dewijones92.uniapp.ui.common.MediaSort
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -24,7 +25,7 @@ import kotlinx.coroutines.launch
 /** Shows everything available offline — downloaded items across both pillars. */
 class LibraryViewModel(
     repository: PodcastRepository,
-    private val playback: PlaybackController,
+    private val queue: PlaybackQueue,
     private val downloads: DownloadManager,
 ) : ViewModel() {
 
@@ -50,7 +51,10 @@ class LibraryViewModel(
 
     fun play(entry: DownloadedItem) {
         // The Library lists downloaded podcast episodes (observeEpisodes).
-        playback.play(entry.item, kind = MediaKind.PODCAST, localPath = entry.localPath)
+        // Through the queue, like every other tap.
+        viewModelScope.launch {
+            queue.playNow(PlayableItem(entry.item, PlayHandle.Podcast(entry.localPath)))
+        }
     }
 
     fun delete(entry: DownloadedItem) {
@@ -64,7 +68,7 @@ class LibraryViewModel(
             initializer {
                 LibraryViewModel(
                     repository = container.podcastRepository,
-                    playback = container.playbackController,
+                    queue = container.playbackQueue,
                     downloads = container.downloadManager,
                 )
             }

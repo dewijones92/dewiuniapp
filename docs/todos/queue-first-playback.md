@@ -1,7 +1,7 @@
 ---
 title: Queue-first playback (AntennaPod-style) + Queue tab
 kind: todo
-status: ready
+status: in-progress
 area: playback
 priority: high
 requested: 2026-07-24
@@ -85,3 +85,41 @@ retrofit into a shipped DB.
 the Queue tab shows and edits that one queue, with grouped runs from "Play all"
 removable in one gesture; it survives a restart; long-press → Peek plays without
 disturbing it.
+
+## Progress 2026-07-25
+
+Shipped so far:
+
+- **Persistent queue** (`QueueStore` + Room, DB v10) with display-only group tags,
+  reusing the same denormalized column contract as playlists and history.
+- **Queue tab** in the bottom bar (Videos / Podcasts / Queue / Search / Library);
+  Account moved into Library. Grouped runs with one-tap "remove these", per-row
+  reorder/remove, Clear all.
+- **Tap plays through the queue** (`playNow`): every feed, Library, history, channel
+  and playlist tap now plays *and keeps the queue*, which was the actual pain.
+  Verified on-device: with a podcast queued, tapping a video played the video and
+  the podcast was still queued afterwards.
+- **"Play all" inserts a tagged run** after the current item instead of replacing
+  the queue.
+- `PlayableItem` unification landed first, so the queue, playlists and history all
+  store one shape.
+
+### Open question for Dewi — is "Peek" meaningful in this model?
+
+The queue holds what plays *after* the current item; the currently-playing item
+lives in the playback controller, not in the queue. With tap now preserving the
+queue, **"Peek" (play without touching the queue) is behaviourally almost identical
+to tapping** — the only difference is that `playNow` de-duplicates. So a "Peek" menu
+entry would read as a duplicate of tapping, and it has deliberately **not** been
+surfaced in the UI (the `PlaybackQueue.peek` API and its test remain).
+
+Making Peek genuinely distinct means the queue tracking a **current index** —
+i.e. the playing item becomes a queue *member* (AntennaPod's model), so a tapped
+item visibly joins the queue and a peeked one doesn't. That's a moderate change to
+the queue's shape and to the Queue tab. Worth doing only if the visible distinction
+matters to you.
+
+### Not yet done
+
+Drag-to-reorder (currently up/down arrows per row), and routing Search-result taps
+through the queue (search plays an ad-hoc item with no stable id yet).

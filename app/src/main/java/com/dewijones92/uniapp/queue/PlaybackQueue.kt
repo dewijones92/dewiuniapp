@@ -68,12 +68,33 @@ class PlaybackQueue(
         mutate { it + QueueEntry(item, group) }
     }
 
-    /** Plays [items] as a set: the first now, the rest queued up next. No-op if empty. */
+    /**
+     * Plays [items] as a set: the first now, the rest **inserted after it** as a
+     * tagged run. Deliberately does not replace the queue — an unwanted run is one
+     * "remove these" away, whereas a replaced queue is gone. No-op if empty.
+     */
     fun playAll(items: List<PlayableItem>, group: QueueGroup? = null) {
         if (items.isEmpty()) return
-        mutate { items.drop(1).map { item -> QueueEntry(item, group) } }
+        mutate { existing -> items.drop(1).map { QueueEntry(it, group) } + existing }
         scope.launch { play(items.first()) }
     }
+
+    /**
+     * The app's normal "tap to play": plays [item] now and **keeps the queue**, so
+     * pressing something never discards what you had lined up. An item already
+     * queued is moved rather than duplicated. Returns whether it started.
+     */
+    suspend fun playNow(item: PlayableItem): Boolean {
+        mutate { list -> list.filterNot { it.item.item.id == item.item.id } }
+        return play(item)
+    }
+
+    /**
+     * Plays [item] **without touching the queue** — the "peek" action: a one-off
+     * listen or watch that leaves a carefully built queue exactly as it was.
+     * Returns whether it started.
+     */
+    suspend fun peek(item: PlayableItem): Boolean = play(item)
 
     /** Inserts so it plays immediately after the current item. */
     fun playNext(item: PlayableItem, group: QueueGroup? = null) {

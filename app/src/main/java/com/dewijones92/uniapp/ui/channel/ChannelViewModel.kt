@@ -13,13 +13,15 @@ import com.dewijones92.uniapp.domain.DownloadState
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.MediaItemId
 import com.dewijones92.uniapp.domain.MediaSource
+import com.dewijones92.uniapp.domain.PlayHandle
+import com.dewijones92.uniapp.domain.PlayableItem
 import com.dewijones92.uniapp.innertube.channel.ChannelPlaylists
 import com.dewijones92.uniapp.innertube.channel.ChannelVideos
 import com.dewijones92.uniapp.innertube.channel.YouTubeChannel
 import com.dewijones92.uniapp.innertube.playlists.Playlist
+import com.dewijones92.uniapp.queue.PlaybackQueue
 import com.dewijones92.uniapp.ui.common.toMediaItem
 import com.dewijones92.uniapp.video.AccountSubscriptions
-import com.dewijones92.uniapp.video.VideoPlaybackLauncher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -39,7 +41,7 @@ class ChannelViewModel(
     private val source: MediaSource.VideoChannel,
     private val channel: YouTubeChannel,
     private val channelFallback: ChannelRepository,
-    private val launcher: VideoPlaybackLauncher,
+    private val queue: PlaybackQueue,
     private val accountSubscriptions: AccountSubscriptions,
     private val downloads: DownloadManager,
 ) : ViewModel() {
@@ -169,7 +171,7 @@ class ChannelViewModel(
         val watchUrl = video.mediaUrl ?: return
         viewModelScope.launch {
             content.update { it.copy(resolving = watchUrl.value) }
-            launcher.play(watchUrl, video.sourceId)
+            queue.playNow(PlayableItem(video, PlayHandle.Video(watchUrl)))
             content.update { it.copy(resolving = null) }
         }
     }
@@ -197,7 +199,7 @@ class ChannelViewModel(
                         source = source,
                         channel = container.youTubeChannel,
                         channelFallback = container.channelRepository,
-                        launcher = container.videoPlaybackLauncher,
+                        queue = container.playbackQueue,
                         accountSubscriptions = container.accountSubscriptions,
                         downloads = container.downloadManager,
                     )

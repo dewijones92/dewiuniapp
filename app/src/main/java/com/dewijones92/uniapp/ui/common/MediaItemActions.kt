@@ -37,6 +37,15 @@ class MediaItemActions internal constructor(
     }
 
     /**
+     * Plays the item **without touching the queue** — a one-off, so a carefully
+     * built queue survives. The counterpart to tapping, which queues.
+     */
+    fun peek(item: MediaItem) {
+        val playable = item.toPlayableOrNull() ?: return
+        scope.launch { queue.peek(playable) }
+    }
+
+    /**
      * Resolves the item's source and hands it to [onResolved] to navigate to.
      * A subscribed podcast feed is a local lookup; a video's channel is resolved
      * through the engine, so this may take a moment. Does nothing when the source

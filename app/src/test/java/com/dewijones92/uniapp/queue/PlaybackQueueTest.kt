@@ -211,4 +211,59 @@ class PlaybackQueueTest {
 
         assertEquals(listOf("just-added"), q.upNext.value.map { it.item.item.id.value })
     }
+
+    @Test
+    fun `playNow plays the item and keeps the rest of the queue`() = runTest(dispatcher) {
+        val q = queue()
+        advanceUntilIdle()
+        q.enqueue(podcast("lined-up"))
+
+        q.playNow(podcast("tapped"))
+        advanceUntilIdle()
+
+        assertEquals("tapped", controller.state.value?.itemId?.value)
+        assertEquals(listOf("lined-up"), q.upNext.value.map { it.item.item.id.value })
+    }
+
+    @Test
+    fun `playNow on an already-queued item moves it rather than duplicating`() = runTest(dispatcher) {
+        val q = queue()
+        advanceUntilIdle()
+        q.enqueue(podcast("a"))
+        q.enqueue(podcast("b"))
+
+        q.playNow(podcast("b"))
+        advanceUntilIdle()
+
+        assertEquals("b", controller.state.value?.itemId?.value)
+        assertEquals(listOf("a"), q.upNext.value.map { it.item.item.id.value })
+    }
+
+    @Test
+    fun `peek plays without touching the queue`() = runTest(dispatcher) {
+        val q = queue()
+        advanceUntilIdle()
+        q.enqueue(podcast("a"))
+        q.enqueue(podcast("b"))
+
+        q.peek(podcast("one-off"))
+        advanceUntilIdle()
+
+        assertEquals("one-off", controller.state.value?.itemId?.value)
+        assertEquals(listOf("a", "b"), q.upNext.value.map { it.item.item.id.value })
+    }
+
+    @Test
+    fun `playAll inserts its run ahead of the existing queue instead of replacing it`() = runTest(dispatcher) {
+        val q = queue()
+        advanceUntilIdle()
+        q.enqueue(podcast("mine"))
+
+        q.playAll(listOf(podcast("x"), podcast("y")), QueueGroup("pl", "Mix"))
+        advanceUntilIdle()
+
+        // x plays now; y is queued ahead of what was already there, and "mine" survives.
+        assertEquals("x", controller.state.value?.itemId?.value)
+        assertEquals(listOf("y", "mine"), q.upNext.value.map { it.item.item.id.value })
+    }
 }

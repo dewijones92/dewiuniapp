@@ -44,6 +44,7 @@
     <string name="history_empty">Nothing played yet.</string>
     <string name="history_clear">Clear all</string>
     <string name="queue_title">Queue</string>
+    <string name="queue_peek">Play now, keep my queue</string>
     <string name="queue_empty">Nothing queued. Tap anything to play it — it lands here.</string>
     <string name="queue_now_playing">Now playing</string>
     <string name="queue_clear_all">Clear all</string>

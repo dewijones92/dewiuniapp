@@ -13,7 +13,6 @@ import com.dewijones92.uniapp.di.AppContainer
 import com.dewijones92.uniapp.domain.DownloadState
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.MediaItemId
-import com.dewijones92.uniapp.domain.MediaKind
 import com.dewijones92.uniapp.domain.PlayHandle
 import com.dewijones92.uniapp.domain.PlayableItem
 import com.dewijones92.uniapp.domain.SourceId
@@ -92,10 +91,12 @@ class PodcastsViewModel(
         }
     }
 
-    /** Plays the downloaded file when available, else streams. One decision, one place. */
+    /**
+     * Plays the downloaded file when available, else streams. One decision, one place.
+     * Goes through the queue, so tapping an episode keeps whatever was lined up.
+     */
     fun play(episode: MediaItem) {
-        val local = (uiState.value.downloadStates[episode.id] as? DownloadState.Downloaded)?.localPath
-        playback.play(episode, kind = MediaKind.PODCAST, localPath = local)
+        viewModelScope.launch { queue.playNow(queuedItem(episode)) }
     }
 
     /** Queue this episode to play after the current item (end of queue). */

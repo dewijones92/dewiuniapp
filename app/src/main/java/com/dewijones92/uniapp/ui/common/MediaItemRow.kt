@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -71,6 +72,7 @@ fun MediaItemRow(
     onAddToQueue: (() -> Unit)? = null,
     onAddToPlaylist: (() -> Unit)? = null,
     onRemoveFromPlaylist: (() -> Unit)? = null,
+    onPeek: (() -> Unit)? = null,
     onGoToSource: (() -> Unit)? = null,
     /** Label for [onGoToSource] — the host knows its pillar ("channel" vs "podcast"). */
     goToSourceLabelRes: Int = R.string.go_to_channel,
@@ -81,7 +83,7 @@ fun MediaItemRow(
     trailing: (@Composable () -> Unit)? = null,
 ) {
     var showSheet by remember { mutableStateOf(false) }
-    val hasMenu = listOf(onPlayNext, onAddToQueue, onAddToPlaylist, onRemoveFromPlaylist, onGoToSource)
+    val hasMenu = listOf(onPlayNext, onAddToQueue, onAddToPlaylist, onRemoveFromPlaylist, onPeek, onGoToSource)
         .any { it != null }
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -115,6 +117,7 @@ fun MediaItemRow(
             onAddToQueue = onAddToQueue,
             onAddToPlaylist = onAddToPlaylist,
             onRemoveFromPlaylist = onRemoveFromPlaylist,
+            onPeek = onPeek,
             onGoToSource = onGoToSource,
             goToSourceLabelRes = goToSourceLabelRes,
             onDismiss = { showSheet = false },
@@ -158,6 +161,7 @@ private fun ActionSheet(
     onAddToQueue: (() -> Unit)?,
     onAddToPlaylist: (() -> Unit)?,
     onRemoveFromPlaylist: (() -> Unit)?,
+    onPeek: (() -> Unit)?,
     onGoToSource: (() -> Unit)?,
     goToSourceLabelRes: Int,
     onDismiss: () -> Unit,
@@ -174,6 +178,7 @@ private fun ActionSheet(
         SheetAction(onAddToQueue, Icons.AutoMirrored.Filled.QueueMusic, R.string.queue_add, onDismiss)
         SheetAction(onAddToPlaylist, Icons.AutoMirrored.Filled.PlaylistAdd, R.string.playlist_add_to, onDismiss)
         SheetAction(onRemoveFromPlaylist, Icons.Filled.Delete, R.string.playlist_remove_from, onDismiss)
+        SheetAction(onPeek, Icons.Outlined.Visibility, R.string.queue_peek, onDismiss)
         SheetAction(onGoToSource, Icons.Filled.AccountCircle, goToSourceLabelRes, onDismiss)
         Spacer(Modifier.height(16.dp))
     }

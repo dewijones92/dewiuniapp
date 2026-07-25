@@ -15,15 +15,17 @@ import com.dewijones92.uniapp.domain.DownloadState
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.MediaItemId
 import com.dewijones92.uniapp.domain.MediaSource
+import com.dewijones92.uniapp.domain.PlayHandle
+import com.dewijones92.uniapp.domain.PlayableItem
 import com.dewijones92.uniapp.domain.SourceId
 import com.dewijones92.uniapp.innertube.feeds.AccountFeed
 import com.dewijones92.uniapp.innertube.feeds.FeedResult
 import com.dewijones92.uniapp.innertube.feeds.FeedVideo
 import com.dewijones92.uniapp.innertube.subscriptions.SubscribedChannel
+import com.dewijones92.uniapp.queue.PlaybackQueue
 import com.dewijones92.uniapp.ui.common.MediaSort
 import com.dewijones92.uniapp.ui.common.toMediaItem
 import com.dewijones92.uniapp.video.AccountSubscriptions
-import com.dewijones92.uniapp.video.VideoPlaybackLauncher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -39,7 +41,7 @@ import kotlinx.coroutines.launch
 class VideosViewModel(
     private val channels: ChannelRepository,
     private val accountSubscriptions: AccountSubscriptions,
-    private val launcher: VideoPlaybackLauncher,
+    private val queue: PlaybackQueue,
     private val downloads: DownloadManager,
     private val youtube: YouTubeAccountServices,
 ) : ViewModel() {
@@ -221,17 +223,17 @@ class VideosViewModel(
      * Plays the merged download when it exists (already SponsorBlock-clean, no
      * resolution needed), else resolves the stream and plays it. One decision,
      * one place — mirrors the podcasts pillar.
+     *
+     * Goes through the queue, so tapping something plays it *and* keeps whatever
+     * was lined up behind it.
      */
     fun play(video: MediaItem) {
         val local = (uiState.value.downloadStates[video.id] as? DownloadState.Downloaded)?.localPath
-        if (local != null) {
-            launcher.playLocal(video, local)
-            return
-        }
-        val watchUrl = video.mediaUrl ?: return
+        val handle = local?.let(PlayHandle::LocalVideo)
+            ?: PlayHandle.Video(video.mediaUrl ?: return)
         viewModelScope.launch {
-            resolving.value = watchUrl.value
-            launcher.play(watchUrl, video.sourceId)
+            resolving.value = video.mediaUrl?.value
+            queue.playNow(PlayableItem(video, handle))
             resolving.value = null
         }
     }
@@ -252,7 +254,7 @@ class VideosViewModel(
                 VideosViewModel(
                     channels = container.channelRepository,
                     accountSubscriptions = container.accountSubscriptions,
-                    launcher = container.videoPlaybackLauncher,
+                    queue = container.playbackQueue,
                     downloads = container.downloadManager,
                     youtube = YouTubeAccountServices(
                         account = container.youTubeAccount,
