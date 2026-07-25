@@ -101,6 +101,7 @@
     <string name="shorts_title">Shorts</string>
     <string name="shorts_empty">No Shorts in this feed</string>
     <string name="skip_silence">Skip silences</string>
+    <string name="auto_play_next">Auto-play next</string>
     <string name="pillar_video">YouTube</string>
     <string name="pillar_podcast">Podcast</string>
     <string name="comment_hint">Add a comment…</string>

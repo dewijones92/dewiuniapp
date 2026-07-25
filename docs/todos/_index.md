@@ -23,7 +23,7 @@ to `shipped` and migrate it to `../features/` once it's a real feature on `main`
 | [skip-silence-on-video](skip-silence-on-video.md) | playback | medium | ready (approved) |
 | [queue-first-playback](queue-first-playback.md) | playback | high | ready (awaiting go) |
 | [auto-download-queue](auto-download-queue.md) | downloads | high | ready (awaiting go) |
-| [autoplay-next-guaranteed](autoplay-next-guaranteed.md) | playback | medium | ready (awaiting go) |
+| [autoplay-next-guaranteed](autoplay-next-guaranteed.md) | playback | medium | shipped |
 | [volume-boost-normalize](volume-boost-normalize.md) | playback | medium | ready (awaiting go) |
 | [subtitles-captions](subtitles-captions.md) | playback | medium | refining |
 | [audio-video-switching](audio-video-switching.md) | playback | high | ready (awaiting go) |

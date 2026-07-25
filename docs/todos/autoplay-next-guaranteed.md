@@ -1,7 +1,7 @@
 ---
 title: Auto-play next — guaranteed, toggleable, works in fullscreen
 kind: todo
-status: ready
+status: shipped
 area: playback
 priority: medium
 requested: 2026-07-24
@@ -44,3 +44,31 @@ setting** for it, and fullscreen has not been explicitly verified.
 
 **Done when:** the setting exists (default on), auto-advance is proven on-device in
 both windowed and fullscreen playback, and turning it off stops at the end.
+
+## Shipped 2026-07-25
+
+- `autoPlayNext` in `AppPreferences` (default **on**, SharedPreferences-backed);
+  `AutoAdvance` in `AppShell` returns early when it's off.
+- Toggle in the full player next to Skip silences. Both are now drawn by one shared
+  `PlayerToggle`, with a `PlaybackToggles` bundle threading them through the player —
+  room for the volume boost to join the row.
+- **Gating bug caught while building:** the new toggle first landed inside the
+  `if (!state.hasVideo)` block that (correctly) hides *skip silence* for video, which
+  would have hidden auto-play from the video pillar entirely. Auto-play applies to
+  both pillars, so it now sits outside that gate.
+
+### Verified on-device
+
+- Toggle visible for a **video** (with Skip silences correctly absent) and for a
+  **podcast** (both shown).
+- **Fullscreen advance proven:** a video played to its end while fullscreen was
+  active; the queued podcast took over, the queue emptied, and the player dropped
+  out of fullscreen to portrait artwork for the audio item, resuming its saved
+  position. This was the specific worry — `AutoAdvance` lives above the player in
+  `AppShell`, and fullscreen recomposition doesn't disturb it.
+- Turning it off writes `auto_play_next=false` to SharedPreferences (persisted
+  across restarts).
+
+Test-driving note worth keeping: `uiautomator dump` and `adb shell input` both use
+the **native portrait** coordinate frame even while the display is rotated, so
+landscape taps must use the dumped bounds, not screenshot coordinates.

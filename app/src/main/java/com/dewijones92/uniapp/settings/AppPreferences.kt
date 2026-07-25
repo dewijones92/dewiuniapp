@@ -18,10 +18,13 @@ interface AppPreferences {
     val settings: StateFlow<Settings>
     fun setWifiMaxHeight(height: Int)
     fun setCellularMaxHeight(height: Int)
+    fun setAutoPlayNext(enabled: Boolean)
 
     data class Settings(
         val wifiMaxHeight: Int = DEFAULT_WIFI_MAX_HEIGHT,
         val cellularMaxHeight: Int = DEFAULT_CELLULAR_MAX_HEIGHT,
+        /** Whether the queue advances when an item ends. On by default. */
+        val autoPlayNext: Boolean = true,
     )
 
     companion object {
@@ -41,6 +44,7 @@ class SharedPrefsAppPreferences(context: Context) : AppPreferences {
         AppPreferences.Settings(
             wifiMaxHeight = prefs.getInt(KEY_WIFI, AppPreferences.DEFAULT_WIFI_MAX_HEIGHT),
             cellularMaxHeight = prefs.getInt(KEY_CELLULAR, AppPreferences.DEFAULT_CELLULAR_MAX_HEIGHT),
+            autoPlayNext = prefs.getBoolean(KEY_AUTOPLAY, true),
         ),
     )
     override val settings: StateFlow<AppPreferences.Settings> = _settings.asStateFlow()
@@ -55,9 +59,15 @@ class SharedPrefsAppPreferences(context: Context) : AppPreferences {
         _settings.update { it.copy(cellularMaxHeight = height) }
     }
 
+    override fun setAutoPlayNext(enabled: Boolean) {
+        prefs.edit { putBoolean(KEY_AUTOPLAY, enabled) }
+        _settings.update { it.copy(autoPlayNext = enabled) }
+    }
+
     private companion object {
         const val KEY_WIFI = "wifi_max_height"
         const val KEY_CELLULAR = "cellular_max_height"
+        const val KEY_AUTOPLAY = "auto_play_next"
     }
 }
 
@@ -67,4 +77,5 @@ class InMemoryAppPreferences : AppPreferences {
     override val settings: StateFlow<AppPreferences.Settings> = _settings.asStateFlow()
     override fun setWifiMaxHeight(height: Int) = _settings.update { it.copy(wifiMaxHeight = height) }
     override fun setCellularMaxHeight(height: Int) = _settings.update { it.copy(cellularMaxHeight = height) }
+    override fun setAutoPlayNext(enabled: Boolean) = _settings.update { it.copy(autoPlayNext = enabled) }
 }

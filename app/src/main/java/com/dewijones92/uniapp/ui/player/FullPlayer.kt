@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.PlaylistPlay
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Forward30
 import androidx.compose.material.icons.filled.Pause
@@ -26,6 +27,7 @@ import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material.icons.filled.ThumbDown
 import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material.icons.filled.WatchLater
+import androidx.compose.material.icons.outlined.GraphicEq
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.ThumbDown
 import androidx.compose.material.icons.outlined.ThumbUp
@@ -96,7 +98,7 @@ fun FullPlayerOverlay(
     onSeekBackward: () -> Unit,
     onSeekForward: () -> Unit,
     onSetSpeed: (Float) -> Unit,
-    onSetSkipSilence: (Boolean) -> Unit,
+    toggles: PlaybackToggles,
     queue: QueueControls = QueueControls.None,
 ) {
     KeepScreenOnWhilePlayingVideo(active = state.hasVideo && state.isPlaying)
@@ -146,7 +148,7 @@ fun FullPlayerOverlay(
                 onSeekBackward = onSeekBackward,
                 onSeekForward = onSeekForward,
                 onSetSpeed = onSetSpeed,
-                onSetSkipSilence = onSetSkipSilence,
+                toggles = toggles,
             )
         }
     }
@@ -180,7 +182,7 @@ private fun DraggablePlayerContent(
     onSeekBackward: () -> Unit,
     onSeekForward: () -> Unit,
     onSetSpeed: (Float) -> Unit,
-    onSetSkipSilence: (Boolean) -> Unit,
+    toggles: PlaybackToggles,
 ) {
     val drag = rememberStageDragDismiss(onDismiss)
     Column(
@@ -233,7 +235,7 @@ private fun DraggablePlayerContent(
             onSeekBackward = onSeekBackward,
             onSeekForward = onSeekForward,
             onSetSpeed = onSetSpeed,
-            onSetSkipSilence = onSetSkipSilence,
+            toggles = toggles,
         )
     }
 }
@@ -262,7 +264,7 @@ private fun PlayerDetails(
     onSeekBackward: () -> Unit,
     onSeekForward: () -> Unit,
     onSetSpeed: (Float) -> Unit,
-    onSetSkipSilence: (Boolean) -> Unit,
+    toggles: PlaybackToggles,
 ) {
     Spacer(Modifier.height(if (state.hasVideo) 16.dp else 48.dp))
     Text(
@@ -296,11 +298,7 @@ private fun PlayerDetails(
     Spacer(Modifier.height(24.dp))
     SpeedControl(state.speed, onSetSpeed)
     SleepTimerControl(sleepTimer, onStartSleep, onCancelSleep)
-    // Audio-only: silence-skipping a video runs the audio ahead of the picture,
-    // so it's offered only for podcasts and a video's audio-only "Listen" mode.
-    if (!state.hasVideo) {
-        SkipSilenceControl(state.skipSilence, onSetSkipSilence)
-    }
+    PlaybackTogglesRow(hasVideo = state.hasVideo, skipSilence = state.skipSilence, toggles = toggles)
 
     // Quality — video only, and only when there's a choice to make.
     if (state.hasVideo && quality.options.size > 1) {
@@ -332,6 +330,28 @@ private fun PlayerDetails(
         Spacer(Modifier.height(32.dp))
         CommentsSection(comments, watchActions, replies)
     }
+}
+
+/** The player's on/off preferences. */
+@Composable
+private fun PlaybackTogglesRow(hasVideo: Boolean, skipSilence: Boolean, toggles: PlaybackToggles) {
+    // Silence-skipping a video runs the audio ahead of the picture, so it is offered
+    // only for podcasts and a video's audio-only "Listen" mode. Auto-play next has no
+    // such constraint — it applies to both pillars.
+    if (!hasVideo) {
+        PlayerToggle(
+            icon = Icons.Outlined.GraphicEq,
+            labelRes = R.string.skip_silence,
+            checked = skipSilence,
+            onCheckedChange = toggles.onSetSkipSilence,
+        )
+    }
+    PlayerToggle(
+        icon = Icons.AutoMirrored.Outlined.PlaylistPlay,
+        labelRes = R.string.auto_play_next,
+        checked = toggles.autoPlayNext,
+        onCheckedChange = toggles.onSetAutoPlayNext,
+    )
 }
 
 /** The up-next queue: a titled list, tap an entry to jump to it, X to remove it. */

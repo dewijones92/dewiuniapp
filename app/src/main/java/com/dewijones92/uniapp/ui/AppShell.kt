@@ -34,6 +34,7 @@ import com.dewijones92.uniapp.ui.common.RequestNotificationPermissionOnFirstPlay
 import com.dewijones92.uniapp.ui.library.LibraryScreen
 import com.dewijones92.uniapp.ui.player.CommentReplies
 import com.dewijones92.uniapp.ui.player.FullPlayerOverlay
+import com.dewijones92.uniapp.ui.player.PlaybackToggles
 import com.dewijones92.uniapp.ui.player.QualityControl
 import com.dewijones92.uniapp.ui.player.QueueControls
 import com.dewijones92.uniapp.ui.player.WatchActions
@@ -43,6 +44,7 @@ import com.dewijones92.uniapp.ui.queue.QueueScreen
 import com.dewijones92.uniapp.ui.search.SearchScreen
 import com.dewijones92.uniapp.ui.shorts.ShortsReelScreen
 import com.dewijones92.uniapp.ui.videos.VideosScreen
+import com.dewijones92.uniapp.video.VideoPlaybackLauncher
 
 /**
  * Top-level scaffold: bottom navigation across the app's pillars with
@@ -137,9 +139,10 @@ private fun AutoAdvance(
     LaunchedEffect(state?.itemId, state?.hasVideo) {
         if (state != null && state.hasVideo) watchViewModel.bind(state.itemId.value)
     }
+    val autoPlayNext by container.appPreferences.settings.collectAsStateWithLifecycle()
     var handledEndFor by remember { mutableStateOf(state?.takeIf { it.hasEnded }?.itemId) }
     LaunchedEffect(state?.itemId, state?.hasEnded) {
-        if (reelOpen) return@LaunchedEffect
+        if (reelOpen || !autoPlayNext.autoPlayNext) return@LaunchedEffect
         val ended = state?.takeIf { it.hasEnded } ?: return@LaunchedEffect
         if (handledEndFor == ended.itemId) return@LaunchedEffect
         handledEndFor = ended.itemId
@@ -168,6 +171,7 @@ private fun FullPlayerHost(
     val postState by watchViewModel.postState.collectAsStateWithLifecycle()
     val quality by watchViewModel.quality.collectAsStateWithLifecycle()
     val upNext by container.playbackQueue.upNext.collectAsStateWithLifecycle()
+    val settings by container.appPreferences.settings.collectAsStateWithLifecycle()
 
     FullPlayerOverlay(
         state = state,
@@ -190,15 +194,7 @@ private fun FullPlayerHost(
             onPostComment = watchViewModel::postComment,
             onPostHandled = watchViewModel::clearPostState,
         ),
-        quality = QualityControl(
-            options = quality.options,
-            selectedId = quality.selectedId,
-            onSelect = watchViewModel::selectQuality,
-            canListen = quality.canListen,
-            listening = quality.listening,
-            onListen = watchViewModel::listen,
-            onWatch = watchViewModel::watch,
-        ),
+        quality = qualityControl(quality, watchViewModel),
         sleepTimer = sleepTimer,
         onDismiss = onDismiss,
         onPlayRelated = watchViewModel::playRelated,
@@ -209,7 +205,7 @@ private fun FullPlayerHost(
         onSeekBackward = controller::seekBackward,
         onSeekForward = controller::seekForward,
         onSetSpeed = controller::setSpeed,
-        onSetSkipSilence = controller::setSkipSilence,
+        toggles = playbackToggles(state, controller, container, settings.autoPlayNext),
         queue = QueueControls(
             upNext = upNext,
             onPlay = container.playbackQueue::playFromQueue,
@@ -217,6 +213,31 @@ private fun FullPlayerHost(
         ),
     )
 }
+
+private fun qualityControl(
+    quality: VideoPlaybackLauncher.QualityState,
+    watchViewModel: WatchViewModel,
+) = QualityControl(
+    options = quality.options,
+    selectedId = quality.selectedId,
+    onSelect = watchViewModel::selectQuality,
+    canListen = quality.canListen,
+    listening = quality.listening,
+    onListen = watchViewModel::listen,
+    onWatch = watchViewModel::watch,
+)
+
+private fun playbackToggles(
+    state: PlaybackState,
+    controller: PlaybackController,
+    container: AppContainer,
+    autoPlayNext: Boolean,
+) = PlaybackToggles(
+    skipSilence = state.skipSilence,
+    onSetSkipSilence = controller::setSkipSilence,
+    autoPlayNext = autoPlayNext,
+    onSetAutoPlayNext = container.appPreferences::setAutoPlayNext,
+)
 
 @Preview(showBackground = true)
 @Composable
