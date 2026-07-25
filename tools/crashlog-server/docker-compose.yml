@@ -8,13 +8,21 @@ services:
     image: uniapp-crashlog:local
     container_name: uniapp-crashlog
     restart: unless-stopped
-    # Bound to loopback: the only way in from outside is through nginx, which gates
-    # everything except /ingest behind Google login.
-    ports:
-      - "127.0.0.1:9140:9140"
+    # No published host port at all. The container joins nginx's own docker network,
+    # so nginx reaches it by container name and nothing is exposed to the LAN. (A
+    # loopback-published port would NOT work: nginx resolves host.docker.internal to
+    # the bridge gateway, which cannot reach a service bound to the host's 127.0.0.1.)
+    networks:
+      - bin_private
     volumes:
       # Bind-mounted so reports are readable over plain SSH with cat, even if this
       # container is down.
       - /home/pi/crashlog-data:/data
     environment:
       CRASHLOG_MAX_TOTAL_MB: "512"
+
+# Created by the Pi's main server stack; joined rather than recreated so this project
+# can be restarted independently of it.
+networks:
+  bin_private:
+    external: true
