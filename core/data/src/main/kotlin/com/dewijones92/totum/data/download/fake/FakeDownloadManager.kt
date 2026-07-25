@@ -30,8 +30,13 @@ public class FakeDownloadManager : DownloadManager {
     override fun observe(id: MediaItemId): Flow<DownloadState> =
         downloads.map { it[id] ?: DownloadState.NotDownloaded }
 
+    /** The item handed to the most recent [download] — lets a test assert WHICH url was used. */
+    public var lastItem: MediaItem? = null
+        private set
+
     override suspend fun download(item: MediaItem, audioOnly: Boolean) {
         requested.add(item.id to audioOnly)
+        lastItem = item
         downloads.update {
             it + (item.id to DownloadState.Downloaded("/fake/${item.id.value}.media", audioOnly = audioOnly))
         }

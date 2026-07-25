@@ -21,6 +21,8 @@ import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.VerticalAlignBottom
+import androidx.compose.material.icons.filled.VerticalAlignTop
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Headphones
@@ -102,6 +104,9 @@ fun MediaItemRow(
     playState: PlayState = LocalPlayStates.current[item.id] ?: PlayState.Unplayed,
     /** Marks the item played or unplayed by hand — AntennaPod's most-used action. */
     onSetPlayed: ((Boolean) -> Unit)? = LocalSetPlayed.current?.let { set -> { played -> set(item.id, played) } },
+    /** Queue-only: jump this entry to the front / back of the up-next order. */
+    onMoveToTop: (() -> Unit)? = null,
+    onMoveToBottom: (() -> Unit)? = null,
     onGoToSource: (() -> Unit)? = null,
     /** Label for [onGoToSource] — the host knows its pillar ("channel" vs "podcast"). */
     goToSourceLabelRes: Int = R.string.go_to_channel,
@@ -112,18 +117,20 @@ fun MediaItemRow(
     trailing: (@Composable () -> Unit)? = null,
 ) {
     var showSheet by remember { mutableStateOf(false) }
-    val audioOnlyLocally = (downloadState as? DownloadState.Downloaded)?.audioOnly == true
-    val downloadVideo = onDownloadVideo?.takeIf { audioOnlyLocally }
-    val hasMenu = listOf(
-        onPlayNext,
-        onAddToQueue,
-        onAddToPlaylist,
-        onRemoveFromPlaylist,
-        onPeek,
-        downloadVideo,
-        onGoToSource,
-        onSetPlayed,
-    ).any { it != null }
+    // "Download the video too" only makes sense once the local copy is audio-only.
+    val downloadVideo = onDownloadVideo?.takeIf {
+        (downloadState as? DownloadState.Downloaded)?.audioOnly == true
+    }
+    // Rows that replace the download control with something else (the queue's drag handle)
+    // would otherwise have no way to (re)try a download at all — which matters precisely
+    // when an automatic fetch failed.
+    val sheetDownload = onDownload.takeIf {
+        trailing != null && downloadState !is DownloadState.Downloaded && downloadState !is DownloadState.Downloading
+    }
+    val hasMenu = listOfNotNull(
+        onPlayNext, onAddToQueue, onAddToPlaylist, onRemoveFromPlaylist, onPeek,
+        downloadVideo, sheetDownload, onGoToSource, onSetPlayed, onMoveToTop, onMoveToBottom,
+    ).isNotEmpty()
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
@@ -154,10 +161,13 @@ fun MediaItemRow(
             onRemoveFromPlaylist = onRemoveFromPlaylist,
             onPeek = onPeek,
             onDownloadVideo = downloadVideo,
+            onDownload = sheetDownload,
             onSwitchMode = onSwitchMode,
             audioMode = audioMode,
             onGoToSource = onGoToSource,
             goToSourceLabelRes = goToSourceLabelRes,
+            onMoveToTop = onMoveToTop,
+            onMoveToBottom = onMoveToBottom,
             onSetPlayed = onSetPlayed,
             played = playState.isPlayed,
             onDismiss = { showSheet = false },
@@ -229,10 +239,13 @@ private fun ActionSheet(
     onRemoveFromPlaylist: (() -> Unit)?,
     onPeek: (() -> Unit)?,
     onDownloadVideo: (() -> Unit)?,
+    onDownload: (() -> Unit)?,
     onSwitchMode: (() -> Unit)?,
     audioMode: Boolean,
     onGoToSource: (() -> Unit)?,
     goToSourceLabelRes: Int,
+    onMoveToTop: (() -> Unit)?,
+    onMoveToBottom: (() -> Unit)?,
     onSetPlayed: ((Boolean) -> Unit)?,
     played: Boolean,
     onDismiss: () -> Unit,
@@ -250,6 +263,7 @@ private fun ActionSheet(
         SheetAction(onAddToPlaylist, Icons.AutoMirrored.Filled.PlaylistAdd, R.string.playlist_add_to, onDismiss)
         SheetAction(onRemoveFromPlaylist, Icons.Filled.Delete, R.string.playlist_remove_from, onDismiss)
         SheetAction(onPeek, Icons.Outlined.Visibility, R.string.queue_peek, onDismiss)
+        SheetAction(onDownload, Icons.Outlined.Download, R.string.download, onDismiss)
         SheetAction(onDownloadVideo, Icons.Outlined.Download, R.string.download_video, onDismiss)
         SheetAction(
             onSwitchMode,
@@ -257,6 +271,8 @@ private fun ActionSheet(
             if (audioMode) R.string.play_with_video else R.string.play_audio_only,
             onDismiss,
         )
+        SheetAction(onMoveToTop, Icons.Filled.VerticalAlignTop, R.string.queue_move_to_top, onDismiss)
+        SheetAction(onMoveToBottom, Icons.Filled.VerticalAlignBottom, R.string.queue_move_to_bottom, onDismiss)
         SheetAction(onGoToSource, Icons.Filled.AccountCircle, goToSourceLabelRes, onDismiss)
         SheetAction(
             onSetPlayed?.let { { it(!played) } },

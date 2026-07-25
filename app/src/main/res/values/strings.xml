@@ -220,7 +220,6 @@
         <item quantity="one">%1$d new item from your subscriptions</item>
         <item quantity="other">%1$d new items from your subscriptions</item>
     </plurals>
-    <string name="status_offline">Available offline</string>
     <string name="status_played">Played</string>
     <string name="mark_played">Mark as played</string>
     <string name="mark_unplayed">Mark as unplayed</string>
@@ -241,4 +240,8 @@
     <string name="quality">Quality</string>
     <string name="subtitles">Subtitles</string>
     <string name="subtitles_off">Off</string>
+    <string name="status_offline_audio">Audio saved offline</string>
+    <string name="status_offline_video">Video saved offline</string>
+    <string name="queue_move_to_top">Move to top</string>
+    <string name="queue_move_to_bottom">Move to bottom</string>
 </resources>

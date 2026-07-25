@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DownloadForOffline
+import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Podcasts
 import androidx.compose.material.icons.filled.SmartDisplay
 import androidx.compose.material3.Icon
@@ -52,8 +53,17 @@ internal fun MediaItemStatus(
         // Distinct from the trailing download button, which is the *action*: this says
         // "you have this offline" without also meaning "tap to delete it". A down-arrow
         // rather than another check, so it can't be read as the played tick.
+        //
+        // Audio-only and full downloads are shown DIFFERENTLY (Dewi, 2026-07-25, reversing
+        // the earlier "a download is a download"): the queue fetches audio automatically, so
+        // most offline items are audio — and "I have this offline" meaning two different
+        // things with one glyph is exactly the ambiguity worth removing.
         if (downloadState is DownloadState.Downloaded) {
-            StatusIcon(Icons.Filled.DownloadForOffline, R.string.status_offline)
+            if (downloadState.audioOnly) {
+                StatusIcon(Icons.Filled.Headphones, R.string.status_offline_audio)
+            } else {
+                StatusIcon(Icons.Filled.DownloadForOffline, R.string.status_offline_video)
+            }
         }
         if (playState.isPlayed) {
             StatusIcon(Icons.Filled.Check, R.string.status_played)

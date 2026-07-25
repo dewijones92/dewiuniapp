@@ -29,9 +29,11 @@ public sealed interface DownloadState {
      * Complete and playable offline from [localPath].
      *
      * [audioOnly] marks a file fetched as audio only — what the queue's automatic
-     * downloads take, since they exist so you can *listen* offline. It is not shown
-     * in the UI (a download is a download); it exists so that asking for the full
-     * video afterwards isn't mistaken for "already downloaded".
+     * downloads take, since they exist so you can *listen* offline. It stops a later
+     * request for the full video being mistaken for "already downloaded", and it is
+     * **shown in the UI** as a distinct glyph (Dewi, 2026-07-25): with the queue fetching
+     * audio automatically, most offline items are audio-only, so one glyph meaning both
+     * "you can listen to this offline" and "you can watch this offline" is misleading.
      */
     public data class Downloaded(val localPath: String, val audioOnly: Boolean = false) : DownloadState {
         init {

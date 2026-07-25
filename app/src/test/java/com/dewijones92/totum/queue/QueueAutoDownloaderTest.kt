@@ -94,8 +94,36 @@ class QueueAutoDownloaderTest {
         assertEquals(listOf("b"), downloads.requested.map { it.first.value })
     }
 
+    /**
+     * The bug this replaces: a video queued from search carries no `mediaUrl` (its stream
+     * isn't resolved yet), so the old `mediaUrl == null` skip meant it never got its audio —
+     * and the "picked up on a later queue change" fallback never fired if nothing changed.
+     */
     @Test
-    fun `an item with nothing fetchable yet is skipped`() = runTest(dispatcher) {
+    fun `a video with no resolved stream is fetched via its watch url`() = runTest(dispatcher) {
+        downloader().start()
+        val watch = HttpUrl.of("https://www.youtube.com/watch?v=abc12345678")
+        val video = PlayableItem(item("vid", url = null), PlayHandle.Video(watch))
+        queue.value = QueueSnapshot(listOf(QueueEntry(video)))
+        advanceUntilIdle()
+
+        assertEquals(listOf(MediaItemId("vid") to true), downloads.requested)
+    }
+
+    @Test
+    fun `the watch url is what gets handed to the downloader`() = runTest(dispatcher) {
+        downloader().start()
+        val watch = HttpUrl.of("https://www.youtube.com/watch?v=abc12345678")
+        // A stale resolved stream must not win over the stable watch URL.
+        val stale = item("vid", url = "https://rr1.googlevideo.com/expired")
+        queue.value = QueueSnapshot(listOf(QueueEntry(PlayableItem(stale, PlayHandle.Video(watch)))))
+        advanceUntilIdle()
+
+        assertEquals(watch, downloads.lastItem?.mediaUrl)
+    }
+
+    @Test
+    fun `a podcast with nothing fetchable yet is skipped`() = runTest(dispatcher) {
         downloader().start()
         queue.value = QueueSnapshot(listOf(entry("no-url", url = null)))
         advanceUntilIdle()

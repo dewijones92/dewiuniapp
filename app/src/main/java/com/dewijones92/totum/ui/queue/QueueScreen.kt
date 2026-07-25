@@ -18,6 +18,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -28,6 +29,7 @@ import com.dewijones92.totum.R
 import com.dewijones92.totum.data.queue.QueueEntry
 import com.dewijones92.totum.di.AppContainer
 import com.dewijones92.totum.domain.DownloadState
+import com.dewijones92.totum.domain.MediaItem
 import com.dewijones92.totum.domain.MediaItemId
 import com.dewijones92.totum.ui.common.EmptyState
 import com.dewijones92.totum.ui.common.MediaItemRow
@@ -35,6 +37,7 @@ import com.dewijones92.totum.ui.common.ReorderState
 import com.dewijones92.totum.ui.common.mediaItemSubtitle
 import com.dewijones92.totum.ui.common.rememberReorderState
 import com.dewijones92.totum.ui.common.reorderable
+import kotlinx.coroutines.launch
 
 /**
  * The queue: what is playing now and what follows, for both pillars at once.
@@ -50,6 +53,7 @@ fun QueueScreen(container: AppContainer, modifier: Modifier = Modifier) {
     val snapshot by queue.state.collectAsStateWithLifecycle()
     val downloads by container.downloadManager.observeDownloads().collectAsStateWithLifecycle(emptyMap())
     val entries = snapshot.entries
+    val scope = rememberCoroutineScope()
 
     Column(modifier = modifier.fillMaxSize()) {
         QueueHeader(canClear = entries.isNotEmpty(), onClear = queue::clear)
@@ -72,6 +76,15 @@ fun QueueScreen(container: AppContainer, modifier: Modifier = Modifier) {
                         onRemove = queue::removeAt,
                         onRemoveGroup = queue::removeGroup,
                         onMove = queue::move,
+                        // A manual retry: the queue fetches audio by itself, but a failed
+                        // or skipped fetch otherwise leaves no way to ask again.
+                        onDownload = { item ->
+                            scope.launch { container.downloadManager.download(item, audioOnly = true) }
+                        },
+                        onDownloadVideo = { item ->
+                            scope.launch { container.downloadManager.download(item, audioOnly = false) }
+                        },
+                        onDeleteDownload = { id -> scope.launch { container.downloadManager.delete(id) } },
                     ),
                 )
             }
@@ -85,6 +98,9 @@ private data class QueueActions(
     val onRemove: (Int) -> Unit,
     val onRemoveGroup: (String) -> Unit,
     val onMove: (Int, Int) -> Unit,
+    val onDownload: (MediaItem) -> Unit,
+    val onDownloadVideo: (MediaItem) -> Unit,
+    val onDeleteDownload: (MediaItemId) -> Unit,
 )
 
 /**
@@ -115,8 +131,12 @@ private fun androidx.compose.foundation.lazy.LazyListScope.itemsWithGroupHeaders
                 downloadState = downloads[media.id] ?: DownloadState.NotDownloaded,
                 pillar = entry.item.handle.pillar,
                 onPlay = { actions.onPlay(index) },
-                onDownload = { },
-                onDeleteDownload = { },
+                onDownload = { actions.onDownload(media) },
+                onDeleteDownload = { actions.onDeleteDownload(media.id) },
+                onDownloadVideo = { actions.onDownloadVideo(media) },
+                onMoveToTop = { actions.onMove(index, 0) }.takeIf { index > 0 },
+                onMoveToBottom = { actions.onMove(index, entries.lastIndex) }
+                    .takeIf { index < entries.lastIndex },
                 modifier = Modifier.reorderable(reorder, index),
                 trailing = {
                     with(reorder) {
