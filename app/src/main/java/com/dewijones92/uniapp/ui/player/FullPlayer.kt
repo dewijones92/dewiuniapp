@@ -56,7 +56,7 @@ import androidx.compose.ui.unit.dp
 import androidx.media3.common.Player
 import com.dewijones92.uniapp.R
 import com.dewijones92.uniapp.common.HttpUrl
-import com.dewijones92.uniapp.domain.PlayableItem
+import com.dewijones92.uniapp.data.queue.QueueEntry
 import com.dewijones92.uniapp.innertube.actions.VideoRating
 import com.dewijones92.uniapp.innertube.comments.Comment
 import com.dewijones92.uniapp.innertube.feeds.FeedVideo
@@ -352,7 +352,7 @@ private fun UpNextSection(queue: QueueControls) {
                     .padding(vertical = 6.dp),
             ) {
                 Text(
-                    text = queued.item.title,
+                    text = queued.item.item.title,
                     style = MaterialTheme.typography.bodyMedium,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
@@ -389,7 +389,7 @@ private fun NotesChaptersAndSponsors(state: PlaybackState, onSeekTo: (Long) -> U
 
 /** The up-next queue and its interactions, for the full player's queue list. */
 data class QueueControls(
-    val upNext: List<PlayableItem>,
+    val upNext: List<QueueEntry>,
     val onPlay: (Int) -> Unit,
     val onRemove: (Int) -> Unit,
 ) {

@@ -2,6 +2,10 @@ package com.dewijones92.uniapp.queue
 
 import com.dewijones92.uniapp.common.HttpUrl
 import com.dewijones92.uniapp.data.history.fake.InMemoryPlayHistoryStore
+import com.dewijones92.uniapp.data.queue.QueueEntry
+import com.dewijones92.uniapp.data.queue.QueueGroup
+import com.dewijones92.uniapp.data.queue.QueueStore
+import com.dewijones92.uniapp.data.queue.fake.InMemoryQueueStore
 import com.dewijones92.uniapp.data.sponsorblock.SkipSegmentSource
 import com.dewijones92.uniapp.domain.MediaItem
 import com.dewijones92.uniapp.domain.MediaItemId
@@ -35,7 +39,10 @@ class PlaybackQueueTest {
         InMemoryPlayHistoryStore(),
     )
 
-    private fun queue() = PlaybackQueue(controller, launcher, CoroutineScope(dispatcher))
+    private val store = InMemoryQueueStore()
+
+    private fun queue(withStore: QueueStore = store) =
+        PlaybackQueue(controller, launcher, CoroutineScope(dispatcher), withStore)
 
     private fun podcast(id: String) = PlayableItem(
         MediaItem(
@@ -56,7 +63,7 @@ class PlaybackQueueTest {
         q.enqueue(podcast("b"))
         q.playNext(podcast("c"))
 
-        assertEquals(listOf("c", "a", "b"), q.upNext.value.map { it.item.id.value })
+        assertEquals(listOf("c", "a", "b"), q.upNext.value.map { it.item.item.id.value })
     }
 
     @Test
@@ -65,7 +72,7 @@ class PlaybackQueueTest {
         listOf("a", "b", "c").forEach { q.enqueue(podcast(it)) }
         q.removeAt(1)
 
-        assertEquals(listOf("a", "c"), q.upNext.value.map { it.item.id.value })
+        assertEquals(listOf("a", "c"), q.upNext.value.map { it.item.item.id.value })
     }
 
     @Test
@@ -73,10 +80,10 @@ class PlaybackQueueTest {
         val q = queue()
         listOf("a", "b", "c").forEach { q.enqueue(podcast(it)) }
         q.move(2, 0)
-        assertEquals(listOf("c", "a", "b"), q.upNext.value.map { it.item.id.value })
+        assertEquals(listOf("c", "a", "b"), q.upNext.value.map { it.item.item.id.value })
 
         q.move(0, 9) // out of range → no change
-        assertEquals(listOf("c", "a", "b"), q.upNext.value.map { it.item.id.value })
+        assertEquals(listOf("c", "a", "b"), q.upNext.value.map { it.item.item.id.value })
     }
 
     @Test
@@ -89,7 +96,7 @@ class PlaybackQueueTest {
         advanceUntilIdle()
 
         assertEquals("a", controller.state.value?.itemId?.value)
-        assertEquals(listOf("b"), q.upNext.value.map { it.item.id.value })
+        assertEquals(listOf("b"), q.upNext.value.map { it.item.item.id.value })
     }
 
     @Test
@@ -134,6 +141,74 @@ class PlaybackQueueTest {
         advanceUntilIdle()
 
         assertEquals("b", controller.state.value?.itemId?.value)
-        assertEquals(listOf("c"), q.upNext.value.map { it.item.id.value })
+        assertEquals(listOf("c"), q.upNext.value.map { it.item.item.id.value })
+    }
+
+    @Test
+    fun `the queue is saved on change and hydrated back`() = runTest(dispatcher) {
+        val first = queue()
+        advanceUntilIdle() // let hydration of the (empty) store settle
+        first.enqueue(podcast("a"))
+        first.enqueue(podcast("b"))
+        advanceUntilIdle()
+
+        // A fresh queue over the same store comes back with the same entries.
+        val restored = queue()
+        advanceUntilIdle()
+        assertEquals(listOf("a", "b"), restored.upNext.value.map { it.item.item.id.value })
+    }
+
+    @Test
+    fun `hydration does not wipe a saved queue`() = runTest(dispatcher) {
+        val saved = InMemoryQueueStore(listOf(QueueEntry(podcast("kept"))))
+
+        val q = queue(saved)
+        advanceUntilIdle()
+
+        assertEquals(listOf("kept"), q.upNext.value.map { it.item.item.id.value })
+        assertEquals(listOf("kept"), saved.load().map { it.item.item.id.value })
+    }
+
+    @Test
+    fun `playAll tags its entries with the group so they can be dropped together`() = runTest(dispatcher) {
+        val q = queue()
+        advanceUntilIdle()
+        val group = QueueGroup("pl-1", "Mix")
+
+        q.playAll(listOf(podcast("a"), podcast("b"), podcast("c")), group)
+        advanceUntilIdle()
+
+        // The first plays now; the rest are queued, all tagged.
+        assertEquals(listOf("b", "c"), q.upNext.value.map { it.item.item.id.value })
+        assertTrue(q.upNext.value.all { it.group == group })
+
+        q.removeGroup("pl-1")
+        assertTrue(q.upNext.value.isEmpty())
+    }
+
+    @Test
+    fun `removeGroup leaves ungrouped entries and other groups alone`() = runTest(dispatcher) {
+        val q = queue()
+        advanceUntilIdle()
+        q.enqueue(podcast("loose"))
+        q.enqueue(podcast("a"), QueueGroup("g1", "One"))
+        q.enqueue(podcast("b"), QueueGroup("g2", "Two"))
+
+        q.removeGroup("g1")
+
+        assertEquals(listOf("loose", "b"), q.upNext.value.map { it.item.item.id.value })
+    }
+
+    @Test
+    fun `queueing during startup wins over the restored queue`() = runTest(dispatcher) {
+        // Loading is suspending, so the user can act before it lands. Their action
+        // must not be silently replaced by the saved queue.
+        val saved = InMemoryQueueStore(listOf(QueueEntry(podcast("old"))))
+        val q = queue(saved)
+
+        q.enqueue(podcast("just-added")) // before advanceUntilIdle, i.e. pre-hydration
+        advanceUntilIdle()
+
+        assertEquals(listOf("just-added"), q.upNext.value.map { it.item.item.id.value })
     }
 }

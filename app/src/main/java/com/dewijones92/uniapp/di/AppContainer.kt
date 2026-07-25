@@ -19,6 +19,7 @@ import com.dewijones92.uniapp.data.net.OkHttpTextFetcher
 import com.dewijones92.uniapp.data.playlist.LocalPlaylistStore
 import com.dewijones92.uniapp.data.podcast.DefaultPodcastRepository
 import com.dewijones92.uniapp.data.podcast.PodcastRepository
+import com.dewijones92.uniapp.data.queue.QueueStore
 import com.dewijones92.uniapp.data.search.FallbackSearchSource
 import com.dewijones92.uniapp.data.search.InnerTubeVideoSearchSource
 import com.dewijones92.uniapp.data.search.ItunesPodcastSearchSource
@@ -33,6 +34,7 @@ import com.dewijones92.uniapp.database.RoomDownloadStore
 import com.dewijones92.uniapp.database.RoomLocalPlaylistStore
 import com.dewijones92.uniapp.database.RoomPlayHistoryStore
 import com.dewijones92.uniapp.database.RoomPlaybackProgressStore
+import com.dewijones92.uniapp.database.RoomQueueStore
 import com.dewijones92.uniapp.database.RoomSubscriptionStore
 import com.dewijones92.uniapp.database.UniAppDatabase
 import com.dewijones92.uniapp.domain.MediaItem
@@ -106,6 +108,9 @@ interface AppContainer {
 
     /** The unified up-next queue (what plays after the current item), both pillars. */
     val playbackQueue: PlaybackQueue
+
+    /** Persists the queue so it survives a restart. */
+    val queueStore: QueueStore
 
     /** User-curated local playlists, mixing podcasts and videos. */
     val localPlaylistStore: LocalPlaylistStore
@@ -277,8 +282,10 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
         SleepTimer(playbackController, applicationScope)
     }
 
+    override val queueStore: QueueStore by lazy { RoomQueueStore(database.queueDao()) }
+
     override val playbackQueue: PlaybackQueue by lazy {
-        PlaybackQueue(playbackController, videoPlaybackLauncher, applicationScope)
+        PlaybackQueue(playbackController, videoPlaybackLauncher, applicationScope, queueStore)
     }
 
     override val localPlaylistStore: LocalPlaylistStore by lazy {

@@ -1,5 +1,9 @@
 package com.dewijones92.uniapp.queue
 
+import com.dewijones92.uniapp.data.queue.QueueEntry
+import com.dewijones92.uniapp.data.queue.QueueGroup
+import com.dewijones92.uniapp.data.queue.QueueStore
+import com.dewijones92.uniapp.data.queue.fake.InMemoryQueueStore
 import com.dewijones92.uniapp.domain.MediaKind
 import com.dewijones92.uniapp.domain.PlayHandle
 import com.dewijones92.uniapp.domain.PlayableItem
@@ -9,52 +13,85 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
  * The app's single up-next queue, unified across both pillars. Holds the items
  * to play AFTER the current one; the currently-playing item lives in the
- * playback controller's state. Tapping to play something goes through the normal
- * paths — this only governs what plays next (auto-advance at end, skip-to-next,
- * and the up-next list). Video items resolve just-in-time when they reach the
- * front, so a queue of videos never pre-extracts expiring URLs.
+ * playback controller's state. Video items resolve just-in-time when they reach
+ * the front, so a queue of videos never pre-extracts expiring URLs.
  *
  * Entries are [PlayableItem]s — the same shape local playlists and play history
- * store, so "Play all" and "replay from history" need no conversion.
+ * store, so "Play all" and "replay from history" need no conversion. Each carries
+ * an optional [QueueGroup] tag naming the run it arrived in; the queue itself
+ * stays **flat**, so grouping costs playback nothing.
+ *
+ * The queue is persisted through [QueueStore]: hydrated once at construction and
+ * saved on every change, so it survives a restart.
  */
+// The queue's whole command surface (add/insert/remove/reorder/jump/advance), each a
+// small operation over one list. Splitting it would scatter the single owner of
+// queue order, which is the point of the class.
+@Suppress("TooManyFunctions")
 class PlaybackQueue(
     private val controller: PlaybackController,
     private val launcher: VideoPlaybackLauncher,
     private val scope: CoroutineScope,
+    private val store: QueueStore = InMemoryQueueStore(),
 ) {
-    private val _upNext = MutableStateFlow<List<PlayableItem>>(emptyList())
-    val upNext: StateFlow<List<PlayableItem>> = _upNext.asStateFlow()
+    private val _upNext = MutableStateFlow<List<QueueEntry>>(emptyList())
+    val upNext: StateFlow<List<QueueEntry>> = _upNext.asStateFlow()
+
+    /**
+     * Whether anything has changed the queue yet. Loading is suspending, so the user
+     * can act before it lands — this makes their intent win instead of being
+     * silently replaced by the restored queue.
+     */
+    private var touched = false
+
+    init {
+        scope.launch {
+            val saved = store.load()
+            if (!touched) _upNext.value = saved
+        }
+        // Persist every subsequent change. `drop(1)` skips the initial empty value
+        // so an empty start can't wipe a saved queue before hydration lands.
+        _upNext.drop(1).onEach { store.save(it) }.launchIn(scope)
+    }
 
     /** Adds to the end of the queue. */
-    fun enqueue(queued: PlayableItem) {
-        _upNext.update { it + queued }
+    fun enqueue(item: PlayableItem, group: QueueGroup? = null) {
+        mutate { it + QueueEntry(item, group) }
     }
 
     /** Plays [items] as a set: the first now, the rest queued up next. No-op if empty. */
-    fun playAll(items: List<PlayableItem>) {
+    fun playAll(items: List<PlayableItem>, group: QueueGroup? = null) {
         if (items.isEmpty()) return
-        _upNext.value = items.drop(1)
+        mutate { items.drop(1).map { item -> QueueEntry(item, group) } }
         scope.launch { play(items.first()) }
     }
 
     /** Inserts so it plays immediately after the current item. */
-    fun playNext(queued: PlayableItem) {
-        _upNext.update { listOf(queued) + it }
+    fun playNext(item: PlayableItem, group: QueueGroup? = null) {
+        mutate { listOf(QueueEntry(item, group)) + it }
     }
 
     fun removeAt(index: Int) {
-        _upNext.update { list -> list.filterIndexed { i, _ -> i != index } }
+        mutate { list -> list.filterIndexed { i, _ -> i != index } }
+    }
+
+    /** Drops every entry tagged with [groupId] — the batch action a grouped run offers. */
+    fun removeGroup(groupId: String) {
+        mutate { list -> list.filterNot { it.group?.id == groupId } }
     }
 
     /** Reorders one entry; a no-op if either index is out of range. */
     fun move(from: Int, to: Int) {
-        _upNext.update { list ->
+        mutate { list ->
             if (from !in list.indices || to !in list.indices) {
                 list
             } else {
@@ -64,15 +101,21 @@ class PlaybackQueue(
     }
 
     fun clear() {
-        _upNext.value = emptyList()
+        mutate { emptyList() }
     }
 
     /** Plays the entry at [index] now, dropping it and everything before it. No-op if out of range. */
     fun playFromQueue(index: Int) {
         val list = _upNext.value
         val target = list.getOrNull(index) ?: return
-        _upNext.value = list.drop(index + 1)
-        scope.launch { play(target) }
+        mutate { it.drop(index + 1) }
+        scope.launch { play(target.item) }
+    }
+
+    /** Every change goes through here, so nothing can bypass the hydration guard. */
+    private fun mutate(block: (List<QueueEntry>) -> List<QueueEntry>) {
+        touched = true
+        _upNext.update(block)
     }
 
     /**
@@ -85,17 +128,17 @@ class PlaybackQueue(
         scope.launch {
             var played = false
             while (!played) {
-                val head = _upNext.getAndTake() ?: break
-                played = play(head)
+                val head = getAndTake() ?: break
+                played = play(head.item)
             }
         }
         return true
     }
 
     /** Pops and returns the head, or null if empty. */
-    private fun MutableStateFlow<List<PlayableItem>>.getAndTake(): PlayableItem? {
-        var head: PlayableItem? = null
-        update { list ->
+    private fun getAndTake(): QueueEntry? {
+        var head: QueueEntry? = null
+        mutate { list ->
             head = list.firstOrNull()
             if (list.isEmpty()) list else list.drop(1)
         }
