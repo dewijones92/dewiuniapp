@@ -80,3 +80,25 @@ ssh pi@333133333.xyz 'docker exec totum-crashlog python -c "import urllib.reques
   is proxied by container name, so no host port is published at all.
 - Reload, never restart: `docker exec nginx_dewi nginx -t && docker exec nginx_dewi nginx -s reload`
   leaves Jellyfin, the VPN containers and nginx's uptime untouched.
+
+### The half-done fix that hid for a day (2026-07-25)
+
+The note above says to write the container *and* the tracked source. The first time, only
+the container got written — so both host copies still carried the broken
+`host.docker.internal` form, and the next nginx recreate or `generate.sh` run would have
+silently reverted the sink to 504 with nothing to explain why. Three habits from that:
+
+- **Always verify the container's view after editing the host**, because the inode
+  divergence means success on the host proves nothing:
+  ```bash
+  docker exec nginx_dewi grep -n 'set $crashlog' /etc/nginx/conf.d/default.conf
+  ```
+- **`sed -i` inside the container fails** — `Device or resource busy`, because it renames a
+  temp file over the bind mount. Truncate in place instead:
+  `sed '…' f > /tmp/x && cat /tmp/x > f`.
+- **Don't anchor edits on `include … oauth2.partial`** — it appears in *five* server blocks,
+  so a first-match insert lands in the wrong one. `server_name crashlog.…` is unique.
+
+**Never run `generate.sh` casually.** It takes domain arguments and regenerates the whole
+nginx config for every service on the Pi; getting an argument wrong breaks far more than
+this sink. Patch the one line in both copies instead.
