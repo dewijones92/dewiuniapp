@@ -16,7 +16,7 @@ to `shipped` and migrate it to `../features/` once it's a real feature on `main`
 | [background-audio-listen-mode](background-audio-listen-mode.md) | playback | high | shipped |
 | [fullscreen-video-stretch](fullscreen-video-stretch.md) | playback | high | shipped |
 | [long-press-context-menu](long-press-context-menu.md) | ui | medium | shipped (all feeds; go-to-channel split out) |
-| [go-to-channel-action](go-to-channel-action.md) | ui | medium | open |
+| [go-to-channel-action](go-to-channel-action.md) | ui | medium | shipped |
 | [url-share-target](url-share-target.md) | integration | medium | shipped |
 | [play-history-screen](play-history-screen.md) | library | medium | shipped |
 | [local-cross-pillar-playlists](local-cross-pillar-playlists.md) | library | high | shipped |

@@ -45,6 +45,7 @@ import com.dewijones92.uniapp.ui.common.MediaItemRow
 import com.dewijones92.uniapp.ui.common.MediaSort
 import com.dewijones92.uniapp.ui.common.SectionHeaderWithSort
 import com.dewijones92.uniapp.ui.common.mediaItemSubtitle
+import com.dewijones92.uniapp.ui.common.rememberMediaItemActions
 import com.dewijones92.uniapp.ui.playlist.rememberPlaylistAdder
 
 @Composable
@@ -59,6 +60,8 @@ fun PodcastsScreen(container: AppContainer, modifier: Modifier = Modifier) {
         return
     }
 
+    val actions = rememberMediaItemActions(container)
+
     PodcastsContent(
         state = state,
         onSubscribe = viewModel::subscribe,
@@ -72,6 +75,11 @@ fun PodcastsScreen(container: AppContainer, modifier: Modifier = Modifier) {
         onPlayNext = viewModel::playNext,
         onAddToPlaylist = rememberPlaylistAdder(container),
         onOpenFeed = { openFeed = it },
+        onGoToPodcast = { episode ->
+            actions.goToSource(episode) { source ->
+                (source as? MediaSource.PodcastFeed)?.let { openFeed = it }
+            }
+        },
         modifier = modifier,
     )
 }
@@ -91,6 +99,7 @@ internal fun PodcastsContent(
     onPlayNext: (MediaItem) -> Unit,
     onAddToPlaylist: (MediaItem) -> Unit,
     onOpenFeed: (MediaSource.PodcastFeed) -> Unit,
+    onGoToPodcast: (MediaItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
@@ -118,6 +127,7 @@ internal fun PodcastsContent(
                     onPlayNext,
                     onAddToPlaylist,
                     onOpenFeed,
+                    onGoToPodcast,
                 )
             }
         }
@@ -155,6 +165,7 @@ private fun SubscriptionsAndEpisodes(
     onPlayNext: (MediaItem) -> Unit,
     onAddToPlaylist: (MediaItem) -> Unit,
     onOpenFeed: (MediaSource.PodcastFeed) -> Unit,
+    onGoToPodcast: (MediaItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(modifier = modifier.fillMaxSize()) {
@@ -190,6 +201,8 @@ private fun SubscriptionsAndEpisodes(
                 onPlayNext = { onPlayNext(episode) },
                 onAddToQueue = { onEnqueue(episode) },
                 onAddToPlaylist = { onAddToPlaylist(episode) },
+                onGoToSource = { onGoToPodcast(episode) },
+                goToSourceLabelRes = R.string.go_to_podcast,
             )
             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
         }
@@ -227,6 +240,7 @@ private fun PodcastsContentPreview() {
             onPlayNext = {},
             onAddToPlaylist = {},
             onOpenFeed = {},
+            onGoToPodcast = {},
         )
     }
 }
@@ -248,6 +262,7 @@ private fun PodcastsEmptyPreview() {
             onPlayNext = {},
             onAddToPlaylist = {},
             onOpenFeed = {},
+            onGoToPodcast = {},
         )
     }
 }

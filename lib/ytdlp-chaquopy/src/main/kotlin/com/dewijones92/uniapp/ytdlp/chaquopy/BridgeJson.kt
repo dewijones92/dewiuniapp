@@ -81,6 +81,9 @@ private fun JsonObject.toMediaMetadata(
     thumbnailUrl = stringOrNull("thumbnail"),
     formats = arrayAt("formats").mapNotNull { it.jsonObject.toMediaFormatOrNull() },
     description = stringOrNull("description"),
+    // channel_url is YouTube's canonical /channel/UC… form; uploader_url may be a
+    // handle (/@name), which the channel screen can still resolve.
+    uploaderUrl = stringOrNull("channel_url") ?: stringOrNull("uploader_url"),
     playbackTrackingUrl = playbackTrackingUrl,
     watchtimeTrackingUrl = watchtimeTrackingUrl,
     chapters = arrayAt("chapters").mapNotNull { it.jsonObject.toChapterOrNull() },

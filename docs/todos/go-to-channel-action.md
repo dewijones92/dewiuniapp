@@ -1,7 +1,7 @@
 ---
 title: "Go to channel" action in the long-press sheet
 kind: todo
-status: open
+status: shipped
 area: ui
 priority: medium
 requested: 2026-07-24
@@ -42,7 +42,25 @@ built as a filtered view of `PodcastsViewModel` (not a parallel view model), and
 `ChannelScreen`'s header extracted to a shared `SourceHeader` (back / title /
 subscribe toggle) now used by both pillars' source pages.
 
-Remaining for this item: the channel handle for account-feed videos, and the
-`goToSource` action itself. yt-dlp's `extract` already returns the full info dict
-(which carries `channel_id` / `channel_url`), so the handle can be resolved on tap
-rather than plumbed through every parser — `MediaMetadata` just needs the field.
+## Shipped 2026-07-25
+
+`SourceLocator` (port, `:core:data` `data/source/`) + `DefaultSourceLocator`: one
+seam that answers "what source is this row from?" for both pillars, **resolved from
+data rather than by sniffing URLs a second time** —
+
+- a **subscribed podcast feed** is a local lookup by `sourceId`;
+- anything else is resolved through the engine, which now reports the uploader's own
+  page (`MediaMetadata.uploaderUrl` ← yt-dlp's `channel_url` / `uploader_url`). So
+  no channel handle had to be plumbed through every InnerTube parser, and the cost
+  is one extract on tap instead of on every feed row.
+
+Wired as `MediaItemActions.goToSource(item) { source -> … }`, surfaced as one more
+`SheetAction` in `MediaItemRow` ("Go to channel" / "Go to podcast" — the host passes
+the label since it knows its pillar), on both the Videos and Podcasts feeds.
+
+**Load-bearing detail:** `DefaultSourceLocator` ids a channel by
+`SourceId(channelUrl)`, which is exactly what `AccountSubscriptions` already does —
+so a located channel matches the subscription list and the channel page's
+subscribe/unsubscribe state is correct. Verified on-device: long-press an
+account-feed video → Go to channel → the right channel's page with its tabs,
+uploads, and **Unsubscribe** (not a false "Subscribe").

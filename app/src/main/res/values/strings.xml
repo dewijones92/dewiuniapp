@@ -42,6 +42,8 @@
     <string name="history_title">History</string>
     <string name="history_empty">Nothing played yet.</string>
     <string name="history_clear">Clear all</string>
+    <string name="go_to_channel">Go to channel</string>
+    <string name="go_to_podcast">Go to podcast</string>
     <string name="notifications_title">New uploads</string>
     <string name="notifications_empty">You\'re all caught up.</string>
 

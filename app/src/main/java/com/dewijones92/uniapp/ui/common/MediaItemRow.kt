@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
@@ -70,9 +71,13 @@ fun MediaItemRow(
     onAddToQueue: (() -> Unit)? = null,
     onAddToPlaylist: (() -> Unit)? = null,
     onRemoveFromPlaylist: (() -> Unit)? = null,
+    onGoToSource: (() -> Unit)? = null,
+    /** Label for [onGoToSource] — the host knows its pillar ("channel" vs "podcast"). */
+    goToSourceLabelRes: Int = R.string.go_to_channel,
 ) {
     var showSheet by remember { mutableStateOf(false) }
-    val hasMenu = listOf(onPlayNext, onAddToQueue, onAddToPlaylist, onRemoveFromPlaylist).any { it != null }
+    val hasMenu = listOf(onPlayNext, onAddToQueue, onAddToPlaylist, onRemoveFromPlaylist, onGoToSource)
+        .any { it != null }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
@@ -90,26 +95,7 @@ fun MediaItemRow(
             modifier = Modifier.size(width = THUMBNAIL_WIDTH, height = THUMBNAIL_HEIGHT),
         )
         Spacer(Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            if (item.contentKind != MediaContentKind.STANDARD) {
-                ContentKindBadge(item.contentKind)
-                Spacer(Modifier.height(2.dp))
-            }
-            Text(
-                text = item.title,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            subtitle?.let {
-                Text(
-                    text = it,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
+        TitleAndSubtitle(item, subtitle, Modifier.weight(1f))
         if (hasMenu) {
             IconButton(onClick = { showSheet = true }) {
                 Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.queue_menu))
@@ -124,8 +110,34 @@ fun MediaItemRow(
             onAddToQueue = onAddToQueue,
             onAddToPlaylist = onAddToPlaylist,
             onRemoveFromPlaylist = onRemoveFromPlaylist,
+            onGoToSource = onGoToSource,
+            goToSourceLabelRes = goToSourceLabelRes,
             onDismiss = { showSheet = false },
         )
+    }
+}
+
+@Composable
+private fun TitleAndSubtitle(item: MediaItem, subtitle: String?, modifier: Modifier = Modifier) {
+    Column(modifier = modifier) {
+        if (item.contentKind != MediaContentKind.STANDARD) {
+            ContentKindBadge(item.contentKind)
+            Spacer(Modifier.height(2.dp))
+        }
+        Text(
+            text = item.title,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        subtitle?.let {
+            Text(
+                text = it,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 
@@ -141,6 +153,8 @@ private fun ActionSheet(
     onAddToQueue: (() -> Unit)?,
     onAddToPlaylist: (() -> Unit)?,
     onRemoveFromPlaylist: (() -> Unit)?,
+    onGoToSource: (() -> Unit)?,
+    goToSourceLabelRes: Int,
     onDismiss: () -> Unit,
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
@@ -155,6 +169,7 @@ private fun ActionSheet(
         SheetAction(onAddToQueue, Icons.AutoMirrored.Filled.QueueMusic, R.string.queue_add, onDismiss)
         SheetAction(onAddToPlaylist, Icons.AutoMirrored.Filled.PlaylistAdd, R.string.playlist_add_to, onDismiss)
         SheetAction(onRemoveFromPlaylist, Icons.Filled.Delete, R.string.playlist_remove_from, onDismiss)
+        SheetAction(onGoToSource, Icons.Filled.AccountCircle, goToSourceLabelRes, onDismiss)
         Spacer(Modifier.height(16.dp))
     }
 }

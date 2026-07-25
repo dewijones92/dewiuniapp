@@ -31,6 +31,12 @@ public data class MediaMetadata(
     /** The uploader's description/notes for this media, when the extractor provides one. */
     val description: String? = null,
     /**
+     * The uploader's own page, when the extractor provides one — for YouTube the
+     * canonical `/channel/UC…` URL. Lets a media row navigate to its source
+     * without the caller having to know the channel up front.
+     */
+    val uploaderUrl: String? = null,
+    /**
      * YouTube watch-progress stats URLs from the player response, when present.
      * [watchtimeTrackingUrl] is pinged (with a client nonce + position) to sync
      * how far the video was watched to the account; [playbackTrackingUrl] opens

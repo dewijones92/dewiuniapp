@@ -25,6 +25,8 @@ import com.dewijones92.uniapp.data.search.ItunesPodcastSearchSource
 import com.dewijones92.uniapp.data.search.SearchHistoryStore
 import com.dewijones92.uniapp.data.search.SearchSource
 import com.dewijones92.uniapp.data.search.YtDlpVideoSearchSource
+import com.dewijones92.uniapp.data.source.DefaultSourceLocator
+import com.dewijones92.uniapp.data.source.SourceLocator
 import com.dewijones92.uniapp.data.sponsorblock.SkipSegmentSource
 import com.dewijones92.uniapp.data.sponsorblock.SponsorBlockSegmentSource
 import com.dewijones92.uniapp.database.RoomDownloadStore
@@ -107,6 +109,9 @@ interface AppContainer {
 
     /** Recently-played items across both pillars. */
     val playHistoryStore: PlayHistoryStore
+
+    /** Finds the source (channel / feed) a media row came from, for "go to channel". */
+    val sourceLocator: SourceLocator
 
     /** User settings (per-network default quality, …). */
     val appPreferences: AppPreferences
@@ -270,6 +275,10 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
 
     override val localPlaylistStore: LocalPlaylistStore by lazy {
         RoomLocalPlaylistStore(database.localPlaylistDao())
+    }
+
+    override val sourceLocator: SourceLocator by lazy {
+        DefaultSourceLocator(podcastRepository, ytDlpEngine)
     }
 
     override val playHistoryStore: PlayHistoryStore by lazy {

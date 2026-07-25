@@ -84,6 +84,8 @@ fun VideosScreen(
     val channel = browsingChannel
     val playlist = browsingPlaylist
 
+    val actions = rememberMediaItemActions(container)
+
     when {
         playlist != null ->
             PlaylistScreen(container, playlist, onBack = { browsingPlaylist = null }, modifier = modifier)
@@ -107,7 +109,7 @@ fun VideosScreen(
         else -> VideosContent(
             state = state,
             newUploadsCount = newUploadsCount,
-            actions = rememberMediaItemActions(container),
+            actions = actions,
             onSubscribe = viewModel::subscribe,
             onDialogClosed = viewModel::resetSubscribing,
             onPlay = viewModel::play,
@@ -115,6 +117,11 @@ fun VideosScreen(
             onDeleteDownload = viewModel::deleteDownload,
             onSelectFeed = viewModel::selectFeed,
             onChannelClick = { browsingChannel = it },
+            onGoToChannel = { item ->
+                actions.goToSource(item) { source ->
+                    (source as? MediaSource.VideoChannel)?.let { browsingChannel = it }
+                }
+            },
             onOpenPlaylists = { showPlaylists = true },
             onOpenShorts = { onOpenShorts(state.videos.filter { it.contentKind == MediaContentKind.SHORT }) },
             onOpenNotifications = { showNotifications = true },
@@ -138,6 +145,7 @@ internal fun VideosContent(
     onDeleteDownload: (MediaItem) -> Unit,
     onSelectFeed: (AccountFeed?) -> Unit,
     onChannelClick: (MediaSource.VideoChannel) -> Unit,
+    onGoToChannel: (MediaItem) -> Unit,
     onOpenPlaylists: () -> Unit,
     onOpenShorts: () -> Unit,
     onOpenNotifications: () -> Unit,
@@ -172,6 +180,7 @@ internal fun VideosContent(
                         onDeleteDownload,
                         onSelectFeed,
                         onChannelClick = onChannelClick,
+                        onGoToChannel = onGoToChannel,
                         onOpenPlaylists = onOpenPlaylists,
                         onOpenShorts = onOpenShorts,
                         onSetSort = onSetSort,
@@ -233,6 +242,7 @@ private fun ChannelsAndVideos(
     onDeleteDownload: (MediaItem) -> Unit,
     onSelectFeed: (AccountFeed?) -> Unit,
     onChannelClick: (MediaSource.VideoChannel) -> Unit,
+    onGoToChannel: (MediaItem) -> Unit,
     onOpenPlaylists: () -> Unit,
     onOpenShorts: () -> Unit,
     onSetSort: (MediaSort) -> Unit,
@@ -280,6 +290,7 @@ private fun ChannelsAndVideos(
                         onPlayNext = { actions.playNext(video) },
                         onAddToQueue = { actions.addToQueue(video) },
                         onAddToPlaylist = { actions.addToPlaylist(video) },
+                        onGoToSource = { onGoToChannel(video) },
                     )
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                 }
@@ -369,6 +380,7 @@ private fun VideosContentPreview() {
             onSelectFeed = {},
             newUploadsCount = 0,
             onChannelClick = {},
+            onGoToChannel = {},
             onOpenPlaylists = {},
             onOpenShorts = {},
             onOpenNotifications = {},
