@@ -84,15 +84,25 @@ state reads oddly ("why did this row's menu change everything?"). So the sheet a
 plays *that* item the chosen way **and** sets the mode, and says so — a snackbar
 ("Video mode on"). One concept, no hidden per-item state, and no settings-screen hunt.
 
-## Still open
+## Settled (Dewi, 2026-07-25) — spec complete
 
-- Does **Auto** as the default feel right, or a plain Audio/Video default?
-- **Shorts and an explicit fullscreen tap** are unambiguous "I want to watch" signals
-  — force video for that item without changing the mode? (Instinct: yes.)
-- **Cast**: a TV receiver is a video device, so casting should probably ignore Audio
-  mode. (Instinct: yes.)
-- When audio is downloaded but you choose video on mobile data: stream video-only and
-  reuse the local audio (point 3 above), or just stream the normal muxed video?
+- **Auto is the default.**
+- **Shorts and an explicit fullscreen tap force video for that item only**, leaving
+  the mode alone — and a **toast says so** ("Watching this one — audio mode kept"), so
+  a one-off never looks like a mode change.
+- **Cast is out of scope for now**: no special-casing, and mode behaviour while
+  casting is left unverified rather than half-built. Revisit with real hardware.
+- **Switching to video reuses the downloaded audio**: stream the **video-only** track
+  and merge the local audio file, so the switch costs only video bytes. The player
+  already merges a separate audio track for the quality ladder
+  (`EXTRA_AUDIO_URL`) — this extends it to accept a local file path.
+
+**Risk to check first:** that the playback service actually merges a `file://` audio
+source with a remote video-only stream. If Media3 baulks, fall back to the normal
+muxed stream for that case and say so rather than shipping something flaky.
+
+Spec is complete — implementation waits on Dewi's go (it sits on top of
+[queue-first-playback](queue-first-playback.md)).
 
 **Done when:** tapping a queue item and switching to video (and back) continues from
 the same position, the data cost is made clear before it's spent, and the switch is
