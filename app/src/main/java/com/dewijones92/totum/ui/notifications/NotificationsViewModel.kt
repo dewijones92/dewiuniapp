@@ -8,11 +8,13 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.dewijones92.totum.data.content.SeenItemsTracker
 import com.dewijones92.totum.di.AppContainer
 import com.dewijones92.totum.domain.MediaItem
+import com.dewijones92.totum.domain.PlayHandle
+import com.dewijones92.totum.domain.PlayableItem
 import com.dewijones92.totum.innertube.feeds.FeedResult
 import com.dewijones92.totum.innertube.feeds.YouTubeFeeds
 import com.dewijones92.totum.notifications.YouTubeSubscriptionItemsSource.Companion.SUBSCRIPTIONS_SOURCE
+import com.dewijones92.totum.queue.PlaybackQueue
 import com.dewijones92.totum.ui.common.toMediaItem
-import com.dewijones92.totum.video.VideoPlaybackLauncher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -31,7 +33,7 @@ import kotlinx.coroutines.launch
 class NotificationsViewModel(
     private val feeds: YouTubeFeeds,
     private val tracker: SeenItemsTracker,
-    private val launcher: VideoPlaybackLauncher,
+    private val queue: PlaybackQueue,
 ) : ViewModel() {
 
     private var lastFeed: List<MediaItem> = emptyList()
@@ -64,7 +66,7 @@ class NotificationsViewModel(
 
     fun play(video: MediaItem) {
         val watchUrl = video.mediaUrl ?: return
-        viewModelScope.launch { launcher.play(watchUrl, video.sourceId) }
+        viewModelScope.launch { queue.playNow(PlayableItem(video, PlayHandle.Video(watchUrl))) }
     }
 
     companion object {
@@ -75,7 +77,7 @@ class NotificationsViewModel(
                 NotificationsViewModel(
                     feeds = container.youTubeFeeds,
                     tracker = container.bellSeenTracker,
-                    launcher = container.videoPlaybackLauncher,
+                    queue = container.playbackQueue,
                 )
             }
         }

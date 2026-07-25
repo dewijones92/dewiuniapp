@@ -10,12 +10,14 @@ import com.dewijones92.totum.di.AppContainer
 import com.dewijones92.totum.domain.DownloadState
 import com.dewijones92.totum.domain.MediaItem
 import com.dewijones92.totum.domain.MediaItemId
+import com.dewijones92.totum.domain.PlayHandle
+import com.dewijones92.totum.domain.PlayableItem
 import com.dewijones92.totum.domain.SourceId
 import com.dewijones92.totum.innertube.playlists.PlaylistVideosResult
 import com.dewijones92.totum.innertube.playlists.YouTubePlaylists
+import com.dewijones92.totum.queue.PlaybackQueue
 import com.dewijones92.totum.ui.common.MediaSort
 import com.dewijones92.totum.ui.common.toMediaItem
-import com.dewijones92.totum.video.VideoPlaybackLauncher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -32,7 +34,7 @@ class PlaylistViewModel(
     private val browseId: String,
     title: String,
     private val playlists: YouTubePlaylists,
-    private val launcher: VideoPlaybackLauncher,
+    private val queue: PlaybackQueue,
     private val downloads: DownloadManager,
 ) : ViewModel() {
 
@@ -107,7 +109,7 @@ class PlaylistViewModel(
 
     fun play(video: MediaItem) {
         val watchUrl = video.mediaUrl ?: return
-        viewModelScope.launch { launcher.play(watchUrl, video.sourceId) }
+        viewModelScope.launch { queue.playNow(PlayableItem(video, PlayHandle.Video(watchUrl))) }
     }
 
     fun download(video: MediaItem) {
@@ -128,7 +130,7 @@ class PlaylistViewModel(
                         browseId = browseId,
                         title = title,
                         playlists = container.youTubePlaylists,
-                        launcher = container.videoPlaybackLauncher,
+                        queue = container.playbackQueue,
                         downloads = container.downloadManager,
                     )
                 }

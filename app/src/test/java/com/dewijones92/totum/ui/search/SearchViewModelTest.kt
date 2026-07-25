@@ -3,6 +3,7 @@ package com.dewijones92.totum.ui.search
 import com.dewijones92.totum.common.HttpUrl
 import com.dewijones92.totum.data.history.fake.InMemoryPlayHistoryStore
 import com.dewijones92.totum.data.podcast.fake.FakePodcastRepository
+import com.dewijones92.totum.data.queue.fake.InMemoryQueueStore
 import com.dewijones92.totum.data.search.SearchHit
 import com.dewijones92.totum.data.search.SearchOutcome
 import com.dewijones92.totum.data.search.SearchSource
@@ -12,10 +13,12 @@ import com.dewijones92.totum.data.sponsorblock.SkipSegmentSource
 import com.dewijones92.totum.domain.SkipSegment
 import com.dewijones92.totum.innertube.history.fake.FakeYouTubeWatchHistory
 import com.dewijones92.totum.playback.fake.FakePlaybackController
+import com.dewijones92.totum.queue.PlaybackQueue
 import com.dewijones92.totum.ui.search.SearchViewModel.Results
 import com.dewijones92.totum.video.VideoPlaybackLauncher
 import com.dewijones92.totum.video.VideoResolver
 import com.dewijones92.totum.ytdlp.fake.FakeYtDlpEngine
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
@@ -55,11 +58,18 @@ class SearchViewModelTest {
         podcastSearch = podcastSearch,
         videoSearch = YtDlpVideoSearchSource(engine),
         podcastRepository = repository,
-        launcher = VideoPlaybackLauncher(
-            VideoResolver(engine, SkipSegmentSource { cannedSegments }),
+        // Search plays through the queue like every other screen now, so the test wires the
+        // real queue (over a fake controller) instead of reaching for the launcher directly.
+        queue = PlaybackQueue(
             playback,
-            FakeYouTubeWatchHistory(),
-            InMemoryPlayHistoryStore(),
+            VideoPlaybackLauncher(
+                VideoResolver(engine, SkipSegmentSource { cannedSegments }),
+                playback,
+                FakeYouTubeWatchHistory(),
+                InMemoryPlayHistoryStore(),
+            ),
+            CoroutineScope(dispatcher),
+            InMemoryQueueStore(),
         ),
         history = InMemorySearchHistoryStore(),
     )

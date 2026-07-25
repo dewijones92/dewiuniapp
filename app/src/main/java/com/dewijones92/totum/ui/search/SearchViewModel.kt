@@ -13,8 +13,11 @@ import com.dewijones92.totum.data.search.SearchQuery
 import com.dewijones92.totum.data.search.SearchSource
 import com.dewijones92.totum.di.AppContainer
 import com.dewijones92.totum.domain.MediaSource
+import com.dewijones92.totum.domain.PlayHandle
+import com.dewijones92.totum.domain.PlayableItem
 import com.dewijones92.totum.domain.SourceId
-import com.dewijones92.totum.video.VideoPlaybackLauncher
+import com.dewijones92.totum.queue.PlaybackQueue
+import com.dewijones92.totum.ui.common.toMediaItem
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.async
@@ -35,7 +38,7 @@ class SearchViewModel(
     private val podcastSearch: SearchSource,
     private val videoSearch: SearchSource,
     private val podcastRepository: PodcastRepository,
-    private val launcher: VideoPlaybackLauncher,
+    private val queue: PlaybackQueue,
     private val history: SearchHistoryStore,
 ) : ViewModel() {
 
@@ -143,7 +146,9 @@ class SearchViewModel(
     fun playVideo(hit: SearchHit.Video) {
         viewModelScope.launch {
             playAttempt.value = PlayAttempt(resolving = hit.watchUrl.value)
-            val played = launcher.play(hit.watchUrl, AD_HOC_VIDEO_SOURCE)
+            val played = queue.playNow(
+                PlayableItem(hit.toMediaItem(AD_HOC_VIDEO_SOURCE), PlayHandle.Video(hit.watchUrl)),
+            )
             playAttempt.value = if (played) PlayAttempt() else PlayAttempt(failed = true)
         }
     }
@@ -162,7 +167,8 @@ class SearchViewModel(
         private const val MIN_QUERY_LENGTH = 2
 
         /** Ad-hoc plays from search don't belong to a subscribed source yet. */
-        private val AD_HOC_VIDEO_SOURCE = SourceId("search:ad-hoc-video")
+        /** Shared with the search row, which builds the same MediaItem for its actions. */
+        internal val AD_HOC_VIDEO_SOURCE = SourceId("search:ad-hoc-video")
 
         fun factory(container: AppContainer): ViewModelProvider.Factory = viewModelFactory {
             initializer {
@@ -170,7 +176,7 @@ class SearchViewModel(
                     podcastSearch = container.podcastSearchSource,
                     videoSearch = container.videoSearchSource,
                     podcastRepository = container.podcastRepository,
-                    launcher = container.videoPlaybackLauncher,
+                    queue = container.playbackQueue,
                     history = container.searchHistoryStore,
                 )
             }

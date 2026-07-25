@@ -58,6 +58,14 @@ class VideoPlaybackLauncher(
     }
 
     /**
+     * Resolves [watchUrl] to its display metadata without playing — so a bare link can be
+     * put in the queue with a real title. Costs one extra resolve, which is why only the
+     * share-target uses it; every other caller already holds a [MediaItem].
+     */
+    suspend fun describe(watchUrl: HttpUrl, sourceId: SourceId): MediaItem? =
+        resolver.resolve(watchUrl, sourceId)?.item?.copy(mediaUrl = watchUrl)
+
+    /**
      * Resolves [watchUrl] to a playable stream (with its skip segments and
      * quality ladder) and plays the default quality. Returns false when the
      * video can't be resolved (private, removed, geo-blocked, …).

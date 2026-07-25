@@ -7,6 +7,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.lifecycle.lifecycleScope
 import com.dewijones92.totum.common.HttpUrl
+import com.dewijones92.totum.domain.PlayHandle
+import com.dewijones92.totum.domain.PlayableItem
 import com.dewijones92.totum.domain.SourceId
 import com.dewijones92.totum.theme.TotumTheme
 import com.dewijones92.totum.ui.AppShell
@@ -35,7 +37,12 @@ class MainActivity : ComponentActivity() {
 
     private fun handleShareIntent(intent: Intent) {
         val url = intent.sharedWatchUrl() ?: return
-        lifecycleScope.launch { container.videoPlaybackLauncher.play(url, SHARED_SOURCE) }
+        // Resolved first so the queue entry carries a real title rather than a URL; a
+        // shared link is a deliberate, occasional action, so the extra resolve is cheap.
+        lifecycleScope.launch {
+            val item = container.videoPlaybackLauncher.describe(url, SHARED_SOURCE) ?: return@launch
+            container.playbackQueue.playNow(PlayableItem(item, PlayHandle.Video(url)))
+        }
     }
 
     /** The YouTube watch URL from a VIEW (link) or SEND (share text) intent, if any. */

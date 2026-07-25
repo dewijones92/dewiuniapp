@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.dewijones92.totum.di.AppContainer
+import com.dewijones92.totum.domain.PlayHandle
+import com.dewijones92.totum.domain.PlayableItem
 import com.dewijones92.totum.domain.SourceId
 import com.dewijones92.totum.innertube.actions.ActionResult
 import com.dewijones92.totum.innertube.actions.VideoRating
@@ -18,8 +20,10 @@ import com.dewijones92.totum.innertube.comments.YouTubeComments
 import com.dewijones92.totum.innertube.feeds.FeedVideo
 import com.dewijones92.totum.innertube.related.RelatedResult
 import com.dewijones92.totum.innertube.related.YouTubeRelated
+import com.dewijones92.totum.queue.PlaybackQueue
 import com.dewijones92.totum.settings.AppPreferences
 import com.dewijones92.totum.settings.PlaybackMode
+import com.dewijones92.totum.ui.common.toMediaItem
 import com.dewijones92.totum.video.VideoPlaybackLauncher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -36,13 +40,19 @@ import kotlinx.coroutines.launch
 // The watch page's one view-model: comments, related/autoplay, rating, Watch
 // Later, Listen, quality and comment-posting are all thin actions that belong
 // together; splitting to satisfy the counter would only scatter the page's logic.
+// Seven collaborators because the watch screen genuinely coordinates that many surfaces —
+// comments, related, actions, account, playback, the queue and preferences. Splitting it
+// would scatter one screen's logic rather than simplify it.
 @Suppress("TooManyFunctions")
-class WatchViewModel(
+class WatchViewModel
+@Suppress("LongParameterList")
+constructor(
     private val commentsSource: YouTubeComments,
     private val relatedSource: YouTubeRelated,
     private val actions: YouTubeActions,
     private val account: YouTubeAccount,
     private val launcher: VideoPlaybackLauncher,
+    private val queue: PlaybackQueue,
     private val preferences: AppPreferences,
 ) : ViewModel() {
 
@@ -149,7 +159,11 @@ class WatchViewModel(
 
     /** Plays a tapped related video through the one launcher. */
     fun playRelated(video: FeedVideo) {
-        viewModelScope.launch { launcher.play(video.watchUrl, RELATED_SOURCE) }
+        viewModelScope.launch {
+            queue.playNow(
+                PlayableItem(video.toMediaItem(RELATED_SOURCE), PlayHandle.Video(video.watchUrl)),
+            )
+        }
     }
 
     /**
@@ -248,6 +262,7 @@ class WatchViewModel(
                     container.youTubeActions,
                     container.youTubeAccount,
                     container.videoPlaybackLauncher,
+                    container.playbackQueue,
                     container.appPreferences,
                 )
             }

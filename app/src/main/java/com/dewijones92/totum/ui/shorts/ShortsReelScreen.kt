@@ -41,6 +41,8 @@ import androidx.media3.ui.compose.SURFACE_TYPE_TEXTURE_VIEW
 import com.dewijones92.totum.R
 import com.dewijones92.totum.di.AppContainer
 import com.dewijones92.totum.domain.MediaItem
+import com.dewijones92.totum.domain.PlayHandle
+import com.dewijones92.totum.domain.PlayableItem
 import com.dewijones92.totum.playback.PlaybackState
 import com.dewijones92.totum.settings.PlaybackMode
 
@@ -66,6 +68,7 @@ fun ShortsReelScreen(
     }
     val playback = container.playbackController
     val launcher = container.videoPlaybackLauncher
+    val queue = container.playbackQueue
     val audioMode = container.appPreferences.settings.collectAsStateWithLifecycle().value.playbackMode ==
         PlaybackMode.AUDIO
     val context = LocalContext.current
@@ -79,8 +82,11 @@ fun ShortsReelScreen(
 
     // Resolve + play whichever short the pager rests on (URLs expire, so play at rest).
     LaunchedEffect(pager.settledPage) {
-        shorts.getOrNull(pager.settledPage)?.mediaUrl?.let { url ->
-            launcher.play(url, shorts[pager.settledPage].sourceId)
+        shorts.getOrNull(pager.settledPage)?.let { short ->
+            val url = short.mediaUrl ?: return@LaunchedEffect
+            // Through the spine like everything else: a short you watched is a thing you
+            // played, so it belongs in the queue and the history.
+            queue.playNow(PlayableItem(short, PlayHandle.Video(url)))
             // A Shorts reel is inherently visual: show the picture even in audio mode,
             // for this item only. The mode itself is left alone (and said so, below).
             launcher.watch()

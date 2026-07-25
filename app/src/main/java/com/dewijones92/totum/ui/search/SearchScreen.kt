@@ -28,6 +28,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -43,10 +44,19 @@ import com.dewijones92.totum.R
 import com.dewijones92.totum.data.search.SearchHit
 import com.dewijones92.totum.di.AppContainer
 import com.dewijones92.totum.di.fake.FakeAppContainer
+import com.dewijones92.totum.domain.DownloadState
+import com.dewijones92.totum.domain.MediaItem
+import com.dewijones92.totum.domain.MediaKind
+import com.dewijones92.totum.domain.MediaSource
 import com.dewijones92.totum.theme.TotumTheme
+import com.dewijones92.totum.ui.channel.ChannelScreen
 import com.dewijones92.totum.ui.common.EmptyState
+import com.dewijones92.totum.ui.common.MediaItemActions
+import com.dewijones92.totum.ui.common.MediaItemRow
 import com.dewijones92.totum.ui.common.MediaThumbnail
 import com.dewijones92.totum.ui.common.mediaSubtitle
+import com.dewijones92.totum.ui.common.rememberMediaItemActions
+import com.dewijones92.totum.ui.common.toMediaItem
 import com.dewijones92.totum.ui.search.SearchViewModel.Results
 import com.dewijones92.totum.ui.search.SearchViewModel.UiState
 
@@ -54,6 +64,21 @@ import com.dewijones92.totum.ui.search.SearchViewModel.UiState
 fun SearchScreen(container: AppContainer, modifier: Modifier = Modifier) {
     val viewModel: SearchViewModel = viewModel(factory = SearchViewModel.factory(container))
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val actions = rememberMediaItemActions(container)
+    // "Go to channel" needs somewhere to land, so Search hosts the channel page as an
+    // overlay exactly as the Videos tab does.
+    var browsingChannel by remember { mutableStateOf<MediaSource.VideoChannel?>(null) }
+    val channel = browsingChannel
+    if (channel != null) {
+        ChannelScreen(
+            container,
+            channel,
+            onBack = { browsingChannel = null },
+            onOpenPlaylist = {},
+            modifier = modifier,
+        )
+        return
+    }
 
     SearchContent(
         state = state,
@@ -63,6 +88,12 @@ fun SearchScreen(container: AppContainer, modifier: Modifier = Modifier) {
         onPlayVideo = viewModel::playVideo,
         onRemoveHistory = viewModel::removeHistory,
         onClearHistory = viewModel::clearHistory,
+        actions = actions,
+        onGoToChannel = { item ->
+            actions.goToSource(item) { source ->
+                (source as? MediaSource.VideoChannel)?.let { browsingChannel = it }
+            }
+        },
         modifier = modifier,
     )
 }
@@ -76,6 +107,8 @@ internal fun SearchContent(
     onPlayVideo: (SearchHit.Video) -> Unit,
     onRemoveHistory: (String) -> Unit,
     onClearHistory: () -> Unit,
+    actions: MediaItemActions,
+    onGoToChannel: (MediaItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var query by rememberSaveable { mutableStateOf("") }
@@ -108,7 +141,7 @@ internal fun SearchContent(
         when (val results = state.results) {
             Results.Idle -> SearchIdle(state.history, runSearch, onRemoveHistory, onClearHistory)
             Results.Searching -> LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-            is Results.Loaded -> ResultsList(results, state, onSubscribe, onPlayVideo)
+            is Results.Loaded -> ResultsList(results, state, onSubscribe, onPlayVideo, actions, onGoToChannel)
         }
     }
 }
@@ -193,6 +226,8 @@ private fun ResultsList(
     state: UiState,
     onSubscribe: (SearchHit.Podcast) -> Unit,
     onPlayVideo: (SearchHit.Video) -> Unit,
+    actions: MediaItemActions,
+    onGoToChannel: (MediaItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(modifier = modifier.fillMaxSize()) {
@@ -223,6 +258,8 @@ private fun ResultsList(
                 hit = hit,
                 resolving = state.resolving == hit.watchUrl.value,
                 onPlay = { onPlayVideo(hit) },
+                actions = actions,
+                onGoToChannel = onGoToChannel,
             )
         }
 
@@ -284,36 +321,45 @@ private fun PodcastHitRow(
     }
 }
 
+/**
+ * A video search result, rendered by the **shared** [MediaItemRow] rather than a row of its
+ * own. That is what gives search the long-press menu every other list has — go to channel,
+ * add to queue, play next, peek — which it previously lacked entirely, and it keeps the
+ * pillar/played/offline status consistent with the rest of the app.
+ *
+ * The download control is replaced via `trailing` by the resolving spinner: a search hit has
+ * no resolved stream yet, so offering "download" here would promise something it can't do.
+ */
 @Composable
 private fun VideoHitRow(
     hit: SearchHit.Video,
     resolving: Boolean,
     onPlay: () -> Unit,
+    actions: MediaItemActions,
+    onGoToChannel: (MediaItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable(enabled = !resolving, onClick = onPlay)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-    ) {
-        MediaThumbnail(
-            url = hit.artworkUrl,
-            contentDescription = hit.title,
-            modifier = Modifier.size(width = VIDEO_HIT_THUMBNAIL_WIDTH, height = VIDEO_HIT_THUMBNAIL_HEIGHT),
-        )
-        Spacer(Modifier.width(12.dp))
-        val subtitle = mediaSubtitle(
+    val item = remember(hit) { hit.toMediaItem(SearchViewModel.AD_HOC_VIDEO_SOURCE) }
+    MediaItemRow(
+        item = item,
+        subtitle = mediaSubtitle(
             author = hit.subtitle,
             dateText = hit.publishedText,
             durationMinutes = hit.durationSeconds?.let { it / SECONDS_PER_MINUTE },
-        )
-        HitTitles(hit.title, subtitle, Modifier.weight(1f))
-        if (resolving) {
-            CircularProgressIndicator(modifier = Modifier.size(20.dp))
-        }
-    }
+        ),
+        downloadState = DownloadState.NotDownloaded,
+        pillar = MediaKind.VIDEO,
+        onPlay = onPlay,
+        onDownload = {},
+        onDeleteDownload = {},
+        onPlayNext = { actions.playNext(item) },
+        onAddToQueue = { actions.addToQueue(item) },
+        onAddToPlaylist = { actions.addToPlaylist(item) },
+        onPeek = { actions.peek(item) },
+        onGoToSource = { onGoToChannel(item) },
+        trailing = { if (resolving) CircularProgressIndicator(modifier = Modifier.size(20.dp)) },
+        modifier = modifier,
+    )
 }
 
 @Composable
@@ -342,8 +388,6 @@ private const val SECONDS_PER_MINUTE = 60L
 // Search hits carry their source's natural artwork shape: podcast art is
 // square, a video still is 16:9.
 private val HIT_THUMBNAIL_SIZE = 56.dp
-private val VIDEO_HIT_THUMBNAIL_WIDTH = 96.dp
-private val VIDEO_HIT_THUMBNAIL_HEIGHT = 54.dp
 
 @Preview(showBackground = true)
 @Composable
