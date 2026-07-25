@@ -1,11 +1,11 @@
 ---
 title: Skip silence on videos too
 kind: todo
-status: ready
+status: shipped
 area: playback
 priority: medium
 requested: 2026-07-24
-updated: 2026-07-24
+updated: 2026-07-25
 ---
 
 # Skip silence on videos (not just audio)
@@ -79,3 +79,39 @@ audio-only/video-unsupported split.
 today's audio-only `SilenceSkippingAudioProcessor`. Accepted trade-off: podcasts will
 *feel* different — a gap becomes a moment of fast audio rather than vanishing — in
 exchange for video support, no possible A/V desync, and the pillar split disappearing.
+
+## Shipped 2026-07-25 — one mechanism, both pillars
+
+`SilenceDetectingAudioProcessor` sits in the sink's chain, passes audio through
+**untouched**, and reports silence transitions. `PlaybackService` responds by raising
+the **playback rate** (4× the user's chosen speed, capped at 8×) and dropping back when
+sound returns. `SilenceSkippingAudioProcessor` is gone, and so is the audio-only gate:
+the toggle now shows for video too.
+
+Why this can't desync: `setPlaybackSpeed` retimes audio *and* video from one clock,
+whereas the old processor removed audio samples the video clock never heard about
+(measured ~6s of drift over 20s). And because nothing seeks, there's no keyframe
+stutter — the reason the "feed silences in as skip-segments" idea was rejected.
+
+**Why reacting immediately is accurate enough:** the detector runs inside the sink's
+chain, and the sink consumes buffers in real time — the audio track holds only a few
+hundred ms. "Just saw silence" therefore means "about to be heard", so the lead is
+small relative to a gap worth skipping.
+
+### Calibrated on-device (the part that needed a real device)
+
+A first threshold of 128 (≈ -48 dBFS) **never triggered**: instrumenting showed real
+peaks of 3,652–24,917 through a whole clip, because a recording's quiet passages sit
+well above the theoretical noise floor. Raised to **1024** and ~150ms of quiet to
+enter — both matching Media3's own `SilenceSkippingAudioProcessor` defaults, which are
+battle-tested. That is exactly the "wired ≠ working" trap: the processor was correctly
+installed and running (`configured enc=2 rate=44100 ch=2`, buffers flowing) and still
+did nothing useful.
+
+### Verified on-device
+
+- **Podcast:** repeated transitions `speed 1.0 → 4.0 → 1.0`.
+- **Video:** same, and with the user's speed at 1.25 the log read
+  `speed=5.0 (user=1.25)` → `speed=1.25` — so it *multiplies* the chosen speed rather
+  than overriding it, and restores the right rate afterwards.
+- The toggle now appears for a video (it used to be hidden).

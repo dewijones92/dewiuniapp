@@ -298,7 +298,7 @@ private fun PlayerDetails(
     Spacer(Modifier.height(24.dp))
     SpeedControl(state.speed, onSetSpeed)
     SleepTimerControl(sleepTimer, onStartSleep, onCancelSleep)
-    PlaybackTogglesRow(hasVideo = state.hasVideo, skipSilence = state.skipSilence, toggles = toggles)
+    PlaybackTogglesRow(skipSilence = state.skipSilence, toggles = toggles)
 
     // Quality — video only, and only when there's a choice to make.
     if (state.hasVideo && quality.options.size > 1) {
@@ -334,18 +334,15 @@ private fun PlayerDetails(
 
 /** The player's on/off preferences. */
 @Composable
-private fun PlaybackTogglesRow(hasVideo: Boolean, skipSilence: Boolean, toggles: PlaybackToggles) {
-    // Silence-skipping a video runs the audio ahead of the picture, so it is offered
-    // only for podcasts and a video's audio-only "Listen" mode. Auto-play next has no
-    // such constraint — it applies to both pillars.
-    if (!hasVideo) {
-        PlayerToggle(
-            icon = Icons.Outlined.GraphicEq,
-            labelRes = R.string.skip_silence,
-            checked = skipSilence,
-            onCheckedChange = toggles.onSetSkipSilence,
-        )
-    }
+private fun PlaybackTogglesRow(skipSilence: Boolean, toggles: PlaybackToggles) {
+    // Both pillars now: silence is handled by raising the playback rate, which retimes
+    // audio and video together, so the old audio-only restriction is gone.
+    PlayerToggle(
+        icon = Icons.Outlined.GraphicEq,
+        labelRes = R.string.skip_silence,
+        checked = skipSilence,
+        onCheckedChange = toggles.onSetSkipSilence,
+    )
     PlayerToggle(
         icon = Icons.AutoMirrored.Outlined.PlaylistPlay,
         labelRes = R.string.auto_play_next,

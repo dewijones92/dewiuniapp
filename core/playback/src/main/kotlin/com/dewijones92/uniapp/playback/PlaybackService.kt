@@ -17,7 +17,6 @@ import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.audio.DefaultAudioSink
-import androidx.media3.exoplayer.audio.SilenceSkippingAudioProcessor
 import androidx.media3.exoplayer.drm.DrmSessionManagerProvider
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.MediaSource
@@ -41,15 +40,34 @@ public class PlaybackService : MediaSessionService() {
 
     private var mediaSession: MediaSession? = null
 
-    // Held so the skip-silences toggle (a custom session command) can flip it live.
+    /**
+     * Detects silence so it can be handled by **rate**, not by dropping samples.
+     * Dropping samples shortens the audio but not the video clock, which is why
+     * skip-silence used to be audio-only; speeding up retimes both together, so this
+     * works on video too and cannot desync.
+     */
     @UnstableApi
-    private val silenceSkipping = SilenceSkippingAudioProcessor()
+    private val silenceDetector = SilenceDetectingAudioProcessor { silent ->
+        mainHandler.post { onSilenceChanged(silent) }
+    }
 
-    // The user's skip-silences intent. The processor is only actually enabled for
-    // audio-only playback: on a video, silence-skipping shortens the audio but not
-    // the video, so the audio runs ahead of the picture (measured desync). Video
-    // present ⇒ forced off, so audio and video always stay in sync.
+    /** The user's skip-silences intent. Applies to both pillars now. */
     private var skipSilenceEnabled = false
+
+    /** The speed the user chose, restored when a silent stretch ends. */
+    private var userSpeed = 1f
+
+    /** True while we're racing through a silent stretch. */
+    private var inSilence = false
+
+    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+
+    /** Notices the user's own speed changes so a silent stretch restores the right rate. */
+    private val speedWatcher = object : Player.Listener {
+        override fun onPlaybackParametersChanged(playbackParameters: androidx.media3.common.PlaybackParameters) {
+            if (!inSilence) userSpeed = playbackParameters.speed
+        }
+    }
     private var player: ExoPlayer? = null
 
     // Cast: present only when Google Play Services + a receiver are available.
@@ -79,7 +97,8 @@ public class PlaybackService : MediaSessionService() {
                     .setEnableFloatOutput(enableFloatOutput)
                     .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
                     .setAudioProcessorChain(
-                        DefaultAudioSink.DefaultAudioProcessorChain(silenceSkipping, SonicAudioProcessor()),
+                        // The detector only observes; Sonic does the actual retiming.
+                        DefaultAudioSink.DefaultAudioProcessorChain(silenceDetector, SonicAudioProcessor()),
                     )
                     .build()
             }
@@ -100,6 +119,7 @@ public class PlaybackService : MediaSessionService() {
             .setSeekForwardIncrementMs(SEEK_FORWARD_MS)
             .build()
         this.player = player
+        player.addListener(speedWatcher)
         currentPlayer = player
         // When the tracks change (a new item, video vs audio), re-apply the effective
         // skip-silence: off whenever a video track is present, so A/V stays in sync.
@@ -148,19 +168,30 @@ public class PlaybackService : MediaSessionService() {
     }
 
     /**
-     * Enables the silence skipper only when the user asked for it AND there is no
-     * video track: silence-skipping a video desyncs audio ahead of the picture, so
-     * on video it's forced off (the toggle is also hidden in the UI for video).
+     * Races through a silent stretch by raising the playback rate, and drops back when
+     * sound returns. [Player.setPlaybackSpeed] retimes audio *and* video, so this holds
+     * for both pillars and cannot pull them apart — the reason this replaced the
+     * sample-dropping processor.
      */
-    @UnstableApi
+    private fun onSilenceChanged(silent: Boolean) {
+        val target = player ?: return
+        if (!skipSilenceEnabled) {
+            if (inSilence) {
+                inSilence = false
+                target.setPlaybackSpeed(userSpeed)
+            }
+            return
+        }
+        if (silent == inSilence) return
+        inSilence = silent
+        val speed = if (silent) (userSpeed * SILENCE_SPEED_MULTIPLIER).coerceAtMost(MAX_SILENCE_SPEED) else userSpeed
+        Log.i("dewidebug", "skip-silence silent=$silent speed=$speed (user=$userSpeed)")
+        target.setPlaybackSpeed(speed)
+    }
+
+    /** Turns the user's intent off cleanly, restoring their speed if we were racing. */
     private fun applyEffectiveSkipSilence() {
-        val hasVideo = player?.currentTracks?.groups?.any { it.type == C.TRACK_TYPE_VIDEO } == true
-        val effective = skipSilenceEnabled && !hasVideo
-        Log.i(
-            "dewidebug",
-            "av-sync applyEffectiveSkipSilence intent=$skipSilenceEnabled hasVideo=$hasVideo -> $effective"
-        )
-        silenceSkipping.setEnabled(effective)
+        if (!skipSilenceEnabled && inSilence) onSilenceChanged(false)
     }
 
     /** Wires a Cast session in if Play Services + a receiver are reachable; otherwise stays fully local. */
@@ -231,6 +262,12 @@ public class PlaybackService : MediaSessionService() {
         // Podcast-style transport: small hop back to re-hear, bigger hop forward.
         const val SEEK_BACK_MS = 10_000L
         const val SEEK_FORWARD_MS = 30_000L
+
+        /** How much faster a silent stretch runs. High enough to feel skipped, low enough to stay smooth. */
+        const val SILENCE_SPEED_MULTIPLIER = 4f
+
+        /** Media3 clamps extreme rates and video decoders struggle past this. */
+        const val MAX_SILENCE_SPEED = 8f
     }
 }
 
