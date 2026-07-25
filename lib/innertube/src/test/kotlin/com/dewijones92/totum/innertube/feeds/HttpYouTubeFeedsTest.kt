@@ -43,7 +43,7 @@ class HttpYouTubeFeedsTest {
 
         val result = feeds().history()
 
-        assertEquals("vvvvvvvvvvv", (result as FeedResult.Success).videos.single().videoId)
+        assertEquals("vvvvvvvvvvv", (result as FeedResult.Success).page.items.single().videoId)
         assertTrue(server.takeRequest().body?.utf8().orEmpty().contains("FEhistory"))
     }
 

@@ -5,6 +5,8 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.dewijones92.totum.common.Page
+import com.dewijones92.totum.common.PageToken
 import com.dewijones92.totum.data.channel.ChannelRepository
 import com.dewijones92.totum.data.channel.ChannelVideosResult
 import com.dewijones92.totum.data.download.DownloadManager
@@ -37,6 +39,10 @@ import kotlinx.coroutines.launch
  * without a `UC…` id (a pasted handle) fall back to the yt-dlp uploads list for
  * the Videos tab.
  */
+// The channel page's one view-model: tab selection, paging, play, download, subscribe.
+// Each is thin and belongs to this screen, so splitting would scatter it (same reasoning
+// as VideosViewModel).
+@Suppress("TooManyFunctions")
 class ChannelViewModel(
     private val source: MediaSource.VideoChannel,
     private val channel: YouTubeChannel,
@@ -48,13 +54,21 @@ class ChannelViewModel(
 
     enum class Tab { VIDEOS, SHORTS, PLAYLISTS }
 
-    /** One tab's load state. */
+    /**
+     * One tab's load state. Paging lives here rather than in three parallel fields: every
+     * tab pages the same way, so the state that describes a tab describes its paging too.
+     */
     data class TabState<T>(
         val loading: Boolean = false,
         val error: Boolean = false,
         val loaded: Boolean = false,
         val items: List<T> = emptyList(),
-    )
+        /** Where the next page starts; null once the tab has no more to give. */
+        val next: PageToken? = null,
+        val loadingMore: Boolean = false,
+    ) {
+        val canLoadMore: Boolean get() = next != null && !loadingMore && !loading
+    }
 
     data class UiState(
         val title: String,
@@ -114,14 +128,23 @@ class ChannelViewModel(
     private fun loadVideos() {
         viewModelScope.launch {
             content.update { it.copy(videos = it.videos.copy(loading = true, error = false)) }
-            val items = channelId?.let { id ->
+            val page = channelId?.let { id ->
                 when (val r = channel.videos(id)) {
-                    is ChannelVideos.Success -> r.videos.map { it.toMediaItem(source.id) }
+                    is ChannelVideos.Success -> r.page.map { it.toMediaItem(source.id) }
                     is ChannelVideos.Failure -> null
                 }
-            } ?: fallbackVideos()
+                // The yt-dlp fallback returns everything it found in one go, so it is a last
+                // page by nature rather than by omission.
+            } ?: fallbackVideos()?.let { Page.last(it) }
             content.update {
-                it.copy(videos = TabState(loaded = true, error = items == null, items = items.orEmpty()))
+                it.copy(
+                    videos = TabState(
+                        loaded = true,
+                        error = page == null,
+                        items = page?.items.orEmpty(),
+                        next = page?.next,
+                    ),
+                )
             }
         }
     }
@@ -140,12 +163,19 @@ class ChannelViewModel(
         }
         viewModelScope.launch {
             content.update { it.copy(shorts = it.shorts.copy(loading = true, error = false)) }
-            val items = when (val r = channel.shorts(id)) {
-                is ChannelVideos.Success -> r.videos.map { it.toMediaItem(source.id) }
+            val page = when (val r = channel.shorts(id)) {
+                is ChannelVideos.Success -> r.page.map { it.toMediaItem(source.id) }
                 is ChannelVideos.Failure -> null
             }
             content.update {
-                it.copy(shorts = TabState(loaded = true, error = items == null, items = items.orEmpty()))
+                it.copy(
+                    shorts = TabState(
+                        loaded = true,
+                        error = page == null,
+                        items = page?.items.orEmpty(),
+                        next = page?.next,
+                    ),
+                )
             }
         }
     }
@@ -157,12 +187,82 @@ class ChannelViewModel(
         }
         viewModelScope.launch {
             content.update { it.copy(playlists = it.playlists.copy(loading = true, error = false)) }
-            val items = when (val r = channel.playlists(id)) {
-                is ChannelPlaylists.Success -> r.playlists
+            val page = when (val r = channel.playlists(id)) {
+                is ChannelPlaylists.Success -> r.page
                 is ChannelPlaylists.Failure -> null
             }
             content.update {
-                it.copy(playlists = TabState(loaded = true, error = items == null, items = items.orEmpty()))
+                it.copy(
+                    playlists = TabState(
+                        loaded = true,
+                        error = page == null,
+                        items = page?.items.orEmpty(),
+                        next = page?.next,
+                    ),
+                )
+            }
+        }
+    }
+
+    /**
+     * Loads the next page of whichever tab is showing. Self-guarding like every other
+     * paged screen: no overlapping requests, a no-op once the tab is exhausted, and a
+     * failed page keeps its token so scrolling retries instead of ending the tab.
+     */
+    fun loadMore() {
+        val id = channelId ?: return
+        when (content.value.tab) {
+            Tab.VIDEOS -> pageMore(
+                state = { it.videos },
+                update = { c, s -> c.copy(videos = s) },
+                fetch = { after -> videoPage(channel.videos(id, after)) },
+            )
+            Tab.SHORTS -> pageMore(
+                state = { it.shorts },
+                update = { c, s -> c.copy(shorts = s) },
+                fetch = { after -> videoPage(channel.shorts(id, after)) },
+            )
+            Tab.PLAYLISTS -> pageMore(
+                state = { it.playlists },
+                update = { c, s -> c.copy(playlists = s) },
+                fetch = { after -> (channel.playlists(id, after) as? ChannelPlaylists.Success)?.page },
+            )
+        }
+    }
+
+    /** A tab result as domain items, or null when it failed. */
+    private fun videoPage(result: ChannelVideos): Page<MediaItem>? =
+        (result as? ChannelVideos.Success)?.page?.map { it.toMediaItem(source.id) }
+
+    /**
+     * The paging step, once, for any tab. The three tabs differ only in which state they
+     * read and which call they make, so those are the parameters and nothing else is
+     * duplicated.
+     */
+    private fun <T> pageMore(
+        state: (Content) -> TabState<T>,
+        update: (Content, TabState<T>) -> Content,
+        fetch: suspend (PageToken) -> Page<T>?,
+    ) {
+        val current = state(content.value)
+        val after = current.next ?: return
+        if (current.loadingMore || current.loading) return
+        content.update { update(it, state(it).copy(loadingMore = true)) }
+        viewModelScope.launch {
+            val fetched = fetch(after)
+            content.update { c ->
+                val existing = state(c)
+                val merged = if (fetched == null) {
+                    // Keep the token: one flaky request must not end the tab.
+                    existing.copy(loadingMore = false)
+                } else {
+                    existing.copy(
+                        items = existing.items + fetched.items.filterNot { it in existing.items },
+                        next = fetched.next,
+                        loadingMore = false,
+                    )
+                }
+                update(c, merged)
             }
         }
     }

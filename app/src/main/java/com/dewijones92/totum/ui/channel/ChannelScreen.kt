@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -37,6 +38,8 @@ import com.dewijones92.totum.domain.MediaKind
 import com.dewijones92.totum.domain.MediaSource
 import com.dewijones92.totum.innertube.playlists.Playlist
 import com.dewijones92.totum.ui.channel.ChannelViewModel.TabState
+import com.dewijones92.totum.ui.common.LoadMoreOnScrollToEnd
+import com.dewijones92.totum.ui.common.LoadingMoreFooter
 import com.dewijones92.totum.ui.common.MediaItemRow
 import com.dewijones92.totum.ui.common.MediaThumbnail
 import com.dewijones92.totum.ui.common.SourceHeader
@@ -72,6 +75,7 @@ fun ChannelScreen(
         onDeleteDownload = viewModel::deleteDownload,
         onAddToPlaylist = addToPlaylist,
         onOpenPlaylist = onOpenPlaylist,
+        onLoadMore = viewModel::loadMore,
         modifier = modifier,
     )
 }
@@ -88,6 +92,7 @@ internal fun ChannelContent(
     onDeleteDownload: (MediaItem) -> Unit,
     onAddToPlaylist: (MediaItem) -> Unit,
     onOpenPlaylist: (Playlist) -> Unit,
+    onLoadMore: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Surface(modifier = modifier.fillMaxSize()) {
@@ -115,6 +120,7 @@ internal fun ChannelContent(
                     onDownload,
                     onDeleteDownload,
                     onAddToPlaylist,
+                    onLoadMore,
                 )
                 ChannelTab.SHORTS -> MediaItemTab(
                     state.shorts,
@@ -123,8 +129,9 @@ internal fun ChannelContent(
                     onDownload,
                     onDeleteDownload,
                     onAddToPlaylist,
+                    onLoadMore,
                 )
-                ChannelTab.PLAYLISTS -> PlaylistTab(state.playlists, onOpenPlaylist)
+                ChannelTab.PLAYLISTS -> PlaylistTab(state.playlists, onOpenPlaylist, onLoadMore)
             }
         }
     }
@@ -144,12 +151,15 @@ private fun MediaItemTab(
     onDownload: (MediaItem) -> Unit,
     onDeleteDownload: (MediaItem) -> Unit,
     onAddToPlaylist: (MediaItem) -> Unit,
+    onLoadMore: () -> Unit,
 ) {
+    val listState = rememberLazyListState()
+    LoadMoreOnScrollToEnd(listState, enabled = tab.canLoadMore, loadMore = onLoadMore)
     when {
         tab.loading && tab.items.isEmpty() -> CenteredProgress()
         tab.error -> Message(stringResource(R.string.feed_error))
         tab.loaded && tab.items.isEmpty() -> Message(stringResource(R.string.feed_empty))
-        else -> LazyColumn(Modifier.fillMaxSize()) {
+        else -> LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
             items(tab.items, key = { it.id.value }) { video ->
                 MediaItemRow(
                     item = video,
@@ -163,21 +173,25 @@ private fun MediaItemTab(
                 )
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
             }
+            if (tab.loadingMore) item { LoadingMoreFooter() }
         }
     }
 }
 
 @Composable
-private fun PlaylistTab(tab: TabState<Playlist>, onOpen: (Playlist) -> Unit) {
+private fun PlaylistTab(tab: TabState<Playlist>, onOpen: (Playlist) -> Unit, onLoadMore: () -> Unit) {
+    val listState = rememberLazyListState()
+    LoadMoreOnScrollToEnd(listState, enabled = tab.canLoadMore, loadMore = onLoadMore)
     when {
         tab.loading && tab.items.isEmpty() -> CenteredProgress()
         tab.error -> Message(stringResource(R.string.feed_error))
         tab.loaded && tab.items.isEmpty() -> Message(stringResource(R.string.feed_empty))
-        else -> LazyColumn(Modifier.fillMaxSize()) {
+        else -> LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
             items(tab.items, key = { it.browseId }) { playlist ->
                 PlaylistRow(playlist, onClick = { onOpen(playlist) })
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
             }
+            if (tab.loadingMore) item { LoadingMoreFooter() }
         }
     }
 }

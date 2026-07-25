@@ -75,10 +75,13 @@ The seam (`Page`/`PageToken` in `:lib:common`, `Continuations`, `BrowseTarget`,
 device: 45 items became 149 across six continuations. See
 [`docs/features/feed-pagination.md`](../features/feed-pagination.md).
 
-Still on page one, and now cheap to add on the same seam:
+**Channel tabs shipped too (same day).** Videos, Shorts and Playlists all page, and
+`FeedResult` was retrofitted onto `Page<T>` so there is genuinely one paging shape.
 
-- **channel tabs** (Videos / Shorts / Playlists) — `browseWeb` already takes a
-  `BrowseTarget`, so this is `LockupParser` + `ChannelViewModel` work only
+Still on page one, and cheap on the same seam:
+
 - **search results**
+- a **playlist's** own screen and **related videos** — both currently drop their
+  continuation explicitly (with a comment saying so), which is honest but incomplete
 - **podcast episode lists** — a no-op by nature (RSS returns the whole feed), but the
   seam should be threaded so every screen is uniform rather than some being special

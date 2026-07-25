@@ -1,5 +1,7 @@
 package com.dewijones92.totum.innertube.channel
 
+import com.dewijones92.totum.common.Page
+import com.dewijones92.totum.common.PageToken
 import com.dewijones92.totum.innertube.feeds.FeedVideo
 import com.dewijones92.totum.innertube.playlists.Playlist
 
@@ -11,23 +13,28 @@ import com.dewijones92.totum.innertube.playlists.Playlist
 public interface YouTubeChannel {
 
     /** The channel's uploads (newest first), with published dates. */
-    public suspend fun videos(channelId: String): ChannelVideos
+    public suspend fun videos(channelId: String, after: PageToken? = null): ChannelVideos
 
     /** The channel's Shorts. */
-    public suspend fun shorts(channelId: String): ChannelVideos
+    public suspend fun shorts(channelId: String, after: PageToken? = null): ChannelVideos
 
     /** The channel's playlists. */
-    public suspend fun playlists(channelId: String): ChannelPlaylists
+    public suspend fun playlists(channelId: String, after: PageToken? = null): ChannelPlaylists
 }
 
-/** Videos (or Shorts) of a channel tab; expected failures are values. */
+/**
+ * Videos (or Shorts) of a channel tab; expected failures are values.
+ *
+ * The success case is a [Page] rather than a bare list plus a token, so channel tabs use
+ * the same paging shape as every other source in the app instead of a parallel one.
+ */
 public sealed interface ChannelVideos {
-    public data class Success(val videos: List<FeedVideo>) : ChannelVideos
+    public data class Success(val page: Page<FeedVideo>) : ChannelVideos
     public data class Failure(val detail: String) : ChannelVideos
 }
 
 /** A channel's playlists; expected failures are values. */
 public sealed interface ChannelPlaylists {
-    public data class Success(val playlists: List<Playlist>) : ChannelPlaylists
+    public data class Success(val page: Page<Playlist>) : ChannelPlaylists
     public data class Failure(val detail: String) : ChannelPlaylists
 }

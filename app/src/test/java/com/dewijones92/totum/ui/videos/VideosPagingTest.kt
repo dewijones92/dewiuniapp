@@ -1,6 +1,7 @@
 package com.dewijones92.totum.ui.videos
 
 import com.dewijones92.totum.common.HttpUrl
+import com.dewijones92.totum.common.Page
 import com.dewijones92.totum.common.PageToken
 import com.dewijones92.totum.data.channel.DefaultChannelRepository
 import com.dewijones92.totum.data.download.fake.FakeDownloadManager
@@ -103,7 +104,7 @@ class VideosPagingTest {
     @Test
     fun `a feed with a continuation offers more`() = runTest(dispatcher) {
         feeds.results[AccountFeed.SUBSCRIPTIONS] =
-            FeedResult.Success(listOf(video("a")), PageToken("page-2"))
+            FeedResult.Success(Page(listOf(video("a")), PageToken("page-2")))
 
         val model = viewModel()
         backgroundScope.launch { model.uiState.collect {} }
@@ -115,7 +116,7 @@ class VideosPagingTest {
 
     @Test
     fun `a feed without a continuation is finished`() = runTest(dispatcher) {
-        feeds.results[AccountFeed.SUBSCRIPTIONS] = FeedResult.Success(listOf(video("a")))
+        feeds.results[AccountFeed.SUBSCRIPTIONS] = FeedResult.Success(Page.last(listOf(video("a"))))
 
         val model = viewModel()
         backgroundScope.launch { model.uiState.collect {} }
@@ -128,8 +129,8 @@ class VideosPagingTest {
     @Test
     fun `loadMore follows the token and appends the next page`() = runTest(dispatcher) {
         feeds.results[AccountFeed.SUBSCRIPTIONS] =
-            FeedResult.Success(listOf(video("a")), PageToken("page-2"))
-        feeds.pages["page-2"] = FeedResult.Success(listOf(video("b")), PageToken("page-3"))
+            FeedResult.Success(Page(listOf(video("a")), PageToken("page-2")))
+        feeds.pages["page-2"] = FeedResult.Success(Page(listOf(video("b")), PageToken("page-3")))
 
         val model = viewModel()
         backgroundScope.launch { model.uiState.collect {} }
@@ -147,8 +148,8 @@ class VideosPagingTest {
     @Test
     fun `an overlapping page does not duplicate rows`() = runTest(dispatcher) {
         feeds.results[AccountFeed.SUBSCRIPTIONS] =
-            FeedResult.Success(listOf(video("a"), video("b")), PageToken("page-2"))
-        feeds.pages["page-2"] = FeedResult.Success(listOf(video("b"), video("c")))
+            FeedResult.Success(Page(listOf(video("a"), video("b")), PageToken("page-2")))
+        feeds.pages["page-2"] = FeedResult.Success(Page.last(listOf(video("b"), video("c"))))
 
         val model = viewModel()
         backgroundScope.launch { model.uiState.collect {} }
@@ -162,7 +163,7 @@ class VideosPagingTest {
 
     @Test
     fun `loadMore does nothing once the feed is exhausted`() = runTest(dispatcher) {
-        feeds.results[AccountFeed.SUBSCRIPTIONS] = FeedResult.Success(listOf(video("a")))
+        feeds.results[AccountFeed.SUBSCRIPTIONS] = FeedResult.Success(Page.last(listOf(video("a"))))
 
         val model = viewModel()
         backgroundScope.launch { model.uiState.collect {} }
@@ -182,8 +183,8 @@ class VideosPagingTest {
     @Test
     fun `overlapping loadMore calls make one request`() = runTest(dispatcher) {
         feeds.results[AccountFeed.SUBSCRIPTIONS] =
-            FeedResult.Success(listOf(video("a")), PageToken("page-2"))
-        feeds.pages["page-2"] = FeedResult.Success(listOf(video("b")))
+            FeedResult.Success(Page(listOf(video("a")), PageToken("page-2")))
+        feeds.pages["page-2"] = FeedResult.Success(Page.last(listOf(video("b"))))
 
         val model = viewModel()
         backgroundScope.launch { model.uiState.collect {} }
@@ -202,7 +203,7 @@ class VideosPagingTest {
     @Test
     fun `a failed page keeps the token so scrolling retries`() = runTest(dispatcher) {
         feeds.results[AccountFeed.SUBSCRIPTIONS] =
-            FeedResult.Success(listOf(video("a")), PageToken("page-2"))
+            FeedResult.Success(Page(listOf(video("a")), PageToken("page-2")))
         feeds.pages["page-2"] = FeedResult.Failure("network")
 
         val model = viewModel()
@@ -215,7 +216,7 @@ class VideosPagingTest {
         assertTrue(model.uiState.value.canLoadMore)
         assertFalse(model.uiState.value.loadingMore)
 
-        feeds.pages["page-2"] = FeedResult.Success(listOf(video("b")))
+        feeds.pages["page-2"] = FeedResult.Success(Page.last(listOf(video("b"))))
         model.loadMore()
         advanceUntilIdle()
 
@@ -229,7 +230,7 @@ class VideosPagingTest {
     @Test
     fun `refresh adopts the new continuation`() = runTest(dispatcher) {
         feeds.results[AccountFeed.SUBSCRIPTIONS] =
-            FeedResult.Success(listOf(video("a")), PageToken("page-2"))
+            FeedResult.Success(Page(listOf(video("a")), PageToken("page-2")))
 
         val model = viewModel()
         backgroundScope.launch { model.uiState.collect {} }
@@ -237,7 +238,7 @@ class VideosPagingTest {
         advanceUntilIdle()
 
         feeds.results[AccountFeed.SUBSCRIPTIONS] =
-            FeedResult.Success(listOf(video("z")), PageToken("fresh-2"))
+            FeedResult.Success(Page(listOf(video("z")), PageToken("fresh-2")))
         model.refresh()
         advanceUntilIdle()
         model.loadMore()

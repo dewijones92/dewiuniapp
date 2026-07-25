@@ -156,8 +156,8 @@ class VideosViewModel(
                 is FeedResult.Success -> FeedState(
                     selected = feed,
                     loading = false,
-                    videos = result.videos.map { it.toMediaItem(feed) },
-                    next = result.next,
+                    videos = result.page.items.map { it.toMediaItem(feed) },
+                    next = result.page.next,
                 )
                 FeedResult.SignedOut -> {
                     // Token died mid-session — re-check, which clears signedIn app-wide.
@@ -182,11 +182,11 @@ class VideosViewModel(
             feedState.value.selected?.let { feed ->
                 when (val result = loadFeed(feed)) {
                     is FeedResult.Success -> {
-                        val items = result.videos.map { it.toMediaItem(feed) }
+                        val items = result.page.items.map { it.toMediaItem(feed) }
                         // A refresh replaces the feed, so paging restarts from this
                         // page's token — keeping the old one would append pages that
                         // continue a list the user can no longer see.
-                        feedState.update { it.copy(videos = items, error = false, next = result.next) }
+                        feedState.update { it.copy(videos = items, error = false, next = result.page.next) }
                     }
                     FeedResult.SignedOut -> accountSubscriptions.refresh()
                     is FeedResult.Failure -> Unit // keep what's shown
@@ -212,15 +212,16 @@ class VideosViewModel(
                 is FeedResult.Success -> feedState.update { current ->
                     Diag.log(
                         "feed",
-                        "$feed page +${result.videos.size} (had ${current.videos.size}) more=${result.next != null}",
+                        "$feed page +${result.page.items.size} (had ${current.videos.size}) " +
+                            "more=${result.page.hasMore}",
                     )
                     // Dedupe: YouTube does return overlapping pages, and a duplicate id
                     // in a LazyColumn key is a crash, not a cosmetic problem.
                     val existing = current.videos.map { it.id }.toSet()
-                    val fresh = result.videos.map { it.toMediaItem(feed) }.filter { it.id !in existing }
+                    val fresh = result.page.items.map { it.toMediaItem(feed) }.filter { it.id !in existing }
                     current.copy(
                         videos = current.videos + fresh,
-                        next = result.next,
+                        next = result.page.next,
                         loadingMore = false,
                     )
                 }

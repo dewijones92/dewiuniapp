@@ -13,7 +13,7 @@ class LockupParserTest {
 
     @Test
     fun `channel Videos tab parses with published dates`() {
-        val videos = LockupParser.videos(fixture("channel_videos_web_sample.json"))
+        val videos = LockupParser.videos(fixture("channel_videos_web_sample.json")).items
         assertTrue("expected videos", videos.size > 10)
         val first = videos.first()
         assertEquals("8Hx2yvWSgs0", first.videoId)
@@ -26,7 +26,7 @@ class LockupParserTest {
 
     @Test
     fun `channel Shorts tab parses and tags SHORT`() {
-        val shorts = LockupParser.shorts(fixture("channel_shorts_web_sample.json"))
+        val shorts = LockupParser.shorts(fixture("channel_shorts_web_sample.json")).items
         assertTrue("expected shorts", shorts.size > 5)
         assertTrue("all SHORT", shorts.all { it.kind == FeedVideo.Kind.SHORT })
         assertTrue("ids present", shorts.all { it.videoId.isNotBlank() })
@@ -36,7 +36,7 @@ class LockupParserTest {
 
     @Test
     fun `channel Playlists tab parses to VL browse ids`() {
-        val playlists = LockupParser.playlists(fixture("channel_playlists_web_sample.json"))
+        val playlists = LockupParser.playlists(fixture("channel_playlists_web_sample.json")).items
         assertTrue("expected playlists", playlists.size > 5)
         assertTrue("VL-prefixed browse ids", playlists.all { it.browseId.startsWith("VL") })
         assertTrue("titles present", playlists.all { it.title.isNotBlank() })

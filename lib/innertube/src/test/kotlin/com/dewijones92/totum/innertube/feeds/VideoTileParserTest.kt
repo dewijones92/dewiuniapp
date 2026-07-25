@@ -12,7 +12,7 @@ class VideoTileParserTest {
             .bufferedReader().readText()
 
     private fun parsed(): List<FeedVideo> =
-        (VideoTileParser.parse(fixture()) as FeedResult.Success).videos
+        (VideoTileParser.parse(fixture()) as FeedResult.Success).page.items
 
     @Test
     fun `collects videos in order, deduped, ignoring channel tiles`() {
@@ -75,7 +75,7 @@ class VideoTileParserTest {
                   ]}}
                 ]}}}}]}
         """.trimIndent()
-        val video = (VideoTileParser.parse(body) as FeedResult.Success).videos.single()
+        val video = (VideoTileParser.parse(body) as FeedResult.Success).page.items.single()
         assertEquals("2 days ago", video.publishedText)
         assertEquals("Some Channel", video.author)
     }
@@ -88,7 +88,7 @@ class VideoTileParserTest {
               "onSelectCommand":{"reelWatchEndpoint":{"videoId":"short000001"}},
               "metadata":{"tileMetadataRenderer":{"title":{"simpleText":"A Short"}}}}}]}
         """.trimIndent()
-        val video = (VideoTileParser.parse(body) as FeedResult.Success).videos.single()
+        val video = (VideoTileParser.parse(body) as FeedResult.Success).page.items.single()
         assertEquals("short000001", video.videoId)
         assertEquals(FeedVideo.Kind.SHORT, video.kind)
     }
@@ -104,7 +104,7 @@ class VideoTileParserTest {
                 {"thumbnailOverlayTimeStatusRenderer":{"style":"SHORTS"}}
               ]}}}}]}
         """.trimIndent()
-        val video = (VideoTileParser.parse(body) as FeedResult.Success).videos.single()
+        val video = (VideoTileParser.parse(body) as FeedResult.Success).page.items.single()
         assertEquals(FeedVideo.Kind.SHORT, video.kind)
     }
 
@@ -119,7 +119,7 @@ class VideoTileParserTest {
                 {"thumbnailOverlayTimeStatusRenderer":{"style":"LIVE","text":{"runs":[{"text":"LIVE"}]}}}
               ]}}}}]}
         """.trimIndent()
-        val video = (VideoTileParser.parse(body) as FeedResult.Success).videos.single()
+        val video = (VideoTileParser.parse(body) as FeedResult.Success).page.items.single()
         assertEquals(FeedVideo.Kind.LIVE, video.kind)
     }
 }

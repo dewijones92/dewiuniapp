@@ -40,7 +40,9 @@ public class HttpYouTubePlaylists(
         }
         return when (val browsed = innerTube.browse(BrowseTarget.Id(browseId), token)) {
             is InnerTubeResponse.Success -> when (val parsed = VideoTileParser.parse(browsed.body)) {
-                is FeedResult.Success -> PlaylistVideosResult.Success(parsed.videos)
+                // A playlist's own screen isn't paged yet, so its continuation is dropped here
+                // rather than silently pretending the first page is the whole playlist.
+                is FeedResult.Success -> PlaylistVideosResult.Success(parsed.page.items)
                 FeedResult.SignedOut -> PlaylistVideosResult.SignedOut
                 is FeedResult.Failure -> PlaylistVideosResult.Failure(parsed.detail)
             }

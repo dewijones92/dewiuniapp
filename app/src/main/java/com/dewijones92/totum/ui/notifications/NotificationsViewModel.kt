@@ -50,7 +50,7 @@ class NotificationsViewModel(
 
     fun refresh() {
         viewModelScope.launch {
-            val feed = (feeds.subscriptionsFeed() as? FeedResult.Success)?.videos ?: return@launch
+            val feed = (feeds.subscriptionsFeed() as? FeedResult.Success)?.page?.items ?: return@launch
             lastFeed = feed.map { it.toMediaItem(SUBSCRIPTIONS_SOURCE.id) }
             newUploads.value = tracker.newItems(SUBSCRIPTIONS_SOURCE.id, lastFeed)
         }

@@ -1,5 +1,6 @@
 package com.dewijones92.totum.innertube.feeds.fake
 
+import com.dewijones92.totum.common.Page
 import com.dewijones92.totum.common.PageToken
 import com.dewijones92.totum.innertube.feeds.AccountFeed
 import com.dewijones92.totum.innertube.feeds.FeedResult
@@ -14,7 +15,7 @@ import com.dewijones92.totum.innertube.feeds.YouTubeFeeds
  */
 public class FakeYouTubeFeeds(
     public var results: MutableMap<AccountFeed, FeedResult> = mutableMapOf(),
-    public var default: FeedResult = FeedResult.Success(emptyList()),
+    public var default: FeedResult = FeedResult.Success(Page.empty()),
     public var pages: MutableMap<String, FeedResult> = mutableMapOf(),
 ) : YouTubeFeeds {
 

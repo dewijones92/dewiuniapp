@@ -1,5 +1,6 @@
 package com.dewijones92.totum.innertube.feeds
 
+import com.dewijones92.totum.common.Page
 import com.dewijones92.totum.common.PageToken
 
 /**
@@ -26,8 +27,8 @@ public enum class AccountFeed(internal val browseId: String) {
 }
 
 public sealed interface FeedResult {
-    /** [next] is null when this is the last page — see `Page` for why that is ordinary. */
-    public data class Success(val videos: List<FeedVideo>, val next: PageToken? = null) : FeedResult
+    /** A [Page], so feeds share the app's one paging shape rather than a parallel one. */
+    public data class Success(val page: Page<FeedVideo>) : FeedResult
     public data object SignedOut : FeedResult
     public data class Failure(val detail: String) : FeedResult
 }

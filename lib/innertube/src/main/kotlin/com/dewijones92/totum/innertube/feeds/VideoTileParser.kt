@@ -1,6 +1,7 @@
 package com.dewijones92.totum.innertube.feeds
 
 import com.dewijones92.totum.common.HttpUrl
+import com.dewijones92.totum.common.Page
 import com.dewijones92.totum.innertube.browse.Continuations
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -30,8 +31,8 @@ internal object VideoTileParser {
         }
         // No token means the last page. A response that parsed but yielded no tiles is
         // also the end, whatever it claims, or "load more" would spin forever.
-        val next = Continuations.find(root).takeIf { videos.isNotEmpty() }
-        return FeedResult.Success(videos.values.toList(), next)
+        val items = videos.values.toList()
+        return FeedResult.Success(Page(items, Continuations.find(root).takeIf { items.isNotEmpty() }))
     }
 
     private fun collectVideoTiles(node: JsonElement, onTile: (JsonObject) -> Unit) {

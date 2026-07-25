@@ -1,6 +1,8 @@
 package com.dewijones92.totum.innertube.feeds
 
 import com.dewijones92.totum.common.HttpUrl
+import com.dewijones92.totum.common.Page
+import com.dewijones92.totum.innertube.browse.Continuations
 import com.dewijones92.totum.innertube.playlists.Playlist
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -31,36 +33,44 @@ internal object LockupParser {
     private const val LIVE_BADGE_STYLE = "THUMBNAIL_OVERLAY_BADGE_STYLE_LIVE"
     private val json = Json { ignoreUnknownKeys = true }
 
-    fun videos(body: String): List<FeedVideo> {
-        val root = parseOrNull(body) ?: return emptyList()
+    fun videos(body: String): Page<FeedVideo> {
+        val root = parseOrNull(body) ?: return Page.empty()
         val out = LinkedHashMap<String, FeedVideo>()
         collect(root, "lockupViewModel") { lockup ->
             if (lockup.stringAt("contentType") in VIDEO_CONTENT_TYPES) {
                 lockup.toFeedVideo()?.let { out.putIfAbsent(it.videoId, it) }
             }
         }
-        return out.values.toList()
+        return root.pageOf(out.values.toList())
     }
 
-    fun shorts(body: String): List<FeedVideo> {
-        val root = parseOrNull(body) ?: return emptyList()
+    fun shorts(body: String): Page<FeedVideo> {
+        val root = parseOrNull(body) ?: return Page.empty()
         val out = LinkedHashMap<String, FeedVideo>()
         collect(root, "shortsLockupViewModel") { short ->
             short.toShort()?.let { out.putIfAbsent(it.videoId, it) }
         }
-        return out.values.toList()
+        return root.pageOf(out.values.toList())
     }
 
-    fun playlists(body: String): List<Playlist> {
-        val root = parseOrNull(body) ?: return emptyList()
+    fun playlists(body: String): Page<Playlist> {
+        val root = parseOrNull(body) ?: return Page.empty()
         val out = LinkedHashMap<String, Playlist>()
         collect(root, "lockupViewModel") { lockup ->
             if (lockup.stringAt("contentType") == PLAYLIST_CONTENT_TYPE) {
                 lockup.toPlaylist()?.let { out.putIfAbsent(it.browseId, it) }
             }
         }
-        return out.values.toList()
+        return root.pageOf(out.values.toList())
     }
+
+    /**
+     * Pairs items with this response's continuation. An empty page carries no token,
+     * whatever the response claims — otherwise "load more" would spin forever on a tab
+     * whose shape we failed to read.
+     */
+    private fun <T> JsonElement.pageOf(items: List<T>): Page<T> =
+        Page(items, Continuations.find(this).takeIf { items.isNotEmpty() })
 
     private fun parseOrNull(body: String): JsonElement? = runCatching { json.parseToJsonElement(body) }.getOrNull()
 

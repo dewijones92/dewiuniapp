@@ -17,6 +17,8 @@ internal object RelatedVideosParser {
     fun parse(body: String): RelatedResult {
         runCatching { json.parseToJsonElement(body) }.getOrNull()
             ?: return RelatedResult.Failure("Unparseable watch-page response")
-        return RelatedResult.Success(LockupParser.videos(body))
+        // Related videos are shown as a short "up next" list, not an infinite one, so
+        // the page's continuation is deliberately dropped here.
+        return RelatedResult.Success(LockupParser.videos(body).items)
     }
 }

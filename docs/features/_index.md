@@ -39,7 +39,7 @@ alone until they need more.
 | Upload dates everywhere (all surfaces incl. search) | video/search | shipped | [upload-dates.md](upload-dates.md) |
 | Crash + diagnostics reporting (verbose reports to the Pi) | infrastructure | shipped | [crash-reporting.md](crash-reporting.md) |
 | Row status (pillar / played / offline on every row) | ui | shipped | [row-status.md](row-status.md) |
-| Feed pagination (infinite scroll on account feeds) | video | shipped | [feed-pagination.md](feed-pagination.md) |
+| Feed pagination (account feeds + channel tabs) | video | shipped | [feed-pagination.md](feed-pagination.md) |
 | Brand: Totum name, palette and icon | branding | shipped | [brand.md](brand.md) |
 | Download notifications (progress / done / failed, aggregated) | downloads | shipped | [download-notifications.md](download-notifications.md) |
 

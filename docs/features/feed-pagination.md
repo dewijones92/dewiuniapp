@@ -65,17 +65,28 @@ already encodes what it continues.
 
 ## Scope shipped
 
-The four **account feeds** (Home / Subscriptions / Watch Later / History) page end to end.
-The seam is in place for the rest; still on page one and tracked in
-[`docs/todos/feed-pagination.md`](../todos/feed-pagination.md):
+- The four **account feeds** (Home / Subscriptions / Watch Later / History).
+- **Channel tabs** — Videos, Shorts and Playlists.
 
-- channel tabs (Videos / Shorts / Playlists) — `browseWeb` already takes a `BrowseTarget`,
-  so this is parser + view-model work only
-- search results
-- podcast episode lists (no-op by nature — RSS returns everything — but the seam should
-  be threaded so the screens are uniform)
+Everything paged now returns a `Page<T>`, including `FeedResult`, which briefly carried its
+own `next` field before being retrofitted. That mattered: "one shape for every paged source"
+stops being true the moment a second shape exists, and a parallel field is how that starts.
+
+Still page one, tracked in [`docs/todos/feed-pagination.md`](../todos/feed-pagination.md):
+
+- **search results**
+- a **playlist's** own screen, and **related videos** (both drop their continuation
+  explicitly, with a comment, rather than silently pretending page one is everything)
+- **podcast episode lists** — a no-op by nature, since RSS returns the whole feed
 
 Comments already paged before this work, by their own path.
+
+### Channel tabs: how the three became one
+
+`HttpYouTubeChannel` had three copies of the same request-and-map dance. Collapsing them
+into one private `tab()` meant paging was added in **one** place rather than three, and the
+same is true in the view model: `TabState<T>` already existed, so it grew `next` and
+`loadingMore`, and one generic `pageMore` serves all three tabs.
 
 ## Measured on-device
 
@@ -94,6 +105,13 @@ Against live YouTube on emulator-5554, scrolling the Subscriptions feed:
 45 was the whole feed as far as the app was concerned. The line is a `Diag` breadcrumb, so
 it also lands in crash reports.
 
+**Channel tabs are verified against the wire contract, not on the device.** Reaching a
+channel page needs either a signed-in account or a "go to channel" action, and search
+results render their own row rather than the shared `MediaItemRow`, so a fresh signed-out
+install has no route to one. The `MockWebServer` tests assert the actual requests and
+responses instead — that a continuation is sent *instead of* the tab params, and that all
+three continuation shapes parse — which is the part that could silently be wrong.
+
 ## Tests
 
 - `lib/common/.../PageTest.kt` — `hasMore`, `last`/`empty`, `map` keeping the token,
@@ -101,6 +119,10 @@ it also lands in crash reports.
   redacting itself.
 - `lib/innertube/.../ContinuationsTest.kt` — all three continuation shapes, last-token
   precedence over a nested shelf, absent and blank tokens.
+- `lib/innertube/.../HttpYouTubeChannelPagingTest.kt` — against `MockWebServer`: a tab's
+  continuation reaches the caller, a later page sends the continuation and **not** the tab
+  params, a first page sends the params and no continuation, an empty page carries no token
+  even when the response has one, and Shorts/Playlists go through the same path.
 - `app/.../VideosPagingTest.kt` — the behaviour that was missing: a token offers more,
   `loadMore` follows it and appends, overlapping pages don't duplicate, exhausted feeds
   no-op, concurrent calls make one request, a failed page retries, refresh adopts the new

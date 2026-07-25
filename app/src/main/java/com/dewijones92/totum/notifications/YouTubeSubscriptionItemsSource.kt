@@ -21,7 +21,7 @@ public class YouTubeSubscriptionItemsSource(
 ) : SubscriptionItemsSource {
 
     override suspend fun currentItems(): List<SourceUpdate> {
-        val videos = (feeds.subscriptionsFeed() as? FeedResult.Success)?.videos ?: return emptyList()
+        val videos = (feeds.subscriptionsFeed() as? FeedResult.Success)?.page?.items ?: return emptyList()
         if (videos.isEmpty()) return emptyList()
         return listOf(SourceUpdate(SUBSCRIPTIONS_SOURCE, videos.map { it.toMediaItem(SUBSCRIPTIONS_SOURCE.id) }))
     }
