@@ -108,15 +108,19 @@ fun FullPlayerOverlay(
     val videoPlayer = player.takeIf { state.hasVideo }
 
     /*
-     * Only a video can be fullscreen — but "no video" is also what the player reports
-     * for the moment between items, before the next one's tracks arrive. Acting on it
-     * immediately dropped you out of fullscreen every time the queue auto-advanced, and
-     * nothing put you back. Waiting the gap out is what distinguishes "the next item is
-     * still loading" from "this item is audio"; the effect is cancelled and restarted
-     * the instant video reappears, so a normal advance never reaches the exit.
+     * Only a video can be fullscreen — but "no video" is also what the player reports for
+     * the whole gap between items, and that gap is long: it contains a yt-dlp resolve,
+     * measured at 3-11s. Exiting on `!hasVideo` alone dropped you out of fullscreen on
+     * every auto-advance, and a short timeout did not help — verified on device, where a
+     * 2s grace still lost fullscreen because the resolve outlasted it.
+     *
+     * So the test is whether playback has *settled* without video: an item still loading
+     * is buffering, an audio item that has actually started is not. The extra delay only
+     * covers the instant where READY lands before the track list does.
      */
-    LaunchedEffect(state.hasVideo) {
-        if (state.hasVideo) return@LaunchedEffect
+    val settledWithoutVideo = !state.hasVideo && !state.isBuffering
+    LaunchedEffect(settledWithoutVideo) {
+        if (!settledWithoutVideo) return@LaunchedEffect
         delay(NO_VIDEO_GRACE_MS)
         fullscreen = false
     }
@@ -616,8 +620,8 @@ internal fun formatTime(millis: Long): String {
     }
 }
 
-/** Long enough to cover the gap between queue items, short enough not to feel stuck. */
-private const val NO_VIDEO_GRACE_MS = 2_000L
+/** Only covers READY landing before the track list; the gap itself is handled by isBuffering. */
+private const val NO_VIDEO_GRACE_MS = 1_000L
 
 private const val SECONDS_PER_MINUTE = 60L
 private const val SECONDS_PER_HOUR = 3600L

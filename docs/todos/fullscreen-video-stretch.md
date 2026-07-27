@@ -35,6 +35,15 @@ instant video reappears, so a normal advance never reaches it, while a genuinely
 audio item still leaves fullscreen. The video surface is also bound to the player
 rather than to `hasVideo`, so it is not torn down and rebuilt across the change.
 
-**Not yet verified on a device** — reaching fullscreen and then triggering a real
-auto-advance on the emulator did not come off; the logic and the gate are green but
-the on-screen behaviour is unconfirmed.
+### Verified, after the first attempt failed
+
+The first fix used a 2s grace and **still lost fullscreen** — caught on device, not in
+review. The gap contains a yt-dlp resolve, measured at 3-11s, so no short timeout can
+cover it. The working test is whether playback has *settled* without video
+(`!hasVideo && !isBuffering`): an item still loading is buffering, an audio item that has
+actually started is not.
+
+Staged with `am start -a VIEW -d <watch-url>` (the existing share-target handler, so no
+debug-only code was needed), then an item change forced by a second such intent. Before:
+`transition` then `[fullscreen] active=false`. After: the same gap passes with no
+`active=false` and `rotation=1` — still landscape. Release build.
