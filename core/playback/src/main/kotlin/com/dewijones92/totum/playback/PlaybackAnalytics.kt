@@ -1,0 +1,133 @@
+package com.dewijones92.totum.playback
+
+import androidx.media3.common.Format
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.DecoderReuseEvaluation
+import androidx.media3.exoplayer.analytics.AnalyticsListener
+import androidx.media3.exoplayer.source.LoadEventInfo
+import androidx.media3.exoplayer.source.MediaLoadData
+import com.dewijones92.totum.common.Diag
+import com.dewijones92.totum.common.Vitals
+import java.io.IOException
+
+/**
+ * The detail behind a stall: what is actually being streamed, how fast it is arriving,
+ * and what the player is dropping.
+ *
+ * [PlaybackDiagnostics] can say playback stopped for 24 seconds. It cannot say whether
+ * the stream was being fed at 60 kbps or 6 Mbps, which resolution was chosen, or whether
+ * a chunk was refused — and those have opposite fixes. This listener is where that comes
+ * from, because Media3 only exposes it here.
+ *
+ * Deliberately not chatty: a completed load is aggregated into running totals rather than
+ * logged, since a video issues one every few seconds and a trail of them would bury the
+ * events worth reading. Only the things that change the picture — the chosen format, a
+ * slow or failed load, dropped frames — write a line.
+ */
+@UnstableApi
+internal class PlaybackAnalytics : AnalyticsListener {
+
+    private var loads = 0L
+    private var bytes = 0L
+    private var loadMs = 0L
+
+    /**
+     * Which stream is actually playing. "6 qualities available" says nothing about which
+     * one was picked, and picking too high is itself a cause of stalling.
+     */
+    override fun onVideoInputFormatChanged(
+        eventTime: AnalyticsListener.EventTime,
+        format: Format,
+        evaluation: DecoderReuseEvaluation?,
+    ) {
+        Vitals.set("playback.videoFormat", format.describe())
+        Diag.log("format", "video ${format.describe()}")
+    }
+
+    override fun onAudioInputFormatChanged(
+        eventTime: AnalyticsListener.EventTime,
+        format: Format,
+        evaluation: DecoderReuseEvaluation?,
+    ) {
+        Vitals.set("playback.audioFormat", format.describe())
+        Diag.log("format", "audio ${format.describe()}")
+    }
+
+    /**
+     * Aggregated, then reported as an average — the per-chunk rate is what distinguishes a
+     * throttled stream from a fast one that simply has too much to carry.
+     */
+    override fun onLoadCompleted(
+        eventTime: AnalyticsListener.EventTime,
+        loadEventInfo: LoadEventInfo,
+        mediaLoadData: MediaLoadData,
+    ) {
+        loads++
+        bytes += loadEventInfo.bytesLoaded
+        loadMs += loadEventInfo.loadDurationMs
+        Vitals.set("playback.avgLoadKbps", averageKbps().toString())
+        Vitals.set("playback.loadedMb", (bytes / BYTES_PER_MB).toString())
+
+        // One line only when a single chunk was slow enough to be the problem, so the
+        // trail keeps the loads worth seeing and drops the dozens that were fine.
+        val kbps = loadEventInfo.kbps()
+        if (kbps != null && kbps < SLOW_LOAD_KBPS && loadEventInfo.loadDurationMs > SLOW_LOAD_MS) {
+            Diag.warn(
+                "load",
+                "slow chunk: ${loadEventInfo.bytesLoaded / BYTES_PER_KB}KB in " +
+                    "${loadEventInfo.loadDurationMs}ms (~${kbps}kbps)",
+            )
+        }
+    }
+
+    override fun onLoadError(
+        eventTime: AnalyticsListener.EventTime,
+        loadEventInfo: LoadEventInfo,
+        mediaLoadData: MediaLoadData,
+        error: IOException,
+        wasCanceled: Boolean,
+    ) {
+        Vitals.add("playback.loadErrors")
+        Vitals.set("playback.lastLoadError", "${error.javaClass.simpleName}: ${error.message}")
+        Diag.warn("load", "failed (canceled=$wasCanceled) after ${loadEventInfo.loadDurationMs}ms", error)
+    }
+
+    /** Dropped frames separate "the network starved" from "the device could not keep up". */
+    override fun onDroppedVideoFrames(eventTime: AnalyticsListener.EventTime, droppedFrames: Int, elapsedMs: Long) {
+        Vitals.add("playback.droppedFrames", droppedFrames.toLong())
+        Diag.log("playback", "dropped $droppedFrames frames over ${elapsedMs}ms")
+    }
+
+    override fun onBandwidthEstimate(
+        eventTime: AnalyticsListener.EventTime,
+        totalLoadTimeMs: Int,
+        totalBytesLoaded: Long,
+        bitrateEstimate: Long,
+    ) {
+        Vitals.set("playback.bandwidthKbps", (bitrateEstimate / BITS_PER_KILOBIT).toString())
+    }
+
+    private fun averageKbps(): Long =
+        if (loadMs <= 0) 0 else bytes * BITS_PER_BYTE / loadMs
+
+    private fun LoadEventInfo.kbps(): Long? =
+        if (loadDurationMs <= 0) null else bytesLoaded * BITS_PER_BYTE / loadDurationMs
+
+    private fun Format.describe(): String = buildString {
+        append(codecs ?: sampleMimeType ?: "?")
+        if (width > 0 && height > 0) append(" ${width}x$height")
+        if (frameRate > 0) append(" @${frameRate.toInt()}fps")
+        if (bitrate > 0) append(" ${bitrate / BITS_PER_KILOBIT}kbps")
+    }
+
+    private companion object {
+        const val BITS_PER_BYTE = 8L
+        const val BITS_PER_KILOBIT = 1_000L
+        const val BYTES_PER_KB = 1024L
+        const val BYTES_PER_MB = 1024L * 1024L
+
+        /** Below this, for long enough to matter, a chunk is worth naming individually. */
+        const val SLOW_LOAD_KBPS = 800L
+        const val SLOW_LOAD_MS = 1_000L
+    }
+}

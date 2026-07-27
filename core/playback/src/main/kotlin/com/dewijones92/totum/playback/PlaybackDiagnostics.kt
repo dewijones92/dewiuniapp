@@ -45,14 +45,23 @@ internal class PlaybackDiagnostics(
             Player.STATE_BUFFERING -> {
                 stalledSince = now()
                 Vitals.add("playback.stalls")
-                Diag.log("playback", "buffering at ${position()}")
+                val kbps = PlaybackVitals.kbps()
+                Diag.log("playback", "buffering at ${position()}" + (kbps?.let { " (was ~${it}kbps)" } ?: ""))
             }
             Player.STATE_READY -> {
                 val waited = stalledSince?.let { now() - it }
                 stalledSince = null
                 if (waited != null) {
                     Vitals.add("playback.bufferingMs", waited)
-                    Diag.log("playback", "ready after ${waited}ms at ${position()}")
+                    // The throughput at the moment it recovered is what separates a
+                    // throttled stream from a connection that simply cannot carry 1080p.
+                    val kbps = PlaybackVitals.kbps()
+                    kbps?.let { Vitals.set("playback.lastRecoveryKbps", it.toString()) }
+                    Diag.log(
+                        "playback",
+                        "ready after ${waited}ms at ${position()}" +
+                            (kbps?.let { " (throughput ~${it}kbps)" } ?: ""),
+                    )
                 }
             }
             Player.STATE_ENDED -> Diag.log("playback", "ended — ${describeItem()}")

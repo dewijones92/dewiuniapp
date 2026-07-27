@@ -4,6 +4,7 @@ import com.dewijones92.totum.common.Diag
 import com.dewijones92.totum.data.download.DownloadManager
 import com.dewijones92.totum.domain.DownloadState
 import com.dewijones92.totum.playback.PlaybackController
+import com.dewijones92.totum.playback.PlaybackVitals
 import com.dewijones92.totum.queue.PlaybackQueue
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -66,6 +67,9 @@ internal class ActivitySnapshotter(
                 append("nothing playing")
             }
             append("; queue=$queued")
+            // Throughput alongside position: a snapshot showing a stalled item and the
+            // rate it is being fed at is what turns "buffering" into a cause.
+            PlaybackVitals.kbps()?.let { append("; ~${it}kbps") }
             append("; downloading=${active.size}")
             active.take(MAX_LISTED_DOWNLOADS).forEach { append(" [${it.percent()}]") }
             if (failed > 0) append("; failed=$failed")

@@ -20,6 +20,7 @@ import androidx.media3.exoplayer.drm.DrmSessionManagerProvider
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.MergingMediaSource
+import androidx.media3.exoplayer.upstream.DefaultBandwidthMeter
 import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
@@ -106,8 +107,14 @@ public class PlaybackService : MediaSessionService() {
                     .build()
             }
         }
+        // Held so stalls can be reported with the throughput at the time. Without it a
+        // stall is just "it stopped": a stream delivering 60 kbps and a 1080p stream that
+        // needs more than the connection has look identical, and the fixes are opposite.
+        val bandwidth = DefaultBandwidthMeter.Builder(this).build()
+        PlaybackVitals.bitrateEstimate = bandwidth::getBitrateEstimate
         val player = ExoPlayer.Builder(this)
             .setRenderersFactory(renderersFactory)
+            .setBandwidthMeter(bandwidth)
             .setMediaSourceFactory(MergingAudioVideoFactory(DefaultMediaSourceFactory(this)))
             .setAudioAttributes(
                 AudioAttributes.Builder()
@@ -122,6 +129,9 @@ public class PlaybackService : MediaSessionService() {
             .setSeekForwardIncrementMs(SEEK_FORWARD_MS)
             .build()
         this.player = player
+        // Where the detail behind a stall comes from: chosen format, per-chunk
+        // throughput, load failures, dropped frames. Media3 exposes it only here.
+        player.addAnalyticsListener(PlaybackAnalytics())
         player.addListener(speedWatcher)
         currentPlayer = player
         // When the tracks change (a new item, video vs audio), re-apply the effective
