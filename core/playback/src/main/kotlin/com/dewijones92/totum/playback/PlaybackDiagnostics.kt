@@ -67,8 +67,18 @@ internal class PlaybackDiagnostics(
         Diag.log("playback", "transition (${reasonName(reason)}) -> ${mediaItem?.mediaId ?: "nothing"}")
     }
 
+    /**
+     * "Not playing" is three different things — paused, stalled, finished — and Media3
+     * reports them all here. Saying which matters: the first test run logged "paused"
+     * in the middle of a 15-second stall, which reads like the user did it.
+     */
     override fun onIsPlayingChanged(isPlaying: Boolean) {
-        Diag.log("playback", "${if (isPlaying) "playing" else "paused"} at ${position()}")
+        val why = when {
+            isPlaying -> "playing"
+            player()?.playWhenReady == true -> "not advancing (wants to play)"
+            else -> "paused"
+        }
+        Diag.log("playback", "$why at ${position()}")
     }
 
     override fun onPositionDiscontinuity(
