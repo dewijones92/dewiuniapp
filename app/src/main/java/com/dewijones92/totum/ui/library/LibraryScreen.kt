@@ -35,8 +35,9 @@ import com.dewijones92.totum.R
 import com.dewijones92.totum.di.AppContainer
 import com.dewijones92.totum.di.fake.FakeAppContainer
 import com.dewijones92.totum.domain.DownloadState
-import com.dewijones92.totum.domain.DownloadedMedia
 import com.dewijones92.totum.domain.PlaylistId
+import com.dewijones92.totum.domain.StorageUsage
+import com.dewijones92.totum.domain.formatBytes
 import com.dewijones92.totum.theme.TotumTheme
 import com.dewijones92.totum.ui.account.AccountScreen
 import com.dewijones92.totum.ui.common.BuildInfoFooter
@@ -92,11 +93,13 @@ private fun LibraryHome(
 ) {
     val viewModel: LibraryViewModel = viewModel(factory = LibraryViewModel.factory(container))
     val downloaded by viewModel.downloaded.collectAsStateWithLifecycle()
+    val storage by viewModel.storage.collectAsStateWithLifecycle()
     val sort by viewModel.sortOrder.collectAsStateWithLifecycle()
     val addToPlaylist = rememberPlaylistAdder(container)
 
     LibraryContent(
         downloaded = downloaded,
+        storage = storage,
         sort = sort,
         onOpenPlaylists = onOpenPlaylists,
         onOpenHistory = onOpenHistory,
@@ -111,14 +114,15 @@ private fun LibraryHome(
 
 @Composable
 internal fun LibraryContent(
-    downloaded: List<DownloadedMedia>,
+    downloaded: List<LibraryViewModel.Entry>,
+    storage: StorageUsage,
     sort: MediaSort,
     onOpenPlaylists: () -> Unit,
     onOpenHistory: () -> Unit,
     onOpenAccount: () -> Unit,
-    onPlay: (DownloadedMedia) -> Unit,
-    onDelete: (DownloadedMedia) -> Unit,
-    onAddToPlaylist: (DownloadedMedia) -> Unit,
+    onPlay: (LibraryViewModel.Entry) -> Unit,
+    onDelete: (LibraryViewModel.Entry) -> Unit,
+    onAddToPlaylist: (LibraryViewModel.Entry) -> Unit,
     onSetSort: (MediaSort) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -138,12 +142,16 @@ internal fun LibraryContent(
                         onSetSort = onSetSort,
                     )
                 }
+                item { StorageSummary(storage) }
                 items(downloaded, key = { it.item.id.value }) { entry ->
                     MediaItemRow(
                         item = entry.item,
-                        subtitle = mediaItemSubtitle(entry.item),
-                        downloadState = DownloadState.Downloaded(entry.localPath, entry.audioOnly),
-                        pillar = entry.pillar,
+                        // The size sits with the item it belongs to; a total alone cannot
+                        // tell you which download is the one worth deleting.
+                        subtitle = listOfNotNull(mediaItemSubtitle(entry.item), formatBytes(entry.sizeBytes))
+                            .joinToString("  ·  "),
+                        downloadState = DownloadState.Downloaded(entry.media.localPath, entry.media.audioOnly),
+                        pillar = entry.media.pillar,
                         onPlay = { onPlay(entry) },
                         onDownload = { },
                         onDeleteDownload = { onDelete(entry) },
@@ -158,6 +166,25 @@ internal fun LibraryContent(
         }
         BuildInfoFooter()
     }
+}
+
+/**
+ * What the downloads are costing, under the section heading. The queue downloads
+ * everything in it automatically, so the app can fill a disk without being asked —
+ * a number that only shows up once the phone complains has arrived too late.
+ */
+@Composable
+private fun StorageSummary(storage: StorageUsage) {
+    val used = formatBytes(storage.usedBytes)
+    val text = storage.freeBytes
+        ?.let { stringResource(R.string.library_storage_with_free, used, formatBytes(it)) }
+        ?: stringResource(R.string.library_storage, used)
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
+    )
 }
 
 @Composable

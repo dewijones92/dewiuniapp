@@ -1,6 +1,7 @@
 package com.dewijones92.totum.di
 
 import android.content.Context
+import android.os.StatFs
 import com.dewijones92.totum.account.SharedPrefsTokenStore
 import com.dewijones92.totum.data.channel.ChannelRepository
 import com.dewijones92.totum.data.channel.DefaultChannelRepository
@@ -109,6 +110,9 @@ interface AppContainer {
     val searchHistoryStore: SearchHistoryStore
     val skipSegmentSource: SkipSegmentSource
     val downloadManager: DownloadManager
+
+    /** Free space where downloads live; null when it cannot be read. */
+    fun freeDownloadSpaceBytes(): Long?
     val videoResolver: VideoResolver
     val videoPlaybackLauncher: VideoPlaybackLauncher
 
@@ -296,9 +300,14 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
         SponsorBlockSegmentSource(textFetcher) { appPreferences.settings.value.skipCategories }
     }
 
+    override fun freeDownloadSpaceBytes(): Long? =
+        runCatching { StatFs(downloadDir.path).availableBytes }.getOrNull()
+
+    private val downloadDir = File(context.filesDir, "downloads")
+
     override val downloadManager: DownloadManager by lazy {
         DefaultDownloadManager(
-            downloadDir = File(context.filesDir, "downloads"),
+            downloadDir = downloadDir,
             store = RoomDownloadStore(database.downloadDao()),
             // Videos resolve+merge through the engine (bundled ffmpeg) and drop
             // SponsorBlock segments; podcast enclosures are a plain HTTP fetch.

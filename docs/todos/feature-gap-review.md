@@ -26,7 +26,7 @@ fixed-minute options only).
 | **Player gestures (brightness / volume)** | **DONE 2026-07-27.** | Fits the fullscreen player; pairs naturally with the UI-polish work |
 | **Channel search** | Agree, small | InnerTube channel browse already works; search-within-channel is another `browseWeb` params value |
 | **Authenticated / private feeds** | Agree it's missing | Basic-auth podcast feeds. Only worth it if you actually have a private feed — tell me if so |
-| **Storage breakdown in Library** | Agree, and the auto-download work makes it *needed* — a queue that downloads everything must show what it's using | |
+| **Storage breakdown in Library** | **DONE 2026-07-27.** The auto-download work made it *needed* — a queue that downloads everything must show what it's using | |
 
 ## Disagree / already handled
 

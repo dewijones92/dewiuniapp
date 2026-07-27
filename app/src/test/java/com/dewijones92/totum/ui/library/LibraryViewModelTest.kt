@@ -72,8 +72,17 @@ class LibraryViewModelTest {
      * Subscribes as the screen does. `downloaded` is `WhileSubscribed`, so with no
      * collector it never leaves its initial empty value.
      */
-    private fun TestScope.viewModel() = LibraryViewModel(queue, downloads).also {
-        backgroundScope.launch { it.downloaded.collect { } }
+    // A fixed size, so the test is about listing rather than the filesystem.
+    private fun TestScope.viewModel() = LibraryViewModel(
+        queue,
+        downloads,
+        fileSize = { FAKE_SIZE },
+        io = dispatcher
+    ).also { model ->
+        // Both are WhileSubscribed, so both need a collector or they stay at their
+        // initial value — which reads exactly like the feature not working.
+        backgroundScope.launch { model.downloaded.collect { } }
+        backgroundScope.launch { model.storage.collect { } }
     }
 
     /**
@@ -89,7 +98,7 @@ class LibraryViewModelTest {
 
         val model = viewModel()
         advanceUntilIdle()
-        val byId = model.downloaded.value.associate { it.item.id.value to it.pillar }
+        val byId = model.downloaded.value.associate { it.item.id.value to it.media.pillar }
 
         assertEquals(mapOf("vid" to MediaKind.VIDEO, "ep" to MediaKind.PODCAST), byId)
     }
@@ -118,5 +127,23 @@ class LibraryViewModelTest {
         advanceUntilIdle()
 
         assertEquals(emptyList<String>(), model.downloaded.value.map { it.item.id.value })
+    }
+
+    /** The point of the summary: it must agree with the rows, not be counted separately. */
+    @Test
+    fun `storage totals what the rows show`() = runTest(dispatcher) {
+        downloads.download(item("a", HttpUrl.of("https://cdn.example.com/a.mp3")))
+        downloads.download(item("b", HttpUrl.of("https://cdn.example.com/b.mp3")))
+        val model = viewModel()
+        advanceUntilIdle()
+
+        val storage = model.storage.value
+        assertEquals(2, storage.itemCount)
+        assertEquals(FAKE_SIZE * 2, storage.usedBytes)
+        assertEquals(model.downloaded.value.sumOf { it.sizeBytes }, storage.usedBytes)
+    }
+
+    private companion object {
+        const val FAKE_SIZE = 1_500_000L
     }
 }

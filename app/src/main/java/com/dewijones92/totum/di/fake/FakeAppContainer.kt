@@ -122,4 +122,6 @@ class FakeAppContainer(
     override fun startWatchHistorySync() = Unit
 
     override fun refreshSubscriptions() = Unit
+
+    override fun freeDownloadSpaceBytes(): Long? = null
 }
