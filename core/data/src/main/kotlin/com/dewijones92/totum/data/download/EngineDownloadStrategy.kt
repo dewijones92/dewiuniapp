@@ -1,7 +1,7 @@
 package com.dewijones92.totum.data.download
 
 import com.dewijones92.totum.domain.DownloadState
-import com.dewijones92.totum.domain.MediaItem
+import com.dewijones92.totum.domain.PlayableItem
 import com.dewijones92.totum.ytdlp.DownloadEvent
 import com.dewijones92.totum.ytdlp.DownloadRequest
 import com.dewijones92.totum.ytdlp.YtDlpEngine
@@ -25,8 +25,8 @@ public class EngineDownloadStrategy(
     private val sponsorBlockCategories: Set<String> = emptySet(),
 ) : DownloadStrategy {
 
-    override fun download(item: MediaItem, target: File, audioOnly: Boolean): Flow<DownloadState> = flow {
-        val url = item.mediaUrl
+    override fun download(item: PlayableItem, target: File, audioOnly: Boolean): Flow<DownloadState> = flow {
+        val url = item.fetchUrl
         if (url == null) {
             emit(DownloadState.Failed("Nothing to download"))
             return@flow
@@ -76,13 +76,5 @@ public class EngineDownloadStrategy(
 
         /** Best audio-only stream, no merge needed — small and quick. */
         private const val BEST_AUDIO = "ba/b"
-
-        private val STREAMING_HOSTS = listOf("youtube.com", "youtu.be")
-
-        /** Whether [item] is a streaming page the engine must resolve+merge (vs a direct file). */
-        public fun handles(item: MediaItem): Boolean {
-            val url = item.mediaUrl?.value ?: return false
-            return STREAMING_HOSTS.any { it in url }
-        }
     }
 }

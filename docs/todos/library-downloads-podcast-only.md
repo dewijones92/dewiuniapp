@@ -1,11 +1,11 @@
 ---
 title: Library downloads list only shows podcasts
 kind: todo
-status: open
+status: done
 area: downloads
 priority: medium
 requested: 2026-07-25
-updated: 2026-07-25
+updated: 2026-07-27
 ---
 
 # The Library's downloads list is podcast-only
@@ -43,3 +43,28 @@ episodes table, and anything unbackfillable simply doesn't list until re-downloa
 **Done when:** a downloaded video appears in Library beside downloaded episodes, plays
 from its local file, and the pillar glyph distinguishes them — with no per-pillar branch
 in the read path.
+
+## Shipped 2026-07-27
+
+Done as described, plus two things the write-up above did not anticipate.
+
+`DownloadEntity` became the fourth `PlaylistItemColumns` table; `DownloadStore` gained
+`observeDownloaded()` returning `DownloadedMedia` (item + path + variant), and
+`LibraryViewModel` reads that alone. `DownloadedMedia.offline` swaps in the local handle,
+so an audio-only video plays as audio and a full one as `LocalVideo`.
+
+**The root cause was wider than the read path.** Two copies of "is this a video?" existed
+and disagreed — `toPlayableOrNull` matched only `youtube.com/watch`, while the download
+router matched any YouTube host, so a Shorts URL downloaded through the engine but queued
+as a podcast enclosure. Both now come from one `MediaItem.pillar`, and
+`RoutedDownloadStrategy` routes on `PlayHandle.pillar` via an exhaustive `when` rather
+than URL predicates — a third pillar cannot be added without it failing to compile.
+`PlayableItem.fetchUrl` is likewise the single answer to "where do the bytes come from",
+which deleted the copy of that rule `QueueAutoDownloader` was carrying.
+
+**Existing downloads are backfilled, not dropped.** The migration joins `downloads`
+against queue / history / playlist / episode rows, so files already on disk keep their
+titles; anything matching nowhere keeps its id as a title rather than being dropped,
+because dropping the row would strand the bytes with nothing able to play or delete them.
+Verified on the emulator's real database: five pre-existing downloads came through named
+and typed as videos.

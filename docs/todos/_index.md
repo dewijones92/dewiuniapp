@@ -38,7 +38,7 @@ to `shipped` and migrate it to `../features/` once it's a real feature on `main`
 | [audio-video-switching](audio-video-switching.md) | playback | high | shipped (local-audio merge outstanding) |
 | [notification-opens-app](notification-opens-app.md) | playback | high | shipped |
 | [listen-mode-exit-ux](listen-mode-exit-ux.md) | playback | high | shipped |
-| [library-downloads-podcast-only](library-downloads-podcast-only.md) | downloads | medium | open |
+| [library-downloads-podcast-only](library-downloads-podcast-only.md) | downloads | medium | done |
 
 All backlog items are Dewi requests. `refining` = spec written, decisions still open;
 `ready` = decisions made, implementation waits for Dewi's explicit go (his standing

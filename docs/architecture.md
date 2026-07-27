@@ -33,7 +33,10 @@ for a genuinely strong technical reason, which must be surfaced to Dewi.
 | Playback | `PlaybackController` + one `MediaSession` + one mini/full player | anything with `mediaUrl` plays |
 | Search | `SearchSource` → sealed `SearchHit` (Podcast \| Video) | iTunes + `ytsearch` adapters |
 | Subscriptions freshness | `ContentRefresher` + `SeenItemsTracker` | podcast RSS + YouTube subs adapters |
-| Downloads | `DownloadManager` + `RoutedDownloadStrategy` | `EngineDownloadStrategy` (video) / `HttpDownloadStrategy` (enclosure) |
+| Downloads | `DownloadManager` + `RoutedDownloadStrategy`, routed on `PlayHandle.pillar` | `EngineDownloadStrategy` (video) / `HttpDownloadStrategy` (enclosure) |
+| Offline library | `DownloadStore.observeDownloaded()` → `DownloadedMedia` | the record carries its item, so no per-pillar catalogue is joined |
+| Pillar of a raw feed item | `MediaItem.pillar` (one URL rule) | `PlayHandle.pillar` once a handle exists |
+| Where a download's bytes come from | `PlayableItem.fetchUrl` | watch URL for video, enclosure for podcast |
 | Skip segments | `SkipSegment` + `skipTargetFor`, enforced in the position ticker | any pillar's playback skips |
 | HTTP text | `HttpTextFetcher` port | OkHttp impl |
 | URL | `HttpUrl` value type | everywhere |

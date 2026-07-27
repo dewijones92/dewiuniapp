@@ -35,17 +35,17 @@ import com.dewijones92.totum.R
 import com.dewijones92.totum.di.AppContainer
 import com.dewijones92.totum.di.fake.FakeAppContainer
 import com.dewijones92.totum.domain.DownloadState
-import com.dewijones92.totum.domain.MediaKind
+import com.dewijones92.totum.domain.DownloadedMedia
 import com.dewijones92.totum.domain.PlaylistId
 import com.dewijones92.totum.theme.TotumTheme
 import com.dewijones92.totum.ui.account.AccountScreen
 import com.dewijones92.totum.ui.common.BuildInfoFooter
+import com.dewijones92.totum.ui.common.LocalItemActions
 import com.dewijones92.totum.ui.common.MediaItemRow
 import com.dewijones92.totum.ui.common.MediaSort
 import com.dewijones92.totum.ui.common.SectionHeaderWithSort
 import com.dewijones92.totum.ui.common.mediaItemSubtitle
 import com.dewijones92.totum.ui.history.PlayHistoryScreen
-import com.dewijones92.totum.ui.library.LibraryViewModel.DownloadedItem
 import com.dewijones92.totum.ui.playlist.LocalPlaylistDetailScreen
 import com.dewijones92.totum.ui.playlist.LocalPlaylistsScreen
 import com.dewijones92.totum.ui.playlist.rememberPlaylistAdder
@@ -111,17 +111,18 @@ private fun LibraryHome(
 
 @Composable
 internal fun LibraryContent(
-    downloaded: List<DownloadedItem>,
+    downloaded: List<DownloadedMedia>,
     sort: MediaSort,
     onOpenPlaylists: () -> Unit,
     onOpenHistory: () -> Unit,
     onOpenAccount: () -> Unit,
-    onPlay: (DownloadedItem) -> Unit,
-    onDelete: (DownloadedItem) -> Unit,
-    onAddToPlaylist: (DownloadedItem) -> Unit,
+    onPlay: (DownloadedMedia) -> Unit,
+    onDelete: (DownloadedMedia) -> Unit,
+    onAddToPlaylist: (DownloadedMedia) -> Unit,
     onSetSort: (MediaSort) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val actions = LocalItemActions.current
     Column(modifier = modifier.fillMaxSize()) {
         LazyColumn(modifier = Modifier.weight(1f)) {
             item { PlaylistsEntry(onOpenPlaylists) }
@@ -141,12 +142,15 @@ internal fun LibraryContent(
                     MediaItemRow(
                         item = entry.item,
                         subtitle = mediaItemSubtitle(entry.item),
-                        downloadState = DownloadState.Downloaded(entry.localPath),
-                        pillar = MediaKind.PODCAST,
+                        downloadState = DownloadState.Downloaded(entry.localPath, entry.audioOnly),
+                        pillar = entry.pillar,
                         onPlay = { onPlay(entry) },
                         onDownload = { },
                         onDeleteDownload = { onDelete(entry) },
                         onAddToPlaylist = { onAddToPlaylist(entry) },
+                        // An audio-only copy of a video is still missing the picture,
+                        // and Library is exactly where you'd notice.
+                        onDownloadVideo = actions?.let { { it.download(entry.item, audioOnly = false) } },
                     )
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                 }

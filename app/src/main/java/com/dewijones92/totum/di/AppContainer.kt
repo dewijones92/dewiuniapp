@@ -40,7 +40,6 @@ import com.dewijones92.totum.database.TotumDatabase
 import com.dewijones92.totum.diagnostics.CrashReporter
 import com.dewijones92.totum.diagnostics.DiagnosticsUploader
 import com.dewijones92.totum.diagnostics.installAndroidLogSink
-import com.dewijones92.totum.domain.MediaItem
 import com.dewijones92.totum.domain.MediaKind
 import com.dewijones92.totum.domain.PlayHandle
 import com.dewijones92.totum.domain.PlayableItem
@@ -303,13 +302,11 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
             // Videos resolve+merge through the engine (bundled ffmpeg) and drop
             // SponsorBlock segments; podcast enclosures are a plain HTTP fetch.
             strategy = RoutedDownloadStrategy(
-                routes = listOf(
-                    { item: MediaItem -> EngineDownloadStrategy.handles(item) } to EngineDownloadStrategy(
-                        engine = ytDlpEngine,
-                        sponsorBlockCategories = SponsorBlockSegmentSource.CATEGORIES.toSet(),
-                    ),
+                video = EngineDownloadStrategy(
+                    engine = ytDlpEngine,
+                    sponsorBlockCategories = SponsorBlockSegmentSource.CATEGORIES.toSet(),
                 ),
-                fallback = HttpDownloadStrategy(httpClient),
+                podcast = HttpDownloadStrategy(httpClient),
             ),
             scope = applicationScope,
         )

@@ -119,7 +119,7 @@ class QueueAutoDownloaderTest {
         queue.value = QueueSnapshot(listOf(QueueEntry(PlayableItem(stale, PlayHandle.Video(watch)))))
         advanceUntilIdle()
 
-        assertEquals(watch, downloads.lastItem?.mediaUrl)
+        assertEquals(watch, downloads.lastItem?.fetchUrl)
     }
 
     @Test

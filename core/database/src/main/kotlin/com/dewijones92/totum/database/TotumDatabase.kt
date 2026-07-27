@@ -18,7 +18,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         PlayHistoryEntity::class,
         QueueEntity::class,
     ],
-    version = 13,
+    version = 14,
     exportSchema = false,
 )
 public abstract class TotumDatabase : RoomDatabase() {
@@ -38,21 +38,77 @@ public abstract class TotumDatabase : RoomDatabase() {
     public companion object {
         public fun build(context: Context): TotumDatabase =
             Room.databaseBuilder(context, TotumDatabase::class.java, "totum.db")
-                .addMigrations(
-                    MIGRATION_1_2,
-                    MIGRATION_2_3,
-                    MIGRATION_3_4,
-                    MIGRATION_4_5,
-                    MIGRATION_5_6,
-                    MIGRATION_6_7,
-                    MIGRATION_7_8,
-                    MIGRATION_8_9,
-                    MIGRATION_9_10,
-                    MIGRATION_10_11,
-                    MIGRATION_11_12,
-                    MIGRATION_12_13,
-                )
+                .apply { MIGRATIONS.forEach { addMigrations(it) } }
                 .build()
+
+        /** Every migration, in one list so a test can run the same ones the app does. */
+        public val MIGRATIONS: List<Migration>
+            get() = listOf(
+                MIGRATION_1_2,
+                MIGRATION_2_3,
+                MIGRATION_3_4,
+                MIGRATION_4_5,
+                MIGRATION_5_6,
+                MIGRATION_6_7,
+                MIGRATION_7_8,
+                MIGRATION_8_9,
+                MIGRATION_9_10,
+                MIGRATION_10_11,
+                MIGRATION_11_12,
+                MIGRATION_12_13,
+                MIGRATION_13_14,
+            )
+
+        /**
+         * v14: a download record carries the item it is for, on the same denormalized
+         * columns as the queue, playlists and history. Until now it held an id alone,
+         * so an offline list had to join against a pillar's own catalogue — and the
+         * Library, joining against podcast episodes, simply never showed a video.
+         *
+         * Existing rows are backfilled from wherever the same item is already
+         * described, so downloads already on disk keep their titles. Anything that
+         * matches nowhere keeps its id as the title rather than being dropped:
+         * dropping the row would leave the file on disk with nothing left in the UI
+         * able to play or delete it.
+         */
+        private val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS downloads_v14 (" +
+                        "itemId TEXT NOT NULL PRIMARY KEY, status TEXT NOT NULL, " +
+                        "downloadedBytes INTEGER NOT NULL, totalBytes INTEGER, localPath TEXT, " +
+                        "failureReason TEXT, audioOnly INTEGER NOT NULL, " +
+                        "title TEXT NOT NULL, author TEXT, thumbnailUrl TEXT, sourceId TEXT NOT NULL, " +
+                        "contentKind TEXT NOT NULL, playbackType TEXT NOT NULL, handle TEXT, mediaUrl TEXT)",
+                )
+                db.execSQL(
+                    "INSERT OR REPLACE INTO downloads_v14 " +
+                        "SELECT d.mediaItemId, d.status, d.downloadedBytes, d.totalBytes, d.localPath, " +
+                        "d.failureReason, d.audioOnly, COALESCE(k.title, d.mediaItemId), k.author, " +
+                        "k.thumbnailUrl, COALESCE(k.sourceId, ''), COALESCE(k.contentKind, 'STANDARD'), " +
+                        "COALESCE(k.playbackType, 'PODCAST'), k.handle, k.mediaUrl " +
+                        "FROM downloads d LEFT JOIN ($KNOWN_ITEMS) k ON k.itemId = d.mediaItemId " +
+                        "GROUP BY d.mediaItemId",
+                )
+                db.execSQL("DROP TABLE downloads")
+                db.execSQL("ALTER TABLE downloads_v14 RENAME TO downloads")
+            }
+        }
+
+        /**
+         * Every item the database already describes, for the v14 backfill. An item in
+         * more than one of these is described identically by each, so which row the
+         * GROUP BY picks does not matter.
+         */
+        private const val KNOWN_ITEMS =
+            "SELECT itemId, title, author, thumbnailUrl, sourceId, contentKind, playbackType, handle, mediaUrl " +
+                "FROM queue_items UNION " +
+                "SELECT itemId, title, author, thumbnailUrl, sourceId, contentKind, playbackType, handle, mediaUrl " +
+                "FROM play_history UNION " +
+                "SELECT itemId, title, author, thumbnailUrl, sourceId, contentKind, playbackType, handle, mediaUrl " +
+                "FROM local_playlist_items UNION " +
+                "SELECT id, title, author, thumbnailUrl, feedId, 'STANDARD', 'PODCAST', NULL, mediaUrl " +
+                "FROM podcast_episodes"
 
         /**
          * v13: a finished item keeps its progress row, marked completed, instead of

@@ -27,10 +27,15 @@ public data class FeedEntity(
 /**
  * A download record, keyed by media item id. Status is a small string enum;
  * localPath is set only when status == "downloaded".
+ *
+ * Denormalized on the same [PlaylistItemColumns] contract as queue entries, playlist
+ * items and play history, so one mapper rebuilds all four. Without those columns a
+ * download was an id and nothing else, and listing what was offline meant joining
+ * against one pillar's catalogue — which is why a downloaded video was invisible.
  */
 @Entity(tableName = "downloads")
 public data class DownloadEntity(
-    @PrimaryKey val mediaItemId: String,
+    @PrimaryKey override val itemId: String,
     val status: String,
     val downloadedBytes: Long,
     val totalBytes: Long?,
@@ -38,11 +43,19 @@ public data class DownloadEntity(
     val failureReason: String?,
     /**
      * Whether the local file is audio only (what the queue's automatic downloads
-     * take). Not shown in the UI; it stops a later request for the full video being
-     * mistaken for "already downloaded".
+     * take). It stops a later request for the full video being mistaken for
+     * "already downloaded", and tells the Library which glyph the row wears.
      */
     val audioOnly: Boolean = false,
-)
+    override val title: String,
+    override val author: String?,
+    override val thumbnailUrl: String?,
+    override val sourceId: String,
+    override val contentKind: String,
+    override val playbackType: String,
+    override val handle: String?,
+    override val mediaUrl: String?,
+) : PlaylistItemColumns
 
 /**
  * Play state for an item, keyed by media item id. One row per item that has been

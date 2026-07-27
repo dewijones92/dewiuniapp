@@ -1,7 +1,7 @@
 package com.dewijones92.totum.data.download
 
 import com.dewijones92.totum.domain.DownloadState
-import com.dewijones92.totum.domain.MediaItem
+import com.dewijones92.totum.domain.PlayableItem
 import kotlinx.coroutines.flow.Flow
 import java.io.File
 
@@ -10,6 +10,10 @@ import java.io.File
  * per item so the two pillars' mechanics stay isolated behind one seam.
  * The returned flow is cold and terminates with [DownloadState.Downloaded]
  * or [DownloadState.Failed].
+ *
+ * It takes a [PlayableItem] rather than a bare item because the handle is both the
+ * pillar (so routing is exact rather than a URL guess) and, for a video, the stable
+ * watch URL to fetch from.
  */
 public fun interface DownloadStrategy {
 
@@ -19,5 +23,5 @@ public fun interface DownloadStrategy {
      * bytes. Strategies whose media is inherently audio (a podcast enclosure) ignore
      * it.
      */
-    public fun download(item: MediaItem, target: File, audioOnly: Boolean): Flow<DownloadState>
+    public fun download(item: PlayableItem, target: File, audioOnly: Boolean): Flow<DownloadState>
 }

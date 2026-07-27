@@ -4,6 +4,8 @@ import com.dewijones92.totum.common.HttpUrl
 import com.dewijones92.totum.domain.DownloadState
 import com.dewijones92.totum.domain.MediaItem
 import com.dewijones92.totum.domain.MediaItemId
+import com.dewijones92.totum.domain.PlayHandle
+import com.dewijones92.totum.domain.PlayableItem
 import com.dewijones92.totum.domain.SourceId
 import com.dewijones92.totum.ytdlp.fake.FakeYtDlpEngine
 import kotlinx.coroutines.flow.toList
@@ -23,13 +25,17 @@ class EngineDownloadStrategyTest {
     private val engine = FakeYtDlpEngine()
     private val watchUrl = HttpUrl.of("https://www.youtube.com/watch?v=abc")
 
-    private fun videoItem(url: HttpUrl? = watchUrl) = MediaItem(
-        id = MediaItemId("abc"),
-        sourceId = SourceId("https://www.youtube.com/@chan"),
-        title = "A video",
-        publishedAt = null,
-        duration = null,
-        mediaUrl = url,
+    /** A video as it reaches the strategy: the handle carries the watch URL, not mediaUrl. */
+    private fun videoItem(url: HttpUrl? = watchUrl) = PlayableItem(
+        MediaItem(
+            id = MediaItemId("abc"),
+            sourceId = SourceId("https://www.youtube.com/@chan"),
+            title = "A video",
+            publishedAt = null,
+            duration = null,
+            mediaUrl = null,
+        ),
+        if (url == null) PlayHandle.Podcast() else PlayHandle.Video(url),
     )
 
     @Test
@@ -61,14 +67,6 @@ class EngineDownloadStrategyTest {
             .download(videoItem(), temp.newFile("x.media"), audioOnly = false).toList()
 
         assertTrue(states.last() is DownloadState.Failed)
-    }
-
-    @Test
-    fun `handles only streaming-page urls`() {
-        assertTrue(EngineDownloadStrategy.handles(videoItem()))
-        assertTrue(EngineDownloadStrategy.handles(videoItem(HttpUrl.of("https://youtu.be/abc"))))
-        assertFalse(EngineDownloadStrategy.handles(videoItem(HttpUrl.of("https://cdn.example.com/a.mp3"))))
-        assertFalse(EngineDownloadStrategy.handles(videoItem(url = null)))
     }
 
     @Test

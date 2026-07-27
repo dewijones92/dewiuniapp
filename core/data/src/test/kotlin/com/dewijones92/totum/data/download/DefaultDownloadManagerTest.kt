@@ -2,9 +2,12 @@ package com.dewijones92.totum.data.download
 
 import com.dewijones92.totum.common.HttpUrl
 import com.dewijones92.totum.domain.DownloadState
+import com.dewijones92.totum.domain.DownloadedMedia
 import com.dewijones92.totum.domain.MediaItem
 import com.dewijones92.totum.domain.MediaItemId
+import com.dewijones92.totum.domain.PlayableItem
 import com.dewijones92.totum.domain.SourceId
+import com.dewijones92.totum.domain.asPlayable
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -58,7 +61,7 @@ class DefaultDownloadManagerTest {
 
     @Test
     fun `already-downloaded item is not re-downloaded`() = runTest {
-        store.put(item.id, DownloadState.Downloaded("/somewhere.media"))
+        store.put(item.asPlayable(), DownloadState.Downloaded("/somewhere.media"))
         var called = false
         val strategy = DownloadStrategy { _, _, _ ->
             called = true
@@ -72,7 +75,7 @@ class DefaultDownloadManagerTest {
 
     @Test
     fun `interrupted downloads are cleared on construction`() = runTest {
-        store.put(item.id, DownloadState.Downloading(500, 1000))
+        store.put(item.asPlayable(), DownloadState.Downloading(500, 1000))
 
         // Unconfined so the manager's init cleanup runs eagerly at construction.
         manager(DownloadStrategy { _, _, _ -> flowOf() }, CoroutineScope(UnconfinedTestDispatcher(testScheduler)))
@@ -84,7 +87,7 @@ class DefaultDownloadManagerTest {
     @Test
     fun `delete removes the file and record`() = runTest {
         val file = tempFolder.newFile("dl.media").apply { writeText("data") }
-        store.put(item.id, DownloadState.Downloaded(file.absolutePath))
+        store.put(item.asPlayable(), DownloadState.Downloaded(file.absolutePath))
 
         manager(DownloadStrategy { _, _, _ -> flowOf() }, backgroundScope).delete(item.id)
 
@@ -134,9 +137,26 @@ class DefaultDownloadManagerTest {
 }
 
 private class InMemoryDownloadStore : DownloadStore {
-    private val states = MutableStateFlow<Map<MediaItemId, DownloadState>>(emptyMap())
-    override fun observeAll(): Flow<Map<MediaItemId, DownloadState>> = states
-    override suspend fun put(id: MediaItemId, state: DownloadState) = states.update { it + (id to state) }
-    override suspend fun get(id: MediaItemId): DownloadState = states.value[id] ?: DownloadState.NotDownloaded
+    private val states = MutableStateFlow<Map<MediaItemId, PlayableAndState>>(emptyMap())
+
+    override fun observeAll(): Flow<Map<MediaItemId, DownloadState>> =
+        states.map { rows -> rows.mapValues { (_, row) -> row.state } }
+
+    override fun observeDownloaded(): Flow<List<DownloadedMedia>> = states.map { rows ->
+        rows.values.mapNotNull { row ->
+            (row.state as? DownloadState.Downloaded)?.let {
+                DownloadedMedia(row.item, it.localPath, it.audioOnly)
+            }
+        }
+    }
+
+    override suspend fun put(item: PlayableItem, state: DownloadState) =
+        states.update { it + (item.item.id to PlayableAndState(item, state)) }
+
+    override suspend fun get(id: MediaItemId): DownloadState =
+        states.value[id]?.state ?: DownloadState.NotDownloaded
+
     override suspend fun remove(id: MediaItemId) { states.update { it - id } }
 }
+
+private data class PlayableAndState(val item: PlayableItem, val state: DownloadState)

@@ -10,7 +10,7 @@ import com.dewijones92.totum.data.source.SourceLocator
 import com.dewijones92.totum.di.AppContainer
 import com.dewijones92.totum.domain.MediaItem
 import com.dewijones92.totum.domain.MediaSource
-import com.dewijones92.totum.playlist.toPlayableOrNull
+import com.dewijones92.totum.domain.toPlayableOrNull
 import com.dewijones92.totum.queue.PlaybackQueue
 import com.dewijones92.totum.settings.AppPreferences
 import com.dewijones92.totum.settings.PlaybackMode

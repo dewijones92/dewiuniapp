@@ -45,17 +45,10 @@ class QueueAutoDownloader(
             is DownloadState.Downloaded, is DownloadState.Downloading -> return
             else -> Unit
         }
-        // Download against the handle's stable WATCH url for videos, not MediaItem.mediaUrl.
-        // That field holds a resolved stream (which expires) and is absent entirely for
-        // anything queued from search — so the old `mediaUrl == null` skip meant a video
-        // queued from search never got its audio, and "picked up on a later queue change"
-        // never came if the queue didn't change. The engine re-resolves from the watch URL
-        // anyway, and the download router recognises a video by that URL's host.
-        val fetchable = when (val handle = entry.item.handle) {
-            is PlayHandle.Video -> item.copy(mediaUrl = handle.watchUrl)
-            else -> item
-        }
-        if (fetchable.mediaUrl == null) return
-        downloads.download(fetchable, audioOnly = true)
+        // Nothing to fetch yet — a feed item whose enclosure hasn't been read. Asking
+        // anyway would only record a failure against it.
+        if (entry.item.fetchUrl == null) return
+        // The whole entry, handle included, so the video route gets its watch URL.
+        downloads.download(entry.item, audioOnly = true)
     }
 }

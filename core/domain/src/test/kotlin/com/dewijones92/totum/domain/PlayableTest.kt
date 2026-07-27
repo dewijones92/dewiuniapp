@@ -10,12 +10,13 @@ class PlayableTest {
 
     private val watchUrl = HttpUrl.of("https://www.youtube.com/watch?v=abc123")
 
-    private fun item(id: String = "abc123") = MediaItem(
+    private fun item(id: String = "abc123", url: HttpUrl? = null) = MediaItem(
         id = MediaItemId(id),
         sourceId = SourceId("src"),
         title = "A thing",
         publishedAt = null,
         duration = null,
+        mediaUrl = url,
     )
 
     @Test
@@ -43,5 +44,44 @@ class PlayableTest {
         val downloaded = PlayableItem(item(), PlayHandle.Podcast("/tmp/ep.mp3"))
         assertNotEquals(streamed, downloaded)
         assertEquals(streamed, streamed.copy())
+    }
+
+    @Test
+    fun `a youtube url is a video and anything else a podcast`() {
+        assertEquals(MediaKind.VIDEO, item(url = watchUrl).pillar)
+        assertEquals(MediaKind.VIDEO, item(url = HttpUrl.of("https://youtu.be/abc123")).pillar)
+        assertEquals(MediaKind.PODCAST, item(url = HttpUrl.of("https://cdn.example.com/ep.mp3")).pillar)
+        assertEquals(MediaKind.PODCAST, item().pillar)
+    }
+
+    /**
+     * The two copies of this rule used to disagree: the playable mapping matched only
+     * `/watch`, so a Shorts URL was queued as a podcast enclosure while the download
+     * router — matching any YouTube host — fetched it through the video engine.
+     */
+    @Test
+    fun `a shorts url is a video everywhere, not only to the downloader`() {
+        val shorts = HttpUrl.of("https://www.youtube.com/shorts/abc123")
+        assertEquals(MediaKind.VIDEO, item(url = shorts).pillar)
+        assertEquals(PlayHandle.Video(shorts), item(url = shorts).toPlayableOrNull()?.handle)
+    }
+
+    @Test
+    fun `an item with no url is not playable but is still downloadable enough to fail`() {
+        assertNull(item().toPlayableOrNull())
+        assertEquals(PlayHandle.Podcast(), item().asPlayable().handle)
+        assertNull(item().asPlayable().fetchUrl)
+    }
+
+    @Test
+    fun `a video is fetched from its watch url even when the stream url is stale`() {
+        val stale = HttpUrl.of("https://rr1.googlevideo.com/expired")
+        assertEquals(watchUrl, PlayableItem(item(url = stale), PlayHandle.Video(watchUrl)).fetchUrl)
+    }
+
+    @Test
+    fun `a podcast is fetched from its enclosure`() {
+        val enclosure = HttpUrl.of("https://cdn.example.com/ep.mp3")
+        assertEquals(enclosure, item(url = enclosure).asPlayable().fetchUrl)
     }
 }

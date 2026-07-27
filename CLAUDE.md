@@ -112,18 +112,35 @@ when driven on the emulator. Verify real flows on a device, not just via tests.
   enforced in exactly one place — `Media3PlaybackController`'s position
   ticker — so any pillar's playback skips them.
 - **Downloads** (`DownloadManager` port in `:core:data`, `RoomDownloadStore`
-  in `:core:database`): one seam, one port. The manager takes a single
-  `DownloadStrategy`; `RoutedDownloadStrategy` (wired in `AppContainer`, the
-  only place pillar routing lives) picks per item — `EngineDownloadStrategy`
-  for video pages (yt-dlp fetches best video+audio and merges via the bundled
+  in `:core:database`): one seam, one port, taking a `PlayableItem` — the
+  handle is both the pillar and, for a video, the watch URL to fetch from.
+  The manager takes a single `DownloadStrategy`; `RoutedDownloadStrategy`
+  (wired in `AppContainer`, the only place pillar routing lives) picks by
+  `PlayHandle.pillar` in an exhaustive `when` — `EngineDownloadStrategy`
+  for video (yt-dlp fetches best video+audio and merges via the bundled
   ffmpeg, then cuts SponsorBlock segments), `HttpDownloadStrategy` for podcast
-  enclosures (a plain HTTP GET). `DownloadState` in `:core:domain`; playback
+  enclosures (a plain HTTP GET). A third pillar cannot be added without that
+  `when` failing to compile. `DownloadState` in `:core:domain`; playback
   prefers the local file via `play(..., localPath=)` (a downloaded video
-  needs no re-resolution); the Library tab lists downloads (shared
-  `MediaItemRow`). Interrupted downloads (a `Downloading` row at startup)
-  reset to NotDownloaded. Strategy IO runs off the main thread
-  (`flowOn(Dispatchers.IO)`). Verified offline in airplane mode; video merge
-  verified on-device (AV1 4K + Opus → one Matroska, played locally).
+  needs no re-resolution). Interrupted downloads (a `Downloading` row at
+  startup) are dropped — an absent record already means NotDownloaded.
+  Strategy IO runs off the main thread (`flowOn(Dispatchers.IO)`). Verified
+  offline in airplane mode; video merge verified on-device (AV1 4K + Opus →
+  one Matroska, played locally).
+- **A download record carries its item**, on the same `PlaylistItemColumns`
+  the queue, playlists and history use (four tables, one mapper). So
+  `observeDownloaded()` returns `DownloadedMedia` (item + path + variant) and
+  the Library tab lists **both pillars** from the download store alone, with
+  no catalogue to join against — it previously joined podcast episodes, which
+  is why a downloaded video was on disk and invisible. `DownloadedMedia.offline`
+  supplies the local handle, so an audio-only video plays as audio and a full
+  one as `LocalVideo`.
+- **"Is this a video?" is answered once**, by `MediaItem.pillar` in
+  `:core:domain`, and "where do the bytes come from" once by
+  `PlayableItem.fetchUrl`. Both used to exist twice with rules that disagreed
+  (`youtube.com/watch` vs any YouTube host), so a Shorts URL downloaded as a
+  video but queued as a podcast enclosure. Anything holding a `PlayHandle`
+  reads `PlayHandle.pillar` instead — it knows exactly rather than guessing.
 - **ffmpeg IS bundled** as a minimal static binary (`libffmpeg.so` in
   `app/src/main/jniLibs/<abi>`, ~7MB; built from FFmpeg 7.1.1 by
   `tools/ffmpeg/build-ffmpeg-android.sh`, remux-only — no decoders/encoders/

@@ -2,8 +2,9 @@ package com.dewijones92.totum.data.download
 
 import com.dewijones92.totum.common.Diag
 import com.dewijones92.totum.domain.DownloadState
-import com.dewijones92.totum.domain.MediaItem
+import com.dewijones92.totum.domain.DownloadedMedia
 import com.dewijones92.totum.domain.MediaItemId
+import com.dewijones92.totum.domain.PlayableItem
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -16,8 +17,8 @@ import java.io.File
 
 /**
  * Routes every download through one [strategy] and records progress in the
- * [store]. Both pillars share this: a podcast enclosure and a resolved video
- * stream are both just a [MediaItem] with a fetchable [MediaItem.mediaUrl].
+ * [store]. Both pillars share this: a podcast enclosure and a video are both just a
+ * [PlayableItem], and the handle says which mechanics apply.
  */
 public class DefaultDownloadManager(
     private val downloadDir: File,
@@ -28,11 +29,12 @@ public class DefaultDownloadManager(
 
     init {
         // A "Downloading" record at startup means the process died mid-download;
-        // its coroutine is gone, so clear it rather than show a stuck spinner.
+        // its coroutine is gone, so drop it rather than show a stuck spinner. An absent
+        // record already reads as NotDownloaded, so there is nothing to write.
         scope.launch {
             store.observeAll().first()
                 .filterValues { it is DownloadState.Downloading }
-                .keys.forEach { store.put(it, DownloadState.NotDownloaded) }
+                .keys.forEach { store.remove(it) }
         }
     }
 
@@ -44,23 +46,26 @@ public class DefaultDownloadManager(
 
     override fun observeDownloads(): Flow<Map<MediaItemId, DownloadState>> = store.observeAll()
 
+    override fun observeDownloaded(): Flow<List<DownloadedMedia>> = store.observeDownloaded()
+
     override fun observe(id: MediaItemId): Flow<DownloadState> =
         store.observeAll().map { it[id] ?: DownloadState.NotDownloaded }.distinctUntilChanged()
 
-    override suspend fun download(item: MediaItem, audioOnly: Boolean) {
-        if (store.get(item.id).satisfies(audioOnly)) return
+    override suspend fun download(item: PlayableItem, audioOnly: Boolean) {
+        val media = item.item
+        if (store.get(media.id).satisfies(audioOnly)) return
 
-        store.put(item.id, DownloadState.Downloading(0, null))
-        _events.tryEmit(DownloadEvent(item, DownloadState.Downloading(0, null)))
-        val target = File(downloadDir.apply { mkdirs() }, item.id.fileName())
-        Diag.log("download", "start audioOnly=$audioOnly ${item.title}")
+        store.put(item, DownloadState.Downloading(0, null))
+        _events.tryEmit(DownloadEvent(media, DownloadState.Downloading(0, null)))
+        val target = File(downloadDir.apply { mkdirs() }, media.id.fileName())
+        Diag.log("download", "start audioOnly=$audioOnly ${media.title}")
         scope.launch {
             strategy.download(item, target, audioOnly).collect { state ->
-                store.put(item.id, state)
-                _events.tryEmit(DownloadEvent(item, state))
+                store.put(item, state)
+                _events.tryEmit(DownloadEvent(media, state))
                 when (state) {
-                    is DownloadState.Failed -> Diag.warn("download", "failed ${item.title}: ${state.reason}")
-                    is DownloadState.Downloaded -> Diag.log("download", "done ${item.title}")
+                    is DownloadState.Failed -> Diag.warn("download", "failed ${media.title}: ${state.reason}")
+                    is DownloadState.Downloaded -> Diag.log("download", "done ${media.title}")
                     else -> Unit
                 }
             }

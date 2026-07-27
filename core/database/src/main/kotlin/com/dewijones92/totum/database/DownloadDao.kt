@@ -11,12 +11,12 @@ public interface DownloadDao {
     @Query("SELECT * FROM downloads")
     public fun observeAll(): Flow<List<DownloadEntity>>
 
-    @Query("SELECT * FROM downloads WHERE mediaItemId = :id")
+    @Query("SELECT * FROM downloads WHERE itemId = :id")
     public suspend fun get(id: String): DownloadEntity?
 
     @Upsert
     public suspend fun upsert(entity: DownloadEntity)
 
-    @Query("DELETE FROM downloads WHERE mediaItemId = :id")
+    @Query("DELETE FROM downloads WHERE itemId = :id")
     public suspend fun delete(id: String)
 }

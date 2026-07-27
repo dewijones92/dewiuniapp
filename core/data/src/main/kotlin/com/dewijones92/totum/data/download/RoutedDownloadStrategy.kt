@@ -1,22 +1,29 @@
 package com.dewijones92.totum.data.download
 
 import com.dewijones92.totum.domain.DownloadState
-import com.dewijones92.totum.domain.MediaItem
+import com.dewijones92.totum.domain.MediaKind
+import com.dewijones92.totum.domain.PlayableItem
 import kotlinx.coroutines.flow.Flow
 import java.io.File
 
 /**
- * Keeps the [DownloadManager] on one strategy while letting each pillar bring
- * its own mechanics: the first [routes] entry whose predicate matches wins,
- * otherwise [fallback] handles it. This is the single place pillar-specific
- * routing lives — everything downstream sees one [DownloadStrategy].
+ * Keeps the [DownloadManager] on one strategy while letting each pillar bring its own
+ * mechanics. This is the single place pillar-specific routing lives — everything
+ * downstream sees one [DownloadStrategy].
+ *
+ * One strategy per pillar, chosen by an exhaustive `when` rather than a list of
+ * predicates, so a third pillar cannot be added without this failing to compile. The
+ * predicate version sniffed the item's URL for a YouTube host, which meant the router
+ * and the queue disagreed about what a video was.
  */
 public class RoutedDownloadStrategy(
-    private val routes: List<Pair<(MediaItem) -> Boolean, DownloadStrategy>>,
-    private val fallback: DownloadStrategy,
+    private val video: DownloadStrategy,
+    private val podcast: DownloadStrategy,
 ) : DownloadStrategy {
 
-    override fun download(item: MediaItem, target: File, audioOnly: Boolean): Flow<DownloadState> =
-        (routes.firstOrNull { (matches, _) -> matches(item) }?.second ?: fallback)
-            .download(item, target, audioOnly)
+    override fun download(item: PlayableItem, target: File, audioOnly: Boolean): Flow<DownloadState> =
+        when (item.handle.pillar) {
+            MediaKind.VIDEO -> video
+            MediaKind.PODCAST -> podcast
+        }.download(item, target, audioOnly)
 }

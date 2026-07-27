@@ -1,7 +1,7 @@
 package com.dewijones92.totum.data.download
 
 import com.dewijones92.totum.domain.DownloadState
-import com.dewijones92.totum.domain.MediaItem
+import com.dewijones92.totum.domain.PlayableItem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -13,13 +13,13 @@ import java.io.IOException
 
 /**
  * Streams a direct media URL (podcast enclosure) to a file, emitting
- * progress. Used for anything with a ready-to-fetch [MediaItem.mediaUrl].
+ * progress. Used for anything with a ready-to-fetch media URL.
  */
 public class HttpDownloadStrategy(private val client: OkHttpClient) : DownloadStrategy {
 
     // audioOnly is moot here: a podcast enclosure is the audio.
-    override fun download(item: MediaItem, target: File, audioOnly: Boolean): Flow<DownloadState> = flow {
-        val url = item.mediaUrl
+    override fun download(item: PlayableItem, target: File, audioOnly: Boolean): Flow<DownloadState> = flow {
+        val url = item.fetchUrl
         if (url == null) {
             emit(DownloadState.Failed("Nothing to download"))
             return@flow

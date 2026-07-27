@@ -2,12 +2,19 @@ package com.dewijones92.totum.database
 
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import com.dewijones92.totum.common.HttpUrl
 import com.dewijones92.totum.domain.DownloadState
+import com.dewijones92.totum.domain.MediaItem
 import com.dewijones92.totum.domain.MediaItemId
+import com.dewijones92.totum.domain.MediaKind
+import com.dewijones92.totum.domain.PlayHandle
+import com.dewijones92.totum.domain.PlayableItem
+import com.dewijones92.totum.domain.SourceId
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -16,6 +23,30 @@ class RoomDownloadStoreTest {
     private lateinit var database: TotumDatabase
     private lateinit var store: RoomDownloadStore
     private val id = MediaItemId("ep-1")
+
+    private val episode = PlayableItem(
+        MediaItem(
+            id = id,
+            sourceId = SourceId("feed-1"),
+            title = "Episode one",
+            publishedAt = null,
+            duration = null,
+            author = "A host",
+            mediaUrl = HttpUrl.of("https://cdn.example.com/ep1.mp3"),
+        ),
+        PlayHandle.Podcast(),
+    )
+
+    private val video = PlayableItem(
+        MediaItem(
+            id = MediaItemId("vid-1"),
+            sourceId = SourceId("https://www.youtube.com/@chan"),
+            title = "A video",
+            publishedAt = null,
+            duration = null,
+        ),
+        PlayHandle.Video(HttpUrl.of("https://www.youtube.com/watch?v=abc123")),
+    )
 
     @Before
     fun createStore() {
@@ -31,10 +62,10 @@ class RoomDownloadStoreTest {
 
     @Test
     fun statesRoundTripThroughEachStage() = runTest {
-        store.put(id, DownloadState.Downloading(500, 1000))
+        store.put(episode, DownloadState.Downloading(500, 1000))
         assertEquals(DownloadState.Downloading(500, 1000), store.get(id))
 
-        store.put(id, DownloadState.Downloaded("/data/ep1.media"))
+        store.put(episode, DownloadState.Downloaded("/data/ep1.media"))
         assertEquals(DownloadState.Downloaded("/data/ep1.media"), store.get(id))
         assertEquals(mapOf(id to DownloadState.Downloaded("/data/ep1.media")), store.observeAll().first())
 
@@ -44,7 +75,31 @@ class RoomDownloadStoreTest {
 
     @Test
     fun failureIsPersisted() = runTest {
-        store.put(id, DownloadState.Failed("HTTP 500"))
+        store.put(episode, DownloadState.Failed("HTTP 500"))
         assertEquals(DownloadState.Failed("HTTP 500"), store.get(id))
+    }
+
+    /** The gap this closes: a download used to be an id and nothing else. */
+    @Test
+    fun aFinishedDownloadKeepsTheItemAndItsPillar() = runTest {
+        store.put(video, DownloadState.Downloaded("/data/vid.media", audioOnly = true))
+        store.put(episode, DownloadState.Downloaded("/data/ep1.media"))
+
+        val byId = store.observeDownloaded().first().associateBy { it.item.id.value }
+
+        assertEquals(setOf("vid-1", "ep-1"), byId.keys)
+        assertEquals("A video", byId.getValue("vid-1").item.title)
+        assertEquals(MediaKind.VIDEO, byId.getValue("vid-1").pillar)
+        assertTrue(byId.getValue("vid-1").audioOnly)
+        assertEquals("A host", byId.getValue("ep-1").item.author)
+        assertEquals(MediaKind.PODCAST, byId.getValue("ep-1").pillar)
+    }
+
+    @Test
+    fun unfinishedDownloadsAreNotListedAsOffline() = runTest {
+        store.put(episode, DownloadState.Downloading(1, 2))
+        store.put(video, DownloadState.Failed("nope"))
+
+        assertEquals(emptyList<String>(), store.observeDownloaded().first().map { it.item.id.value })
     }
 }

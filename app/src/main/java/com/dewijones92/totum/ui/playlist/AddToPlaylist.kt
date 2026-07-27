@@ -28,7 +28,7 @@ import com.dewijones92.totum.di.AppContainer
 import com.dewijones92.totum.domain.LocalPlaylist
 import com.dewijones92.totum.domain.MediaItem
 import com.dewijones92.totum.domain.PlaylistId
-import com.dewijones92.totum.playlist.toPlayableOrNull
+import com.dewijones92.totum.domain.toPlayableOrNull
 import kotlinx.coroutines.launch
 
 /**
