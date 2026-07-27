@@ -153,6 +153,7 @@
     <string name="error_extraction">That link was recognised but couldn\'t be read (it may be private, removed or geo-blocked).</string>
 
     <string name="play">Play</string>
+    <string name="buffering">Buffering</string>
     <string name="pause">Pause</string>
     <string name="close">Close</string>
     <string name="back">Back</string>

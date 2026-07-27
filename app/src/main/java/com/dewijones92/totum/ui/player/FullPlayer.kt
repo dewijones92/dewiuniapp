@@ -69,6 +69,7 @@ import com.dewijones92.totum.ui.player.WatchViewModel.CommentsState
 import com.dewijones92.totum.ui.player.WatchViewModel.PostState
 import com.dewijones92.totum.ui.player.WatchViewModel.RelatedState
 import com.dewijones92.totum.ui.player.WatchViewModel.RepliesState
+import kotlinx.coroutines.delay
 import java.util.concurrent.TimeUnit
 import kotlin.time.Duration
 
@@ -105,7 +106,20 @@ fun FullPlayerOverlay(
     var fullscreen by rememberSaveable { mutableStateOf(false) }
     // `videoPlayer` is non-null only for a video; only a video can go fullscreen.
     val videoPlayer = player.takeIf { state.hasVideo }
-    LaunchedEffect(videoPlayer == null) { if (videoPlayer == null) fullscreen = false }
+
+    /*
+     * Only a video can be fullscreen — but "no video" is also what the player reports
+     * for the moment between items, before the next one's tracks arrive. Acting on it
+     * immediately dropped you out of fullscreen every time the queue auto-advanced, and
+     * nothing put you back. Waiting the gap out is what distinguishes "the next item is
+     * still loading" from "this item is audio"; the effect is cancelled and restarted
+     * the instant video reappears, so a normal advance never reaches the exit.
+     */
+    LaunchedEffect(state.hasVideo) {
+        if (state.hasVideo) return@LaunchedEffect
+        delay(NO_VIDEO_GRACE_MS)
+        fullscreen = false
+    }
 
     // Back exits fullscreen first, then closes the player. Rendered in the
     // activity's own window (not a Dialog), so landscape rotation for fullscreen
@@ -113,13 +127,16 @@ fun FullPlayerOverlay(
     // would stay portrait-sized and leave the video in a stale frame.
     val videoSettings = rememberVideoSettings(state, quality, onSetSpeed, onSetSubtitleLanguage)
     BackHandler { if (fullscreen) fullscreen = false else onDismiss() }
-    FullscreenEffect(active = fullscreen && videoPlayer != null)
+    FullscreenEffect(active = fullscreen)
     Surface(modifier = Modifier.fillMaxSize()) {
-        if (fullscreen && videoPlayer != null) {
+        // Bound to `player`, not `videoPlayer`, so the surface survives an item change:
+        // rebuilding it across the gap is a visible flicker on every auto-advance. The
+        // player itself is null only before the session connects, which is not that gap.
+        if (fullscreen && player != null) {
             // Immersive: just the picture, filling the screen in landscape.
             VideoStageWithControls(
                 state = state,
-                player = videoPlayer,
+                player = player,
                 settings = videoSettings,
                 fullscreen = true,
                 onToggleFullscreen = { fullscreen = false },
@@ -598,6 +615,9 @@ internal fun formatTime(millis: Long): String {
         "%d:%02d".format(minutes, seconds)
     }
 }
+
+/** Long enough to cover the gap between queue items, short enough not to feel stuck. */
+private const val NO_VIDEO_GRACE_MS = 2_000L
 
 private const val SECONDS_PER_MINUTE = 60L
 private const val SECONDS_PER_HOUR = 3600L
