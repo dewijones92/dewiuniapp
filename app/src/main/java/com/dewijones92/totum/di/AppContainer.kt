@@ -293,7 +293,7 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
     }
 
     override val skipSegmentSource: SkipSegmentSource by lazy {
-        SponsorBlockSegmentSource(textFetcher)
+        SponsorBlockSegmentSource(textFetcher) { appPreferences.settings.value.skipCategories }
     }
 
     override val downloadManager: DownloadManager by lazy {
@@ -305,7 +305,9 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
             strategy = RoutedDownloadStrategy(
                 video = EngineDownloadStrategy(
                     engine = ytDlpEngine,
-                    sponsorBlockCategories = SponsorBlockSegmentSource.CATEGORIES.toSet(),
+                    sponsorBlockCategories = appPreferences.settings.value.skipCategories.mapTo(
+                        mutableSetOf()
+                    ) { it.id },
                 ),
                 podcast = HttpDownloadStrategy(httpClient),
             ),

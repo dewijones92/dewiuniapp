@@ -92,6 +92,7 @@ fun FullPlayerOverlay(
     onDismiss: () -> Unit,
     onPlayRelated: (MediaItem) -> Unit,
     onStartSleep: (Duration) -> Unit,
+    onStopSleepAfterItem: () -> Unit,
     onCancelSleep: () -> Unit,
     onTogglePlayPause: () -> Unit,
     onSeekTo: (Long) -> Unit,
@@ -166,6 +167,7 @@ fun FullPlayerOverlay(
                 onDismiss = onDismiss,
                 onPlayRelated = onPlayRelated,
                 onStartSleep = onStartSleep,
+                onStopSleepAfterItem = onStopSleepAfterItem,
                 onCancelSleep = onCancelSleep,
                 onTogglePlayPause = onTogglePlayPause,
                 onSeekTo = onSeekTo,
@@ -202,6 +204,7 @@ private fun DraggablePlayerContent(
     onDismiss: () -> Unit,
     onPlayRelated: (MediaItem) -> Unit,
     onStartSleep: (Duration) -> Unit,
+    onStopSleepAfterItem: () -> Unit,
     onCancelSleep: () -> Unit,
     onTogglePlayPause: () -> Unit,
     onSeekTo: (Long) -> Unit,
@@ -258,6 +261,7 @@ private fun DraggablePlayerContent(
                 queue = queue,
                 onPlayRelated = onPlayRelated,
                 onStartSleep = onStartSleep,
+                onStopSleepAfterItem = onStopSleepAfterItem,
                 onCancelSleep = onCancelSleep,
                 onTogglePlayPause = onTogglePlayPause,
                 onSeekTo = onSeekTo,
@@ -330,6 +334,7 @@ private fun PlayerDetails(
     queue: QueueControls,
     onPlayRelated: (MediaItem) -> Unit,
     onStartSleep: (Duration) -> Unit,
+    onStopSleepAfterItem: () -> Unit,
     onCancelSleep: () -> Unit,
     onTogglePlayPause: () -> Unit,
     onSeekTo: (Long) -> Unit,
@@ -380,7 +385,7 @@ private fun PlayerDetails(
     Spacer(Modifier.height(24.dp))
     // Speed lives on the video overlay for video; audio has no overlay to put it on.
     if (!controlsOverlaid) SpeedControl(state.speed, onSetSpeed)
-    SleepTimerControl(sleepTimer, onStartSleep, onCancelSleep)
+    SleepTimerControl(sleepTimer, onStartSleep, onStopSleepAfterItem, onCancelSleep)
     PlaybackTogglesRow(skipSilence = state.skipSilence, toggles = toggles)
     BoostControl(state.volumeBoost, toggles.onSetVolumeBoost)
 

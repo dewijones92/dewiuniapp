@@ -22,7 +22,7 @@ class SponsorBlockSegmentSourceTest {
               {"segment": [30.0, 20.0], "category": "inverted"}
             ]
         """.trimIndent()
-        val source = SponsorBlockSegmentSource { FetchResult.Success(body) }
+        val source = SponsorBlockSegmentSource(fetcher = { FetchResult.Success(body) })
 
         val segments = source.segmentsFor("abc123")
 
@@ -38,10 +38,10 @@ class SponsorBlockSegmentSourceTest {
     @Test
     fun `requests the right video and categories`() = runTest {
         var requested: HttpUrl? = null
-        val source = SponsorBlockSegmentSource { url ->
+        val source = SponsorBlockSegmentSource(fetcher = { url ->
             requested = url
             FetchResult.Failure("HTTP 404")
-        }
+        })
 
         source.segmentsFor("abc123")
 
@@ -53,8 +53,42 @@ class SponsorBlockSegmentSourceTest {
 
     @Test
     fun `404, network failure, and garbage all fail open to no segments`() = runTest {
-        assertTrue(SponsorBlockSegmentSource { FetchResult.Failure("HTTP 404") }.segmentsFor("x").isEmpty())
-        assertTrue(SponsorBlockSegmentSource { FetchResult.Failure("timeout") }.segmentsFor("x").isEmpty())
-        assertTrue(SponsorBlockSegmentSource { FetchResult.Success("<html>") }.segmentsFor("x").isEmpty())
+        assertTrue(SponsorBlockSegmentSource(fetcher = { FetchResult.Failure("HTTP 404") }).segmentsFor("x").isEmpty())
+        assertTrue(SponsorBlockSegmentSource(fetcher = { FetchResult.Failure("timeout") }).segmentsFor("x").isEmpty())
+        assertTrue(SponsorBlockSegmentSource(fetcher = { FetchResult.Success("<html>") }).segmentsFor("x").isEmpty())
+    }
+
+    /** Turning everything off means no request at all, not a request for nothing. */
+    @Test
+    fun `no enabled categories fetches nothing`() = runTest {
+        var called = false
+        val source = SponsorBlockSegmentSource(
+            fetcher = {
+                called = true
+                FetchResult.Success("[]")
+            },
+            categories = { emptySet() },
+        )
+
+        assertTrue(source.segmentsFor("abc123").isEmpty())
+        assertTrue("must not call SponsorBlock when nothing is enabled", !called)
+    }
+
+    @Test
+    fun `only the enabled categories are asked for`() = runTest {
+        var requested = ""
+        val source = SponsorBlockSegmentSource(
+            fetcher = { url ->
+                requested = url.value
+                FetchResult.Success("[]")
+            },
+            categories = { setOf(SkipCategory.INTRO, SkipCategory.OUTRO) },
+        )
+
+        source.segmentsFor("abc123")
+
+        assertTrue("expected intro in $requested", "category=intro" in requested)
+        assertTrue("expected outro in $requested", "category=outro" in requested)
+        assertTrue("sponsor was not enabled: $requested", "category=sponsor" !in requested)
     }
 }

@@ -23,14 +23,20 @@ public fun interface SkipSegmentSource {
  * keyless API). Any failure — network, 404 (no segments), unparseable body —
  * yields an empty list: skipping is an enhancement, never a blocker.
  */
-public class SponsorBlockSegmentSource(private val fetcher: HttpTextFetcher) : SkipSegmentSource {
+public class SponsorBlockSegmentSource(
+    private val fetcher: HttpTextFetcher,
+    /** Read per request, so changing the setting takes effect on the next video. */
+    private val categories: () -> Set<SkipCategory> = { DEFAULT_CATEGORIES },
+) : SkipSegmentSource {
 
     private val json = Json { ignoreUnknownKeys = true }
 
     override suspend fun segmentsFor(videoId: String): List<SkipSegment> {
         val encoded = URLEncoder.encode(videoId, Charsets.UTF_8)
-        val categories = CATEGORIES.joinToString("&") { "category=$it" }
-        val url = HttpUrl.of("https://sponsor.ajay.app/api/skipSegments?videoID=$encoded&$categories")
+        val enabled = categories()
+        if (enabled.isEmpty()) return emptyList()
+        val query = enabled.joinToString("&") { "category=${it.id}" }
+        val url = HttpUrl.of("https://sponsor.ajay.app/api/skipSegments?videoID=$encoded&$query")
 
         val body = when (val fetched = fetcher.fetch(url)) {
             is FetchResult.Success -> fetched.body
@@ -49,10 +55,14 @@ public class SponsorBlockSegmentSource(private val fetcher: HttpTextFetcher) : S
 
     public companion object {
         /**
-         * The unambiguous "not the content" categories. The single source of
-         * truth for what the app treats as skippable — used both to fetch
-         * segments for playback-time skipping and to remove them from downloads.
+         * On unless you say otherwise: the unambiguous "not the content" categories.
+         * The rest exist but are opinionated — an intro or a recap is content to some
+         * people — so they are offered rather than assumed.
          */
-        public val CATEGORIES: List<String> = listOf("sponsor", "selfpromo", "interaction")
+        public val DEFAULT_CATEGORIES: Set<SkipCategory> = setOf(
+            SkipCategory.SPONSOR,
+            SkipCategory.SELF_PROMO,
+            SkipCategory.INTERACTION,
+        )
     }
 }

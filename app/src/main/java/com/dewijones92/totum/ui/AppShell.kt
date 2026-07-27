@@ -239,6 +239,7 @@ private fun FullPlayerHost(
         onDismiss = onDismiss,
         onPlayRelated = watchViewModel::playRelated,
         onStartSleep = container.sleepTimer::start,
+        onStopSleepAfterItem = container.sleepTimer::stopAfterCurrentItem,
         onCancelSleep = container.sleepTimer::cancel,
         onTogglePlayPause = controller::togglePlayPause,
         onSeekTo = controller::seekTo,

@@ -31,22 +31,35 @@ import kotlin.time.Duration.Companion.minutes
 internal fun SleepTimerControl(
     state: SleepTimerState,
     onStart: (Duration) -> Unit,
+    onStopAfterItem: () -> Unit,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
+    val armed = state != SleepTimerState.Off
     TextButton(
-        onClick = { if (state is SleepTimerState.Running) onCancel() else menuOpen = true },
+        onClick = { if (armed) onCancel() else menuOpen = true },
         modifier = modifier,
     ) {
         Icon(Icons.Outlined.Bedtime, contentDescription = null, modifier = Modifier.size(20.dp))
         val label = when (state) {
             SleepTimerState.Off -> stringResource(R.string.sleep_timer)
             is SleepTimerState.Running -> formatTime(state.remaining.inWholeMilliseconds)
+            // No countdown to show — it ends when the item does.
+            SleepTimerState.AfterCurrentItem -> stringResource(R.string.sleep_after_item_short)
         }
         Text(text = label, modifier = Modifier.padding(start = 8.dp))
     }
     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+        // First, because it is the one you actually want falling asleep to a podcast:
+        // a fixed 30 minutes either cuts the episode off or runs on into the next.
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.sleep_after_item)) },
+            onClick = {
+                onStopAfterItem()
+                menuOpen = false
+            },
+        )
         SLEEP_OPTIONS.forEach { minutes ->
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.duration_minutes, minutes)) },

@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
 import com.dewijones92.totum.common.Diag
+import com.dewijones92.totum.data.sponsorblock.SkipCategory
+import com.dewijones92.totum.data.sponsorblock.SponsorBlockSegmentSource
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -41,6 +43,9 @@ interface AppPreferences {
     fun setAutoDownloadWifiOnly(enabled: Boolean)
     fun setPlaybackMode(mode: PlaybackMode)
 
+    /** Which SponsorBlock categories are skipped, in playback and in downloads alike. */
+    fun setSkipCategories(categories: Set<SkipCategory>)
+
     data class Settings(
         val wifiMaxHeight: Int = DEFAULT_WIFI_MAX_HEIGHT,
         val cellularMaxHeight: Int = DEFAULT_CELLULAR_MAX_HEIGHT,
@@ -51,6 +56,8 @@ interface AppPreferences {
         /** Restricts automatic downloads to Wi-Fi, so a long queue can't eat data. */
         val autoDownloadWifiOnly: Boolean = true,
         val playbackMode: PlaybackMode = PlaybackMode.AUTO,
+        /** SponsorBlock categories to skip; see SponsorBlockSegmentSource.DEFAULT_CATEGORIES. */
+        val skipCategories: Set<SkipCategory> = SponsorBlockSegmentSource.DEFAULT_CATEGORIES,
     )
 
     companion object {
@@ -76,6 +83,11 @@ class SharedPrefsAppPreferences(context: Context) : AppPreferences {
             playbackMode = prefs.getString(KEY_PLAYBACK_MODE, null)
                 ?.let { name -> runCatching { PlaybackMode.valueOf(name) }.getOrNull() }
                 ?: PlaybackMode.AUTO,
+            // An unknown id (a preference written by a newer build) is dropped rather
+            // than crashing; absent entirely means "never chosen", so use the defaults.
+            skipCategories = prefs.getStringSet(KEY_SKIP_CATEGORIES, null)
+                ?.mapNotNullTo(mutableSetOf()) { SkipCategory.fromId(it) }
+                ?: SponsorBlockSegmentSource.DEFAULT_CATEGORIES,
         ),
     )
     override val settings: StateFlow<AppPreferences.Settings> = _settings.asStateFlow()
@@ -100,6 +112,11 @@ class SharedPrefsAppPreferences(context: Context) : AppPreferences {
         change("autoDownloadWifiOnly", enabled, { putBoolean(KEY_AUTO_DOWNLOAD_WIFI, enabled) }) {
             it.copy(autoDownloadWifiOnly = enabled)
         }
+
+    override fun setSkipCategories(categories: Set<SkipCategory>): Unit =
+        change("skipCategories", categories.map { it.id }.sorted(), {
+            putStringSet(KEY_SKIP_CATEGORIES, categories.mapTo(mutableSetOf()) { it.id })
+        }) { it.copy(skipCategories = categories) }
 
     override fun setPlaybackMode(mode: PlaybackMode): Unit =
         change("playbackMode", mode, { putString(KEY_PLAYBACK_MODE, mode.name) }) {
@@ -129,6 +146,7 @@ class SharedPrefsAppPreferences(context: Context) : AppPreferences {
         const val KEY_AUTO_DOWNLOAD = "auto_download_queue"
         const val KEY_AUTO_DOWNLOAD_WIFI = "auto_download_wifi_only"
         const val KEY_PLAYBACK_MODE = "playback_mode"
+        const val KEY_SKIP_CATEGORIES = "skip_categories"
     }
 }
 
@@ -143,4 +161,6 @@ class InMemoryAppPreferences : AppPreferences {
     override fun setAutoDownloadWifiOnly(enabled: Boolean) =
         _settings.update { it.copy(autoDownloadWifiOnly = enabled) }
     override fun setPlaybackMode(mode: PlaybackMode) = _settings.update { it.copy(playbackMode = mode) }
+    override fun setSkipCategories(categories: Set<SkipCategory>) =
+        _settings.update { it.copy(skipCategories = categories) }
 }

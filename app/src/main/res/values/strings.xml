@@ -154,6 +154,18 @@
 
     <string name="play">Play</string>
     <string name="buffering">Buffering</string>
+    <string name="settings_skip_section">Skip in videos</string>
+    <string name="settings_skip_supporting">SponsorBlock segments to jump, both while playing and when downloading.</string>
+    <string name="skip_sponsor">Sponsor</string>
+    <string name="skip_self_promo">Self-promotion</string>
+    <string name="skip_interaction">Subscribe reminders</string>
+    <string name="skip_intro">Intro / titles</string>
+    <string name="skip_outro">Outro / endcards</string>
+    <string name="skip_preview">Recap or preview</string>
+    <string name="skip_music_offtopic">Non-music section</string>
+    <string name="skip_filler">Filler / tangents</string>
+    <string name="sleep_after_item">End of this item</string>
+    <string name="sleep_after_item_short">End of item</string>
     <string name="diagnostics_title">Diagnostics</string>
     <string name="diagnostics_refresh">Refresh</string>
     <string name="diagnostics_vitals">This session</string>
