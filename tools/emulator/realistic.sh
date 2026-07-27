@@ -55,15 +55,25 @@ doze)
     adb shell dumpsys deviceidle force-idle
     echo "dozing; 'reset' wakes it"
     ;;
-mute)
-    # Silences media output without touching the app: playback, stalls and the volume
-    # gesture all still behave, there is just nothing to hear.
-    adb shell cmd media_session volume --stream 3 --set 0 >/dev/null
-    echo "muted"
-    ;;
-unmute)
-    adb shell cmd media_session volume --stream 3 --set 8 >/dev/null
-    echo "unmuted"
+mute|unmute)
+    # Muted OUTSIDE Android, on WSLg's PulseAudio, so the app's own volume state is
+    # untouched — playback, stalls, and the volume gesture all still read normally, there
+    # is just nothing to hear. Muting Android's stream instead would corrupt exactly the
+    # thing the volume gesture is tested against.
+    #
+    # Windows-side per-app mute is the wrong layer: the emulator is a WSL process
+    # (qemu-system-x86_64), so Windows sees only WSLg's shared session and muting it
+    # would silence all of WSL.
+    want=$([ "$1" = mute ] && echo 1 || echo 0)
+    id=$(pactl list sink-inputs 2>/dev/null |
+        awk '/^Sink Input #/ { id = $3 } /application.process.binary = "qemu-system-x86_64"/ { print id; exit }' |
+        tr -d '#')
+    if [ -z "$id" ]; then
+        echo "no emulator audio stream (is it running, and has it played anything?)" >&2
+        exit 1
+    fi
+    pactl set-sink-input-mute "$id" "$want"
+    echo "$1d emulator stream #$id"
     ;;
 reset)
     adb emu network speed full
