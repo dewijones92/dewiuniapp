@@ -62,9 +62,14 @@ fun SettingsScreen(container: AppContainer, onBack: () -> Unit, modifier: Modifi
     val prefs = container.appPreferences
     val settings by prefs.settings.collectAsStateWithLifecycle()
     var showImportExport by rememberSaveable { mutableStateOf(false) }
+    var showDiagnostics by rememberSaveable { mutableStateOf(false) }
 
     if (showImportExport) {
         ImportExportScreen(container, onBack = { showImportExport = false }, modifier = modifier)
+        return
+    }
+    if (showDiagnostics) {
+        DiagnosticsScreen(onBack = { showDiagnostics = false }, modifier = modifier)
         return
     }
 
@@ -109,6 +114,7 @@ fun SettingsScreen(container: AppContainer, onBack: () -> Unit, modifier: Modifi
                 onClick = { showImportExport = true },
             )
             SectionTitle(stringResource(R.string.settings_diagnostics_section))
+            ViewDiagnosticsRow(onOpen = { showDiagnostics = true })
             DiagnosticsRow(container)
         }
     }
@@ -137,6 +143,30 @@ private fun DownloadSettings(settings: AppPreferences.Settings, prefs: AppPrefer
  * Sends the current state and event trail to the crash sink. Deliberately available
  * without a crash: most defects are "it behaved wrongly", not "it died".
  */
+/** Opens the on-device read of the same data the "send" button transmits. */
+@Composable
+private fun ViewDiagnosticsRow(onOpen: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onOpen)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = stringResource(R.string.diagnostics_view),
+                style = MaterialTheme.typography.bodyLarge,
+            )
+            Text(
+                text = stringResource(R.string.diagnostics_view_supporting),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
 @Composable
 private fun DiagnosticsRow(container: AppContainer) {
     var sent by remember { mutableStateOf(false) }

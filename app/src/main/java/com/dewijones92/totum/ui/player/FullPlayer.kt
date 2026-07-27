@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -219,54 +220,95 @@ private fun DraggablePlayerContent(
             .systemBarsPadding()
             .then(drag.contentOffset)
             .verticalScroll(rememberScrollState())
-            .padding(24.dp),
+            // Vertical only: the video bleeds to the screen edges (a 24dp inset each
+            // side wasted the width that matters most), while the text below keeps its
+            // margin via CONTENT_PADDING.
+            .padding(vertical = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        // For video the transport + seek overlay the picture (modern-player
-        // style, auto-hiding); audio keeps them below the artwork.
-        if (videoPlayer != null) {
-            Box(drag.handle) {
-                VideoStageWithControls(
-                    state = state,
-                    player = videoPlayer,
-                    settings = videoSettings,
-                    fullscreen = false,
-                    onToggleFullscreen = onEnterFullscreen,
-                    onDismiss = onDismiss,
-                    onTogglePlayPause = onTogglePlayPause,
-                    onSeekTo = onSeekTo,
-                    onSeekBackward = onSeekBackward,
-                    onSeekForward = onSeekForward,
-                )
-            }
-        } else {
-            IconButton(onClick = onDismiss, modifier = Modifier.align(Alignment.Start)) {
-                Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.close))
-            }
-            Box(drag.handle) { ArtworkStage(state) }
-        }
-
-        PlayerDetails(
+        PlayerStage(
             state = state,
-            controlsOverlaid = videoPlayer != null,
-            comments = comments,
-            replies = replies,
-            related = related,
-            watchActions = watchActions,
-            quality = quality,
-            sleepTimer = sleepTimer,
-            queue = queue,
-            onPlayRelated = onPlayRelated,
-            onStartSleep = onStartSleep,
-            onCancelSleep = onCancelSleep,
+            videoPlayer = videoPlayer,
+            settings = videoSettings,
+            dragHandle = { content -> Box(drag.handle) { content() } },
+            onEnterFullscreen = onEnterFullscreen,
+            onDismiss = onDismiss,
             onTogglePlayPause = onTogglePlayPause,
             onSeekTo = onSeekTo,
             onSeekBackward = onSeekBackward,
             onSeekForward = onSeekForward,
-            onSetSpeed = onSetSpeed,
-            onMore = onMore,
-            toggles = toggles,
         )
+
+        // Wrapped rather than padded per-child: PlayerDetails emits into this column's
+        // scope, so one padded column around it keeps the text inset while the video above
+        // reaches the screen edges.
+        Column(
+            modifier = Modifier.padding(horizontal = CONTENT_PADDING),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            PlayerDetails(
+                state = state,
+                controlsOverlaid = videoPlayer != null,
+                comments = comments,
+                replies = replies,
+                related = related,
+                watchActions = watchActions,
+                quality = quality,
+                sleepTimer = sleepTimer,
+                queue = queue,
+                onPlayRelated = onPlayRelated,
+                onStartSleep = onStartSleep,
+                onCancelSleep = onCancelSleep,
+                onTogglePlayPause = onTogglePlayPause,
+                onSeekTo = onSeekTo,
+                onSeekBackward = onSeekBackward,
+                onSeekForward = onSeekForward,
+                onSetSpeed = onSetSpeed,
+                onMore = onMore,
+                toggles = toggles,
+            )
+        }
+    }
+}
+
+/**
+ * The picture (or the artwork, for audio). For video the transport and seek bar overlay
+ * it, modern-player style and auto-hiding; audio keeps them below.
+ */
+@Composable
+private fun ColumnScope.PlayerStage(
+    state: PlaybackState,
+    videoPlayer: Player?,
+    settings: VideoSettings,
+    /** Wraps the stage in the drag-to-dismiss handle; the details below must stay scrollable. */
+    dragHandle: @Composable (@Composable () -> Unit) -> Unit,
+    onEnterFullscreen: () -> Unit,
+    onDismiss: () -> Unit,
+    onTogglePlayPause: () -> Unit,
+    onSeekTo: (Long) -> Unit,
+    onSeekBackward: () -> Unit,
+    onSeekForward: () -> Unit,
+) {
+    if (videoPlayer != null) {
+        dragHandle {
+            VideoStageWithControls(
+                state = state,
+                player = videoPlayer,
+                settings = settings,
+                fullscreen = false,
+                onToggleFullscreen = onEnterFullscreen,
+                onDismiss = onDismiss,
+                onTogglePlayPause = onTogglePlayPause,
+                onSeekTo = onSeekTo,
+                onSeekBackward = onSeekBackward,
+                onSeekForward = onSeekForward,
+            )
+        }
+    } else {
+        IconButton(onClick = onDismiss, modifier = Modifier.align(Alignment.Start)) {
+            Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.close))
+        }
+        dragHandle { Box(Modifier.padding(horizontal = CONTENT_PADDING)) { ArtworkStage(state) } }
     }
 }
 
@@ -622,6 +664,9 @@ internal fun formatTime(millis: Long): String {
 
 /** Only covers READY landing before the track list; the gap itself is handled by isBuffering. */
 private const val NO_VIDEO_GRACE_MS = 1_000L
+
+/** Side margin for everything except the video, which is full-bleed. */
+private val CONTENT_PADDING = 24.dp
 
 private const val SECONDS_PER_MINUTE = 60L
 private const val SECONDS_PER_HOUR = 3600L

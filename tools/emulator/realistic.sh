@@ -12,6 +12,7 @@
 #   tools/emulator/realistic.sh cellular          # metered transport, so quality caps apply
 #   tools/emulator/realistic.sh thermal 3         # 0=none 1=light 2=moderate 3=severe
 #   tools/emulator/realistic.sh doze              # background restrictions
+#   tools/emulator/realistic.sh mute            # Dewi finds emulator audio distracting
 #   tools/emulator/realistic.sh reset
 #
 # NOT COVERED — these still need a real device:
@@ -53,6 +54,16 @@ doze)
     adb shell dumpsys deviceidle enable
     adb shell dumpsys deviceidle force-idle
     echo "dozing; 'reset' wakes it"
+    ;;
+mute)
+    # Silences media output without touching the app: playback, stalls and the volume
+    # gesture all still behave, there is just nothing to hear.
+    adb shell cmd media_session volume --stream 3 --set 0 >/dev/null
+    echo "muted"
+    ;;
+unmute)
+    adb shell cmd media_session volume --stream 3 --set 8 >/dev/null
+    echo "unmuted"
     ;;
 reset)
     adb emu network speed full

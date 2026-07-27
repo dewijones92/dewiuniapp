@@ -23,6 +23,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -101,9 +102,16 @@ internal fun VideoStageWithControls(
     }
     val aspect = state.videoAspectRatio
     val sizing = Modifier.stageSizing(aspect, fullscreen)
+    // Slide over the picture for brightness (left) / volume (right). On the stage rather
+    // than on the fullscreen branch, so the gesture is the same inline and fullscreen.
+    val gestures = rememberVideoGestures()
+    DisposableEffect(gestures) { onDispose { gestures.release() } }
     Box(
         modifier = sizing
             .background(Color.Black)
+            // Ahead of `clickable`: the tap detector claims the pointer stream first
+            // otherwise, and a vertical drag never reaches the adjustment gestures.
+            .videoAdjustmentGestures(gestures)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -123,6 +131,7 @@ internal fun VideoStageWithControls(
             },
         )
         OverPicture(state, player, controlsVisible)
+        gestures.feedback?.let { AdjustmentReadout(it, modifier = Modifier.align(Alignment.Center)) }
         AnimatedVisibility(
             visible = controlsVisible,
             enter = fadeIn(),

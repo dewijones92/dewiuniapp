@@ -3,7 +3,7 @@ title: Quality and speed as an on-video overlay
 kind: feature
 status: shipped
 area: ui
-updated: 2026-07-25
+updated: 2026-07-27
 ---
 
 # Quality and speed live on the video
@@ -58,3 +58,31 @@ Played a YouTube video, opened the overlay, and drove it through `uiautomator`:
 Worth knowing for future device checks: the overlay auto-hides a few seconds into playback,
 and each tap on the video *toggles* it, so a `screencap` taken after a `sleep` usually
 catches an empty frame. Dump immediately after the tap, with no sleep, or pause first.
+
+## Brightness / volume slide gestures (2026-07-27)
+
+Slide vertically over the picture: left half changes **brightness**, right half
+**volume**, with a centred readout (icon, bar, percentage) while the drag lasts. The
+gesture every serious Android player has — PipePipe, mpv, VLC — and what makes fullscreen
+usable without reaching for the system bars.
+
+On the shared `VideoStage`, so it works inline and fullscreen from one implementation.
+Which half the drag *started* in fixes what it controls for the whole gesture; deciding
+per-movement would flip control as a thumb drifts across the middle. A full swipe of the
+stage covers the full range, so it feels the same at either size. Brightness is restored
+to the system value when the video goes away, or the whole app would stay dimmed.
+
+Ordering matters: the gesture modifier sits **before** `clickable`, because the tap
+detector otherwise claims the pointer stream and the drag never arrives — that cost a
+build to find.
+
+Verified on device: right-half down-swipe took volume 15 -> 8 with the readout showing
+0.533 (= 8/15); left half reports BRIGHTNESS and tracks 1.0 -> 0.279. The panel dimming
+itself is not observable on an emulator.
+
+## Video fills the width in portrait (2026-07-27)
+
+The player column padded everything by 24dp, including the video, so the picture sat
+inset from both edges — measured at `[63..1017]` on a 1080px screen. The column now pads
+vertically only and the text below carries its own margin, so the video is full-bleed:
+`[0..1080]`.

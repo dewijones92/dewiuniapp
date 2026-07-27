@@ -154,6 +154,15 @@
 
     <string name="play">Play</string>
     <string name="buffering">Buffering</string>
+    <string name="diagnostics_title">Diagnostics</string>
+    <string name="diagnostics_refresh">Refresh</string>
+    <string name="diagnostics_vitals">This session</string>
+    <string name="diagnostics_events">Recent events (%1$d)</string>
+    <string name="diagnostics_empty">Nothing recorded yet — play something and come back.</string>
+    <string name="diagnostics_view">View diagnostics</string>
+    <string name="diagnostics_view_supporting">Stalls, timings and the recent event log, on device.</string>
+    <string name="adjust_brightness">Brightness</string>
+    <string name="adjust_volume">Volume</string>
     <string name="pause">Pause</string>
     <string name="close">Close</string>
     <string name="back">Back</string>
