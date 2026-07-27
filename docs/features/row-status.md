@@ -86,3 +86,21 @@ search results and new-item notifications passed a hardcoded `NotDownloaded`, so
 downloaded video showed as not downloaded on exactly the screens you would find it
 from. Nobody chose that — a required parameter with a plausible value to hand is easy
 to satisfy wrongly.
+
+## Played was wrong twice (audited 2026-07-27)
+
+Asked to check items are actually labelled played. The display was fine; what set the
+state was not.
+
+**Nothing marked an item played when playback reached the end.** The only route was the
+progress store's heuristic — position within 15s of the end — saved by a ticker that runs
+*only while playing*. It usually got there, because the last save lands within 5s of the
+end, but it could never fire for an item with no known duration (a live stream), and it
+was inference where a fact was available. `STATE_ENDED` now marks it directly.
+
+**A flat 15s tail is wrong for short items.** It marked a 30-second Short played at the
+**halfway point**, and a 60-second one at 75%. The tail is capped at 10% of the item, so
+"nearly finished" means the same at any length: 30s → 27s (90%), 3h → unchanged at 15s.
+
+Verified on device: playing to the end logs `ended`, writes `completedAtEpochMs`, and the
+row renders `content-desc="Played"`.

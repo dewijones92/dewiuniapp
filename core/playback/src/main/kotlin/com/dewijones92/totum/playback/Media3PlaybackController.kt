@@ -82,6 +82,18 @@ public class Media3PlaybackController(
                 connected.addListener(PlaybackDiagnostics(player = { controller }))
                 connected.addListener(
                     object : Player.Listener {
+                        /*
+                         * Reaching the end IS "played" — the ground truth, rather than the
+                         * position heuristic in the progress store, which needs a known
+                         * duration and so could never mark a live or duration-less item
+                         * played at all.
+                         */
+                        override fun onPlaybackStateChanged(playbackState: Int) {
+                            if (playbackState != Player.STATE_ENDED) return
+                            val id = connected.currentMediaItem?.mediaId ?: return
+                            scope.launch { progressStore.setPlayed(MediaItemId(id), played = true) }
+                        }
+
                         override fun onEvents(player: Player, events: Player.Events) {
                             if (events.containsAny(
                                     Player.EVENT_VIDEO_SIZE_CHANGED,

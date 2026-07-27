@@ -25,7 +25,7 @@ public class RoomPlaybackProgressStore(
         dao.get(itemId.value)?.takeIf { it.completedAtEpochMs == null }?.positionMs
 
     override suspend fun save(itemId: MediaItemId, positionMs: Long, durationMs: Long?) {
-        val finished = durationMs != null && positionMs >= durationMs - NEAR_END_MS
+        val finished = durationMs != null && positionMs >= durationMs - tailFor(durationMs)
         when {
             // Too early to be worth resuming. Deliberately does not clear an existing
             // state: replaying a played item would otherwise mark it unplayed at once.
@@ -55,11 +55,22 @@ public class RoomPlaybackProgressStore(
         )
     }
 
+    /**
+     * How close to the end still counts as finished. A flat 15s is right for anything of
+     * normal length but absurd for a Short: it marked a 30-second video played at the
+     * halfway point, and a 60-second one at 75%. The tail is capped at a share of the
+     * item instead, so "nearly finished" means the same thing at any duration.
+     */
+    private fun tailFor(durationMs: Long): Long =
+        minOf(NEAR_END_MS, (durationMs * TAIL_FRACTION_PERCENT) / PERCENT)
+
     private fun PlaybackProgressEntity.playState(): PlayState =
         if (completedAtEpochMs != null) PlayState.Played else PlayState.InProgress(positionMs, durationMs)
 
     private companion object {
         const val MIN_SAVE_MS = 5_000L
         const val NEAR_END_MS = 15_000L
+        const val TAIL_FRACTION_PERCENT = 10L
+        const val PERCENT = 100L
     }
 }

@@ -82,6 +82,35 @@ class RoomPlaybackProgressStoreTest {
         assertNull(store.resumePositionMs(id))
     }
 
+    /**
+     * A flat 15s tail is right for a normal item and absurd for a Short: it marked a
+     * 30-second video played at the halfway point, and a 60-second one at 75%.
+     */
+    @Test
+    fun aShortIsNotCalledPlayedHalfwayThrough() = runTest {
+        val short = MediaItemId("short-30s")
+        store.save(short, positionMs = 16_000, durationMs = 30_000)
+        assertEquals(PlayState.InProgress(16_000, 30_000), store.observeStates().first()[short])
+
+        store.save(short, positionMs = 27_500, durationMs = 30_000)
+        assertEquals(PlayState.Played, store.observeStates().first()[short])
+    }
+
+    /** The tail stays 15s for anything long enough that 10% would be minutes. */
+    @Test
+    fun aLongItemKeepsTheFifteenSecondTail() = runTest {
+        val podcast = MediaItemId("podcast-3h")
+        val threeHours = 3 * 60 * 60 * 1_000L
+        store.save(podcast, positionMs = threeHours - 20_000, durationMs = threeHours)
+        assertEquals(
+            PlayState.InProgress(threeHours - 20_000, threeHours),
+            store.observeStates().first()[podcast],
+        )
+
+        store.save(podcast, positionMs = threeHours - 10_000, durationMs = threeHours)
+        assertEquals(PlayState.Played, store.observeStates().first()[podcast])
+    }
+
     @Test
     fun markingUnplayedClearsTheStateEntirely() = runTest {
         store.save(id, positionMs = 150_000, durationMs = 600_000)
