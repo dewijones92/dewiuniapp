@@ -64,17 +64,21 @@ private val THUMBNAIL_HEIGHT = 54.dp
 fun MediaItemRow(
     item: MediaItem,
     subtitle: String?,
-    downloadState: DownloadState,
     pillar: MediaKind,
     onPlay: () -> Unit,
     onDownload: () -> Unit,
     onDeleteDownload: () -> Unit,
     modifier: Modifier = Modifier,
-    onPlayNext: (() -> Unit)? = null,
-    onAddToQueue: (() -> Unit)? = null,
-    onAddToPlaylist: (() -> Unit)? = null,
+    /** Defaults to the app-wide offline state, so no screen has to plumb it. */
+    downloadState: DownloadState = LocalDownloadStates.current[item.id] ?: DownloadState.NotDownloaded,
+    // Everything an item can do defaults to the app-wide capability. A screen has to work
+    // to REMOVE an action, never to remember one. Only genuinely contextual actions
+    // (remove-from-playlist, move-within-queue) stay null, because they only exist somewhere.
+    onPlayNext: (() -> Unit)? = LocalItemActions.current.bind { playNext(item) },
+    onAddToQueue: (() -> Unit)? = LocalItemActions.current.bind { addToQueue(item) },
+    onAddToPlaylist: (() -> Unit)? = LocalItemActions.current.bind { addToPlaylist(item) },
     onRemoveFromPlaylist: (() -> Unit)? = null,
-    onPeek: (() -> Unit)? = null,
+    onPeek: (() -> Unit)? = LocalItemActions.current.bind { peek(item) },
     /**
      * Offered when the row's local copy is audio only (what the queue fetches
      * automatically): the tick already means "offline", so without this there'd be no
@@ -82,9 +86,10 @@ fun MediaItemRow(
      */
     onDownloadVideo: (() -> Unit)? = null,
     /** Switches between listening and watching (and sets the mode); videos only. */
-    onSwitchMode: (() -> Unit)? = null,
+    onSwitchMode: (() -> Unit)? =
+        LocalItemActions.current.takeIf { pillar == MediaKind.VIDEO }.bind { switchMode(item) },
     /** True when the mode is audio, so the action reads "Watch with video" instead. */
-    audioMode: Boolean = false,
+    audioMode: Boolean = LocalItemActions.current?.audioMode == true,
     /** Defaults to the app-wide play state, so no screen has to plumb it. */
     playState: PlayState = LocalPlayStates.current[item.id] ?: PlayState.Unplayed,
     /** Marks the item played or unplayed by hand — AntennaPod's most-used action. */
@@ -92,7 +97,7 @@ fun MediaItemRow(
     /** Queue-only: jump this entry to the front / back of the up-next order. */
     onMoveToTop: (() -> Unit)? = null,
     onMoveToBottom: (() -> Unit)? = null,
-    onGoToSource: (() -> Unit)? = LocalItemActions.current?.let { a -> { a.goToSource(item) } },
+    onGoToSource: (() -> Unit)? = LocalItemActions.current.bind { goToSource(item) },
     /** Label for [onGoToSource] — the host knows its pillar ("channel" vs "podcast"). */
     goToSourceLabelRes: Int = R.string.go_to_channel,
     /**

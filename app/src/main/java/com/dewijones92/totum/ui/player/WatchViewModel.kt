@@ -6,9 +6,9 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.dewijones92.totum.di.AppContainer
-import com.dewijones92.totum.domain.PlayHandle
-import com.dewijones92.totum.domain.PlayableItem
+import com.dewijones92.totum.domain.MediaItem
 import com.dewijones92.totum.domain.SourceId
+import com.dewijones92.totum.domain.toPlayableOrNull
 import com.dewijones92.totum.innertube.actions.ActionResult
 import com.dewijones92.totum.innertube.actions.VideoRating
 import com.dewijones92.totum.innertube.actions.YouTubeActions
@@ -17,7 +17,6 @@ import com.dewijones92.totum.innertube.comments.Comment
 import com.dewijones92.totum.innertube.comments.CommentsResult
 import com.dewijones92.totum.innertube.comments.RepliesResult
 import com.dewijones92.totum.innertube.comments.YouTubeComments
-import com.dewijones92.totum.innertube.feeds.FeedVideo
 import com.dewijones92.totum.innertube.related.RelatedResult
 import com.dewijones92.totum.innertube.related.YouTubeRelated
 import com.dewijones92.totum.queue.PlaybackQueue
@@ -95,7 +94,7 @@ constructor(
 
     sealed interface RelatedState {
         data object Loading : RelatedState
-        data class Loaded(val videos: List<FeedVideo>) : RelatedState
+        data class Loaded(val videos: List<MediaItem>) : RelatedState
         data object Error : RelatedState
     }
 
@@ -151,19 +150,19 @@ constructor(
         }
         viewModelScope.launch {
             _related.value = when (val result = relatedSource.relatedTo(videoId)) {
-                is RelatedResult.Success -> RelatedState.Loaded(result.videos)
+                // Converted here, at the boundary, so the list downstream is the domain
+                // shape every other list uses — and therefore gets the shared row.
+                is RelatedResult.Success ->
+                    RelatedState.Loaded(result.videos.map { it.toMediaItem(RELATED_SOURCE) })
                 is RelatedResult.Failure -> RelatedState.Error
             }
         }
     }
 
-    /** Plays a tapped related video through the one launcher. */
-    fun playRelated(video: FeedVideo) {
-        viewModelScope.launch {
-            queue.playNow(
-                PlayableItem(video.toMediaItem(RELATED_SOURCE), PlayHandle.Video(video.watchUrl)),
-            )
-        }
+    /** Plays a tapped related video through the queue, like every other tap. */
+    fun playRelated(video: MediaItem) {
+        val playable = video.toPlayableOrNull() ?: return
+        viewModelScope.launch { queue.playNow(playable) }
     }
 
     /**
@@ -173,7 +172,7 @@ constructor(
      */
     fun autoplayNext() {
         val videos = (_related.value as? RelatedState.Loaded)?.videos ?: return
-        val next = videos.firstOrNull { it.videoId != videoId } ?: return
+        val next = videos.firstOrNull { it.id.value != videoId } ?: return
         playRelated(next)
     }
 

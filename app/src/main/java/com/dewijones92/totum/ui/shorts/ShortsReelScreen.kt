@@ -2,8 +2,9 @@ package com.dewijones92.totum.ui.shorts
 
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -45,6 +46,7 @@ import com.dewijones92.totum.domain.PlayHandle
 import com.dewijones92.totum.domain.PlayableItem
 import com.dewijones92.totum.playback.PlaybackState
 import com.dewijones92.totum.settings.PlaybackMode
+import com.dewijones92.totum.ui.common.ItemActionSheet
 
 /**
  * A full-screen vertical Shorts reel: swipe up/down between shorts, each playing
@@ -125,6 +127,7 @@ fun ShortsReelScreen(
 }
 
 /** One reel page: the short's video (only bound on the current page), a buffering spinner, and its title. */
+@OptIn(ExperimentalFoundationApi::class)
 @androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 private fun ShortPage(
@@ -134,14 +137,19 @@ private fun ShortPage(
     state: PlaybackState?,
     onTogglePlayPause: () -> Unit,
 ) {
+    var showSheet by remember { mutableStateOf(false) }
+    if (showSheet) ItemActionSheet(short, onDismiss = { showSheet = false })
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
-            .clickable(
+            .combinedClickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = onTogglePlayPause,
+                // A short is a video like any other, so it offers the same actions as a
+                // row does. This surface had none at all, purely because it is not a list.
+                onLongClick = { showSheet = true },
             ),
         contentAlignment = Alignment.Center,
     ) {

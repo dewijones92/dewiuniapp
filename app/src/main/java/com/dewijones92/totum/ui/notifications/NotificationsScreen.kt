@@ -22,7 +22,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.dewijones92.totum.R
-import com.dewijones92.totum.domain.DownloadState
 import com.dewijones92.totum.domain.MediaKind
 import com.dewijones92.totum.ui.common.MediaItemRow
 import com.dewijones92.totum.ui.common.mediaItemSubtitle
@@ -68,7 +67,6 @@ fun NotificationsScreen(
                         MediaItemRow(
                             item = video,
                             subtitle = mediaItemSubtitle(video),
-                            downloadState = DownloadState.NotDownloaded,
                             pillar = MediaKind.VIDEO,
                             onPlay = { viewModel.play(video) },
                             onDownload = {},

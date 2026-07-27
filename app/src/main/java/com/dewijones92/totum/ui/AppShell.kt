@@ -22,11 +22,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.dewijones92.totum.R
 import com.dewijones92.totum.data.queue.QueueEntry
 import com.dewijones92.totum.di.AppContainer
 import com.dewijones92.totum.di.fake.FakeAppContainer
-import com.dewijones92.totum.domain.DownloadState
 import com.dewijones92.totum.domain.MediaItem
 import com.dewijones92.totum.domain.MediaSource
 import com.dewijones92.totum.domain.PlayableItem
@@ -36,8 +34,7 @@ import com.dewijones92.totum.playback.PlaybackState
 import com.dewijones92.totum.queue.PlaybackQueue
 import com.dewijones92.totum.theme.TotumTheme
 import com.dewijones92.totum.ui.channel.ChannelScreen
-import com.dewijones92.totum.ui.common.ActionSheet
-import com.dewijones92.totum.ui.common.LocalItemActions
+import com.dewijones92.totum.ui.common.ItemActionSheet
 import com.dewijones92.totum.ui.common.MiniPlayerBar
 import com.dewijones92.totum.ui.common.ProvidePlayStates
 import com.dewijones92.totum.ui.common.RequestNotificationPermissionOnFirstPlay
@@ -242,7 +239,7 @@ private fun FullPlayerHost(
         onMore = { showItemSheet = true }.takeIf { playing != null },
     )
 
-    PlayingItemSheet(container, playing, showItemSheet) { showItemSheet = false }
+    PlayingItemSheet(playing, showItemSheet) { showItemSheet = false }
 }
 
 /**
@@ -267,40 +264,13 @@ private fun upNextControls(queue: PlaybackQueue, upNext: List<QueueEntry>, curre
  */
 @Composable
 private fun PlayingItemSheet(
-    container: AppContainer,
     playing: PlayableItem?,
     visible: Boolean,
     onDismiss: () -> Unit,
 ) {
     val item = playing?.item ?: return
-    val actions = LocalItemActions.current ?: return
     if (!visible) return
-    val downloads by container.downloadManager.observeDownloads().collectAsStateWithLifecycle(emptyMap())
-    val playStates by remember { container.playbackProgressStore.observeStates() }
-        .collectAsStateWithLifecycle(emptyMap())
-    val local = downloads[item.id]
-    ActionSheet(
-        title = item.title,
-        onPlayNext = { actions.playNext(item) },
-        onAddToQueue = { actions.addToQueue(item) },
-        onAddToPlaylist = { actions.addToPlaylist(item) },
-        onRemoveFromPlaylist = null,
-        onPeek = { actions.peek(item) },
-        onDownloadVideo = { actions.download(item, audioOnly = false) }
-            .takeIf { (local as? DownloadState.Downloaded)?.audioOnly == true },
-        onDownload = { actions.download(item, audioOnly = true) }
-            .takeIf { local !is DownloadState.Downloaded && local !is DownloadState.Downloading },
-        onSwitchMode = { actions.switchMode(item) },
-        audioMode = actions.audioMode,
-        onGoToSource = { actions.goToSource(item) },
-        goToSourceLabelRes = R.string.go_to_channel,
-        // Reordering belongs to the queue screen, where an index exists to move.
-        onMoveToTop = null,
-        onMoveToBottom = null,
-        onSetPlayed = { played -> actions.setPlayed(item.id, played) },
-        played = playStates[item.id]?.isPlayed == true,
-        onDismiss = onDismiss,
-    )
+    ItemActionSheet(item, onDismiss)
 }
 
 private fun qualityControl(

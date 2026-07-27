@@ -57,9 +57,9 @@ import androidx.media3.common.Player
 import com.dewijones92.totum.R
 import com.dewijones92.totum.common.HttpUrl
 import com.dewijones92.totum.data.queue.QueueEntry
+import com.dewijones92.totum.domain.MediaItem
 import com.dewijones92.totum.innertube.actions.VideoRating
 import com.dewijones92.totum.innertube.comments.Comment
-import com.dewijones92.totum.innertube.feeds.FeedVideo
 import com.dewijones92.totum.playback.PlaybackState
 import com.dewijones92.totum.playback.SleepTimerState
 import com.dewijones92.totum.ui.cast.CastButton
@@ -88,7 +88,7 @@ fun FullPlayerOverlay(
     quality: QualityControl,
     sleepTimer: SleepTimerState,
     onDismiss: () -> Unit,
-    onPlayRelated: (FeedVideo) -> Unit,
+    onPlayRelated: (MediaItem) -> Unit,
     onStartSleep: (Duration) -> Unit,
     onCancelSleep: () -> Unit,
     onTogglePlayPause: () -> Unit,
@@ -178,7 +178,7 @@ private fun DraggablePlayerContent(
     queue: QueueControls,
     onEnterFullscreen: () -> Unit,
     onDismiss: () -> Unit,
-    onPlayRelated: (FeedVideo) -> Unit,
+    onPlayRelated: (MediaItem) -> Unit,
     onStartSleep: (Duration) -> Unit,
     onCancelSleep: () -> Unit,
     onTogglePlayPause: () -> Unit,
@@ -265,7 +265,7 @@ private fun PlayerDetails(
     quality: QualityControl,
     sleepTimer: SleepTimerState,
     queue: QueueControls,
-    onPlayRelated: (FeedVideo) -> Unit,
+    onPlayRelated: (MediaItem) -> Unit,
     onStartSleep: (Duration) -> Unit,
     onCancelSleep: () -> Unit,
     onTogglePlayPause: () -> Unit,

@@ -44,7 +44,6 @@ import com.dewijones92.totum.R
 import com.dewijones92.totum.data.search.SearchHit
 import com.dewijones92.totum.di.AppContainer
 import com.dewijones92.totum.di.fake.FakeAppContainer
-import com.dewijones92.totum.domain.DownloadState
 import com.dewijones92.totum.domain.MediaItem
 import com.dewijones92.totum.domain.MediaKind
 import com.dewijones92.totum.domain.MediaSource
@@ -347,7 +346,6 @@ private fun VideoHitRow(
             dateText = hit.publishedText,
             durationMinutes = hit.durationSeconds?.let { it / SECONDS_PER_MINUTE },
         ),
-        downloadState = DownloadState.NotDownloaded,
         pillar = MediaKind.VIDEO,
         onPlay = onPlay,
         onDownload = {},

@@ -3,7 +3,7 @@ title: Row status — pillar, played, offline
 kind: feature
 status: shipped
 area: ui
-updated: 2026-07-25
+updated: 2026-07-27
 ---
 
 # Every row says what it is
@@ -77,3 +77,12 @@ Verified on-device: marked a queue row played → `completedAtEpochMs` set in th
 
 Cheap now that play state exists: a **"hide played"** filter on the feeds, auto-advance
 skipping played items, and an honest Library count ("3 played, 12 unplayed").
+
+## Offline state is provided, not plumbed (2026-07-27)
+
+`LocalDownloadStates` joins `LocalPlayStates` at the app root, and `MediaItemRow`
+defaults to it. Every screen used to pass `downloadState` itself and two did not:
+search results and new-item notifications passed a hardcoded `NotDownloaded`, so a
+downloaded video showed as not downloaded on exactly the screens you would find it
+from. Nobody chose that — a required parameter with a plausible value to hand is easy
+to satisfy wrongly.

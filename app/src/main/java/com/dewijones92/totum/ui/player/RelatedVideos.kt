@@ -1,22 +1,19 @@
 package com.dewijones92.totum.ui.player
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.dewijones92.totum.R
-import com.dewijones92.totum.innertube.feeds.FeedVideo
-import com.dewijones92.totum.ui.common.MediaThumbnail
+import com.dewijones92.totum.domain.MediaItem
+import com.dewijones92.totum.domain.MediaKind
+import com.dewijones92.totum.ui.common.MediaItemRow
+import com.dewijones92.totum.ui.common.mediaItemSubtitle
 import com.dewijones92.totum.ui.player.WatchViewModel.RelatedState
 
 /**
@@ -24,11 +21,17 @@ import com.dewijones92.totum.ui.player.WatchViewModel.RelatedState
  * play. Sits below the description, above comments. When the current video ends
  * the top entry autoplays (driven from the shell), so this is both a picker and
  * the visible queue.
+ *
+ * It renders the shared [MediaItemRow] like every other list. It used to have a
+ * bespoke row, because it was handed InnerTube's `FeedVideo` rather than a
+ * [MediaItem] and the shared row simply did not fit — so long-press, play state,
+ * offline status and the pillar label were all silently missing here alone. The
+ * conversion now happens in the view-model, where every other list already does it.
  */
 @Composable
 internal fun RelatedSection(
     related: RelatedState,
-    onPlayRelated: (FeedVideo) -> Unit,
+    onPlayRelated: (MediaItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
@@ -45,63 +48,16 @@ internal fun RelatedSection(
                     PlayerNote(stringResource(R.string.related_empty))
                 } else {
                     related.videos.forEach { video ->
-                        RelatedVideoRow(video, onPlay = { onPlayRelated(video) })
+                        MediaItemRow(
+                            item = video,
+                            subtitle = mediaItemSubtitle(video),
+                            pillar = MediaKind.VIDEO,
+                            onPlay = { onPlayRelated(video) },
+                            onDownload = { },
+                            onDeleteDownload = { },
+                        )
                     }
                 }
         }
     }
 }
-
-/**
- * One related video: a 16:9 still, title and channel — the same thumbnail seam
- * ([MediaThumbnail]) every list uses. Tapping plays it through the one launcher.
- */
-@Composable
-private fun RelatedVideoRow(video: FeedVideo, onPlay: () -> Unit, modifier: Modifier = Modifier) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable(onClick = onPlay)
-            .padding(vertical = 8.dp),
-    ) {
-        MediaThumbnail(
-            url = video.thumbnailUrl,
-            contentDescription = video.title,
-            modifier = Modifier.size(width = RELATED_THUMBNAIL_WIDTH, height = RELATED_THUMBNAIL_HEIGHT),
-        )
-        Column(modifier = Modifier.padding(start = 12.dp)) {
-            Text(
-                text = video.title,
-                style = MaterialTheme.typography.bodyMedium,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            val subtitle = buildString {
-                video.author?.let { append(it) }
-                video.publishedText?.let {
-                    if (isNotEmpty()) append("  ·  ")
-                    append(it)
-                }
-                video.durationSeconds?.let {
-                    if (isNotEmpty()) append("  ·  ")
-                    append(formatTime(it * MILLIS_PER_SECOND))
-                }
-            }
-            if (subtitle.isNotEmpty()) {
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 2.dp),
-                )
-            }
-        }
-    }
-}
-
-private const val MILLIS_PER_SECOND = 1000L
-private val RELATED_THUMBNAIL_WIDTH = 120.dp
-private val RELATED_THUMBNAIL_HEIGHT = 68.dp

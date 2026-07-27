@@ -24,6 +24,8 @@ internal fun ProvidePlayStates(
 ) {
     val store = container.playbackProgressStore
     val states by remember(store) { store.observeStates() }.collectAsStateWithLifecycle(emptyMap())
+    val downloads by remember(container) { container.downloadManager.observeDownloads() }
+        .collectAsStateWithLifecycle(emptyMap())
     val scope = rememberCoroutineScope()
     val setPlayed = remember(store, scope) {
         {
@@ -32,10 +34,12 @@ internal fun ProvidePlayStates(
             Unit
         }
     }
-    // Row capabilities are provided together, in one place: play state, and everything a
-    // row can DO. Both exist so no screen has to remember to wire them.
+    // Row capabilities are provided together, in one place: what a row SHOWS (play and
+    // offline state) and everything it can DO. All of it exists so no screen has to
+    // remember to wire them — the screens that forgot are why these are defaults.
     CompositionLocalProvider(
         LocalPlayStates provides states,
+        LocalDownloadStates provides downloads,
         LocalSetPlayed provides setPlayed,
     ) {
         ProvideItemActions(container, onOpenChannel, content)

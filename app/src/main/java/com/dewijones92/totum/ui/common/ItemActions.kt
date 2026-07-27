@@ -38,3 +38,15 @@ internal interface ItemActions {
 
 /** Null only in previews and tests, where a row legitimately has nothing behind it. */
 internal val LocalItemActions = staticCompositionLocalOf<ItemActions?> { null }
+
+/**
+ * Binds one action to a row callback, or null where no actions are provided.
+ *
+ * Exists so a row can default a dozen callbacks without a dozen `?.let`s in its
+ * signature — which is both unreadable and, taken together, more branching than the
+ * function's actual logic.
+ */
+internal inline fun ItemActions?.bind(crossinline action: ItemActions.() -> Unit): (() -> Unit)? {
+    val actions = this ?: return null
+    return { actions.action() }
+}

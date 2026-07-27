@@ -43,3 +43,24 @@ playlist; podcast playing with a feed video queued up-next.
 feed items carry `sourceId = ytfeed:<FEED>` (the feed, not the channel), so this
 needs a channel handle plumbed onto `MediaItem` from the InnerTube parsers.
 Tracked as its own item: [go-to-channel-action.md](go-to-channel-action.md).
+
+## Completed 2026-07-27
+
+Two surfaces still had no menu, for two different reasons, and the earlier fix turned
+out to be partial.
+
+**Related videos** rendered InnerTube's `FeedVideo`, so the shared `MediaItemRow` (which
+takes a `MediaItem`) could not be used and a bespoke row was written — silently without a
+menu, play state, offline status or pillar label. Fixed by converting in the view model,
+where every other feed screen already did. `UnifiedRowArchitectureTest` now fails if a
+composable imports that wire type again.
+
+**The shorts reel** is full-screen, so a row cannot apply — but the actions can. It now
+long-presses into `ItemActionSheet`, extracted from the player's own copy so any non-list
+surface can show the same menu without assembling `ActionSheet`'s seventeen arguments.
+
+**The earlier inversion only reached two callbacks.** `onGoToSource` and `onSetPlayed`
+defaulted to the app-wide actions; `onPlayNext`, `onAddToQueue`, `onAddToPlaylist`,
+`onPeek` and `onSwitchMode` were still `null`, so the drift was only half-stopped. Caught
+on-device: a related row showed 2 actions where a list row showed 8. All of them now
+default, and a Library row went from 4 to 8.
