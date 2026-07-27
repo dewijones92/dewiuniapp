@@ -19,6 +19,14 @@ public fun interface VideoCodecSupport {
     /** True if a decoder exists for [codec] at [width] x [height]. */
     public fun canDecode(codec: String?, width: Int?, height: Int?): Boolean
 
+    /**
+     * Whether that decoder is hardware. Defaults to false, which keeps the conservative
+     * codec order for anything that cannot answer — a *software* AV1 decode is far worse
+     * than hardware AVC, so preferring the efficient codec is only right when the silicon
+     * is doing the work.
+     */
+    public fun isHardware(codec: String?, width: Int?, height: Int?): Boolean = false
+
     public companion object {
         /** Assumes everything decodes — for tests and previews. */
         public val Permissive: VideoCodecSupport = VideoCodecSupport { _, _, _ -> true }
@@ -57,6 +65,25 @@ public class PlatformVideoCodecSupport : VideoCodecSupport {
         return decodable
     }
 
+    override fun isHardware(codec: String?, width: Int?, height: Int?): Boolean {
+        val name = decoderName(codec, width, height) ?: return false
+        return runCatching {
+            decoders.codecInfos.firstOrNull { it.name == name }?.isHardwareAccelerated == true
+        }.getOrDefault(false)
+    }
+
+    private fun decoderName(codec: String?, width: Int?, height: Int?): String? {
+        val mime = codec.toMimeType() ?: return null
+        val format = AndroidMediaFormat().apply {
+            setString(AndroidMediaFormat.KEY_MIME, mime)
+            if (width != null && height != null) {
+                setInteger(AndroidMediaFormat.KEY_WIDTH, width)
+                setInteger(AndroidMediaFormat.KEY_HEIGHT, height)
+            }
+        }
+        return runCatching { decoders.findDecoderForFormat(format) }.getOrNull()
+    }
+
     /** yt-dlp's codec string → the Android MIME type; null when unrecognised. */
     private fun String?.toMimeType(): String? {
         val codec = this?.lowercase() ?: return null
@@ -72,23 +99,35 @@ public class PlatformVideoCodecSupport : VideoCodecSupport {
 }
 
 /**
- * Rough preference between codecs when several are decodable at one height: prefer
- * the one most likely to be hardware-accelerated and cheap on battery. AVC is the
- * safest, then VP9, then HEVC, then AV1 (newest, most often software-decoded).
+ * Preference between codecs decodable at the same height.
+ *
+ * **Hardware first, then fewest bytes.** This used to prefer AVC unconditionally, on the
+ * reasoning that it is the most likely to be hardware-accelerated. That cost real
+ * playback: for one 1080p video the AVC stream is 1328 kbps against AV1's 853 — 36% more
+ * bytes for the same picture — and with YouTube throttling the connection to near
+ * playback rate, those bytes were the difference between playing and stalling.
+ *
+ * When the device decodes it in hardware, the efficient codec wins. When it does not, the
+ * old order stands, because software AV1 is worse than hardware AVC in every way.
  */
-internal fun String?.codecPreference(): Int {
+internal fun String?.codecPreference(hardware: Boolean = false): Int {
     val codec = this?.lowercase() ?: return UNKNOWN
-    return when {
-        codec.startsWith("avc") || codec.startsWith("h264") -> AVC
-        codec.startsWith("vp9") || codec.startsWith("vp09") -> VP9
-        codec.startsWith("hev") || codec.startsWith("h265") -> HEVC
-        codec.startsWith("av01") || codec.startsWith("av1") -> AV1
-        else -> UNKNOWN
+    val rank = when {
+        codec.startsWith("av01") || codec.startsWith("av1") -> if (hardware) FIRST else LAST
+        codec.startsWith("vp9") || codec.startsWith("vp09") -> SECOND
+        codec.startsWith("hev") || codec.startsWith("h265") -> THIRD
+        codec.startsWith("avc") || codec.startsWith("h264") -> if (hardware) LAST else FIRST
+        else -> return UNKNOWN
     }
+    // Anything in hardware beats anything that is not, whatever the codec.
+    return if (hardware) rank else SOFTWARE_PENALTY + rank
 }
 
-private const val AVC = 0
-private const val VP9 = 1
-private const val HEVC = 2
-private const val AV1 = 3
+private const val FIRST = 0
+private const val SECOND = 1
+private const val THIRD = 2
+private const val LAST = 3
+
+/** Anything in hardware beats anything that is not, whatever the codec. */
+private const val SOFTWARE_PENALTY = 10
 private const val UNKNOWN = Int.MAX_VALUE

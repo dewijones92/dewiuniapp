@@ -12,6 +12,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.Tracks
 import androidx.media3.common.audio.SonicAudioProcessor
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.audio.AudioSink
@@ -115,7 +116,15 @@ public class PlaybackService : MediaSessionService() {
         val player = ExoPlayer.Builder(this)
             .setRenderersFactory(renderersFactory)
             .setBandwidthMeter(bandwidth)
-            .setMediaSourceFactory(MergingAudioVideoFactory(DefaultMediaSourceFactory(this)))
+            // Ranged fetches, not one open-ended GET: see ChunkedDataSource for the
+            // measurements. This is what stops the every-seven-seconds stalling.
+            .setMediaSourceFactory(
+                MergingAudioVideoFactory(
+                    DefaultMediaSourceFactory(this).setDataSourceFactory(
+                        ChunkedDataSource.Factory(DefaultDataSource.Factory(this)),
+                    ),
+                ),
+            )
             .setAudioAttributes(
                 AudioAttributes.Builder()
                     .setUsage(C.USAGE_MEDIA)

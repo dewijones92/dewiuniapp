@@ -51,7 +51,9 @@ public fun MediaMetadata.videoQualities(
         .filter { support.canDecode(it.videoCodec, it.width, it.height) }
         .groupBy { it.height!! }
         .mapNotNull { (height, atHeight) ->
-            val decodable = atHeight.sortedBy { it.videoCodec.codecPreference() }
+            val decodable = atHeight.sortedBy {
+                it.videoCodec.codecPreference(support.isHardware(it.videoCodec, it.width, it.height))
+            }
             val muxed = decodable.firstOrNull { it.hasAudio }
             when {
                 muxed != null -> HttpUrl.parse(muxed.url!!)?.let { video ->
