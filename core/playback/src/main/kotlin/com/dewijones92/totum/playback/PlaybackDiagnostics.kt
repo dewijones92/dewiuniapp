@@ -1,0 +1,99 @@
+package com.dewijones92.totum.playback
+
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.Player
+import com.dewijones92.totum.common.Diag
+import com.dewijones92.totum.common.Vitals
+import androidx.media3.common.MediaItem as Media3MediaItem
+
+/**
+ * Records what playback actually did — errors, stalls, transitions — as breadcrumbs and
+ * running [Vitals].
+ *
+ * It exists because none of this was observable. There was no [Player.Listener.onPlayerError]
+ * anywhere in the app, so a failed stream was completely silent: the UI sat there and a
+ * crash report carried no hint. Buffering was equally invisible — `isBuffering` drove a
+ * spinner but nothing counted or timed the stalls, which is why "is it buffering?" could
+ * only be answered by watching the screen.
+ *
+ * A separate listener from the one that publishes [PlaybackState] on purpose: observing is
+ * not the same job as mapping state, and this way logging can never break playback.
+ */
+internal class PlaybackDiagnostics(
+    private val player: () -> Player?,
+    private val now: () -> Long = System::currentTimeMillis,
+) : Player.Listener {
+
+    private var stalledSince: Long? = null
+
+    override fun onPlayerError(error: PlaybackException) {
+        Vitals.add("playback.errors")
+        Vitals.set("playback.lastError", "${error.errorCodeName}: ${error.message}")
+        Diag.warn(
+            "playback",
+            "ERROR ${error.errorCodeName} (${error.errorCode}) at ${position()} — ${describeItem()}",
+            error,
+        )
+    }
+
+    /**
+     * Times each stall rather than just noting it. A duration is what distinguishes a
+     * normal start-up buffer from the repeated mid-item stalls that read as "buffering".
+     */
+    override fun onPlaybackStateChanged(playbackState: Int) {
+        when (playbackState) {
+            Player.STATE_BUFFERING -> {
+                stalledSince = now()
+                Vitals.add("playback.stalls")
+                Diag.log("playback", "buffering at ${position()}")
+            }
+            Player.STATE_READY -> {
+                val waited = stalledSince?.let { now() - it }
+                stalledSince = null
+                if (waited != null) {
+                    Vitals.add("playback.bufferingMs", waited)
+                    Diag.log("playback", "ready after ${waited}ms at ${position()}")
+                }
+            }
+            Player.STATE_ENDED -> Diag.log("playback", "ended — ${describeItem()}")
+            Player.STATE_IDLE -> Diag.log("playback", "idle")
+        }
+    }
+
+    /** The reason matters: an automatic advance and a user tap look identical without it. */
+    override fun onMediaItemTransition(mediaItem: Media3MediaItem?, reason: Int) {
+        stalledSince = null
+        Vitals.add("playback.transitions")
+        Diag.log("playback", "transition (${reasonName(reason)}) -> ${mediaItem?.mediaId ?: "nothing"}")
+    }
+
+    override fun onIsPlayingChanged(isPlaying: Boolean) {
+        Diag.log("playback", "${if (isPlaying) "playing" else "paused"} at ${position()}")
+    }
+
+    override fun onPositionDiscontinuity(
+        oldPosition: Player.PositionInfo,
+        newPosition: Player.PositionInfo,
+        reason: Int,
+    ) {
+        // Seeks only: an automatic period transition fires this on every item change and
+        // would bury the trail in lines that onMediaItemTransition already covers.
+        if (reason != Player.DISCONTINUITY_REASON_SEEK) return
+        Diag.log("playback", "seek ${oldPosition.positionMs}ms -> ${newPosition.positionMs}ms")
+    }
+
+    private fun position(): String = player()?.let { "${it.currentPosition}ms" } ?: "?"
+
+    private fun describeItem(): String {
+        val current = player()?.currentMediaItem ?: return "nothing playing"
+        return "${current.mediaId} \"${current.mediaMetadata.title}\""
+    }
+
+    private fun reasonName(reason: Int): String = when (reason) {
+        Player.MEDIA_ITEM_TRANSITION_REASON_AUTO -> "auto"
+        Player.MEDIA_ITEM_TRANSITION_REASON_SEEK -> "seek"
+        Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED -> "playlist-changed"
+        Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT -> "repeat"
+        else -> "reason-$reason"
+    }
+}

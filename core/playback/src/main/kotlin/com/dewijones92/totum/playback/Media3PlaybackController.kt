@@ -77,6 +77,9 @@ public class Media3PlaybackController(
             {
                 val connected = future.get()
                 controller = connected
+                // Observation is a separate listener from state mapping, so a logging
+                // change can never affect what the UI sees.
+                connected.addListener(PlaybackDiagnostics(player = { controller }))
                 connected.addListener(
                     object : Player.Listener {
                         override fun onEvents(player: Player, events: Player.Events) {

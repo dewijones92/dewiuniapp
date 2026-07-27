@@ -9,6 +9,7 @@ import androidx.core.content.getSystemService
 import com.dewijones92.totum.BuildConfig
 import com.dewijones92.totum.common.Breadcrumbs
 import com.dewijones92.totum.common.Diag
+import com.dewijones92.totum.common.Vitals
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -87,6 +88,11 @@ public class CrashReporter(
             // Whatever the app can tell us about itself right now — playback, queue,
             // settings. Supplied by the caller so this class needs no app dependencies.
             put("state", JSONObject(stateProviders().toMap()))
+
+            // Running totals for the whole session — stalls, buffering time, resolve
+            // failures. A breadcrumb trail only reaches back so far; these do not
+            // scroll off, which is what makes an intermittent problem visible.
+            put("vitals", JSONObject(Vitals.snapshot().toMap()))
 
             put("events", breadcrumbsJson())
             put("logcat", logcatTail())

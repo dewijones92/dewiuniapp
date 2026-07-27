@@ -3,7 +3,9 @@ package com.dewijones92.totum.ytdlp.chaquopy
 import android.content.Context
 import com.chaquo.python.Python
 import com.chaquo.python.android.AndroidPlatform
+import com.dewijones92.totum.common.Diag
 import com.dewijones92.totum.common.HttpUrl
+import com.dewijones92.totum.common.Vitals
 import com.dewijones92.totum.ytdlp.ChannelResult
 import com.dewijones92.totum.ytdlp.DownloadEvent
 import com.dewijones92.totum.ytdlp.DownloadRequest
@@ -11,6 +13,7 @@ import com.dewijones92.totum.ytdlp.EngineVersions
 import com.dewijones92.totum.ytdlp.ExtractionResult
 import com.dewijones92.totum.ytdlp.VideoSearchResult
 import com.dewijones92.totum.ytdlp.YtDlpEngine
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
@@ -57,18 +60,49 @@ public class ChaquopyYtDlpEngine(
     }
 
     override suspend fun extract(url: HttpUrl): ExtractionResult = withContext(dispatcher) {
-        parseExtraction(url, bridge.callAttr("extract", url.value).toString())
+        timed("extract ${url.value}") { parseExtraction(url, bridge.callAttr("extract", url.value).toString()) }
     }
 
     override suspend fun searchVideos(query: String, maxResults: Int): VideoSearchResult =
         withContext(dispatcher) {
-            parseSearch(bridge.callAttr("search", query, maxResults).toString())
+            timed("search \"$query\"") { parseSearch(bridge.callAttr("search", query, maxResults).toString()) }
         }
 
     override suspend fun fetchChannel(url: HttpUrl, maxVideos: Int): ChannelResult =
         withContext(dispatcher) {
-            parseChannel(url, bridge.callAttr("channel", url.value, maxVideos).toString())
+            timed("channel ${url.value}") {
+                parseChannel(url, bridge.callAttr("channel", url.value, maxVideos).toString())
+            }
         }
+
+    /**
+     * Times every trip into Python and records it: these are the app's slowest calls and
+     * the ones a user is most likely to be waiting on. A Python-side error used to reach
+     * the caller with no trace of where it came from.
+     *
+     * The catch is deliberately broad because Python's errors are not a Kotlin type we
+     * can enumerate. Nothing is swallowed — every exception is rethrown unchanged.
+     */
+    @Suppress("TooGenericExceptionCaught")
+    private inline fun <T> timed(what: String, block: () -> T): T {
+        val startedAt = System.currentTimeMillis()
+        return try {
+            block().also {
+                val took = System.currentTimeMillis() - startedAt
+                Vitals.add("engine.callMs", took)
+                Vitals.add("engine.calls")
+                Diag.log("engine", "$what in ${took}ms")
+            }
+        } catch (e: CancellationException) {
+            // Navigating away mid-search is not a failure and must not be counted as one.
+            Diag.log("engine", "$what cancelled after ${System.currentTimeMillis() - startedAt}ms")
+            throw e
+        } catch (e: Exception) {
+            Vitals.add("engine.failures")
+            Diag.warn("engine", "$what threw after ${System.currentTimeMillis() - startedAt}ms", e)
+            throw e
+        }
+    }
 
     override fun download(request: DownloadRequest): Flow<DownloadEvent> = channelFlow {
         trySend(DownloadEvent.Started(request.url))
