@@ -92,7 +92,12 @@ jobs:
             -PversionName="0.1.${GITHUB_RUN_NUMBER}" \
             -PgitSha="${GITHUB_SHA:0:7}"
 
-      - name: Publish rolling 'latest' release
+      # A real tag per build, not a rolling one. Obtainium's default version string for a
+      # GitHub source is the release TAG, so a permanently-fixed `latest` meant the
+      # version never appeared to change and an update was only ever detected by
+      # non-default settings. v0.1.<run> matches versionName exactly, so the tag, the
+      # release title and the installed app all agree.
+      - name: Publish versioned release
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -102,12 +107,13 @@ jobs:
           # from this APK is a wall of one-letter class names (the trace carries a map id
           # to match against). Costs nothing and is useless if fetched later.
           cp app/build/outputs/mapping/release/mapping.txt totum-mapping.txt || true
-          gh release delete latest --yes || true
-          git push origin :refs/tags/latest || true
-          gh release create latest totum.apk totum-mapping.txt \
-            --prerelease \
+          # Not a prerelease: it makes this the repo's "Latest release", so
+          # /releases/latest/download/totum.apk stays a stable URL without a rolling tag,
+          # and Obtainium needs nothing switched on to see it.
+          gh release create "v0.1.${GITHUB_RUN_NUMBER}" totum.apk totum-mapping.txt \
+            --target "${GITHUB_SHA}" \
             --title "Totum main tip (0.1.${GITHUB_RUN_NUMBER})" \
-            --notes "Rolling build of main at ${GITHUB_SHA}. Signed; safe to update over previous builds."
+            --notes "Build of main at ${GITHUB_SHA}. Signed; safe to update over previous builds."
 
       - name: Upload reports on failure
         if: failure()

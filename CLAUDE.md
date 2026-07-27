@@ -232,8 +232,14 @@ when driven on the emulator. Verify real flows on a device, not just via tests.
   private `dewijones92/uniapp-signing-backup`): renaming anything holding release
   keys buys tidiness at the cost of risk. Default branch is
   `main`; pushing to it is fine and CI (GitHub Actions) must stay green.
-- Every push to main publishes a signed APK to the rolling `latest`
-  prerelease (consumed by Dewi's Obtainium).
+- Every push to main publishes a signed APK to its **own** release, tagged
+  `v0.1.<run number>` to match `versionName` (consumed by Dewi's Obtainium).
+  It is deliberately **not** a prerelease, so it becomes the repo's "Latest
+  release" and `/releases/latest/download/totum.apk` stays a stable URL.
+  This replaced a rolling `latest` tag on 2026-07-27: Obtainium's default
+  version string for a GitHub source is the release *tag*, and a tag that
+  never changes means an update is only ever detected via non-default
+  settings. Now the tag, the release title and the installed app all agree.
 - **Never re-run an older `main` CI run while one is in flight.** `ci.yml` sets
   `concurrency: cancel-in-progress` on `${{ github.ref }}`, so re-running an old
   run *cancels the current one* — and since the tip run is what publishes the
