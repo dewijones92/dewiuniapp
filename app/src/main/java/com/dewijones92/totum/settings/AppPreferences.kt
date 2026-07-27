@@ -1,7 +1,9 @@
 package com.dewijones92.totum.settings
 
 import android.content.Context
+import android.content.SharedPreferences
 import androidx.core.content.edit
+import com.dewijones92.totum.common.Diag
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -78,34 +80,46 @@ class SharedPrefsAppPreferences(context: Context) : AppPreferences {
     )
     override val settings: StateFlow<AppPreferences.Settings> = _settings.asStateFlow()
 
-    override fun setWifiMaxHeight(height: Int) {
-        prefs.edit { putInt(KEY_WIFI, height) }
-        _settings.update { it.copy(wifiMaxHeight = height) }
-    }
+    override fun setWifiMaxHeight(height: Int): Unit =
+        change("wifiMaxHeight", height, { putInt(KEY_WIFI, height) }) { it.copy(wifiMaxHeight = height) }
 
-    override fun setCellularMaxHeight(height: Int) {
-        prefs.edit { putInt(KEY_CELLULAR, height) }
-        _settings.update { it.copy(cellularMaxHeight = height) }
-    }
+    override fun setCellularMaxHeight(height: Int): Unit =
+        change("cellularMaxHeight", height, { putInt(KEY_CELLULAR, height) }) {
+            it.copy(cellularMaxHeight = height)
+        }
 
-    override fun setAutoPlayNext(enabled: Boolean) {
-        prefs.edit { putBoolean(KEY_AUTOPLAY, enabled) }
-        _settings.update { it.copy(autoPlayNext = enabled) }
-    }
+    override fun setAutoPlayNext(enabled: Boolean): Unit =
+        change("autoPlayNext", enabled, { putBoolean(KEY_AUTOPLAY, enabled) }) { it.copy(autoPlayNext = enabled) }
 
-    override fun setAutoDownloadQueue(enabled: Boolean) {
-        prefs.edit { putBoolean(KEY_AUTO_DOWNLOAD, enabled) }
-        _settings.update { it.copy(autoDownloadQueue = enabled) }
-    }
+    override fun setAutoDownloadQueue(enabled: Boolean): Unit =
+        change("autoDownloadQueue", enabled, { putBoolean(KEY_AUTO_DOWNLOAD, enabled) }) {
+            it.copy(autoDownloadQueue = enabled)
+        }
 
-    override fun setAutoDownloadWifiOnly(enabled: Boolean) {
-        prefs.edit { putBoolean(KEY_AUTO_DOWNLOAD_WIFI, enabled) }
-        _settings.update { it.copy(autoDownloadWifiOnly = enabled) }
-    }
+    override fun setAutoDownloadWifiOnly(enabled: Boolean): Unit =
+        change("autoDownloadWifiOnly", enabled, { putBoolean(KEY_AUTO_DOWNLOAD_WIFI, enabled) }) {
+            it.copy(autoDownloadWifiOnly = enabled)
+        }
 
-    override fun setPlaybackMode(mode: PlaybackMode) {
-        prefs.edit { putString(KEY_PLAYBACK_MODE, mode.name) }
-        _settings.update { it.copy(playbackMode = mode) }
+    override fun setPlaybackMode(mode: PlaybackMode): Unit =
+        change("playbackMode", mode, { putString(KEY_PLAYBACK_MODE, mode.name) }) {
+            it.copy(playbackMode = mode)
+        }
+
+    /**
+     * One path for every setting: persist, publish, and record it. A settings change is
+     * often the answer to "it started behaving differently" — a report that lists the
+     * current values cannot say *when* one of them changed, or that it changed at all.
+     */
+    private inline fun change(
+        name: String,
+        value: Any,
+        write: SharedPreferences.Editor.() -> Unit,
+        update: (AppPreferences.Settings) -> AppPreferences.Settings,
+    ) {
+        prefs.edit { write() }
+        _settings.update(update)
+        Diag.log("settings", "$name -> $value")
     }
 
     private companion object {

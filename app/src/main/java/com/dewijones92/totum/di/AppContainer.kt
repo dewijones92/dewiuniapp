@@ -37,6 +37,7 @@ import com.dewijones92.totum.database.RoomPlaybackProgressStore
 import com.dewijones92.totum.database.RoomQueueStore
 import com.dewijones92.totum.database.RoomSubscriptionStore
 import com.dewijones92.totum.database.TotumDatabase
+import com.dewijones92.totum.diagnostics.ActivitySnapshotter
 import com.dewijones92.totum.diagnostics.CrashReporter
 import com.dewijones92.totum.diagnostics.DiagnosticsUploader
 import com.dewijones92.totum.diagnostics.installAndroidLogSink
@@ -331,6 +332,9 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
     override fun installCrashReporting() {
         installAndroidLogSink()
         crashReporter.install()
+        // Turns the event trail into a timeline: transitions alone never show a download
+        // stuck at 40%, which is exactly when it is the problem.
+        ActivitySnapshotter(playbackController, downloadManager, playbackQueue, applicationScope).start()
         DiagnosticsUploader(context, httpClient, applicationScope).uploadPending()
     }
 

@@ -88,3 +88,27 @@ formatting, oldest-first ordering, and buffer eviction at the cap.
 
 Verified on-device end to end: forced crash → 154KB report on disk → DNS failure kept it
 → next launch uploaded it → indexed on the Pi with a 9-event trail, stack, and state.
+
+## From a trail to a timeline (2026-07-27)
+
+Dewi's ask: press a button and send "the last 30 mins of logs/analytics", including what
+is downloading or streaming.
+
+**The trail is time-bounded now, not count-bounded.** Nothing younger than 30 minutes is
+dropped; at least 400 entries are kept regardless of age, so a quiet session still has
+context; and 5,000 is a hard ceiling on memory. An entry is evicted only when it is
+*both* past the floor and past the window — so age protects a line the count would have
+evicted, and vice versa. A chatty minute of ticks can no longer push out the thing that
+broke twenty minutes ago.
+
+**`ActivitySnapshotter` writes a line every 30s** naming what is playing and where, how
+long the queue is, and every download in flight with its progress. Transitions alone
+answer "what happened" but never "what was it in the middle of" — a download stuck at 40%
+for ten minutes produces no events at all, which is exactly when it matters. Silent when
+nothing is happening, so an idle app spends none of the window.
+
+**More paths instrumented:** subscribe / unsubscribe (with failures and unparseable
+feeds), and every settings change, routed through one logged path so a report can say
+*when* a setting changed rather than only its current value.
+
+Verified on device: `[snapshot] playing "…" at 29346ms (running); queue=5; downloading=0`.

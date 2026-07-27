@@ -14,24 +14,50 @@ import java.util.concurrent.ConcurrentLinkedDeque
  * layers: playback transitions, codec rejections, extraction failures. A trail that only
  * the UI could write would miss exactly the lines that diagnose a bug.
  *
- * Bounded by count so a long session can't grow without limit; oldest fall off first.
+ * Bounded by **time first, count second**: "what was the app doing when it went wrong" is
+ * a question about the last half hour, not the last N events, and a chatty minute of
+ * position ticks must not push out the thing that actually broke twenty minutes ago.
  */
 public object Breadcrumbs {
 
     /**
-     * Kept well above the "last 30 events" originally asked for: 30 can be a single
-     * second of position ticks, and holding a few hundred short strings costs
-     * practically nothing next to the value of seeing further back.
+     * Nothing younger than this is ever dropped. Chosen to match how a problem is
+     * actually reported — noticed now, sent a few minutes later, after the interesting
+     * part has already scrolled past.
      */
-    private const val MAX_ENTRIES = 400
+    private const val RETENTION_MS = 30 * 60 * 1_000L
+
+    /**
+     * Kept regardless of age, so a quiet session still has context. Well above the "last
+     * 30 events" originally asked for: 30 can be a single second of position ticks.
+     */
+    private const val MIN_ENTRIES = 400
+
+    /** A ceiling on memory, for a session chatty enough that 30 minutes is a lot of lines. */
+    private const val MAX_ENTRIES = 5_000
 
     private val entries = ConcurrentLinkedDeque<Entry>()
 
     public data class Entry(val atEpochMs: Long, val tag: String, val message: String)
 
     public fun record(tag: String, message: String) {
-        entries.addLast(Entry(System.currentTimeMillis(), tag, message))
+        val now = System.currentTimeMillis()
+        entries.addLast(Entry(now, tag, message))
+        trim(now)
+    }
+
+    /**
+     * Drops an entry only when it is **both** beyond the count floor and older than the
+     * retention window — so age protects a line the count would have evicted, and the
+     * count protects a line that age would have.
+     */
+    private fun trim(now: Long) {
         while (entries.size > MAX_ENTRIES) entries.pollFirst()
+        while (entries.size > MIN_ENTRIES) {
+            val oldest = entries.peekFirst() ?: return
+            if (now - oldest.atEpochMs <= RETENTION_MS) return
+            entries.pollFirst()
+        }
     }
 
     /** Oldest first, so a report reads top-to-bottom as a story. */

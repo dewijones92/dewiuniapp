@@ -1,5 +1,6 @@
 package com.dewijones92.totum.data.podcast
 
+import com.dewijones92.totum.common.Diag
 import com.dewijones92.totum.common.HttpUrl
 import com.dewijones92.totum.data.net.FetchResult
 import com.dewijones92.totum.data.net.HttpTextFetcher
@@ -36,15 +37,22 @@ public class DefaultPodcastRepository(
 
         val body = when (val fetched = fetcher.fetch(feedUrl)) {
             is FetchResult.Success -> fetched.body
-            is FetchResult.Failure -> return SubscribeResult.Failure.Network(fetched.detail)
+            is FetchResult.Failure -> {
+                Diag.warn("subs", "subscribe failed for $feedUrl: ${fetched.detail}")
+                return SubscribeResult.Failure.Network(fetched.detail)
+            }
         }
 
         val parsed = when (val result = parser.parse(body)) {
             is RssParseResult.Success -> result.feed
-            is RssParseResult.Failure -> return SubscribeResult.Failure.InvalidFeed(result.detail)
+            is RssParseResult.Failure -> {
+                Diag.warn("subs", "unparseable feed $feedUrl: ${result.detail}")
+                return SubscribeResult.Failure.InvalidFeed(result.detail)
+            }
         }
 
         val source = parsed.toMediaSource(id, feedUrl)
+        Diag.log("subs", "subscribed \"${source.title}\" (${parsed.episodes.size} episodes) $feedUrl")
         store.saveSource(
             subscription = Subscription(source = source, subscribedAt = clock.instant()),
             items = parsed.episodes.mapIndexed { index, episode ->
@@ -55,6 +63,7 @@ public class DefaultPodcastRepository(
     }
 
     override suspend fun unsubscribe(id: SourceId) {
+        Diag.log("subs", "unsubscribed ${id.value}")
         store.removeSource(id)
     }
 

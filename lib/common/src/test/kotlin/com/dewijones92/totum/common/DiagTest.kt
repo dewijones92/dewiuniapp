@@ -50,13 +50,13 @@ class DiagTest {
 
     /** The whole point of the buffer: a long session must not grow without limit. */
     @Test
-    fun `oldest breadcrumbs fall off once the buffer is full`() {
-        repeat(500) { Diag.log("tick", "event $it") }
+    fun `the trail stays bounded however long the session runs`() {
+        repeat(6_000) { Diag.log("tick", "event $it") }
 
         val snapshot = Breadcrumbs.snapshot()
-        assertEquals(400, snapshot.size)
-        assertEquals("event 100", snapshot.first().message)
-        assertEquals("event 499", snapshot.last().message)
+        assertEquals(5_000, snapshot.size)
+        assertEquals("event 1000", snapshot.first().message)
+        assertEquals("event 5999", snapshot.last().message)
     }
 
     @Test
@@ -83,5 +83,30 @@ class DiagTest {
         Diag.log("engine", "extracting")
 
         assertEquals("extracting", Breadcrumbs.snapshot().single().message)
+    }
+
+    /**
+     * The floor holds regardless of age: a quiet session that has been open for hours
+     * must still arrive with context, not an empty trail.
+     */
+    @Test
+    fun `entries under the count floor are kept however old`() {
+        repeat(400) { Breadcrumbs.record("old", "line $it") }
+
+        assertEquals(400, Breadcrumbs.snapshot().size)
+    }
+
+    /**
+     * Beyond the floor, age decides — a chatty minute of ticks must not evict the thing
+     * that actually broke twenty minutes ago.
+     */
+    @Test
+    fun `beyond the floor, recent entries survive and stale ones do not`() {
+        repeat(600) { Breadcrumbs.record("chatty", "line $it") }
+        val trail = Breadcrumbs.snapshot()
+
+        assertEquals("nothing recent should have been dropped", 600, trail.size)
+        assertEquals("line 0", trail.first().message)
+        assertEquals("line 599", trail.last().message)
     }
 }

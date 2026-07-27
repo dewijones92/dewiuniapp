@@ -24,6 +24,15 @@ public class FakeDownloadManager : DownloadManager {
 
     override fun events(): Flow<DownloadEvent> = _events
 
+    /**
+     * Parks a download mid-flight. [download] completes instantly, which is what most
+     * tests want, but anything that observes work *in progress* needs a download that
+     * stays in progress.
+     */
+    public fun setDownloading(id: MediaItemId, downloadedBytes: Long, totalBytes: Long?) {
+        downloads.update { it + (id to DownloadState.Downloading(downloadedBytes, totalBytes)) }
+    }
+
     /** Emits an arbitrary transition, so a test can drive a consumer of [events]. */
     public fun emit(item: MediaItem, state: DownloadState) {
         _events.tryEmit(DownloadEvent(item, state))
