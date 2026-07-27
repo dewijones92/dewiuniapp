@@ -20,7 +20,9 @@ fun FeedVideo.toMediaItem(sourceId: SourceId): MediaItem = MediaItem(
     title = title,
     publishedAt = null,
     publishedText = publishedText,
-    duration = durationSeconds?.seconds,
+    // Zero means "not stated", which channel search often omits — rendering it as a
+    // real duration put "0 min" under results that are minutes long.
+    duration = durationSeconds?.takeIf { it > 0 }?.seconds,
     author = author,
     thumbnailUrl = thumbnailUrl,
     mediaUrl = watchUrl,
@@ -47,7 +49,9 @@ fun SearchHit.Video.toMediaItem(sourceId: SourceId): MediaItem = MediaItem(
     title = title,
     publishedAt = null,
     publishedText = publishedText,
-    duration = durationSeconds?.seconds,
+    // Zero means "not stated", which channel search often omits — rendering it as a
+    // real duration put "0 min" under results that are minutes long.
+    duration = durationSeconds?.takeIf { it > 0 }?.seconds,
     author = subtitle,
     thumbnailUrl = artworkUrl,
     mediaUrl = watchUrl,

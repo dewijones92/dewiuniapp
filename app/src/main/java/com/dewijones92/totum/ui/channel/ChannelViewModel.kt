@@ -52,7 +52,7 @@ class ChannelViewModel(
     private val downloads: DownloadManager,
 ) : ViewModel() {
 
-    enum class Tab { VIDEOS, SHORTS, PLAYLISTS }
+    enum class Tab { VIDEOS, SHORTS, PLAYLISTS, SEARCH }
 
     /**
      * One tab's load state. Paging lives here rather than in three parallel fields: every
@@ -76,6 +76,9 @@ class ChannelViewModel(
         val videos: TabState<MediaItem> = TabState(),
         val shorts: TabState<MediaItem> = TabState(),
         val playlists: TabState<Playlist> = TabState(),
+        /** Results of searching within this channel, and the query they belong to. */
+        val searchResults: TabState<MediaItem> = TabState(),
+        val searchQuery: String = "",
         val subscribed: Boolean = false,
         val downloadStates: Map<MediaItemId, DownloadState> = emptyMap(),
         val resolving: String? = null,
@@ -87,6 +90,8 @@ class ChannelViewModel(
         val videos: TabState<MediaItem> = TabState(),
         val shorts: TabState<MediaItem> = TabState(),
         val playlists: TabState<Playlist> = TabState(),
+        val searchResults: TabState<MediaItem> = TabState(),
+        val searchQuery: String = "",
         val resolving: String? = null,
     )
 
@@ -106,6 +111,8 @@ class ChannelViewModel(
             videos = c.videos,
             shorts = c.shorts,
             playlists = c.playlists,
+            searchResults = c.searchResults,
+            searchQuery = c.searchQuery,
             subscribed = subs.any { it.id == source.id },
             downloadStates = downloadStates,
             resolving = c.resolving,
@@ -122,6 +129,38 @@ class ChannelViewModel(
             Tab.VIDEOS -> if (!content.value.videos.loaded) loadVideos()
             Tab.SHORTS -> if (!content.value.shorts.loaded) loadShorts()
             Tab.PLAYLISTS -> if (!content.value.playlists.loaded) loadPlaylists()
+            // Nothing to load until there is a query to load it for.
+            Tab.SEARCH -> Unit
+        }
+    }
+
+    /**
+     * Searches within this channel. Blank clears the results rather than searching for
+     * nothing, so backspacing out of a query does not leave stale hits on screen.
+     */
+    fun search(query: String) {
+        val trimmed = query.trim()
+        content.update { it.copy(searchQuery = query) }
+        val id = channelId ?: return
+        if (trimmed.isEmpty()) {
+            content.update { it.copy(searchResults = TabState()) }
+            return
+        }
+        viewModelScope.launch {
+            content.update { it.copy(searchResults = it.searchResults.copy(loading = true, error = false)) }
+            val page = videoPage(channel.search(id, trimmed))
+            // Dropped if the query moved on while this was in flight.
+            if (content.value.searchQuery.trim() != trimmed) return@launch
+            content.update {
+                it.copy(
+                    searchResults = TabState(
+                        loaded = true,
+                        error = page == null,
+                        items = page?.items.orEmpty(),
+                        next = page?.next,
+                    ),
+                )
+            }
         }
     }
 
@@ -226,6 +265,11 @@ class ChannelViewModel(
                 state = { it.playlists },
                 update = { c, s -> c.copy(playlists = s) },
                 fetch = { after -> (channel.playlists(id, after) as? ChannelPlaylists.Success)?.page },
+            )
+            Tab.SEARCH -> pageMore(
+                state = { it.searchResults },
+                update = { c, s -> c.copy(searchResults = s) },
+                fetch = { after -> videoPage(channel.search(id, content.value.searchQuery.trim(), after)) },
             )
         }
     }

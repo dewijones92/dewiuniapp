@@ -18,6 +18,12 @@ public interface YouTubeChannel {
     /** The channel's Shorts. */
     public suspend fun shorts(channelId: String, after: PageToken? = null): ChannelVideos
 
+    /**
+     * Videos within this channel matching [query] — the channel's own search box.
+     * Returns the same shape as [videos], so the page renders one list either way.
+     */
+    public suspend fun search(channelId: String, query: String, after: PageToken? = null): ChannelVideos
+
     /** The channel's playlists. */
     public suspend fun playlists(channelId: String, after: PageToken? = null): ChannelPlaylists
 }

@@ -24,7 +24,7 @@ fixed-minute options only).
 | **Full backup / restore** | Agree | OPML covers subscriptions only; playlists, history, queue, resume points and settings can't leave the device. One JSON/zip over the Room tables |
 | **Granular SponsorBlock per category** | **DONE 2026-07-27.** | Categories are a hardcoded list; per-category action (skip / show / ignore) is a settings screen over data we already fetch |
 | **Player gestures (brightness / volume)** | **DONE 2026-07-27.** | Fits the fullscreen player; pairs naturally with the UI-polish work |
-| **Channel search** | Agree, small | InnerTube channel browse already works; search-within-channel is another `browseWeb` params value |
+| **Channel search** | **DONE 2026-07-27.** | InnerTube channel browse already works; search-within-channel is another `browseWeb` params value |
 | **Authenticated / private feeds** | Agree it's missing | Basic-auth podcast feeds. Only worth it if you actually have a private feed — tell me if so |
 | **Storage breakdown in Library** | **DONE 2026-07-27.** The auto-download work made it *needed* — a queue that downloads everything must show what it's using | |
 

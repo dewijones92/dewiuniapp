@@ -116,8 +116,16 @@ public class InnerTubeClient(
  * continuation already encodes what it continues — and this makes that unrepresentable.
  */
 public sealed interface BrowseTarget {
-    /** [params] selects a channel tab (Videos/Shorts/Playlists); omit for the default. */
-    public data class Id(public val browseId: String, public val params: String? = null) : BrowseTarget
+    /**
+     * [params] selects a channel tab (Videos/Shorts/Playlists); omit for the default.
+     * [query] is only meaningful with the channel's Search tab params, which is the one
+     * tab that takes an argument — searching within a channel is a browse, not a search.
+     */
+    public data class Id(
+        public val browseId: String,
+        public val params: String? = null,
+        public val query: String? = null,
+    ) : BrowseTarget
 
     public data class Continuation(public val token: String) : BrowseTarget
 }
@@ -146,6 +154,8 @@ internal fun BrowseTarget.fields(): String = when (this) {
     is BrowseTarget.Id -> buildString {
         append(""" "browseId":"$browseId" """)
         if (params != null) append(""", "params":"$params" """)
+        // Arbitrary user text, so encoded rather than interpolated.
+        if (query != null) append(", \"query\":" + JsonPrimitive(query))
     }
     is BrowseTarget.Continuation -> """ "continuation":"$token" """
 }

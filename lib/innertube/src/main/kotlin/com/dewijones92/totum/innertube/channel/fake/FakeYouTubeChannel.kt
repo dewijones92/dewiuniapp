@@ -31,6 +31,15 @@ public class FakeYouTubeChannel(
         return ChannelVideos.Success(page)
     }
 
+    /** Filters the registered videos by title, which is enough to drive the UI. */
+    override suspend fun search(channelId: String, query: String, after: PageToken?): ChannelVideos {
+        searched += query
+        return ChannelVideos.Success(Page.last(videos.filter { it.title.contains(query, ignoreCase = true) }))
+    }
+
+    /** Every query asked for, in order — lets a test assert the channel was searched. */
+    public val searched: MutableList<String> = mutableListOf()
+
     override suspend fun shorts(channelId: String, after: PageToken?): ChannelVideos =
         ChannelVideos.Success(Page.last(shorts))
 

@@ -17,6 +17,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
@@ -70,6 +71,7 @@ fun ChannelScreen(
         onBack = onBack,
         onToggleSubscribed = viewModel::toggleSubscribed,
         onSelectTab = viewModel::selectTab,
+        onSearch = viewModel::search,
         onPlay = viewModel::play,
         onDownload = viewModel::download,
         onDeleteDownload = viewModel::deleteDownload,
@@ -87,6 +89,7 @@ internal fun ChannelContent(
     onBack: () -> Unit,
     onToggleSubscribed: () -> Unit,
     onSelectTab: (ChannelTab) -> Unit,
+    onSearch: (String) -> Unit,
     onPlay: (MediaItem) -> Unit,
     onDownload: (MediaItem) -> Unit,
     onDeleteDownload: (MediaItem) -> Unit,
@@ -132,8 +135,50 @@ internal fun ChannelContent(
                     onLoadMore,
                 )
                 ChannelTab.PLAYLISTS -> PlaylistTab(state.playlists, onOpenPlaylist, onLoadMore)
+                ChannelTab.SEARCH -> SearchTab(
+                    state,
+                    onSearch,
+                    onPlay,
+                    onDownload,
+                    onDeleteDownload,
+                    onAddToPlaylist,
+                    onLoadMore,
+                )
             }
         }
+    }
+}
+
+/** Searching within the channel: a field, then the same list every other tab renders. */
+@Composable
+private fun SearchTab(
+    state: ChannelViewModel.UiState,
+    onSearch: (String) -> Unit,
+    onPlay: (MediaItem) -> Unit,
+    onDownload: (MediaItem) -> Unit,
+    onDeleteDownload: (MediaItem) -> Unit,
+    onAddToPlaylist: (MediaItem) -> Unit,
+    onLoadMore: () -> Unit,
+) {
+    Column {
+        OutlinedTextField(
+            value = state.searchQuery,
+            onValueChange = onSearch,
+            singleLine = true,
+            label = { Text(stringResource(R.string.channel_search_hint)) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+        )
+        MediaItemTab(
+            state.searchResults,
+            state.downloadStates,
+            onPlay,
+            onDownload,
+            onDeleteDownload,
+            onAddToPlaylist,
+            onLoadMore,
+        )
     }
 }
 
@@ -141,6 +186,7 @@ private fun ChannelTab.labelRes(): Int = when (this) {
     ChannelTab.VIDEOS -> R.string.channel_tab_videos
     ChannelTab.SHORTS -> R.string.channel_tab_shorts
     ChannelTab.PLAYLISTS -> R.string.channel_tab_playlists
+    ChannelTab.SEARCH -> R.string.channel_tab_search
 }
 
 @Composable
