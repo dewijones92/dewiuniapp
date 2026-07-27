@@ -1,6 +1,8 @@
 package com.dewijones92.totum.ui.search
 
 import com.dewijones92.totum.common.HttpUrl
+import com.dewijones92.totum.common.Page
+import com.dewijones92.totum.common.PageToken
 import com.dewijones92.totum.data.history.fake.InMemoryPlayHistoryStore
 import com.dewijones92.totum.data.podcast.fake.FakePodcastRepository
 import com.dewijones92.totum.data.queue.fake.InMemoryQueueStore
@@ -29,6 +31,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -53,10 +56,11 @@ class SearchViewModelTest {
     private var cannedSegments: List<SkipSegment> = emptyList()
 
     private fun viewModel(
-        podcastSearch: SearchSource = SearchSource { _, _ -> SearchOutcome.Success(listOf(podcastHit)) },
+        podcastSearch: SearchSource = SearchSource { _, _, _ -> SearchOutcome.Success(Page.last(listOf(podcastHit))) },
+        videoSearch: SearchSource = YtDlpVideoSearchSource(engine),
     ) = SearchViewModel(
         podcastSearch = podcastSearch,
-        videoSearch = YtDlpVideoSearchSource(engine),
+        videoSearch = videoSearch,
         podcastRepository = repository,
         // Search plays through the queue like every other screen now, so the test wires the
         // real queue (over a fake controller) instead of reaching for the launcher directly.
@@ -95,8 +99,8 @@ class SearchViewModelTest {
 
         val results = viewModel.uiState.value.results as Results.Loaded
         assertEquals(listOf(podcastHit), results.podcasts)
-        assertEquals(1, results.videos.size)
-        assertEquals("Sample result", results.videos[0].title)
+        assertEquals(1, results.videos.items.size)
+        assertEquals("Sample result", results.videos.items[0].title)
     }
 
     @Test
@@ -115,13 +119,91 @@ class SearchViewModelTest {
         advanceUntilIdle()
         val results = viewModel.uiState.value.results as Results.Loaded
         assertEquals(listOf(podcastHit), results.podcasts)
-        assertEquals(1, results.videos.size)
+        assertEquals(1, results.videos.items.size)
+    }
+
+    /** A source that hands out numbered pages, so paging can be driven to exhaustion. */
+    private fun pagedVideos(pages: List<Page<SearchHit>>): SearchSource {
+        var index = 0
+        return SearchSource { _, _, after ->
+            // A first search must not consume a continuation page.
+            if (after == null) index = 0
+            SearchOutcome.Success(pages.getOrElse(index++) { Page.empty() })
+        }
+    }
+
+    private fun videoHit(id: String) = SearchHit.Video(
+        title = id,
+        subtitle = null,
+        artworkUrl = null,
+        watchUrl = HttpUrl.of("https://www.youtube.com/watch?v=$id"),
+        durationSeconds = null,
+    )
+
+    @Test
+    fun `loading more appends the next page and keeps what is already shown`() = runTest(dispatcher) {
+        val viewModel = viewModel(
+            videoSearch = pagedVideos(
+                listOf(
+                    Page(listOf(videoHit("one")), PageToken("t1")),
+                    Page.last(listOf(videoHit("two"))),
+                ),
+            ),
+        )
+        backgroundScope.launch { viewModel.uiState.collect {} }
+        viewModel.search("time")
+        advanceUntilIdle()
+        assertEquals(listOf("one"), (viewModel.uiState.value.results as Results.Loaded).videos.items.map { it.title })
+
+        viewModel.loadMoreVideos()
+        advanceUntilIdle()
+
+        val results = viewModel.uiState.value.results as Results.Loaded
+        assertEquals(listOf("one", "two"), results.videos.items.map { it.title })
+        assertFalse("the last page must end the scroll", results.canLoadMore)
+    }
+
+    /** YouTube does return overlapping pages; a repeat must not double a row. */
+    @Test
+    fun `an overlapping page does not duplicate rows`() = runTest(dispatcher) {
+        val viewModel = viewModel(
+            videoSearch = pagedVideos(
+                listOf(
+                    Page(listOf(videoHit("one")), PageToken("t1")),
+                    Page.last(listOf(videoHit("one"), videoHit("two"))),
+                ),
+            ),
+        )
+        backgroundScope.launch { viewModel.uiState.collect {} }
+        viewModel.search("time")
+        advanceUntilIdle()
+        viewModel.loadMoreVideos()
+        advanceUntilIdle()
+
+        val results = viewModel.uiState.value.results as Results.Loaded
+        assertEquals(listOf("one", "two"), results.videos.items.map { it.title })
+    }
+
+    @Test
+    fun `a final page offers nothing more to load`() = runTest(dispatcher) {
+        val viewModel = viewModel(videoSearch = pagedVideos(listOf(Page.last(listOf(videoHit("only"))))))
+        backgroundScope.launch { viewModel.uiState.collect {} }
+        viewModel.search("time")
+        advanceUntilIdle()
+
+        val results = viewModel.uiState.value.results as Results.Loaded
+        assertFalse(results.canLoadMore)
+
+        // Asking anyway is a no-op rather than an error or a duplicate fetch.
+        viewModel.loadMoreVideos()
+        advanceUntilIdle()
+        assertEquals(listOf("only"), (viewModel.uiState.value.results as Results.Loaded).videos.items.map { it.title })
     }
 
     @Test
     fun `one backend failing does not hide the other`() = runTest(dispatcher) {
         engine.registerSearch("time", listOf(FakeYtDlpEngine.sampleSearchEntry()))
-        val viewModel = viewModel(podcastSearch = SearchSource { _, _ -> SearchOutcome.Failure("down") })
+        val viewModel = viewModel(podcastSearch = SearchSource { _, _, _ -> SearchOutcome.Failure("down") })
         backgroundScope.launch { viewModel.uiState.collect {} }
 
         viewModel.search("time")
@@ -129,7 +211,7 @@ class SearchViewModelTest {
 
         val results = viewModel.uiState.value.results as Results.Loaded
         assertTrue(results.podcastsFailed)
-        assertEquals(1, results.videos.size)
+        assertEquals(1, results.videos.items.size)
     }
 
     @Test

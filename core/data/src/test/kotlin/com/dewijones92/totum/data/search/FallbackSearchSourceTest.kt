@@ -1,6 +1,7 @@
 package com.dewijones92.totum.data.search
 
 import com.dewijones92.totum.common.HttpUrl
+import com.dewijones92.totum.common.Page
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -18,21 +19,23 @@ class FallbackSearchSourceTest {
         durationSeconds = null,
     )
 
-    private fun source(outcome: SearchOutcome) = SearchSource { _, _ -> outcome }
+    private fun source(outcome: SearchOutcome) = SearchSource { _, _, _ -> outcome }
+
+    private fun found(vararg titles: String) = SearchOutcome.Success(Page.last(titles.map(::hit)))
 
     private fun titles(outcome: SearchOutcome) =
-        (outcome as SearchOutcome.Success).hits.map { it.title }
+        (outcome as SearchOutcome.Success).page.items.map { it.title }
 
     @Test
     fun `primary hits are used and the fallback is never consulted`() = runTest {
         var fallbackCalled = false
-        val fallback = SearchSource { _, _ ->
+        val fallback = SearchSource { _, _, _ ->
             fallbackCalled = true
-            SearchOutcome.Success(listOf(hit("from-fallback")))
+            found("from-fallback")
         }
 
-        val outcome = FallbackSearchSource(source(SearchOutcome.Success(listOf(hit("from-primary")))), fallback)
-            .search(query, 10)
+        val outcome = FallbackSearchSource(source(found("from-primary")), fallback)
+            .search(query, 10, after = null)
 
         assertEquals(listOf("from-primary"), titles(outcome))
         assertTrue("fallback must not run when the primary answered", !fallbackCalled)
@@ -42,8 +45,8 @@ class FallbackSearchSourceTest {
     fun `a primary failure falls back`() = runTest {
         val outcome = FallbackSearchSource(
             source(SearchOutcome.Failure("boom")),
-            source(SearchOutcome.Success(listOf(hit("from-fallback")))),
-        ).search(query, 10)
+            source(found("from-fallback")),
+        ).search(query, 10, after = null)
 
         assertEquals(listOf("from-fallback"), titles(outcome))
     }
@@ -51,9 +54,9 @@ class FallbackSearchSourceTest {
     @Test
     fun `an empty primary result falls back too`() = runTest {
         val outcome = FallbackSearchSource(
-            source(SearchOutcome.Success(emptyList())),
-            source(SearchOutcome.Success(listOf(hit("from-fallback")))),
-        ).search(query, 10)
+            source(SearchOutcome.Success(Page.empty())),
+            source(found("from-fallback")),
+        ).search(query, 10, after = null)
 
         assertEquals(listOf("from-fallback"), titles(outcome))
     }
@@ -63,7 +66,7 @@ class FallbackSearchSourceTest {
         val outcome = FallbackSearchSource(
             source(SearchOutcome.Failure("primary boom")),
             source(SearchOutcome.Failure("fallback boom")),
-        ).search(query, 10)
+        ).search(query, 10, after = null)
 
         assertEquals("fallback boom", (outcome as SearchOutcome.Failure).detail)
     }

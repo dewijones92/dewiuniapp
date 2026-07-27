@@ -66,6 +66,33 @@ class ContinuationsTest {
         assertEquals("feed-token", token?.value)
     }
 
+    /**
+     * A real search response, in miniature. YouTube puts six filter chips ("Shorts",
+     * "Live", …) *after* the results list, each holding a continuation of its own — so
+     * "take the last token" picked a filter, and following it returned a result set with
+     * no videos in it. Search paginated once, to nothing, and stopped. Verified against
+     * the live endpoint: the chip token yields 0 videoRenderers, the real one yields 21.
+     */
+    @Test
+    fun `a filter chip is not mistaken for the next page`() {
+        val token = find(
+            """
+            {"contents":{"sectionListRenderer":{"contents":[
+              {"itemSectionRenderer":{"contents":[{"videoRenderer":{"videoId":"abc"}}]}},
+              {"continuationItemRenderer":
+                {"continuationEndpoint":{"continuationCommand":{"token":"next-page"}}}}
+            ],"subMenu":{"searchSubMenuRenderer":{"chipCloud":{"chipCloudRenderer":{"chips":[
+              {"chipCloudChipRenderer":{"navigationEndpoint":
+                {"continuationCommand":{"token":"filter-shorts"}}}},
+              {"chipCloudChipRenderer":{"navigationEndpoint":
+                {"continuationCommand":{"token":"filter-live"}}}}
+            ]}}}}}}}
+            """.trimIndent(),
+        )
+
+        assertEquals("next-page", token?.value)
+    }
+
     @Test
     fun `a blank token is treated as absent rather than crashing`() {
         val body = """{"continuationItemRenderer":{"continuationEndpoint":{"continuationCommand":{"token":""}}}}"""

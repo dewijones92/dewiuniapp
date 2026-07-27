@@ -5,6 +5,9 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.dewijones92.totum.common.Diag
+import com.dewijones92.totum.common.Page
+import com.dewijones92.totum.common.append
 import com.dewijones92.totum.data.podcast.PodcastRepository
 import com.dewijones92.totum.data.search.SearchHistoryStore
 import com.dewijones92.totum.data.search.SearchHit
@@ -60,10 +63,14 @@ class SearchViewModel(
         /** Sections are independent: one backend failing doesn't hide the other. */
         data class Loaded(
             val podcasts: List<SearchHit.Podcast>,
-            val videos: List<SearchHit.Video>,
+            /** Carries its own continuation, so the section knows whether more exists. */
+            val videos: Page<SearchHit.Video>,
             val podcastsFailed: Boolean,
             val videosFailed: Boolean,
-        ) : Results
+            val loadingMore: Boolean = false,
+        ) : Results {
+            val canLoadMore: Boolean get() = videos.hasMore
+        }
     }
 
     private val playAttempt = MutableStateFlow(PlayAttempt())
@@ -81,18 +88,35 @@ class SearchViewModel(
      * the backends on a single keystroke.
      */
     @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
-    private val results: Flow<Results> = typed
+    private val searched: Flow<Results> = typed
         .debounce(DEBOUNCE_MILLIS)
         .map { it.trim() }
         .distinctUntilChanged()
         .transformLatest { raw ->
             if (raw.length < MIN_QUERY_LENGTH) {
+                activeQuery = null
                 emit(Results.Idle)
             } else {
                 emit(Results.Searching)
-                emit(runSearch(SearchQuery(raw)))
+                val query = SearchQuery(raw)
+                activeQuery = query
+                emit(runSearch(query))
             }
         }
+
+    /*
+     * Held rather than derived, because "load more" appends to what is already on screen
+     * — a pure derivation of the query text has nowhere to put page two. The typed flow
+     * feeds this; loadMoreVideos appends to it.
+     */
+    private val results = MutableStateFlow<Results>(Results.Idle)
+
+    /** The query the current results belong to, so a continuation asks about the right one. */
+    private var activeQuery: SearchQuery? = null
+
+    init {
+        viewModelScope.launch { searched.collect { results.value = it } }
+    }
 
     val uiState: StateFlow<UiState> = combine(
         results,
@@ -130,9 +154,15 @@ class SearchViewModel(
     }
 
     private suspend fun runSearch(query: SearchQuery): Results = coroutineScope {
-        val podcasts = async { podcastSearch.search(query, RESULTS_PER_SECTION) }
-        val videos = async { videoSearch.search(query, RESULTS_PER_SECTION) }
-        toLoaded(podcasts.await(), videos.await())
+        val podcasts = async { podcastSearch.search(query, RESULTS_PER_SECTION, after = null) }
+        val videos = async { videoSearch.search(query, RESULTS_PER_SECTION, after = null) }
+        toLoaded(podcasts.await(), videos.await()).also {
+            Diag.log(
+                "search",
+                "\"${query.value}\" -> ${it.podcasts.size} podcasts, " +
+                    "${it.videos.items.size} videos (more=${it.canLoadMore})",
+            )
+        }
     }
 
     fun subscribe(hit: SearchHit.Podcast) {
@@ -154,11 +184,51 @@ class SearchViewModel(
     }
 
     private fun toLoaded(podcasts: SearchOutcome, videos: SearchOutcome) = Results.Loaded(
-        podcasts = (podcasts as? SearchOutcome.Success)?.hits?.filterIsInstance<SearchHit.Podcast>().orEmpty(),
-        videos = (videos as? SearchOutcome.Success)?.hits?.filterIsInstance<SearchHit.Video>().orEmpty(),
+        podcasts = (podcasts as? SearchOutcome.Success)
+            ?.page?.items?.filterIsInstance<SearchHit.Podcast>().orEmpty(),
+        videos = (videos as? SearchOutcome.Success)?.page?.videosOnly() ?: Page.empty(),
         podcastsFailed = podcasts is SearchOutcome.Failure,
         videosFailed = videos is SearchOutcome.Failure,
     )
+
+    /**
+     * Fetches the next page of video results and appends it.
+     *
+     * Podcasts have no equivalent: the directory answers in one shot, which its source
+     * states by returning a final page — so there is simply never a token to follow.
+     */
+    fun loadMoreVideos() {
+        val current = results.value as? Results.Loaded ?: return
+        if (current.loadingMore) return
+        val token = current.videos.next ?: return
+        val query = activeQuery ?: return
+        results.value = current.copy(loadingMore = true)
+        viewModelScope.launch {
+            val outcome = videoSearch.search(query, RESULTS_PER_SECTION, token)
+            // Re-read: a new query may have landed while this page was in flight, and
+            // appending page two of the old search to it would be worse than dropping it.
+            val latest = results.value as? Results.Loaded ?: return@launch
+            if (activeQuery != query) return@launch
+            results.value = when (outcome) {
+                is SearchOutcome.Success -> {
+                    val grown = latest.videos.append(outcome.page.videosOnly()) { it.watchUrl.value }
+                    Diag.log(
+                        "search",
+                        "next page -> ${outcome.page.items.size} returned, " +
+                            "${grown.items.size} total (more=${grown.hasMore})",
+                    )
+                    latest.copy(videos = grown, loadingMore = false)
+                }
+                is SearchOutcome.Failure -> {
+                    Diag.warn("search", "next page failed: ${outcome.detail}")
+                    latest.copy(loadingMore = false)
+                }
+            }
+        }
+    }
+
+    private fun Page<SearchHit>.videosOnly(): Page<SearchHit.Video> =
+        Page(items.filterIsInstance<SearchHit.Video>(), next)
 
     companion object {
         private const val STOP_TIMEOUT_MILLIS = 5_000L

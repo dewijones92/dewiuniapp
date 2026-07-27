@@ -1,6 +1,8 @@
 package com.dewijones92.totum.data.search
 
 import com.dewijones92.totum.common.HttpUrl
+import com.dewijones92.totum.common.Page
+import com.dewijones92.totum.common.PageToken
 import com.dewijones92.totum.data.net.FetchResult
 import com.dewijones92.totum.data.net.HttpTextFetcher
 import kotlinx.serialization.json.Json
@@ -18,7 +20,9 @@ public class ItunesPodcastSearchSource(private val fetcher: HttpTextFetcher) : S
 
     private val json = Json { ignoreUnknownKeys = true }
 
-    override suspend fun search(query: SearchQuery, limit: Int): SearchOutcome {
+    /** The directory answers in one shot, so every page is the last one. */
+    override suspend fun search(query: SearchQuery, limit: Int, after: PageToken?): SearchOutcome {
+        if (after != null) return SearchOutcome.Success(Page.empty())
         val encoded = URLEncoder.encode(query.value, Charsets.UTF_8)
         val url = HttpUrl.of("https://itunes.apple.com/search?media=podcast&limit=$limit&term=$encoded")
 
@@ -40,7 +44,7 @@ public class ItunesPodcastSearchSource(private val fetcher: HttpTextFetcher) : S
                 feedUrl = feedUrl,
             )
         }
-        return SearchOutcome.Success(hits)
+        return SearchOutcome.Success(Page.last(hits))
     }
 
     private fun kotlinx.serialization.json.JsonObject.stringOrNull(key: String): String? =

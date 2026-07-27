@@ -1,5 +1,7 @@
 package com.dewijones92.totum.data.search
 
+import com.dewijones92.totum.common.PageToken
+
 /**
  * Tries [primary] and falls back to [fallback] when it fails or finds nothing.
  * Keeps two independent backends for one pillar useful without either knowing
@@ -11,9 +13,10 @@ public class FallbackSearchSource(
     private val fallback: SearchSource,
 ) : SearchSource {
 
-    override suspend fun search(query: SearchQuery, limit: Int): SearchOutcome =
-        when (val result = primary.search(query, limit)) {
-            is SearchOutcome.Success -> if (result.hits.isEmpty()) fallback.search(query, limit) else result
-            is SearchOutcome.Failure -> fallback.search(query, limit)
+    override suspend fun search(query: SearchQuery, limit: Int, after: PageToken?): SearchOutcome =
+        when (val result = primary.search(query, limit, after)) {
+            is SearchOutcome.Success ->
+                if (result.page.items.isEmpty()) fallback.search(query, limit, after) else result
+            is SearchOutcome.Failure -> fallback.search(query, limit, after)
         }
 }

@@ -23,7 +23,7 @@ class ItunesPodcastSearchSourceTest {
         """.trimIndent()
         val source = ItunesPodcastSearchSource { FetchResult.Success(body) }
 
-        val hits = (source.search(query, limit = 10) as SearchOutcome.Success).hits
+        val hits = (source.search(query, limit = 10, after = null) as SearchOutcome.Success).page.items
 
         assertEquals(1, hits.size)
         val hit = hits[0] as SearchHit.Podcast
@@ -35,13 +35,13 @@ class ItunesPodcastSearchSourceTest {
     @Test
     fun `network failure is a value`() = runTest {
         val source = ItunesPodcastSearchSource { FetchResult.Failure("HTTP 503") }
-        assertEquals(SearchOutcome.Failure("HTTP 503"), source.search(query, limit = 10))
+        assertEquals(SearchOutcome.Failure("HTTP 503"), source.search(query, limit = 10, after = null))
     }
 
     @Test
     fun `unparseable body is a failure value`() = runTest {
         val source = ItunesPodcastSearchSource { FetchResult.Success("<html>not json</html>") }
-        assertTrue(source.search(query, limit = 10) is SearchOutcome.Failure)
+        assertTrue(source.search(query, limit = 10, after = null) is SearchOutcome.Failure)
     }
 
     @Test

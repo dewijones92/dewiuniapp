@@ -1,6 +1,8 @@
 package com.dewijones92.totum.data.search
 
 import com.dewijones92.totum.common.HttpUrl
+import com.dewijones92.totum.common.Page
+import com.dewijones92.totum.common.PageToken
 
 /** A non-blank search query. */
 @JvmInline
@@ -16,11 +18,21 @@ public value class SearchQuery(public val value: String) {
  * the UI renders all hits the same way and never knows which backend answered.
  */
 public fun interface SearchSource {
-    public suspend fun search(query: SearchQuery, limit: Int): SearchOutcome
+    /**
+     * [after] continues a previous page; null starts a fresh search.
+     *
+     * A directory that answers in one shot (iTunes) returns [Page.last], and that is a
+     * complete answer rather than a special case — which is what lets one infinite
+     * scroll serve both pillars.
+     *
+     * No default for [after]: this stays a `fun interface` so a test can supply a source
+     * as a lambda, and Kotlin forbids defaults on the abstract method of one.
+     */
+    public suspend fun search(query: SearchQuery, limit: Int, after: PageToken?): SearchOutcome
 }
 
 public sealed interface SearchOutcome {
-    public data class Success(val hits: List<SearchHit>) : SearchOutcome
+    public data class Success(val page: Page<SearchHit>) : SearchOutcome
     public data class Failure(val detail: String) : SearchOutcome
 }
 

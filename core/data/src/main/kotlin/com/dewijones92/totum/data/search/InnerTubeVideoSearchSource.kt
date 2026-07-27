@@ -1,5 +1,6 @@
 package com.dewijones92.totum.data.search
 
+import com.dewijones92.totum.common.PageToken
 import com.dewijones92.totum.innertube.search.SearchVideosResult
 import com.dewijones92.totum.innertube.search.YouTubeSearch
 
@@ -10,11 +11,11 @@ import com.dewijones92.totum.innertube.search.YouTubeSearch
  */
 public class InnerTubeVideoSearchSource(private val search: YouTubeSearch) : SearchSource {
 
-    override suspend fun search(query: SearchQuery, limit: Int): SearchOutcome =
-        when (val result = search.searchVideos(query.value, limit)) {
+    override suspend fun search(query: SearchQuery, limit: Int, after: PageToken?): SearchOutcome =
+        when (val result = search.searchVideos(query.value, limit, after)) {
             is SearchVideosResult.Failure -> SearchOutcome.Failure(result.detail)
             is SearchVideosResult.Success -> SearchOutcome.Success(
-                result.videos.map { video ->
+                result.page.map { video ->
                     SearchHit.Video(
                         title = video.title,
                         subtitle = video.author,

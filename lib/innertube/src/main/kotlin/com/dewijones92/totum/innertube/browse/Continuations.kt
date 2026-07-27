@@ -17,10 +17,21 @@ import kotlinx.serialization.json.jsonPrimitive
  * indistinguishable from "you reached the end". So this walks the tree and takes the
  * **last** token it finds: continuations sit after the items they continue, and taking
  * the last one avoids picking up a nested shelf's token instead of the feed's.
+ *
+ * **Filter chips are skipped.** A search response carries a `chipCloudRenderer` of
+ * filters ("Shorts", "Live", "Recently uploaded"), and every chip holds a continuation
+ * token of its own — six of them, all sitting *after* the results list. Taking the last
+ * token therefore picked a filter rather than page two, and following it returned a
+ * result set this parser found nothing in: search paginated to an empty page and stopped.
+ * A chip's token replaces the results rather than extending them, so it is never what
+ * "load more" wants, in any response.
  */
 public object Continuations {
 
     private val TOKEN_HOLDERS = listOf("continuationCommand", "nextContinuationData", "reloadContinuationData")
+
+    /** Filter chips; their tokens replace the results rather than continuing them. */
+    private const val FILTERS = "chipCloudRenderer"
 
     public fun find(root: JsonElement): PageToken? {
         var found: String? = null
@@ -34,7 +45,7 @@ public object Continuations {
                 TOKEN_HOLDERS.forEach { holder ->
                     (node[holder] as? JsonObject)?.tokenField()?.let(onToken)
                 }
-                node.values.forEach { walk(it, onToken) }
+                node.forEach { (key, value) -> if (key != FILTERS) walk(value, onToken) }
             }
             is JsonArray -> node.forEach { walk(it, onToken) }
             else -> Unit

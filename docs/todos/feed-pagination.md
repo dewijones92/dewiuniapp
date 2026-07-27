@@ -5,7 +5,7 @@ status: in progress
 area: video
 priority: high
 requested: 2026-07-25
-updated: 2026-07-25
+updated: 2026-07-27
 ---
 
 # Are we surfacing YouTube's recommendations — and missing any?
@@ -85,3 +85,22 @@ Still on page one, and cheap on the same seam:
   continuation explicitly (with a comment saying so), which is honest but incomplete
 - **podcast episode lists** — a no-op by nature (RSS returns the whole feed), but the
   seam should be threaded so every screen is uniform rather than some being special
+
+## Search paginated too (2026-07-27)
+
+The last page-one gap. `SearchSource` now takes an `after` token and answers with a
+`Page<SearchHit>`, so the same `LoadMoreOnScrollToEnd` the account feeds and channel tabs
+use drives search as well. iTunes and yt-dlp answer in one shot and say so by returning
+`Page.last` — "no more pages" as an ordinary page is what lets one scroll serve both.
+
+**A real bug fell out of it.** `Continuations.find` takes the *last* token in the
+response, which is right for a channel grid but wrong for search: YouTube puts six filter
+chips ("Shorts", "Live", "Recently uploaded") *after* the results, each holding a
+continuation of its own. So "load more" followed a filter rather than page two, and the
+filtered response had nothing this parser recognised — search paginated once, to nothing,
+and stopped. Confirmed against the live endpoint: the chip token returns 0
+`videoRenderer`s, the real one returns 21. Chip subtrees are now skipped, since a chip's
+token replaces the results rather than extending them in any response.
+
+Verified on device: `8 -> 107` results over 16 pages, with the dedupe absorbing YouTube's
+overlapping pages (one page of 8 added only 7).

@@ -15,7 +15,7 @@ class YtDlpVideoSearchSourceTest {
     fun `maps engine entries to video hits`() = runTest {
         engine.registerSearch("cats", listOf(FakeYtDlpEngine.sampleSearchEntry(id = "v1", title = "Cats!")))
 
-        val hits = (source.search(SearchQuery("cats"), limit = 5) as SearchOutcome.Success).hits
+        val hits = (source.search(SearchQuery("cats"), limit = 5, after = null) as SearchOutcome.Success).page.items
 
         assertEquals(1, hits.size)
         val video = hits[0] as SearchHit.Video
@@ -27,7 +27,7 @@ class YtDlpVideoSearchSourceTest {
 
     @Test
     fun `unregistered query returns empty success`() = runTest {
-        val outcome = source.search(SearchQuery("nothing"), limit = 5)
-        assertTrue((outcome as SearchOutcome.Success).hits.isEmpty())
+        val outcome = source.search(SearchQuery("nothing"), limit = 5, after = null)
+        assertTrue((outcome as SearchOutcome.Success).page.items.isEmpty())
     }
 }

@@ -1,5 +1,6 @@
 package com.dewijones92.totum.di.fake
 
+import com.dewijones92.totum.common.Page
 import com.dewijones92.totum.data.channel.ChannelRepository
 import com.dewijones92.totum.data.channel.fake.FakeChannelRepository
 import com.dewijones92.totum.data.content.ContentRefresher
@@ -66,8 +67,8 @@ class FakeAppContainer(
     override val channelRepository: ChannelRepository = FakeChannelRepository(),
     override val ytDlpEngine: YtDlpEngine = FakeYtDlpEngine(),
     override val playbackController: PlaybackController = FakePlaybackController(),
-    override val podcastSearchSource: SearchSource = SearchSource { _, _ ->
-        SearchOutcome.Success(emptyList())
+    override val podcastSearchSource: SearchSource = SearchSource { _, _, _ ->
+        SearchOutcome.Success(Page.empty())
     },
     override val videoSearchSource: SearchSource = YtDlpVideoSearchSource(ytDlpEngine),
     override val searchHistoryStore: SearchHistoryStore = InMemorySearchHistoryStore(),

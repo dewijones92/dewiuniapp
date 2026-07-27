@@ -1,6 +1,7 @@
 package com.dewijones92.totum.ui.search
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -50,6 +52,7 @@ import com.dewijones92.totum.domain.MediaSource
 import com.dewijones92.totum.theme.TotumTheme
 import com.dewijones92.totum.ui.channel.ChannelScreen
 import com.dewijones92.totum.ui.common.EmptyState
+import com.dewijones92.totum.ui.common.LoadMoreOnScrollToEnd
 import com.dewijones92.totum.ui.common.MediaItemActions
 import com.dewijones92.totum.ui.common.MediaItemRow
 import com.dewijones92.totum.ui.common.MediaThumbnail
@@ -88,6 +91,7 @@ fun SearchScreen(container: AppContainer, modifier: Modifier = Modifier) {
         onRemoveHistory = viewModel::removeHistory,
         onClearHistory = viewModel::clearHistory,
         actions = actions,
+        onLoadMoreVideos = viewModel::loadMoreVideos,
         onGoToChannel = { item ->
             actions.goToSource(item) { source ->
                 (source as? MediaSource.VideoChannel)?.let { browsingChannel = it }
@@ -108,6 +112,7 @@ internal fun SearchContent(
     onClearHistory: () -> Unit,
     actions: MediaItemActions,
     onGoToChannel: (MediaItem) -> Unit,
+    onLoadMoreVideos: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var query by rememberSaveable { mutableStateOf("") }
@@ -140,7 +145,15 @@ internal fun SearchContent(
         when (val results = state.results) {
             Results.Idle -> SearchIdle(state.history, runSearch, onRemoveHistory, onClearHistory)
             Results.Searching -> LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-            is Results.Loaded -> ResultsList(results, state, onSubscribe, onPlayVideo, actions, onGoToChannel)
+            is Results.Loaded -> ResultsList(
+                results,
+                state,
+                onSubscribe,
+                onPlayVideo,
+                actions,
+                onGoToChannel,
+                onLoadMoreVideos,
+            )
         }
     }
 }
@@ -227,9 +240,17 @@ private fun ResultsList(
     onPlayVideo: (SearchHit.Video) -> Unit,
     actions: MediaItemActions,
     onGoToChannel: (MediaItem) -> Unit,
+    onLoadMoreVideos: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    LazyColumn(modifier = modifier.fillMaxSize()) {
+    val listState = rememberLazyListState()
+    // The same scroll trigger the account feeds and channel tabs use.
+    LoadMoreOnScrollToEnd(
+        listState,
+        enabled = results.canLoadMore && !results.loadingMore,
+        loadMore = onLoadMoreVideos,
+    )
+    LazyColumn(state = listState, modifier = modifier.fillMaxSize()) {
         if (results.podcasts.isNotEmpty() || results.podcastsFailed) {
             item { SectionHeader(stringResource(R.string.destination_podcasts)) }
         }
@@ -245,14 +266,14 @@ private fun ResultsList(
             )
         }
 
-        if (results.videos.isNotEmpty() || results.videosFailed) {
+        if (results.videos.items.isNotEmpty() || results.videosFailed) {
             item { SectionHeader(stringResource(R.string.destination_videos)) }
         }
         if (results.videosFailed) {
             item { SectionError() }
         }
-        items(results.videos.size) { index ->
-            val hit = results.videos[index]
+        items(results.videos.items.size) { index ->
+            val hit = results.videos.items[index]
             VideoHitRow(
                 hit = hit,
                 resolving = state.resolving == hit.watchUrl.value,
@@ -260,6 +281,14 @@ private fun ResultsList(
                 actions = actions,
                 onGoToChannel = onGoToChannel,
             )
+        }
+
+        if (results.loadingMore) {
+            item {
+                Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                }
+            }
         }
 
         if (state.resolveFailed) {

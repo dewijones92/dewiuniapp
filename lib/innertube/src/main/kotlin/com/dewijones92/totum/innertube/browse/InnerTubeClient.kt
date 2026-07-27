@@ -46,12 +46,9 @@ public class InnerTubeClient(
     /**
      * Public video search (WEB client, no auth). The WEB response carries each
      * result's upload date, which yt-dlp's flat `ytsearch` does not.
-     *
-     * Unlike the other endpoints' ids, a query is arbitrary user text, so it is
-     * JSON-encoded rather than interpolated.
      */
-    public suspend fun search(query: String): InnerTubeResponse =
-        execute(searchUrl, webContext(" \"query\":" + JsonPrimitive(query)), bearer = null)
+    public suspend fun search(target: SearchTarget): InnerTubeResponse =
+        execute(searchUrl, webContext(target.fields()), bearer = null)
 
     /** Follows a continuation token (e.g. loading comments; WEB client, no auth). */
     public suspend fun nextContinuation(continuation: String): InnerTubeResponse =
@@ -123,6 +120,25 @@ public sealed interface BrowseTarget {
     public data class Id(public val browseId: String, public val params: String? = null) : BrowseTarget
 
     public data class Continuation(public val token: String) : BrowseTarget
+}
+
+/**
+ * What a search request asks for: a query, or the next page of one. Modelled exactly like
+ * [BrowseTarget] and for the same reason — a continuation already encodes what it
+ * continues, so a query alongside it would be meaningless.
+ */
+public sealed interface SearchTarget {
+    public data class Query(public val text: String) : SearchTarget
+    public data class Continuation(public val token: String) : SearchTarget
+}
+
+/**
+ * The request-body fields that select this target. A query is arbitrary user text, so it
+ * is JSON-encoded rather than interpolated; a token is YouTube's own opaque string.
+ */
+internal fun SearchTarget.fields(): String = when (this) {
+    is SearchTarget.Query -> " \"query\":" + JsonPrimitive(text)
+    is SearchTarget.Continuation -> """ "continuation":"$token" """
 }
 
 /** The request-body fields that select this target. */
