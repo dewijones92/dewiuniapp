@@ -112,6 +112,7 @@ internal fun VideoStageWithControls(
             // Ahead of `clickable`: the tap detector claims the pointer stream first
             // otherwise, and a vertical drag never reaches the adjustment gestures.
             .videoAdjustmentGestures(gestures)
+            .reportVideoBounds(LocalVideoBounds.current)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,

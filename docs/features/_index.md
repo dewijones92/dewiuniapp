@@ -44,6 +44,7 @@ alone until they need more.
 | Download notifications (progress / done / failed, aggregated) | downloads | shipped | [download-notifications.md](download-notifications.md) |
 | Quality + speed as an on-video overlay | ui | shipped | [video-settings-overlay.md](video-settings-overlay.md) |
 | Subtitles / captions (menu on the video, cues over the picture) | playback | shipped | [subtitles.md](subtitles.md) |
+| Picture-in-Picture (video keeps playing when you leave) | playback | shipped | [../todos/feature-gap-review.md](../todos/feature-gap-review.md) |
 | Offline library across both pillars (downloads carry their item) | downloads | shipped | [../todos/library-downloads-podcast-only.md](../todos/library-downloads-podcast-only.md) |
 
 \* Cast: crash + disconnect-loses-playback fixed; real casting unverified (no hardware).

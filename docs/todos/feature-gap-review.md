@@ -3,7 +3,7 @@ title: Triage of the AI feature-gap review
 kind: todo
 status: refining
 area: planning
-updated: 2026-07-25
+updated: 2026-07-27
 ---
 
 # Triage: which of the AI review's gaps actually make sense
@@ -18,12 +18,12 @@ fixed-minute options only).
 
 | Gap | Verdict | Note |
 |---|---|---|
-| **Picture-in-Picture** | **Strongest item on the list.** Genuinely missing and it's the one thing that makes a video app feel unfinished on Android | `enterPictureInPictureMode` + a PiP-shaped player. Video-only by nature, which is a legitimate pillar asymmetry (a podcast has no picture) |
+| **Picture-in-Picture** | **DONE 2026-07-27.** Was the strongest item on the list. Genuinely missing and it's the one thing that makes a video app feel unfinished on Android | `enterPictureInPictureMode` + a PiP-shaped player. Video-only by nature, which is a legitimate pillar asymmetry (a podcast has no picture) |
 | **End-of-item sleep timer** | Agree, and it's small | `SleepTimer` takes a `Duration`; this needs an end-of-item mode instead, which the queue's end-transition already detects |
 | **Played / unplayed / in-progress state + "hide played"** | Agree — real AntennaPod parity gap | `playback_progress` already knows the position; what's missing is an explicit *played* flag and a feed filter. Unified: applies to videos just as well |
 | **Full backup / restore** | Agree | OPML covers subscriptions only; playlists, history, queue, resume points and settings can't leave the device. One JSON/zip over the Room tables |
 | **Granular SponsorBlock per category** | Agree, cheap | Categories are a hardcoded list; per-category action (skip / show / ignore) is a settings screen over data we already fetch |
-| **Player gestures (brightness / volume)** | Agree | Fits the fullscreen player; pairs naturally with the UI-polish work |
+| **Player gestures (brightness / volume)** | **DONE 2026-07-27.** | Fits the fullscreen player; pairs naturally with the UI-polish work |
 | **Channel search** | Agree, small | InnerTube channel browse already works; search-within-channel is another `browseWeb` params value |
 | **Authenticated / private feeds** | Agree it's missing | Basic-auth podcast feeds. Only worth it if you actually have a private feed — tell me if so |
 | **Storage breakdown in Library** | Agree, and the auto-download work makes it *needed* — a queue that downloads everything must show what it's using | |

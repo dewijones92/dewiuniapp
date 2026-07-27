@@ -1,6 +1,7 @@
 package com.dewijones92.totum.ui
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -11,6 +12,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -41,11 +43,15 @@ import com.dewijones92.totum.ui.common.RequestNotificationPermissionOnFirstPlay
 import com.dewijones92.totum.ui.library.LibraryScreen
 import com.dewijones92.totum.ui.player.CommentReplies
 import com.dewijones92.totum.ui.player.FullPlayerOverlay
+import com.dewijones92.totum.ui.player.LocalVideoBounds
+import com.dewijones92.totum.ui.player.PictureInPictureEffect
 import com.dewijones92.totum.ui.player.PlaybackToggles
 import com.dewijones92.totum.ui.player.QualityControl
 import com.dewijones92.totum.ui.player.QueueControls
+import com.dewijones92.totum.ui.player.VideoBounds
 import com.dewijones92.totum.ui.player.WatchActions
 import com.dewijones92.totum.ui.player.WatchViewModel
+import com.dewijones92.totum.ui.player.rememberIsInPictureInPicture
 import com.dewijones92.totum.ui.podcasts.PodcastsScreen
 import com.dewijones92.totum.ui.queue.QueueScreen
 import com.dewijones92.totum.ui.search.SearchScreen
@@ -69,59 +75,65 @@ fun AppShell(container: AppContainer, modifier: Modifier = Modifier) {
     val watchViewModel: WatchViewModel = viewModel(factory = WatchViewModel.factory(container))
 
     RequestNotificationPermissionOnFirstPlay(playbackActive = playbackState != null)
+    // The stage reports where the picture is, so the system animates from it rather
+    // than cross-fading the whole app into the floating window.
+    val videoBounds = remember { VideoBounds() }
+    val inPip = floatingWindowState(playbackState, controller, videoBounds)
     // End-of-item advance lives here, always composed — so the queue advances in the
     // mini player / with the screen off, not only while the full player is expanded.
     AutoAdvance(playbackState, watchViewModel, container, reelOpen = shortsReel != null)
 
-    ProvidePlayStates(container, onOpenChannel = { shellChannel = it }) {
-        Box(modifier = modifier.fillMaxSize()) {
-            Scaffold(
-                bottomBar = {
-                    Column {
-                        playbackState?.let { state ->
-                            MiniPlayerBar(
-                                state = state,
-                                onTogglePlayPause = controller::togglePlayPause,
-                                onExpand = { showFullPlayer = true },
-                            )
+    // A floating window is centimetres across: the nav bar, mini player and scrolling
+    // description would leave no room for the picture, so it renders alone.
+    if (inPip) {
+        FloatingVideo(playbackState, controller.player, modifier)
+        return
+    }
+
+    CompositionLocalProvider(LocalVideoBounds provides videoBounds) {
+        ProvidePlayStates(container, onOpenChannel = { shellChannel = it }) {
+            Box(modifier = modifier.fillMaxSize()) {
+                Scaffold(
+                    bottomBar = {
+                        Column {
+                            playbackState?.let { state ->
+                                MiniPlayerBar(
+                                    state = state,
+                                    onTogglePlayPause = controller::togglePlayPause,
+                                    onExpand = { showFullPlayer = true },
+                                )
+                            }
+                            TopLevelNavigationBar(selected, onSelect = { selected = it })
                         }
-                        TopLevelNavigationBar(selected, onSelect = { selected = it })
-                    }
-                },
-            ) { innerPadding ->
-                AnimatedContent(
-                    targetState = selected,
-                    modifier = Modifier.padding(innerPadding),
-                    label = "top-level-destination",
-                ) { destination ->
-                    when (destination) {
-                        TopLevelDestination.Videos -> VideosScreen(container, onOpenShorts = { shortsReel = it })
-                        TopLevelDestination.Podcasts -> PodcastsScreen(container)
-                        TopLevelDestination.Queue -> QueueScreen(container)
-                        TopLevelDestination.Search -> SearchScreen(container)
-                        TopLevelDestination.Library -> LibraryScreen(container)
-                    }
+                    },
+                ) { innerPadding ->
+                    TopLevelContent(
+                        container = container,
+                        selected = selected,
+                        onOpenShorts = { shortsReel = it },
+                        modifier = Modifier.padding(innerPadding),
+                    )
                 }
-            }
 
-            // Full player overlays the whole app (above the mini player + nav) when
-            // expanded; the mini player keeps the audio/video running underneath.
-            playbackState?.takeIf { showFullPlayer }?.let { state ->
-                FullPlayerHost(state, controller, container, watchViewModel) { showFullPlayer = false }
-            }
+                // Full player overlays the whole app (above the mini player + nav) when
+                // expanded; the mini player keeps the audio/video running underneath.
+                playbackState?.takeIf { showFullPlayer }?.let { state ->
+                    FullPlayerHost(state, controller, container, watchViewModel) { showFullPlayer = false }
+                }
 
-            // The Shorts reel is a full-screen overlay (above the nav + mini player),
-            // so vertical swipes page between shorts without the app chrome in the way.
-            shortsReel?.let { shorts ->
-                ShortsReelScreen(container, shorts, onBack = { shortsReel = null })
-            }
-            shellChannel?.let { channel ->
-                ChannelScreen(
-                    container,
-                    channel,
-                    onBack = { shellChannel = null },
-                    onOpenPlaylist = {},
-                )
+                // The Shorts reel is a full-screen overlay (above the nav + mini player),
+                // so vertical swipes page between shorts without the app chrome in the way.
+                shortsReel?.let { shorts ->
+                    ShortsReelScreen(container, shorts, onBack = { shortsReel = null })
+                }
+                shellChannel?.let { channel ->
+                    ChannelScreen(
+                        container,
+                        channel,
+                        onBack = { shellChannel = null },
+                        onOpenPlaylist = {},
+                    )
+                }
             }
         }
     }
@@ -303,4 +315,63 @@ private fun playbackToggles(
 @Composable
 private fun AppShellPreview() {
     TotumTheme { AppShell(FakeAppContainer()) }
+}
+
+/** The selected pillar's screen, cross-faded as the bottom navigation changes. */
+@Composable
+private fun TopLevelContent(
+    container: AppContainer,
+    selected: TopLevelDestination,
+    onOpenShorts: (List<MediaItem>) -> Unit,
+    modifier: Modifier,
+) {
+    AnimatedContent(targetState = selected, modifier = modifier, label = "top-level-destination") { destination ->
+        when (destination) {
+            TopLevelDestination.Videos -> VideosScreen(container, onOpenShorts = onOpenShorts)
+            TopLevelDestination.Podcasts -> PodcastsScreen(container)
+            TopLevelDestination.Queue -> QueueScreen(container)
+            TopLevelDestination.Search -> SearchScreen(container)
+            TopLevelDestination.Library -> LibraryScreen(container)
+        }
+    }
+}
+
+/**
+ * Publishes picture-in-picture parameters for whatever is playing and reports whether the
+ * app is currently floating. Always composed, so it tracks playback rather than only what
+ * the full player happens to be showing.
+ */
+@Composable
+private fun floatingWindowState(
+    state: PlaybackState?,
+    controller: PlaybackController,
+    bounds: VideoBounds,
+): Boolean {
+    PictureInPictureEffect(
+        hasVideo = state?.hasVideo == true,
+        isPlaying = state?.isPlaying == true,
+        aspectRatio = state?.videoAspectRatio,
+        bounds = bounds,
+        onTogglePlayPause = controller::togglePlayPause,
+    )
+    return rememberIsInPictureInPicture()
+}
+
+/**
+ * The picture, alone, for the floating window — no chrome, no controls. PiP supplies its
+ * own play/pause action in the window frame, so drawing our own would only cover video
+ * that has very little room to begin with.
+ */
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+@Composable
+private fun FloatingVideo(state: PlaybackState?, player: androidx.media3.common.Player?, modifier: Modifier) {
+    Box(modifier = modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black)) {
+        if (player != null && state?.hasVideo == true) {
+            androidx.media3.ui.compose.PlayerSurface(
+                player = player,
+                surfaceType = androidx.media3.ui.compose.SURFACE_TYPE_TEXTURE_VIEW,
+                modifier = Modifier.matchParentSize(),
+            )
+        }
+    }
 }
