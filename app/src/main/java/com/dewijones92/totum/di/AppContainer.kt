@@ -2,7 +2,10 @@ package com.dewijones92.totum.di
 
 import android.content.Context
 import android.os.StatFs
+import com.dewijones92.totum.BuildConfig
 import com.dewijones92.totum.account.SharedPrefsTokenStore
+import com.dewijones92.totum.backup.BackupService
+import com.dewijones92.totum.backup.asBackupSettings
 import com.dewijones92.totum.data.channel.ChannelRepository
 import com.dewijones92.totum.data.channel.DefaultChannelRepository
 import com.dewijones92.totum.data.content.ContentRefresher
@@ -110,6 +113,9 @@ interface AppContainer {
     val searchHistoryStore: SearchHistoryStore
     val skipSegmentSource: SkipSegmentSource
     val downloadManager: DownloadManager
+
+    /** Full backup / restore of everything that is not re-downloadable. */
+    val backupService: BackupService
 
     /** Free space where downloads live; null when it cannot be read. */
     fun freeDownloadSpaceBytes(): Long?
@@ -304,6 +310,17 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
         runCatching { StatFs(downloadDir.path).availableBytes }.getOrNull()
 
     private val downloadDir = File(context.filesDir, "downloads")
+
+    override val backupService: BackupService by lazy {
+        BackupService(
+            subscriptions = RoomSubscriptionStore(database.podcastDao(), RoomSubscriptionStore.SourceType.PODCAST),
+            playlists = localPlaylistStore,
+            queueStore = queueStore,
+            progress = playbackProgressStore,
+            settings = appPreferences.asBackupSettings(),
+            appVersion = BuildConfig.VERSION_NAME,
+        )
+    }
 
     override val downloadManager: DownloadManager by lazy {
         DefaultDownloadManager(

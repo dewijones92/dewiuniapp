@@ -79,3 +79,29 @@ public fun MediaItem.toPlayableOrNull(): PlayableItem? {
  * being dropped silently.
  */
 public fun MediaItem.asPlayable(): PlayableItem = toPlayableOrNull() ?: PlayableItem(this, PlayHandle.Podcast())
+
+/**
+ * How a [PlayHandle] is written down, and read back.
+ *
+ * Here rather than in the database module because four tables and the backup file all
+ * store the same two columns, and the vocabulary ("VIDEO", "PODCAST", "LOCAL_VIDEO") has
+ * to mean the same thing in every one of them. A second copy would drift silently: a
+ * backup written with one spelling and read with another restores a queue that plays
+ * nothing.
+ */
+public fun PlayHandle.persisted(): Pair<String, String?> = when (this) {
+    is PlayHandle.Video -> PERSISTED_VIDEO to watchUrl.value
+    is PlayHandle.LocalVideo -> PERSISTED_LOCAL_VIDEO to localPath
+    is PlayHandle.Podcast -> PERSISTED_PODCAST to localPath
+}
+
+/** The inverse of [persisted]; null when the stored pair cannot make a usable handle. */
+public fun playHandleFrom(type: String, handle: String?): PlayHandle? = when (type) {
+    PERSISTED_VIDEO -> handle?.let(HttpUrl::parse)?.let(PlayHandle::Video)
+    PERSISTED_LOCAL_VIDEO -> handle?.let(PlayHandle::LocalVideo)
+    else -> PlayHandle.Podcast(localPath = handle)
+}
+
+private const val PERSISTED_VIDEO = "VIDEO"
+private const val PERSISTED_LOCAL_VIDEO = "LOCAL_VIDEO"
+private const val PERSISTED_PODCAST = "PODCAST"

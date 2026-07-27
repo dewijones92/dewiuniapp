@@ -5,6 +5,9 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.dewijones92.totum.backup.BackupService
+import com.dewijones92.totum.data.backup.BackupCodec
+import com.dewijones92.totum.data.backup.BackupReadResult
 import com.dewijones92.totum.di.AppContainer
 import com.dewijones92.totum.importexport.ImportOutcome
 import com.dewijones92.totum.importexport.ImportSummary
@@ -22,6 +25,8 @@ import kotlinx.coroutines.launch
  * owns the `Context`; this holds no Android types.
  */
 class ImportExportViewModel(
+    private val backup: BackupService,
+    private val messages: Messages,
     private val importer: SubscriptionImporter,
     val signedIn: StateFlow<Boolean>,
 ) : ViewModel() {
@@ -50,14 +55,39 @@ class ImportExportViewModel(
 
     suspend fun buildOpml(): String = importer.exportOpml()
 
+    suspend fun buildBackup(): String = BackupCodec.encode(backup.create())
+
+    /**
+     * Applies a backup file and returns what to tell the user. A message rather than a
+     * state because there is nothing to keep afterwards — the result is the library
+     * itself, which every screen is already observing.
+     */
+    suspend fun restore(content: String): String = when (val read = BackupCodec.decode(content)) {
+        is BackupReadResult.Unreadable -> messages.unreadable
+        is BackupReadResult.TooNew -> messages.tooNew
+        is BackupReadResult.Ok -> backup.restore(read.backup).let {
+            messages.restored(it.subscriptions, it.playlists, it.progressEntries)
+        }
+    }
+
+    /** Strings supplied by the screen, so this stays free of Android resources. */
+    class Messages(
+        val unreadable: String,
+        val tooNew: String,
+        val restored: (Int, Int, Int) -> String,
+    )
+
     fun clearResult() {
         _state.value = State.Idle
     }
 
     companion object {
-        fun factory(container: AppContainer): ViewModelProvider.Factory = viewModelFactory {
+        /** [messages] comes from the screen, which owns the string resources. */
+        fun factory(container: AppContainer, messages: Messages): ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 ImportExportViewModel(
+                    backup = container.backupService,
+                    messages = messages,
                     importer = container.subscriptionImporter,
                     signedIn = container.accountSubscriptions.signedIn,
                 )

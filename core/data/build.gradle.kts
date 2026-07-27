@@ -1,5 +1,7 @@
 plugins {
     alias(libs.plugins.kotlin.jvm)
+    // The backup file is @Serializable; parsing elsewhere in this module only reads JSON.
+    alias(libs.plugins.kotlin.serialization)
 }
 
 kotlin {

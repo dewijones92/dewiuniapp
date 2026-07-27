@@ -21,7 +21,7 @@ fixed-minute options only).
 | **Picture-in-Picture** | **DONE 2026-07-27.** Was the strongest item on the list. Genuinely missing and it's the one thing that makes a video app feel unfinished on Android | `enterPictureInPictureMode` + a PiP-shaped player. Video-only by nature, which is a legitimate pillar asymmetry (a podcast has no picture) |
 | **End-of-item sleep timer** | **DONE 2026-07-27.** | `SleepTimer` takes a `Duration`; this needs an end-of-item mode instead, which the queue's end-transition already detects |
 | **Played / unplayed / in-progress state + "hide played"** | Agree — real AntennaPod parity gap | `playback_progress` already knows the position; what's missing is an explicit *played* flag and a feed filter. Unified: applies to videos just as well |
-| **Full backup / restore** | Agree | OPML covers subscriptions only; playlists, history, queue, resume points and settings can't leave the device. One JSON/zip over the Room tables |
+| **Full backup / restore** | **DONE 2026-07-27.** | OPML covers subscriptions only; playlists, history, queue, resume points and settings can't leave the device. One JSON/zip over the Room tables |
 | **Granular SponsorBlock per category** | **DONE 2026-07-27.** | Categories are a hardcoded list; per-category action (skip / show / ignore) is a settings screen over data we already fetch |
 | **Player gestures (brightness / volume)** | **DONE 2026-07-27.** | Fits the fullscreen player; pairs naturally with the UI-polish work |
 | **Channel search** | **DONE 2026-07-27.** | InnerTube channel browse already works; search-within-channel is another `browseWeb` params value |

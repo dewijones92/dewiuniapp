@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -50,7 +51,18 @@ import kotlinx.coroutines.withContext
  */
 @Composable
 fun ImportExportScreen(container: AppContainer, onBack: () -> Unit, modifier: Modifier = Modifier) {
-    val viewModel: ImportExportViewModel = viewModel(factory = ImportExportViewModel.factory(container))
+    val messages = ImportExportViewModel.Messages(
+        unreadable = stringResource(R.string.backup_failed),
+        tooNew = stringResource(R.string.backup_too_new),
+        restored = LocalContext.current.let { context ->
+            {
+                    subs, lists, positions ->
+                context.getString(R.string.backup_restored, subs, lists, positions)
+            }
+        },
+    )
+    val viewModel: ImportExportViewModel =
+        viewModel(factory = ImportExportViewModel.factory(container, messages))
     val state by viewModel.state.collectAsStateWithLifecycle()
     val signedIn by viewModel.signedIn.collectAsStateWithLifecycle()
     val resolver = LocalContext.current.contentResolver
@@ -91,7 +103,65 @@ fun ImportExportScreen(container: AppContainer, onBack: () -> Unit, modifier: Mo
             Spacer(Modifier.height(24.dp))
             ExportSection { exportPicker.launch(EXPORT_FILE_NAME) }
             exportMessage?.let { StatusText(it) }
+            Spacer(Modifier.height(24.dp))
+            BackupControls(viewModel, resolver, scope)
         }
+    }
+}
+
+/**
+ * The backup pair with its own file pickers and status, so the screen above stays about
+ * layout rather than about two more activity results.
+ */
+@Composable
+private fun BackupControls(
+    viewModel: ImportExportViewModel,
+    resolver: android.content.ContentResolver,
+    scope: kotlinx.coroutines.CoroutineScope,
+) {
+    var message by remember { mutableStateOf<String?>(null) }
+    val written = stringResource(R.string.backup_written)
+    val failed = stringResource(R.string.backup_failed)
+    val backupPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json"),
+    ) { uri ->
+        uri ?: return@rememberLauncherForActivityResult
+        scope.launch {
+            val content = viewModel.buildBackup()
+            message = if (withContext(Dispatchers.IO) { writeText(resolver, uri, content) }) written else failed
+        }
+    }
+    val restorePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri ?: return@rememberLauncherForActivityResult
+        scope.launch {
+            val content = withContext(Dispatchers.IO) { readText(resolver, uri) }
+            message = if (content == null) failed else viewModel.restore(content)
+        }
+    }
+    BackupSection(
+        onBackUp = { backupPicker.launch(BACKUP_FILE_NAME) },
+        onRestore = { restorePicker.launch(arrayOf("*/*")) },
+    )
+    message?.let { StatusText(it) }
+}
+
+/**
+ * Full backup and restore, alongside the OPML pair. Kept visibly separate because they
+ * are not alternatives: OPML moves subscriptions to *another app*, a backup moves this
+ * app's whole state to *another device*.
+ */
+@Composable
+private fun BackupSection(onBackUp: () -> Unit, onRestore: () -> Unit) {
+    SectionTitle(stringResource(R.string.backup_section))
+    Text(
+        text = stringResource(R.string.backup_supporting),
+        style = MaterialTheme.typography.bodyMedium,
+        modifier = Modifier.padding(horizontal = 16.dp),
+    )
+    Row(modifier = Modifier.padding(16.dp)) {
+        Button(onClick = onBackUp) { Text(stringResource(R.string.backup_create)) }
+        Spacer(Modifier.width(12.dp))
+        OutlinedButton(onClick = onRestore) { Text(stringResource(R.string.backup_restore)) }
     }
 }
 
@@ -181,6 +251,8 @@ private fun StatusText(text: String) {
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
     )
 }
+
+private const val BACKUP_FILE_NAME = "totum-backup.json"
 
 private const val EXPORT_FILE_NAME = "subscriptions.opml"
 

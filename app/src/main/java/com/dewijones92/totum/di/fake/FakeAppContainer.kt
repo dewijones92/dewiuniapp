@@ -1,5 +1,6 @@
 package com.dewijones92.totum.di.fake
 
+import com.dewijones92.totum.backup.BackupService
 import com.dewijones92.totum.common.Page
 import com.dewijones92.totum.data.channel.ChannelRepository
 import com.dewijones92.totum.data.channel.fake.FakeChannelRepository
@@ -26,6 +27,7 @@ import com.dewijones92.totum.data.search.fake.InMemorySearchHistoryStore
 import com.dewijones92.totum.data.source.DefaultSourceLocator
 import com.dewijones92.totum.data.source.SourceLocator
 import com.dewijones92.totum.data.sponsorblock.SkipSegmentSource
+import com.dewijones92.totum.data.subscription.fake.InMemorySubscriptionStore
 import com.dewijones92.totum.di.AppContainer
 import com.dewijones92.totum.importexport.SubscriptionImporter
 import com.dewijones92.totum.innertube.actions.YouTubeActions
@@ -124,4 +126,15 @@ class FakeAppContainer(
     override fun refreshSubscriptions() = Unit
 
     override fun freeDownloadSpaceBytes(): Long? = null
+    override val backupService: BackupService = BackupService(
+        subscriptions = InMemorySubscriptionStore(),
+        playlists = InMemoryLocalPlaylistStore(),
+        queueStore = InMemoryQueueStore(),
+        progress = NoOpPlaybackProgressStore,
+        settings = object : BackupService.BackupSettings {
+            override fun export(): Map<String, String> = emptyMap()
+            override fun restore(values: Map<String, String>) = Unit
+        },
+        appVersion = "preview",
+    )
 }

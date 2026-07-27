@@ -154,6 +154,14 @@
 
     <string name="play">Play</string>
     <string name="buffering">Buffering</string>
+    <string name="backup_section">Full backup</string>
+    <string name="backup_supporting">Subscriptions, playlists, the queue, what you\'ve played and your settings — as one file. Downloaded media is not included; it can be fetched again. Restoring adds to this device without removing anything.</string>
+    <string name="backup_create">Back up</string>
+    <string name="backup_restore">Restore…</string>
+    <string name="backup_written">Backup saved.</string>
+    <string name="backup_failed">Couldn\'t read or write that file.</string>
+    <string name="backup_too_new">That backup was made by a newer version of Totum.</string>
+    <string name="backup_restored">Restored. Subscriptions: %1$d · Playlists: %2$d · Play positions: %3$d. Restart Totum to see a restored queue.</string>
     <string name="channel_tab_search">Search</string>
     <string name="channel_search_hint">Search this channel</string>
     <string name="library_storage">Using %1$s</string>
