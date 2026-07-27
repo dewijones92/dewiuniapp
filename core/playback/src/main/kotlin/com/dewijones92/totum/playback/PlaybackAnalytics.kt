@@ -1,5 +1,6 @@
 package com.dewijones92.totum.playback
 
+import androidx.media3.common.C
 import androidx.media3.common.Format
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DecoderReuseEvaluation
@@ -24,9 +25,13 @@ import java.io.IOException
  * events worth reading. Only the things that change the picture — the chosen format, a
  * slow or failed load, dropped frames — write a line.
  */
+// The count is Media3's callback surface plus four small formatting helpers; collapsing
+// them to satisfy the threshold would only make each callback harder to read.
+@Suppress("TooManyFunctions")
 @UnstableApi
 internal class PlaybackAnalytics : AnalyticsListener {
 
+    private var outstanding = 0
     private var loads = 0L
     private var bytes = 0L
     private var loadMs = 0L
@@ -62,6 +67,8 @@ internal class PlaybackAnalytics : AnalyticsListener {
         loadEventInfo: LoadEventInfo,
         mediaLoadData: MediaLoadData,
     ) {
+        outstanding = (outstanding - 1).coerceAtLeast(0)
+        Vitals.set("playback.loadsOutstanding", outstanding.toString())
         loads++
         bytes += loadEventInfo.bytesLoaded
         loadMs += loadEventInfo.loadDurationMs
@@ -74,10 +81,26 @@ internal class PlaybackAnalytics : AnalyticsListener {
         if (kbps != null && kbps < SLOW_LOAD_KBPS && loadEventInfo.loadDurationMs > SLOW_LOAD_MS) {
             Diag.warn(
                 "load",
-                "slow chunk: ${loadEventInfo.bytesLoaded / BYTES_PER_KB}KB in " +
+                "slow ${mediaLoadData.trackName()} chunk: ${loadEventInfo.bytesLoaded / BYTES_PER_KB}KB in " +
                     "${loadEventInfo.loadDurationMs}ms (~${kbps}kbps)",
             )
         }
+    }
+
+    /**
+     * Started, with nothing yet to say about it — paired with [onLoadCompleted] so a
+     * request that begins and never finishes is visible. A merely slow chunk still
+     * completes and is aggregated; a hung one emits nothing at all, which is exactly what
+     * a 23-second stall with no load events looks like. Only the outstanding count is
+     * kept, so this costs one line per stall rather than one per chunk.
+     */
+    override fun onLoadStarted(
+        eventTime: AnalyticsListener.EventTime,
+        loadEventInfo: LoadEventInfo,
+        mediaLoadData: MediaLoadData,
+    ) {
+        outstanding++
+        Vitals.set("playback.loadsOutstanding", outstanding.toString())
     }
 
     override fun onLoadError(
@@ -87,9 +110,15 @@ internal class PlaybackAnalytics : AnalyticsListener {
         error: IOException,
         wasCanceled: Boolean,
     ) {
+        outstanding = (outstanding - 1).coerceAtLeast(0)
         Vitals.add("playback.loadErrors")
-        Vitals.set("playback.lastLoadError", "${error.javaClass.simpleName}: ${error.message}")
-        Diag.warn("load", "failed (canceled=$wasCanceled) after ${loadEventInfo.loadDurationMs}ms", error)
+        Vitals.set("playback.lastLoadError", "${mediaLoadData.trackName()}: ${error.javaClass.simpleName}")
+        Diag.warn(
+            "load",
+            "${mediaLoadData.trackName()} failed (canceled=$wasCanceled) " +
+                "after ${loadEventInfo.loadDurationMs}ms — ${loadEventInfo.uri}",
+            error,
+        )
     }
 
     /** Dropped frames separate "the network starved" from "the device could not keep up". */
@@ -105,6 +134,18 @@ internal class PlaybackAnalytics : AnalyticsListener {
         bitrateEstimate: Long,
     ) {
         Vitals.set("playback.bandwidthKbps", (bitrateEstimate / BITS_PER_KILOBIT).toString())
+    }
+
+    /**
+     * Which stream a load belongs to. Higher qualities play a video-only stream merged
+     * with a separate audio one, so "the stream stalled" is ambiguous until you know
+     * which half — and they are different URLs that can behave differently.
+     */
+    private fun MediaLoadData.trackName(): String = when (trackType) {
+        C.TRACK_TYPE_VIDEO -> "video"
+        C.TRACK_TYPE_AUDIO -> "audio"
+        C.TRACK_TYPE_TEXT -> "text"
+        else -> "track-$trackType"
     }
 
     private fun averageKbps(): Long =

@@ -46,7 +46,12 @@ internal class PlaybackDiagnostics(
                 stalledSince = now()
                 Vitals.add("playback.stalls")
                 val kbps = PlaybackVitals.kbps()
-                Diag.log("playback", "buffering at ${position()}" + (kbps?.let { " (was ~${it}kbps)" } ?: ""))
+                val outstanding = Vitals.snapshot()["playback.loadsOutstanding"]
+                Diag.log(
+                    "playback",
+                    "buffering at ${position()}" + (kbps?.let { " (was ~${it}kbps" } ?: " (") +
+                        ", $outstanding load(s) in flight)",
+                )
             }
             Player.STATE_READY -> {
                 val waited = stalledSince?.let { now() - it }
