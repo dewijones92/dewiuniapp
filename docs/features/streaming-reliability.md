@@ -96,8 +96,10 @@ both ranged and unbounded, so the chunked probe is not the cause. Unreproduced; 
 rate-limiting after 24 resolves against a 58-item queue, but that is speculation. Recovery
 bounds it at three attempts instead of an infinite loop.
 
-Separately: when a video genuinely cannot play, the app sits on it rather than advancing to
-the next queue item. Raised with Dewi 2026-07-28, who chose to leave it for now.
+Separately: the app used to sit on an unplayable video rather than advancing. Raised with
+Dewi 2026-07-28, who said "maybe ok for now" — then fixed later the same day once it paired
+naturally with the download retry loop, since both were a permanent failure treated as
+retryable. See [failure-handling.md](failure-handling.md).
 
 ## Files
 
