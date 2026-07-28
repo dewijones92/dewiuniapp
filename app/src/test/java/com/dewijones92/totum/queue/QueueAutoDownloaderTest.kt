@@ -38,12 +38,17 @@ class QueueAutoDownloaderTest {
     private fun entry(id: String, url: String? = "https://example.com/$id.mp3") =
         QueueEntry(PlayableItem(item(id, url), PlayHandle.Podcast()))
 
-    private fun downloader(enabled: Boolean = true, allowedOnNetwork: Boolean = true) = QueueAutoDownloader(
+    private fun downloader(
+        enabled: Boolean = true,
+        allowedOnNetwork: Boolean = true,
+        maxAttempts: Int = 3,
+    ) = QueueAutoDownloader(
         queue = queue,
         downloads = downloads,
         scope = CoroutineScope(dispatcher),
         isEnabled = { enabled },
         isAllowedOnThisNetwork = { allowedOnNetwork },
+        maxAttempts = maxAttempts,
     )
 
     @Test
@@ -139,5 +144,42 @@ class QueueAutoDownloaderTest {
         advanceUntilIdle()
 
         assertTrue(downloads.requested.isEmpty())
+    }
+
+    /**
+     * The bug from the 2026-07-28 reports: two members-only videos in a 59-item queue were
+     * re-attempted on every queue change, on every launch, for days.
+     */
+    @Test
+    fun `a permanently-failed item is never retried`() = runTest(dispatcher) {
+        downloads.setFailed(MediaItemId("a"), "ERROR: [youtube] a: Join this channel to get access")
+        downloader().start()
+        queue.value = QueueSnapshot(listOf(entry("a"), entry("b")))
+        advanceUntilIdle()
+
+        assertEquals(listOf("b"), downloads.requested.map { it.first.value })
+    }
+
+    @Test
+    fun `a transient failure is retried`() = runTest(dispatcher) {
+        downloads.setFailed(MediaItemId("a"), "Unable to connect: timeout")
+        downloader().start()
+        queue.value = QueueSnapshot(listOf(entry("a")))
+        advanceUntilIdle()
+
+        assertEquals(listOf("a"), downloads.requested.map { it.first.value })
+    }
+
+    /** A flaky connection gets a few more goes; a broken item does not get infinite ones. */
+    @Test
+    fun `transient retries stop at the attempt limit`() = runTest(dispatcher) {
+        downloader(maxAttempts = 2).start()
+        repeat(5) { round ->
+            downloads.setFailed(MediaItemId("a"), "Unable to connect: timeout")
+            queue.value = QueueSnapshot(listOf(entry("a"), entry("pad$round")))
+            advanceUntilIdle()
+        }
+
+        assertEquals(2, downloads.requested.count { it.first.value == "a" })
     }
 }

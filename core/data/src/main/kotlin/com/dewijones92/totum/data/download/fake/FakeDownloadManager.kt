@@ -33,6 +33,17 @@ public class FakeDownloadManager : DownloadManager {
         downloads.update { it + (id to DownloadState.Downloading(downloadedBytes, totalBytes)) }
     }
 
+    /**
+     * Records a failure in the observable state, which [emit] deliberately does not.
+     *
+     * Needed because [emit] only fires an event, so a test that drives a consumer of
+     * `observeDownloads()` — the auto-downloader deciding whether to retry — could not see a
+     * failure at all, and every retry test silently passed for the wrong reason.
+     */
+    public fun setFailed(id: MediaItemId, reason: String) {
+        downloads.update { it + (id to DownloadState.Failed(reason)) }
+    }
+
     /** Emits an arbitrary transition, so a test can drive a consumer of [events]. */
     public fun emit(item: MediaItem, state: DownloadState) {
         _events.tryEmit(DownloadEvent(item, state))

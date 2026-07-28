@@ -45,6 +45,40 @@ public sealed interface DownloadState {
 }
 
 /**
+ * Whether asking again could ever succeed.
+ *
+ * The automatic queue downloader retried every failure on every queue change, so two
+ * members-only videos in a 59-item queue were re-attempted on every launch, for days —
+ * visible in every diagnostics report sent on 2026-07-28, wasting data and burying the
+ * event trail in failures that were never going to resolve.
+ *
+ * Matched on the extractor's own words, because that is all the failure carries. Deliberately
+ * conservative: anything unrecognised is treated as transient and retried, since wrongly
+ * giving up on a flaky connection is worse than one wasted request. A network blip, a 5xx or
+ * a timeout says nothing about the content and must stay retryable.
+ */
+public val DownloadState.Failed.isPermanent: Boolean
+    get() = reason.lowercase().let { text -> PERMANENT_MARKERS.any { it in text } }
+
+/**
+ * Phrases meaning "this content is not available to you", as the extractor words them.
+ *
+ * Age-gating is here because it needs a signed-in fetch the downloader cannot do, so
+ * retrying unattended will not fix it either.
+ */
+private val PERMANENT_MARKERS = listOf(
+    "join this channel",
+    "members-only",
+    "private video",
+    "video unavailable",
+    "removed by the uploader",
+    "account associated with this video has been terminated",
+    "sign in to confirm your age",
+    "who has paid for access",
+    "not made this video available",
+)
+
+/**
  * The local file to play *as video*, or null.
  *
  * An audio-only download (what the queue fetches automatically) deliberately does
