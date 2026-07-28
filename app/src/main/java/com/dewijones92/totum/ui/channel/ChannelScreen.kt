@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -42,6 +41,7 @@ import com.dewijones92.totum.ui.channel.ChannelViewModel.TabState
 import com.dewijones92.totum.ui.common.LoadMoreOnScrollToEnd
 import com.dewijones92.totum.ui.common.LoadingMoreFooter
 import com.dewijones92.totum.ui.common.MediaItemRow
+import com.dewijones92.totum.ui.common.MediaListSkeleton
 import com.dewijones92.totum.ui.common.MediaThumbnail
 import com.dewijones92.totum.ui.common.SourceHeader
 import com.dewijones92.totum.ui.common.mediaItemSubtitle
@@ -278,7 +278,7 @@ private fun PlaylistRow(playlist: Playlist, onClick: () -> Unit) {
 @Composable
 private fun CenteredProgress() {
     Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
-        CircularProgressIndicator()
+        MediaListSkeleton()
     }
 }
 

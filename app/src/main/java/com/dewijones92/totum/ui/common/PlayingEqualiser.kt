@@ -1,0 +1,74 @@
+package com.dewijones92.totum.ui.common
+
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+
+/**
+ * Three bars that dance while something plays, and rest when it is paused.
+ *
+ * A static glyph can say "this is the current item" but not "this is making sound right now",
+ * which is the thing you actually want to spot in a long queue. Motion reads as alive in a way
+ * a filled icon never does, and it distinguishes playing from paused without a second symbol.
+ *
+ * Drawn rather than shipped as an animated vector: three tweened floats and a Canvas is less
+ * code than the equivalent AVD, scales to any size, and takes its colour from the caller so
+ * the brand palette stays in one place.
+ *
+ * When paused the bars hold a low, even height rather than freezing mid-dance — a stopped
+ * animation caught at a random moment looks like a rendering bug.
+ */
+@Composable
+fun PlayingEqualiser(
+    playing: Boolean,
+    color: Color,
+    modifier: Modifier = Modifier,
+) {
+    val transition = rememberInfiniteTransition(label = "equaliser")
+
+    // Each bar gets its own duration so they drift out of phase and never pulse in unison,
+    // which would read as one thick bar blinking.
+    val heights = BAR_DURATIONS_MS.mapIndexed { index, duration ->
+        transition.animateFloat(
+            initialValue = if (index % 2 == 0) MIN_HEIGHT else MAX_HEIGHT,
+            targetValue = if (index % 2 == 0) MAX_HEIGHT else MIN_HEIGHT,
+            animationSpec = infiniteRepeatable(tween(duration), RepeatMode.Reverse),
+            label = "bar$index",
+        )
+    }
+
+    Canvas(modifier = modifier) {
+        val barWidth = size.width / (BAR_COUNT * 2 - 1)
+        heights.forEachIndexed { index, height ->
+            val fraction = if (playing) height.value else RESTING_HEIGHT
+            val barHeight = size.height * fraction
+            drawRoundRect(
+                color = color,
+                topLeft = Offset(x = index * barWidth * 2, y = size.height - barHeight),
+                size = Size(barWidth, barHeight),
+                cornerRadius = CornerRadius(barWidth / 2),
+            )
+        }
+    }
+}
+
+private const val BAR_COUNT = 3
+private val BAR_DURATIONS_MS = listOf(420, 620, 500)
+private const val MIN_HEIGHT = 0.25f
+private const val MAX_HEIGHT = 1f
+
+/** Paused: low and even, so it plainly reads as stopped rather than as a frozen frame. */
+private const val RESTING_HEIGHT = 0.3f
+
+/** The size this is designed around; callers can override but this keeps uses consistent. */
+val EqualiserSize = 14.dp

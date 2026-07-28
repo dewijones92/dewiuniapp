@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -116,16 +117,31 @@ private fun ArtworkWithPillarBadge(state: PlaybackState) {
             modifier = Modifier.size(ARTWORK),
             shape = RoundedCornerShape(6.dp),
         )
-        Icon(
-            imageVector = pillarIcon(state.kind),
-            contentDescription = null,
+        // Equaliser while playing, pillar glyph otherwise: the badge answers "what is this"
+        // when stopped and "it is running" when not, which is the more useful thing at a
+        // glance and costs no extra space.
+        Box(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .size(PILLAR_BADGE)
                 .background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape)
-                .padding(1.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+                .padding(BADGE_INSET),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (state.isPlaying) {
+                PlayingEqualiser(
+                    playing = true,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else {
+                Icon(
+                    imageVector = pillarIcon(state.kind),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
     }
 }
 
@@ -151,5 +167,6 @@ private fun NowPlayingText(state: PlaybackState, modifier: Modifier = Modifier) 
 }
 
 private val ARTWORK = 40.dp
-private val PILLAR_BADGE = 14.dp
+private val PILLAR_BADGE = 16.dp
+private val BADGE_INSET = 3.dp
 private val PROGRESS_HEIGHT = 2.dp

@@ -1,7 +1,5 @@
 package com.dewijones92.totum.ui.queue
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -10,7 +8,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Close
@@ -37,8 +36,11 @@ import com.dewijones92.totum.di.AppContainer
 import com.dewijones92.totum.domain.DownloadState
 import com.dewijones92.totum.domain.MediaItem
 import com.dewijones92.totum.domain.MediaItemId
+import com.dewijones92.totum.ui.common.CollapsingTitle
 import com.dewijones92.totum.ui.common.EmptyState
+import com.dewijones92.totum.ui.common.EqualiserSize
 import com.dewijones92.totum.ui.common.MediaItemRow
+import com.dewijones92.totum.ui.common.PlayingEqualiser
 import com.dewijones92.totum.ui.common.ReorderState
 import com.dewijones92.totum.ui.common.mediaItemSubtitle
 import com.dewijones92.totum.ui.common.rememberReorderState
@@ -62,8 +64,12 @@ fun QueueScreen(container: AppContainer, modifier: Modifier = Modifier) {
     val entries = snapshot.entries
     val scope = rememberCoroutineScope()
 
+    // Hoisted so the header can collapse against it — the header sits outside the list, so
+    // it cannot read a state the list owns privately.
+    val listState = rememberLazyListState()
+
     Column(modifier = modifier.fillMaxSize()) {
-        QueueHeader(canClear = entries.isNotEmpty(), onClear = queue::clear)
+        QueueHeader(canClear = entries.isNotEmpty(), onClear = queue::clear, listState = listState)
         if (entries.isEmpty()) {
             EmptyState(
                 icon = Icons.AutoMirrored.Filled.QueueMusic,
@@ -72,10 +78,10 @@ fun QueueScreen(container: AppContainer, modifier: Modifier = Modifier) {
             )
         } else {
             val reorder = rememberReorderState(onMove = queue::move)
-            LazyColumn(Modifier.fillMaxSize()) {
+            LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
                 itemsWithGroupHeaders(
                     entries = entries,
-                    nowPlaying = NowPlaying(snapshot.currentIndex, playing?.progress),
+                    nowPlaying = NowPlaying(snapshot.currentIndex, playing?.progress, playing?.isPlaying == true),
                     downloads = downloads,
                     reorder = reorder,
                     actions = QueueActions(
@@ -111,7 +117,7 @@ private data class QueueActions(
 )
 
 /** Where the cursor is and how far through that item playback has got. */
-private data class NowPlaying(val index: Int, val progress: Float?)
+private data class NowPlaying(val index: Int, val progress: Float?, val isPlaying: Boolean)
 
 /**
  * Emits the queue rows, inserting a header wherever the group tag changes — so a
@@ -134,7 +140,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.itemsWithGroupHeaders
         }
         item(key = "entry-$index-${entry.item.item.id.value}") {
             val media = entry.item.item
-            if (index == nowPlaying.index) NowPlayingLabel(nowPlaying.progress)
+            if (index == nowPlaying.index) NowPlayingLabel(nowPlaying.progress, nowPlaying.isPlaying)
             MediaItemRow(
                 item = media,
                 subtitle = mediaItemSubtitle(media),
@@ -163,18 +169,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.itemsWithGroupHeaders
 }
 
 @Composable
-private fun QueueHeader(canClear: Boolean, onClear: () -> Unit) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 16.dp, end = 8.dp, top = 8.dp),
-    ) {
-        Text(
-            text = stringResource(R.string.queue_title),
-            style = MaterialTheme.typography.titleLarge,
-            modifier = Modifier.weight(1f),
-        )
+private fun QueueHeader(canClear: Boolean, onClear: () -> Unit, listState: LazyListState) {
+    CollapsingTitle(title = stringResource(R.string.queue_title), listState = listState) {
         if (canClear) {
             TextButton(onClick = onClear) { Text(stringResource(R.string.queue_clear_all)) }
         }
@@ -190,15 +186,18 @@ private fun QueueHeader(canClear: Boolean, onClear: () -> Unit) {
  * rather than a list that happens to have one row highlighted.
  */
 @Composable
-private fun NowPlayingLabel(progress: Float?) {
+private fun NowPlayingLabel(progress: Float?, isPlaying: Boolean) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 2.dp),
     ) {
-        Box(
-            modifier = Modifier
-                .size(width = ACCENT_WIDTH, height = ACCENT_HEIGHT)
-                .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(ACCENT_WIDTH)),
+        // Dancing bars rather than a static bar: in a long queue you want to spot the item
+        // making sound *now*, and motion says that in a way no glyph does. It also
+        // distinguishes playing from paused without needing a second symbol.
+        PlayingEqualiser(
+            playing = isPlaying,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(EqualiserSize),
         )
         Text(
             text = stringResource(R.string.queue_now_playing),
@@ -256,6 +255,4 @@ private fun DragHandle(modifier: Modifier, onRemove: () -> Unit) {
     }
 }
 
-private val ACCENT_WIDTH = 3.dp
-private val ACCENT_HEIGHT = 14.dp
 private val PROGRESS_HEIGHT = 2.dp

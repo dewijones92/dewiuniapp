@@ -19,7 +19,6 @@ import androidx.compose.material.icons.outlined.SmartDisplay
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -55,6 +54,7 @@ import com.dewijones92.totum.ui.common.LoadMoreOnScrollToEnd
 import com.dewijones92.totum.ui.common.LoadingMoreFooter
 import com.dewijones92.totum.ui.common.MediaItemActions
 import com.dewijones92.totum.ui.common.MediaItemRow
+import com.dewijones92.totum.ui.common.MediaListSkeleton
 import com.dewijones92.totum.ui.common.MediaSort
 import com.dewijones92.totum.ui.common.SectionHeaderWithSort
 import com.dewijones92.totum.ui.common.TotumFab
@@ -390,9 +390,9 @@ private fun FeedSelector(
 
 @Composable
 private fun FeedLoading() {
-    Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-        CircularProgressIndicator()
-    }
+    // A skeleton rather than a spinner: it says what is coming and roughly how much, so the
+    // screen reads as filling in rather than blocked, and nothing jumps when content lands.
+    MediaListSkeleton()
 }
 
 @Composable
