@@ -89,18 +89,21 @@ fun rememberMediaItemActions(
     snackbar: SnackbarHostState? = null,
 ): MediaItemActions {
     val adder = com.dewijones92.totum.ui.playlist.rememberPlaylistAdder(container)
-    val scope = rememberCoroutineScope()
+    // Two scopes, deliberately. Starting playback goes on the application scope so that
+    // changing tabs mid-resolve cannot cancel it; only the snackbar — which genuinely has
+    // nothing to say once its host is gone — stays tied to the composition.
+    val uiScope = rememberCoroutineScope()
     val context = LocalContext.current
-    return remember(container, adder, scope, snackbar) {
+    return remember(container, adder, uiScope, snackbar) {
         MediaItemActions(
             queue = container.playbackQueue,
             openPlaylistPicker = adder,
             locator = container.sourceLocator,
-            scope = scope,
+            scope = container.applicationScope,
             preferences = container.appPreferences,
             announce = { message ->
                 if (snackbar != null) {
-                    scope.launch { snackbar.showSnackbar(message) }
+                    uiScope.launch { snackbar.showSnackbar(message) }
                 } else {
                     Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                 }

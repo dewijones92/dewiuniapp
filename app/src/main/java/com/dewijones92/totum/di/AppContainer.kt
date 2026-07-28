@@ -103,6 +103,16 @@ import java.util.concurrent.TimeUnit
 
 /** The app's dependency graph. Manual DI: construction is code, errors are compile-time. */
 interface AppContainer {
+    /**
+     * For work that must outlive the screen that started it.
+     *
+     * Starting playback is the case that matters: a tap kicks off an extraction that takes
+     * a second or two, and a composition-bound scope dies the moment the user changes tabs,
+     * cancelling it silently. A real report caught exactly that — extraction completed, the
+     * user switched tab 1.7s later, and nothing ever played.
+     */
+    val applicationScope: CoroutineScope
+
     val podcastRepository: PodcastRepository
     val channelRepository: ChannelRepository
     val ytDlpEngine: YtDlpEngine
@@ -258,7 +268,7 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
         applicationScope.launch { ytDlpUpdater.ensureLatest() }
     }
 
-    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    override val applicationScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     override val playbackProgressStore: PlaybackProgressStore by lazy {
         RoomPlaybackProgressStore(database.playbackProgressDao())
