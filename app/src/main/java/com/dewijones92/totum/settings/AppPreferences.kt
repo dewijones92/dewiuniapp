@@ -6,6 +6,7 @@ import androidx.core.content.edit
 import com.dewijones92.totum.common.Diag
 import com.dewijones92.totum.data.sponsorblock.SkipCategory
 import com.dewijones92.totum.data.sponsorblock.SponsorBlockSegmentSource
+import com.dewijones92.totum.domain.MediaFilter
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -42,6 +43,7 @@ interface AppPreferences {
     fun setAutoDownloadQueue(enabled: Boolean)
     fun setAutoDownloadWifiOnly(enabled: Boolean)
     fun setPlaybackMode(mode: PlaybackMode)
+    fun setMediaFilter(filter: MediaFilter)
 
     /** Which SponsorBlock categories are skipped, in playback and in downloads alike. */
     fun setSkipCategories(categories: Set<SkipCategory>)
@@ -56,6 +58,12 @@ interface AppPreferences {
         /** Restricts automatic downloads to Wi-Fi, so a long queue can't eat data. */
         val autoDownloadWifiOnly: Boolean = true,
         val playbackMode: PlaybackMode = PlaybackMode.AUTO,
+        /**
+         * Which items feeds show, by progress. Global rather than per-feed: "hide what I have
+         * finished" is a preference about how you read, not about one subscription, and a
+         * per-feed version would need a setting per feed for a choice nobody varies.
+         */
+        val mediaFilter: MediaFilter = MediaFilter.ALL,
         /** SponsorBlock categories to skip; see SponsorBlockSegmentSource.DEFAULT_CATEGORIES. */
         val skipCategories: Set<SkipCategory> = SponsorBlockSegmentSource.DEFAULT_CATEGORIES,
     )
@@ -83,6 +91,9 @@ class SharedPrefsAppPreferences(context: Context) : AppPreferences {
             playbackMode = prefs.getString(KEY_PLAYBACK_MODE, null)
                 ?.let { name -> runCatching { PlaybackMode.valueOf(name) }.getOrNull() }
                 ?: PlaybackMode.AUTO,
+            mediaFilter = prefs.getString(KEY_MEDIA_FILTER, null)
+                ?.let { name -> runCatching { MediaFilter.valueOf(name) }.getOrNull() }
+                ?: MediaFilter.ALL,
             // An unknown id (a preference written by a newer build) is dropped rather
             // than crashing; absent entirely means "never chosen", so use the defaults.
             skipCategories = prefs.getStringSet(KEY_SKIP_CATEGORIES, null)
@@ -123,6 +134,11 @@ class SharedPrefsAppPreferences(context: Context) : AppPreferences {
             it.copy(playbackMode = mode)
         }
 
+    override fun setMediaFilter(filter: MediaFilter): Unit =
+        change("mediaFilter", filter, { putString(KEY_MEDIA_FILTER, filter.name) }) {
+            it.copy(mediaFilter = filter)
+        }
+
     /**
      * One path for every setting: persist, publish, and record it. A settings change is
      * often the answer to "it started behaving differently" — a report that lists the
@@ -146,6 +162,7 @@ class SharedPrefsAppPreferences(context: Context) : AppPreferences {
         const val KEY_AUTO_DOWNLOAD = "auto_download_queue"
         const val KEY_AUTO_DOWNLOAD_WIFI = "auto_download_wifi_only"
         const val KEY_PLAYBACK_MODE = "playback_mode"
+        const val KEY_MEDIA_FILTER = "media_filter"
         const val KEY_SKIP_CATEGORIES = "skip_categories"
     }
 }
@@ -163,4 +180,6 @@ class InMemoryAppPreferences : AppPreferences {
     override fun setPlaybackMode(mode: PlaybackMode) = _settings.update { it.copy(playbackMode = mode) }
     override fun setSkipCategories(categories: Set<SkipCategory>) =
         _settings.update { it.copy(skipCategories = categories) }
+
+    override fun setMediaFilter(filter: MediaFilter) = _settings.update { it.copy(mediaFilter = filter) }
 }

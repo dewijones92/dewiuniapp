@@ -43,15 +43,20 @@ import com.dewijones92.totum.R
 import com.dewijones92.totum.di.AppContainer
 import com.dewijones92.totum.domain.DownloadState
 import com.dewijones92.totum.domain.MediaContentKind
+import com.dewijones92.totum.domain.MediaFilter
 import com.dewijones92.totum.domain.MediaItem
 import com.dewijones92.totum.domain.MediaKind
 import com.dewijones92.totum.domain.MediaSource
+import com.dewijones92.totum.domain.PlayState
+import com.dewijones92.totum.domain.filteredBy
 import com.dewijones92.totum.innertube.feeds.AccountFeed
 import com.dewijones92.totum.theme.TotumTheme
 import com.dewijones92.totum.ui.channel.ChannelScreen
 import com.dewijones92.totum.ui.common.EmptyState
 import com.dewijones92.totum.ui.common.LoadMoreOnScrollToEnd
 import com.dewijones92.totum.ui.common.LoadingMoreFooter
+import com.dewijones92.totum.ui.common.LocalPlayStates
+import com.dewijones92.totum.ui.common.MediaFilterChips
 import com.dewijones92.totum.ui.common.MediaItemActions
 import com.dewijones92.totum.ui.common.MediaItemRow
 import com.dewijones92.totum.ui.common.MediaListSkeleton
@@ -86,11 +91,14 @@ fun VideosScreen(
     TrackPlace("videos-screen") { "${nav.describe()} videos=${state.videos.size} signedIn=${state.signedIn}" }
     val actions = rememberMediaItemActions(container)
     val switchMode = rememberModeSwitch(actions)
+    val settings by container.appPreferences.settings.collectAsStateWithLifecycle()
 
     when {
         nav.overlayShowing -> VideosOverlay(container, nav, notificationsViewModel, modifier)
         else -> VideosContent(
             state = state,
+            filter = settings.mediaFilter,
+            onSetFilter = container.appPreferences::setMediaFilter,
             newUploadsCount = notificationsViewModel.count.collectAsStateWithLifecycle().value,
             actions = actions,
             onSubscribe = viewModel::subscribe,
@@ -198,6 +206,8 @@ internal fun VideosContent(
     onRefresh: () -> Unit,
     onSetSort: (MediaSort) -> Unit,
     onLoadMore: () -> Unit,
+    filter: MediaFilter,
+    onSetFilter: (MediaFilter) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
@@ -233,6 +243,8 @@ internal fun VideosContent(
                         onOpenShorts = onOpenShorts,
                         onSetSort = onSetSort,
                         onLoadMore = onLoadMore,
+                        filter = filter,
+                        onSetFilter = onSetFilter,
                     )
                 }
             }
@@ -297,8 +309,11 @@ private fun ChannelsAndVideos(
     onOpenShorts: () -> Unit,
     onSetSort: (MediaSort) -> Unit,
     onLoadMore: () -> Unit,
+    filter: MediaFilter,
+    onSetFilter: (MediaFilter) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val playStates = LocalPlayStates.current
     val listState = rememberLazyListState()
     // The item count belongs in the trail as much as the offset: a restored scroll index
     // cannot survive being applied to an empty list, so "scroll=40 videos=0" and
@@ -327,7 +342,14 @@ private fun ChannelsAndVideos(
                         onSetSort = onSetSort,
                     )
                 }
-                items(state.videos, key = { it.id.value }) { video ->
+                item { MediaFilterChips(selected = filter, onSelect = onSetFilter) }
+                // Filtered here rather than in the view model so the chips react instantly
+                // without a round trip, and so one domain function serves every feed.
+                val shown = state.videos.filteredBy(filter) { playStates[it] ?: PlayState.Unplayed }
+                if (shown.isEmpty()) {
+                    item { FeedMessage(stringResource(R.string.filter_hides_everything)) }
+                }
+                items(shown, key = { it.id.value }) { video ->
                     MediaItemRow(
                         item = video,
                         subtitle = mediaItemSubtitle(video),
@@ -465,6 +487,8 @@ private fun VideosContentPreview() {
             onRefresh = {},
             onSetSort = {},
             onLoadMore = {},
+            filter = MediaFilter.ALL,
+            onSetFilter = {},
         )
     }
 }

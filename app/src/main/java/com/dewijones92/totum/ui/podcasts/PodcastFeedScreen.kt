@@ -22,6 +22,10 @@ import com.dewijones92.totum.di.AppContainer
 import com.dewijones92.totum.domain.DownloadState
 import com.dewijones92.totum.domain.MediaKind
 import com.dewijones92.totum.domain.MediaSource
+import com.dewijones92.totum.domain.PlayState
+import com.dewijones92.totum.domain.filteredBy
+import com.dewijones92.totum.ui.common.LocalPlayStates
+import com.dewijones92.totum.ui.common.MediaFilterChips
 import com.dewijones92.totum.ui.common.MediaItemRow
 import com.dewijones92.totum.ui.common.SourceHeader
 import com.dewijones92.totum.ui.common.mediaItemSubtitle
@@ -34,6 +38,19 @@ import com.dewijones92.totum.ui.common.rememberMediaItemActions
  * [MediaItemRow]. It's a filtered view of [PodcastsViewModel] rather than a
  * parallel view model, so play/download/queue behave identically to the feed list.
  */
+/** Nothing to show — either the feed is empty or the progress filter hides all of it. */
+@Composable
+private fun FeedEmpty() {
+    Text(
+        text = stringResource(R.string.feed_empty),
+        style = MaterialTheme.typography.bodyLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(32.dp),
+    )
+}
+
 @Composable
 fun PodcastFeedScreen(
     container: AppContainer,
@@ -44,7 +61,13 @@ fun PodcastFeedScreen(
     val viewModel: PodcastsViewModel = viewModel(factory = PodcastsViewModel.factory(container))
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val actions = rememberMediaItemActions(container)
-    val episodes = state.episodes.filter { it.sourceId == source.id }
+    // The same filter and the same chips as the video feeds: "hide what I have finished" is
+    // one idea, so a podcast must not grow its own version of it.
+    val settings by container.appPreferences.settings.collectAsStateWithLifecycle()
+    val playStates = LocalPlayStates.current
+    val episodes = state.episodes
+        .filter { it.sourceId == source.id }
+        .filteredBy(settings.mediaFilter) { playStates[it] ?: PlayState.Unplayed }
     val subscribed = state.subscriptions.any { it.source.id == source.id }
 
     Surface(modifier = modifier.fillMaxSize()) {
@@ -62,16 +85,15 @@ fun PodcastFeedScreen(
                 },
             )
             if (episodes.isEmpty()) {
-                Text(
-                    text = stringResource(R.string.feed_empty),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(32.dp),
-                )
+                FeedEmpty()
             } else {
                 LazyColumn(Modifier.fillMaxSize()) {
+                    item {
+                        MediaFilterChips(
+                            selected = settings.mediaFilter,
+                            onSelect = container.appPreferences::setMediaFilter,
+                        )
+                    }
                     items(episodes, key = { it.id.value }) { episode ->
                         MediaItemRow(
                             item = episode,
