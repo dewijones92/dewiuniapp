@@ -65,6 +65,11 @@ class PlaybackQueue(
     init {
         scope.launch {
             val saved = store.load()
+            Diag.log(
+                "queue",
+                "hydrated ${saved.entries.size} entries, cursor ${saved.currentIndex}" +
+                    if (touched) " — discarded, the user got there first" else "",
+            )
             if (!touched) _state.value = saved
         }
         // Persist every subsequent change. `drop(1)` skips the initial empty value
@@ -74,12 +79,12 @@ class PlaybackQueue(
 
     /** Adds to the end of the queue. */
     fun enqueue(item: PlayableItem, group: QueueGroup? = null) {
-        mutate { it.copy(entries = it.entries + QueueEntry(item, group)) }
+        mutate("add-to-end") { it.copy(entries = it.entries + QueueEntry(item, group)) }
     }
 
     /** Inserts so it plays immediately after the current entry. */
     fun playNext(item: PlayableItem, group: QueueGroup? = null) {
-        mutate { snapshot -> snapshot.inserted(listOf(QueueEntry(item, group))) }
+        mutate("play-next") { snapshot -> snapshot.inserted(listOf(QueueEntry(item, group))) }
     }
 
     /**
@@ -89,7 +94,7 @@ class PlaybackQueue(
      */
     suspend fun playNow(item: PlayableItem, group: QueueGroup? = null): Boolean {
         var index = NOTHING_PLAYING
-        mutate { snapshot ->
+        mutate("play-now") { snapshot ->
             val withoutIt = snapshot.removing { it.item.item.id == item.item.id }
             withoutIt.inserted(listOf(QueueEntry(item, group))).also { index = it.currentIndex + 1 }
         }
@@ -104,7 +109,7 @@ class PlaybackQueue(
     fun playAll(items: List<PlayableItem>, group: QueueGroup? = null) {
         if (items.isEmpty()) return
         var index = NOTHING_PLAYING
-        mutate { snapshot ->
+        mutate("play-all(${items.size})") { snapshot ->
             snapshot.inserted(items.map { QueueEntry(it, group) }).also { index = it.currentIndex + 1 }
         }
         scope.launch { playAt(index) }
@@ -117,7 +122,7 @@ class PlaybackQueue(
      * rather than pretending the peeked item was a member.
      */
     suspend fun peek(item: PlayableItem): Boolean {
-        mutate { it.copy(currentIndex = NOTHING_PLAYING) }
+        mutate("peek (cursor cleared by design)") { it.copy(currentIndex = NOTHING_PLAYING) }
         return play(item)
     }
 
@@ -127,7 +132,7 @@ class PlaybackQueue(
     }
 
     fun removeAt(index: Int) {
-        mutate { snapshot ->
+        mutate("remove-at-$index") { snapshot ->
             if (index !in snapshot.entries.indices) {
                 snapshot
             } else {
@@ -138,12 +143,12 @@ class PlaybackQueue(
 
     /** Drops every entry tagged with [groupId] — the batch action a grouped run offers. */
     fun removeGroup(groupId: String) {
-        mutate { snapshot -> snapshot.removing { it.group?.id == groupId } }
+        mutate("remove-group") { snapshot -> snapshot.removing { it.group?.id == groupId } }
     }
 
     /** Reorders one entry, carrying the cursor with the entry it points at. */
     fun move(from: Int, to: Int) {
-        mutate { snapshot ->
+        mutate("move $from->$to") { snapshot ->
             if (from !in snapshot.entries.indices || to !in snapshot.entries.indices) {
                 snapshot
             } else {
@@ -158,7 +163,7 @@ class PlaybackQueue(
     }
 
     fun clear() {
-        mutate { QueueSnapshot() }
+        mutate("clear") { QueueSnapshot() }
     }
 
     /**
@@ -168,7 +173,10 @@ class PlaybackQueue(
      */
     fun playNextInQueue(): Boolean {
         val start = _state.value.currentIndex + 1
-        if (start > _state.value.entries.lastIndex) return false
+        if (start > _state.value.entries.lastIndex) {
+            Diag.log("queue", "nothing after cursor ${_state.value.currentIndex} of ${_state.value.entries.size}")
+            return false
+        }
         scope.launch {
             var index = start
             while (index <= _state.value.entries.lastIndex) {
@@ -182,18 +190,25 @@ class PlaybackQueue(
     /** Moves the cursor to [index] and plays it; false when out of range or unplayable. */
     private suspend fun playAt(index: Int): Boolean {
         val entry = _state.value.entries.getOrNull(index) ?: return false
-        mutate { it.copy(currentIndex = index) }
+        mutate("play-at-$index") { it.copy(currentIndex = index) }
         return play(entry.item)
     }
 
-    /** Every change goes through here, so nothing can bypass the hydration guard. */
-    private fun mutate(block: (QueueSnapshot) -> QueueSnapshot) {
+    /**
+     * Every change goes through here, so nothing can bypass the hydration guard.
+     *
+     * [why] names the operation, because the snapshot alone is ambiguous in exactly the way
+     * that matters: a cursor of -1 is what both a "peek" and a hydration-with-nothing-playing
+     * look like, and telling them apart decided whether an auto-advance failure was a bug or
+     * by design. One word of intent per mutation makes the trail readable.
+     */
+    private fun mutate(why: String, block: (QueueSnapshot) -> QueueSnapshot) {
         touched = true
         _state.update(block)
         val now = _state.value
         Diag.log(
             "queue",
-            "size=${now.entries.size} current=${now.currentIndex} ${now.current?.item?.item?.title ?: "-"}",
+            "$why: size=${now.entries.size} current=${now.currentIndex} ${now.current?.item?.item?.title ?: "-"}",
         )
     }
 

@@ -25,6 +25,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.dewijones92.totum.common.Diag
 import com.dewijones92.totum.data.queue.QueueEntry
 import com.dewijones92.totum.di.AppContainer
 import com.dewijones92.totum.di.fake.FakeAppContainer
@@ -96,16 +97,13 @@ fun AppShell(container: AppContainer, modifier: Modifier = Modifier) {
             Box(modifier = modifier.fillMaxSize()) {
                 Scaffold(
                     bottomBar = {
-                        Column {
-                            playbackState?.let { state ->
-                                MiniPlayerBar(
-                                    state = state,
-                                    onTogglePlayPause = controller::togglePlayPause,
-                                    onExpand = { showFullPlayer = true },
-                                )
-                            }
-                            TopLevelNavigationBar(selected, onSelect = { selected = it })
-                        }
+                        BottomBar(
+                            state = playbackState,
+                            selected = selected,
+                            onTogglePlayPause = controller::togglePlayPause,
+                            onExpand = { showFullPlayer = true },
+                            onSelect = { selected = it },
+                        )
                     },
                 ) { innerPadding ->
                     TopLevelContent(
@@ -137,6 +135,31 @@ fun AppShell(container: AppContainer, modifier: Modifier = Modifier) {
                 }
             }
         }
+    }
+}
+
+/** The mini player sitting above the tabs — one bar, so neither appears without the other. */
+@Composable
+private fun BottomBar(
+    state: PlaybackState?,
+    selected: TopLevelDestination,
+    onTogglePlayPause: () -> Unit,
+    onExpand: () -> Unit,
+    onSelect: (TopLevelDestination) -> Unit,
+) {
+    Column {
+        state?.let {
+            MiniPlayerBar(state = it, onTogglePlayPause = onTogglePlayPause, onExpand = onExpand)
+        }
+        TopLevelNavigationBar(
+            selected,
+            // Logged because a real report could not answer "did this happen when I switched
+            // tabs?" — nothing recorded that the user had, so the question was unanswerable.
+            onSelect = { destination ->
+                Diag.log("nav", "tab $selected -> $destination")
+                onSelect(destination)
+            },
+        )
     }
 }
 
@@ -179,11 +202,25 @@ private fun AutoAdvance(
     val autoPlayNext by container.appPreferences.settings.collectAsStateWithLifecycle()
     var handledEndFor by remember { mutableStateOf(state?.takeIf { it.hasEnded }?.itemId) }
     LaunchedEffect(state?.itemId, state?.hasEnded) {
-        if (reelOpen || !autoPlayNext.autoPlayNext) return@LaunchedEffect
         val ended = state?.takeIf { it.hasEnded } ?: return@LaunchedEffect
-        if (handledEndFor == ended.itemId) return@LaunchedEffect
+        // Every branch says why, because the failure mode is silence: a real report showed
+        // an item end with 58 things queued and nothing happen for three minutes, and there
+        // was no way to tell which of these four reasons it was.
+        val refusal = when {
+            reelOpen -> "the shorts reel is open and pages itself"
+            !autoPlayNext.autoPlayNext -> "auto-play next is off"
+            handledEndFor == ended.itemId -> "already handled this item's end"
+            else -> null
+        }
+        if (refusal != null) {
+            Diag.log("advance", "not advancing past ${ended.itemId.value}: $refusal")
+            return@LaunchedEffect
+        }
         handledEndFor = ended.itemId
-        if (!container.playbackQueue.playNextInQueue() && ended.hasVideo) {
+        val advanced = container.playbackQueue.playNextInQueue()
+        Diag.log("advance", "${ended.itemId.value} ended -> queue advance=$advanced")
+        if (!advanced && ended.hasVideo) {
+            Diag.log("advance", "queue had nothing playable; trying a related video")
             watchViewModel.autoplayNext()
         }
     }

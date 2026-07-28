@@ -251,6 +251,20 @@ when driven on the emulator. Verify real flows on a device, not just via tests.
   in this repo's Actions secrets (CI signing; write-only), and backed up in
   the PRIVATE repo `dewijones92/uniapp-signing-backup` (survives laptop
   loss). versionCode is `100 + run number`, so it only ever increases.
+- **Log generously — err on the side of far more.** Dewi's standing instruction
+  (2026-07-28): *"would we benefit from FAR MORE THINGS being logged??? in this repo,
+  always err on the side of MORE LOGS/DIAGS."* This app is debugged almost entirely
+  from diagnostics reports sent off a phone that is not in front of you, so an
+  unlogged decision is an unanswerable question. It has cost real time twice: a
+  23-second stall was invisible because nothing recorded stalls, and "the position
+  clears when I switch tabs" could not be investigated at all because tab switches
+  were not recorded. When adding any branch that decides something a user would
+  notice — advance or don't, skip or don't, retry or give up, use this stream or that
+  one — **log the decision and the reason for it**, not just the outcome. Prefer a
+  line that says why nothing happened; silence is the hardest thing to debug.
+  The one real constraint is the report buffer: it holds a bounded number of events,
+  so anything firing many times a second must be counted and logged periodically
+  (see `SILENCE_LOG_EVERY`) rather than dropped. Counted, never silent.
 - Debug logging must be prefixed `dewidebug`. **Keep it committed** until Dewi says
   otherwise (his standing rule, which reverses the earlier strip-before-commit one):
   these lines are often useful again. Make a chatty one reasonable — log only the
