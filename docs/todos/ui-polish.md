@@ -5,7 +5,7 @@ status: refining
 area: ui
 priority: medium
 requested: 2026-07-25
-updated: 2026-07-25
+updated: 2026-07-28
 ---
 
 # Make the UI nicer
@@ -74,3 +74,25 @@ Also folded in while there: media rows cap titles at two lines (they were runnin
 and the playback-rate list stopped existing twice.
 
 Still open in this doc: the remaining sweep for rough edges elsewhere in the app.
+
+## Shipped 2026-07-28 — mini player, motion, queue marker
+
+Dewi: "jazz up the UI a bit, get creative". Picked by what you touch most often rather
+than what photographs best.
+
+**(f) Mini player.** Artwork with the pillar glyph on its corner, title + channel, and a
+skip-next. The progress line became a 2dp hairline: the default indicator is thick enough
+to read as a draggable control, and this is a status line.
+
+**(g) Motion.** Shared-axis slide between tabs, keyed off the tab ordinal so direction
+matches the row. Deliberately short travel — a third of the width would imply the tabs can
+be swiped between, which they cannot. Lives in `ui/motion/SharedAxis.kt` as shared design
+vocabulary.
+
+**(e) Queue now-playing.** Brand-tinted bar plus the item's progress, still in place in the
+list rather than promoted to a card — the playing item being a queue member is a deliberate
+decision and worth keeping.
+
+Still open from the candidate list: **(c)** demote queue ✕ to a swipe, **(d)** channel avatar
+instead of the AccountCircle glyph, **(i)** collapsing large-title headers across the feeds.
+(i) remains the biggest identity win and the biggest job — it touches every feed screen.
