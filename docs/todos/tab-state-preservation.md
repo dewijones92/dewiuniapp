@@ -67,3 +67,26 @@ Playlists. Rotation and process death benefit for free.
 
 The queue-tab question raised above was not resolved — it still restores like the others
 rather than jumping to the current item. Left until it actually annoys someone.
+
+## Still not confirmed fixed (2026-07-28)
+
+Dewi reported it STILL not staying put after all of the above, so this is open. Two things
+came out of chasing it, both worth keeping.
+
+**A fourth screen was missed.** `VideosScreen` held its overlay navigation — channel,
+playlist, playlists list, notifications — in a plain `remember`. Same bug, fixed in three
+screens and missed in the fourth, because "the shell's state holder handles it" was the
+wrong mental model: the holder restores what is *saveable*, and a holder full of
+`mutableStateOf` is not. `VideosNav` moved to its own file with a `Saver` (fixed-width
+encoding, so a missing thumbnail cannot shift a playlist title into the channel slot).
+
+**Guessing from the code was wrong twice.** The plausible culprits — a non-saveable
+`LazyListState`, a flow dropping its value on `WhileSubscribed` — were both innocent: the
+scroll state IS saveable, and the round trips in the report were 0.5s, well inside the 5s
+timeout. So the answer is instrumentation, not theory: `TrackPlace` logs each screen's
+position on entry and exit, and `TrackedViewModel` logs construction. That already ruled
+out one whole class of cause — `videos created` appears once across four tab switches, so
+view-model recreation is not it.
+
+Waiting on a report from 0.1.177+ to say which of the remaining candidates it is: overlay
+state lost, scroll not saved, or scroll saved but applied to a list that has not arrived.

@@ -3,7 +3,7 @@ title: Crash and diagnostics reporting
 kind: feature
 status: shipped
 area: infrastructure
-updated: 2026-07-25
+updated: 2026-07-28
 ---
 
 # Crash reporting
@@ -80,6 +80,46 @@ how a "this played the audio-only file as a video" report gets diagnosed.
 The silence detector enters silence every few seconds during speech. Logging each one
 flooded the trail and evicted the useful lines, so it logs the first plus every 50th with
 a running count — enough to prove detection works, quiet enough to leave room for signal.
+
+The skip-silence speed change had the same problem and was worse: **239 lines, 59% of one
+400-entry report**, leaving sixteen minutes of history in a buffer meant to hold hours —
+precisely when a stall needed explaining. Same treatment: counted, every 50th logged.
+
+That is the one real constraint on the "log generously" rule in `CLAUDE.md`. Anything firing
+many times a second gets counted and logged periodically. Counted, never silent.
+
+## Log the decision, not just the outcome (2026-07-28)
+
+Dewi asked whether the playback position clears when switching bottom tabs. The honest
+answer was that the diagnostics *could not say* — nothing recorded that a tab had been
+switched — so the question was unanswerable rather than answered. His standing instruction
+came from that and now governs this repo: err on the side of far more logging, because an
+unlogged decision is an unanswerable question.
+
+Four trails were added, each closing a specific blind spot:
+
+| Trail | Answers |
+|---|---|
+| `nav` | which tab, when — the correlation everything else needs |
+| `place` | where a screen was on entry and exit; if they differ, state was lost |
+| `vm` | whether a view model was recreated (it is not — ruled out a whole class of cause) |
+| `advance` | which of four reasons stopped an auto-advance |
+| `queue` | *which operation* mutated the queue, not just the resulting snapshot |
+
+The queue one is the subtle one. A cursor of `-1` is what **both** a deliberate "peek" and a
+hydration-with-nothing-playing look like, and telling those apart decides whether an
+auto-advance failure is a bug or by design. It was impossible to tell from a report; every
+mutation now carries one word of intent.
+
+`place` has a trap worth knowing: `entered` appears *before* the previous screen's `left`,
+because `AnimatedContent` composes the incoming destination before disposing the outgoing
+one. Not a bug, but it reads like one.
+
+**This paid for itself the same day.** One `nav` line found a root cause on the very next
+report: an `extract` completed, the user switched tab 1.7s later, and nothing ever played —
+because row actions ran playback on `rememberCoroutineScope()`, which dies with the
+composition. A tap that takes a second to become audible was a race against the user's next
+gesture.
 
 ## Tests
 

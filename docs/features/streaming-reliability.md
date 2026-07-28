@@ -116,3 +116,25 @@ the next queue item. Raised with Dewi 2026-07-28, who chose to leave it for now.
 **Not covered:** the cause-chain walk in `looksExpired()`. Building a Media3
 `InvalidResponseCodeException` needs an `android.net.Uri`, which a JVM test cannot make, so
 the status codes are tested and the walk is not.
+
+---
+
+# Appendix: the AppShell overlay category
+
+Not streaming, but the same shape of bug and found the same way, so recorded next to it.
+
+`AppShell` renders three things as overlays in its `Box`, **outside** the `Scaffold`: the
+full player, the shorts reel, and the channel screen. Tab content is inset by the Scaffold's
+`innerPadding`; an overlay gets nothing. The player and the reel inset themselves
+deliberately (they are full-bleed video). The channel screen did not, so its title and
+Subscribe button drew under the clock and battery icons.
+
+What hid it: the *same* screen opened from inside the Videos or Search tab is correctly
+padded, so it looks right by every route except "go to channel" from a row — the most common
+one. Fixed at the call site rather than inside `ChannelScreen`, since the other two call
+sites already receive padding and doing it internally would double it there.
+
+An audit of the rest came back clean: every screen that takes a `modifier` applies it, and
+the overlay list is the only category that bypasses the Scaffold. Dewi said "some screens",
+plural, so **one is proven and fixed and the rest is an argument** — if another turns up,
+the overlay list is the first place to look, but the audit is not the same as having seen it.
