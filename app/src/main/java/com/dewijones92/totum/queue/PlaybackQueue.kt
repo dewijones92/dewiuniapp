@@ -77,7 +77,7 @@ class PlaybackQueue(
 
     init {
         scope.launch {
-            val saved = store.load()
+            val saved = store.load().deduplicated()
             Diag.log(
                 "queue",
                 "hydrated ${saved.entries.size} entries, cursor ${saved.currentIndex}" +
@@ -90,14 +90,22 @@ class PlaybackQueue(
         _state.drop(1).onEach { store.save(it) }.launchIn(scope)
     }
 
-    /** Adds to the end of the queue. */
+    /** Adds to the end of the queue, moving it there if it is already queued. */
     fun enqueue(item: PlayableItem, group: QueueGroup? = null) {
-        mutate("add-to-end") { it.copy(entries = it.entries + QueueEntry(item, group)) }
+        mutate("add-to-end") { snapshot ->
+            snapshot.relocating(item) { without ->
+                without.copy(entries = without.entries + QueueEntry(item, group))
+            }
+        }
     }
 
-    /** Inserts so it plays immediately after the current entry. */
+    /** Inserts so it plays immediately after the current entry, moving it if already queued. */
     fun playNext(item: PlayableItem, group: QueueGroup? = null) {
-        mutate("play-next") { snapshot -> snapshot.inserted(listOf(QueueEntry(item, group))) }
+        mutate("play-next") { snapshot ->
+            snapshot.relocating(item) { without ->
+                without.inserted(listOf(QueueEntry(item, group)))
+            }
+        }
     }
 
     /**
@@ -121,9 +129,17 @@ class PlaybackQueue(
      */
     fun playAll(items: List<PlayableItem>, group: QueueGroup? = null) {
         if (items.isEmpty()) return
+        // Distinct within the run as well as against the queue: a caller can legitimately hand
+        // over a list with repeats (a feed showing the same video twice), and re-opening the
+        // shorts reel hands over the whole run again every time.
+        val run = items.distinctBy { it.item.id }
+        val ids = run.map { it.item.id }.toSet()
         var index = NOTHING_PLAYING
-        mutate("play-all(${items.size})") { snapshot ->
-            snapshot.inserted(items.map { QueueEntry(it, group) }).also { index = it.currentIndex + 1 }
+        mutate("play-all(${run.size})") { snapshot ->
+            snapshot
+                .removing { entry -> entry.item.item.id in ids && entry != snapshot.current }
+                .inserted(run.map { QueueEntry(it, group) })
+                .also { index = it.currentIndex + 1 }
         }
         scope.launch { playAt(index) }
     }
@@ -266,6 +282,42 @@ class PlaybackQueue(
                 }
             }
         }
+}
+
+/**
+ * Drops repeats, keeping the first of each and carrying the cursor with the entry it points at.
+ *
+ * Applied on load, so a queue already polluted by the duplicating add-paths repairs itself on
+ * next launch rather than staying broken forever. It is also what makes the list safe to key by
+ * item id alone: duplicate keys in a LazyColumn are a crash, and the old key had to include the
+ * index to stay unique — which defeated Compose's item identity, so reordering lost per-item
+ * state and never animated.
+ */
+private fun QueueSnapshot.deduplicated(): QueueSnapshot {
+    val unique = entries.distinctBy { it.item.item.id }
+    if (unique.size == entries.size) return this
+    Diag.warn("queue", "dropped ${entries.size - unique.size} duplicate entries on load")
+    return copy(entries = unique, currentIndex = current?.let(unique::indexOf) ?: NOTHING_PLAYING)
+}
+
+/**
+ * Applies [place] to this snapshot with any existing copy of [item] removed, so re-adding
+ * something MOVES it instead of duplicating it.
+ *
+ * Dewi hit this on "play next": pressing it on an item already in the queue left two copies.
+ * playNow already de-duplicated and its documentation even claimed the behaviour was general,
+ * so three of the four add-paths disagreed with the one that was right.
+ *
+ * The playing entry is deliberately exempt. Removing it would drop the cursor to -1 and the
+ * queue would forget where it was, so "play next" on the thing already playing does nothing —
+ * which is also the only sensible reading of the request.
+ */
+private fun QueueSnapshot.relocating(
+    item: PlayableItem,
+    place: (QueueSnapshot) -> QueueSnapshot,
+): QueueSnapshot {
+    if (current?.item?.item?.id == item.item.id) return this
+    return place(removing { it.item.item.id == item.item.id })
 }
 
 /** Inserts [run] immediately after the current entry, leaving the cursor put. */

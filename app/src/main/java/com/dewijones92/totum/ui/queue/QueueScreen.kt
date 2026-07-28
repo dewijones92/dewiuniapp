@@ -138,7 +138,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.itemsWithGroupHeaders
                 GroupHeader(title = group.title, onRemoveGroup = { actions.onRemoveGroup(group.id) })
             }
         }
-        item(key = "entry-$index-${entry.item.item.id.value}") {
+        item(key = entry.item.item.id.value) {
             val media = entry.item.item
             if (index == nowPlaying.index) NowPlayingLabel(nowPlaying.progress, nowPlaying.isPlaying)
             MediaItemRow(

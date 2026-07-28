@@ -45,6 +45,101 @@ class PlaybackQueueTest {
     private fun queue(withStore: QueueStore = store) =
         PlaybackQueue(controller, launcher, CoroutineScope(dispatcher), withStore)
 
+    /**
+     * Dewi's report: "when I click play next on something already in the queue, it dups it."
+     * Every add-path must move rather than duplicate — playNow already did, and the others
+     * disagreed with it.
+     */
+    @Test
+    fun `play next moves an already-queued item instead of duplicating it`() = runTest(dispatcher) {
+        val q = queue()
+        q.enqueue(podcast("a"))
+        q.enqueue(podcast("b"))
+        q.enqueue(podcast("c"))
+
+        q.playNext(podcast("c"))
+        advanceUntilIdle()
+
+        assertEquals(listOf("c", "a", "b"), q.state.value.entries.map { it.item.item.id.value })
+    }
+
+    @Test
+    fun `add to queue moves an already-queued item to the end`() = runTest(dispatcher) {
+        val q = queue()
+        q.enqueue(podcast("a"))
+        q.enqueue(podcast("b"))
+
+        q.enqueue(podcast("a"))
+        advanceUntilIdle()
+
+        assertEquals(listOf("b", "a"), q.state.value.entries.map { it.item.item.id.value })
+    }
+
+    /**
+     * The playing entry is exempt: removing it would drop the cursor and the queue would forget
+     * where it was, so "play next" on what is already playing does nothing.
+     */
+    @Test
+    fun `play next on the playing item leaves the queue and cursor alone`() = runTest(dispatcher) {
+        val q = queue()
+        q.playNow(podcast("a"))
+        q.enqueue(podcast("b"))
+        advanceUntilIdle()
+        val cursorBefore = q.state.value.currentIndex
+
+        q.playNext(podcast("a"))
+        advanceUntilIdle()
+
+        assertEquals(listOf("a", "b"), q.state.value.entries.map { it.item.item.id.value })
+        assertEquals(cursorBefore, q.state.value.currentIndex)
+    }
+
+    @Test
+    fun `play all does not duplicate items already queued`() = runTest(dispatcher) {
+        val q = queue()
+        q.enqueue(podcast("a"))
+        q.enqueue(podcast("b"))
+        advanceUntilIdle()
+
+        q.playAll(listOf(podcast("b"), podcast("c")))
+        advanceUntilIdle()
+
+        // b moved into the run rather than being duplicated; c is new; a is left where it was.
+        val ids = q.state.value.entries.map { it.item.item.id.value }
+        assertEquals(listOf("b", "c", "a"), ids)
+        assertEquals("no duplicates", ids.size, ids.distinct().size)
+    }
+
+    /** A caller can hand over a list with repeats; re-opening the shorts reel does exactly that. */
+    @Test
+    fun `play all drops repeats within its own run`() = runTest(dispatcher) {
+        val q = queue()
+
+        q.playAll(listOf(podcast("a"), podcast("b"), podcast("a")))
+        advanceUntilIdle()
+
+        assertEquals(listOf("a", "b"), q.state.value.entries.map { it.item.item.id.value })
+    }
+
+    /** A queue already polluted by the old behaviour repairs itself rather than staying broken. */
+    @Test
+    fun `a saved queue containing duplicates is repaired on load`() = runTest(dispatcher) {
+        val polluted = InMemoryQueueStore()
+        polluted.save(
+            QueueSnapshot(
+                entries = listOf(podcast("a"), podcast("b"), podcast("a"), podcast("b")).map { QueueEntry(it) },
+                currentIndex = 1,
+            ),
+        )
+
+        val q = queue(polluted)
+        advanceUntilIdle()
+
+        assertEquals(listOf("a", "b"), q.state.value.entries.map { it.item.item.id.value })
+        // The cursor still points at the entry it pointed at, not at whatever landed on index 1.
+        assertEquals("b", q.state.value.current?.item?.item?.id?.value)
+    }
+
     private fun podcast(id: String) = PlayableItem(
         MediaItem(
             id = MediaItemId(id),
