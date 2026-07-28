@@ -55,6 +55,19 @@ class PlaybackQueue(
     /** The queue and where playback is within it. */
     val state: StateFlow<QueueSnapshot> = _state.asStateFlow()
 
+    private val _nowPlaying = MutableStateFlow<PlayableItem?>(null)
+
+    /**
+     * The item most recently handed to the player, whether or not it is a queue member.
+     *
+     * Distinct from `state.value.current` on purpose. The cursor answers "where are we in the
+     * queue", which is -1 for a peek and for anything played before hydration lands — and the
+     * player was using the cursor to decide whether to offer its item actions, so add-to-queue
+     * and friends silently disappeared for exactly those items. "What is playing" and "where
+     * is the cursor" are different questions and now have different answers.
+     */
+    val nowPlaying: StateFlow<PlayableItem?> = _nowPlaying.asStateFlow()
+
     /**
      * Whether anything has changed the queue yet. Loading is suspending, so the user
      * can act before it lands — this makes their intent win instead of being
@@ -225,7 +238,13 @@ class PlaybackQueue(
     }
 
     /** Plays [queued]; returns whether it actually started. */
-    private suspend fun play(queued: PlayableItem, startPositionMs: Long = 0): Boolean =
+    private suspend fun play(queued: PlayableItem, startPositionMs: Long = 0): Boolean {
+        // Recorded before routing, so a peek and a queued play are equally "playing".
+        _nowPlaying.value = queued
+        return route(queued, startPositionMs)
+    }
+
+    private suspend fun route(queued: PlayableItem, startPositionMs: Long): Boolean =
         when (val handle = queued.handle) {
             is PlayHandle.Video -> launcher.play(handle.watchUrl, queued.item.sourceId, startPositionMs)
             is PlayHandle.LocalVideo -> {

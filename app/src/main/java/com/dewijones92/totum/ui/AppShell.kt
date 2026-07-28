@@ -256,7 +256,13 @@ private fun FullPlayerHost(
     val queueState by container.playbackQueue.state.collectAsStateWithLifecycle()
     val upNext = queueState.upNext
     var showItemSheet by remember { mutableStateOf(false) }
-    val playing = queueState.current?.item
+    // What is PLAYING, not where the cursor is. Those differ for a peek and for anything
+    // played before the queue hydrated, and this used to read the cursor — so the player's
+    // item actions (add to queue, play next, add to playlist) silently vanished for exactly
+    // those items, leaving quality and speed as the only things you could reach. Falls back
+    // to the cursor for a session where the queue itself did not start playback.
+    val nowPlaying by container.playbackQueue.nowPlaying.collectAsStateWithLifecycle()
+    val playing = nowPlaying ?: queueState.current?.item
     val currentIndex = queueState.currentIndex
     val settings by container.appPreferences.settings.collectAsStateWithLifecycle()
 
