@@ -1,6 +1,5 @@
 package com.dewijones92.totum.ui.cast
 
-import android.view.ContextThemeWrapper
 import android.view.View
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -8,7 +7,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.mediarouter.app.MediaRouteButton
-import com.dewijones92.totum.R
 import com.google.android.gms.cast.framework.CastButtonFactory
 import com.google.android.gms.cast.framework.CastContext
 
@@ -27,14 +25,13 @@ fun CastButton(modifier: Modifier = Modifier) {
     if (!available) return
     AndroidView(
         factory = { ctx ->
-            // MediaRouteButton reads AppCompat theme attributes and computes a
-            // contrast ratio against the theme's window background — the Compose
-            // host theme has a translucent background, which throws ("background
-            // can not be translucent"). Give it an AppCompat theme with an opaque
-            // background, and fall back to an empty view if Cast still can't init.
-            val themed = ContextThemeWrapper(ctx, R.style.Theme_Totum_Cast)
+            // The AppCompat attributes MediaRouter needs come from the activity theme
+            // (see themes.xml) — a per-button ContextThemeWrapper used to live here, and it
+            // was not enough, because the picker dialog is themed from the activity. An
+            // empty view if Cast still can't initialise, so a GMS-less device shows nothing
+            // rather than crashing.
             runCatching {
-                MediaRouteButton(themed).also { CastButtonFactory.setUpMediaRouteButton(themed, it) }
+                MediaRouteButton(ctx).also { CastButtonFactory.setUpMediaRouteButton(ctx, it) }
             }.getOrElse { View(ctx) }
         },
         modifier = modifier,

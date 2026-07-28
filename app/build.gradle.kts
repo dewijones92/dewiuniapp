@@ -112,6 +112,7 @@ dependencies {
   implementation(libs.media3.ui.compose)
   // Cast: the Cast button (MediaRouteButton) + CastContext options provider
   implementation(libs.play.services.cast.framework)
+  implementation(libs.androidx.fragment)
   implementation(libs.androidx.mediarouter)
   // Background refresh for new-content notifications
   implementation(libs.androidx.work.runtime.ktx)

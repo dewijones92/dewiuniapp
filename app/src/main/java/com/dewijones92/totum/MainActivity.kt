@@ -2,9 +2,9 @@ package com.dewijones92.totum
 
 import android.content.Intent
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.lifecycleScope
 import com.dewijones92.totum.common.HttpUrl
 import com.dewijones92.totum.domain.PlayHandle
@@ -14,7 +14,16 @@ import com.dewijones92.totum.theme.TotumTheme
 import com.dewijones92.totum.ui.AppShell
 import kotlinx.coroutines.launch
 
-class MainActivity : ComponentActivity() {
+/**
+ * A [FragmentActivity], not a bare `ComponentActivity`, purely so Cast works.
+ *
+ * `MediaRouteButton` shows its device picker as a **DialogFragment**, so tapping it
+ * against a plain ComponentActivity throws `IllegalStateException: The activity must be a
+ * subclass of FragmentActivity` and takes the app down. Two crash reports from real use
+ * (0.1.143 and 0.1.149) are exactly this, and nothing in a Compose-only app otherwise
+ * needs fragments — which is why the requirement is invisible until someone taps Cast.
+ */
+class MainActivity : FragmentActivity() {
 
     private val container by lazy { (application as TotumApplication).container }
 

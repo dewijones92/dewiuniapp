@@ -1,10 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.Totum" parent="android:Theme.Material.Light.NoActionBar" />
-
-    <!-- Only used to host the Cast MediaRouteButton: it needs AppCompat theme
-         attributes and an opaque window background (DayNight provides both),
-         which the app's platform-Material theme doesn't give it. -->
-    <style name="Theme.Totum.Cast" parent="Theme.AppCompat.DayNight" />
+    <!-- AppCompat, and DayNight rather than a values-night twin, entirely because of Cast.
+         Compose draws every pixel of this app, so the XML theme only supplies the window
+         and whatever the platform renders for itself. That made a plain platform theme look
+         like the honest choice — but MediaRouter themes its device-picker dialog by reading
+         AppCompat attributes off the ACTIVITY. Under a non-AppCompat theme those attributes
+         resolve to 0, MediaRouter reads that as a transparent window background, and tapping
+         Cast kills the app with "background can not be translucent: #0". Wrapping the button
+         itself in an AppCompat context is not enough: the dialog is built from the activity,
+         not from the button. -->
+    <style name="Theme.Totum" parent="Theme.AppCompat.DayNight.NoActionBar" />
 </resources>

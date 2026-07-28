@@ -53,6 +53,8 @@ public class PlaybackService : MediaSessionService() {
         mainHandler.post { onSilenceChanged(silent) }
     }
 
+    private var silenceChanges = 0L
+
     /** The user's skip-silences intent. Applies to both pillars now. */
     private var skipSilenceEnabled = false
 
@@ -212,7 +214,14 @@ public class PlaybackService : MediaSessionService() {
         if (silent == inSilence) return
         inSilence = silent
         val speed = if (silent) (userSpeed * SILENCE_SPEED_MULTIPLIER).coerceAtMost(MAX_SILENCE_SPEED) else userSpeed
-        Diag.log("playback", "skip-silence silent=$silent speed=$speed (user=$userSpeed)")
+        // Counted rather than logged per change. Speech enters silence every few seconds,
+        // so a line per transition is not diagnostics — it is a flood that evicts them: a
+        // real report from 0.1.170 was 59% skip-silence, leaving 16 minutes of history in
+        // a buffer that should hold hours, right when a stall needed explaining.
+        silenceChanges++
+        if (silenceChanges == 1L || silenceChanges % SILENCE_LOG_EVERY == 0L) {
+            Diag.log("playback", "skip-silence change #$silenceChanges -> speed=$speed (user=$userSpeed)")
+        }
         target.setPlaybackSpeed(speed)
     }
 
@@ -317,6 +326,9 @@ public class PlaybackService : MediaSessionService() {
 
         /** Media3 clamps extreme rates and video decoders struggle past this. */
         const val MAX_SILENCE_SPEED = 8f
+
+        /** Silence transitions between logged lines, so the trail keeps room for stalls. */
+        const val SILENCE_LOG_EVERY = 50L
     }
 }
 
