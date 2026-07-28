@@ -18,6 +18,9 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.update
 
 /** In-memory [PlaybackController] for tests and Compose previews. */
+// The count is PlaybackController's own surface plus a few test hooks; the real
+// implementation carries the same suppression for the same reason.
+@Suppress("TooManyFunctions")
 public class FakePlaybackController : PlaybackController {
 
     private val _state = MutableStateFlow<PlaybackState?>(null)
@@ -27,6 +30,17 @@ public class FakePlaybackController : PlaybackController {
     override val streamFailures: Flow<StreamFailure> = _streamFailures.asSharedFlow()
 
     /** Lets a test drive the expired-stream path without a player or a network. */
+    /**
+     * Ends whatever is playing, so a test can exercise end-of-item behaviour.
+     *
+     * Needed because auto-advance is now driven purely by [PlaybackState.hasEnded]: without a
+     * way to reach that state there is no way to test the thing at all, and the shorts reel's
+     * advance is only reachable through it.
+     */
+    public fun endCurrent() {
+        _state.update { it?.copy(hasEnded = true, isPlaying = false) }
+    }
+
     public fun failStream(failure: StreamFailure) {
         _streamFailures.tryEmit(failure)
     }
