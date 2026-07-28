@@ -1,6 +1,5 @@
 package com.dewijones92.totum.ui.videos
 
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
@@ -27,6 +26,7 @@ import com.dewijones92.totum.innertube.feeds.FeedVideo
 import com.dewijones92.totum.innertube.subscriptions.SubscribedChannel
 import com.dewijones92.totum.queue.PlaybackQueue
 import com.dewijones92.totum.ui.common.MediaSort
+import com.dewijones92.totum.ui.common.TrackedViewModel
 import com.dewijones92.totum.ui.common.toMediaItem
 import com.dewijones92.totum.video.AccountSubscriptions
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -47,7 +47,7 @@ class VideosViewModel(
     private val queue: PlaybackQueue,
     private val downloads: DownloadManager,
     private val youtube: YouTubeAccountServices,
-) : ViewModel() {
+) : TrackedViewModel("videos") {
 
     data class UiState(
         /** The signed-in account's subscribed channels, read live from YouTube. */

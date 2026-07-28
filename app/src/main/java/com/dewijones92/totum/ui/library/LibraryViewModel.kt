@@ -1,6 +1,5 @@
 package com.dewijones92.totum.ui.library
 
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
@@ -11,6 +10,7 @@ import com.dewijones92.totum.domain.DownloadedMedia
 import com.dewijones92.totum.domain.StorageUsage
 import com.dewijones92.totum.queue.PlaybackQueue
 import com.dewijones92.totum.ui.common.MediaSort
+import com.dewijones92.totum.ui.common.TrackedViewModel
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -37,7 +37,7 @@ class LibraryViewModel(
     private val freeSpace: () -> Long? = { null },
     /** Injected so a test can drive the sizing pass; it is real disk IO in the app. */
     private val io: CoroutineDispatcher = Dispatchers.IO,
-) : ViewModel() {
+) : TrackedViewModel("library") {
 
     /** A download with the space it actually occupies on disk. */
     data class Entry(val media: DownloadedMedia, val sizeBytes: Long) {

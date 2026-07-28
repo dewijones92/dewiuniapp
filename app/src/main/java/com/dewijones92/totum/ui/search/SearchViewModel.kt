@@ -1,6 +1,5 @@
 package com.dewijones92.totum.ui.search
 
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
@@ -20,6 +19,7 @@ import com.dewijones92.totum.domain.PlayHandle
 import com.dewijones92.totum.domain.PlayableItem
 import com.dewijones92.totum.domain.SourceId
 import com.dewijones92.totum.queue.PlaybackQueue
+import com.dewijones92.totum.ui.common.TrackedViewModel
 import com.dewijones92.totum.ui.common.toMediaItem
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
@@ -43,7 +43,7 @@ class SearchViewModel(
     private val podcastRepository: PodcastRepository,
     private val queue: PlaybackQueue,
     private val history: SearchHistoryStore,
-) : ViewModel() {
+) : TrackedViewModel("search") {
 
     data class UiState(
         val results: Results = Results.Idle,

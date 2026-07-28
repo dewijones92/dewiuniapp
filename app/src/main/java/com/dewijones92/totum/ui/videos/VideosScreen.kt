@@ -31,7 +31,6 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -49,7 +48,6 @@ import com.dewijones92.totum.domain.MediaItem
 import com.dewijones92.totum.domain.MediaKind
 import com.dewijones92.totum.domain.MediaSource
 import com.dewijones92.totum.innertube.feeds.AccountFeed
-import com.dewijones92.totum.innertube.playlists.Playlist
 import com.dewijones92.totum.theme.TotumTheme
 import com.dewijones92.totum.ui.channel.ChannelScreen
 import com.dewijones92.totum.ui.common.EmptyState
@@ -81,7 +79,11 @@ fun VideosScreen(
     // tapped playlist), and the new-uploads notifications.
     val notificationsViewModel: NotificationsViewModel =
         viewModel(factory = NotificationsViewModel.factory(container))
-    val nav = remember { VideosNav() }
+    val nav = rememberSaveable(saver = VideosNav.Saver) { VideosNav() }
+    // At screen level, so it reports even when the feed is empty — the inner tracker sits
+    // inside the non-empty-feed composable and stays silent in exactly the case most likely
+    // to be the bug (a restored scroll index applied to a list that has not arrived yet).
+    TrackPlace("videos-screen") { "${nav.describe()} videos=${state.videos.size} signedIn=${state.signedIn}" }
     val actions = rememberMediaItemActions(container)
     val switchMode = rememberModeSwitch(actions)
 
@@ -139,16 +141,6 @@ private fun rememberModeSwitch(actions: MediaItemActions): (MediaItem) -> Unit {
  * loose booleans: the states are mutually exclusive in practice, and naming the concept
  * keeps the screen's `when` readable as "an overlay, or the feed".
  */
-private class VideosNav {
-    var channel by mutableStateOf<MediaSource.VideoChannel?>(null)
-    var playlist by mutableStateOf<Playlist?>(null)
-    var showPlaylists by mutableStateOf(false)
-    var showNotifications by mutableStateOf(false)
-
-    val overlayShowing: Boolean
-        get() = channel != null || playlist != null || showPlaylists || showNotifications
-}
-
 /**
  * The overlays that sit over the feed. Order matters: a tapped playlist wins over the
  * playlists list that opened it, so backing out returns to the list rather than the feed.

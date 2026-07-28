@@ -1,6 +1,5 @@
 package com.dewijones92.totum.ui.podcasts
 
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
@@ -20,6 +19,7 @@ import com.dewijones92.totum.domain.Subscription
 import com.dewijones92.totum.playback.PlaybackController
 import com.dewijones92.totum.queue.PlaybackQueue
 import com.dewijones92.totum.ui.common.MediaSort
+import com.dewijones92.totum.ui.common.TrackedViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -37,7 +37,7 @@ class PodcastsViewModel(
     private val playback: PlaybackController,
     private val downloads: DownloadManager,
     private val queue: PlaybackQueue,
-) : ViewModel() {
+) : TrackedViewModel("podcasts") {
 
     data class UiState(
         val subscriptions: List<Subscription> = emptyList(),
