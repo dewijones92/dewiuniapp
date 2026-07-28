@@ -41,12 +41,28 @@ internal class AutoAdvancer(
 
     fun start() {
         scope.launch {
+            var seenAnyState = false
             states
                 .filterNotNull()
                 // Only the transition matters; the player re-emits state on every position
                 // tick, and acting on each would fire the advance dozens of times.
                 .distinctUntilChanged { old, new -> old.itemId == new.itemId && old.hasEnded == new.hasEnded }
-                .collect { state -> if (state.hasEnded) advancePast(state.itemId) }
+                .collect { state ->
+                    // The FIRST state is a baseline, never a transition. Connecting to the
+                    // playback session reports whatever it currently holds, which after a
+                    // process restart can be an item that ended long ago — acting on that
+                    // would skip an item the moment the app launched. Only an end that
+                    // happens while we are watching counts.
+                    if (!seenAnyState) {
+                        seenAnyState = true
+                        if (state.hasEnded) {
+                            handled = state.itemId
+                            Diag.log("advance", "${state.itemId.value} was already ended on connect; ignoring")
+                        }
+                        return@collect
+                    }
+                    if (state.hasEnded) advancePast(state.itemId)
+                }
         }
     }
 

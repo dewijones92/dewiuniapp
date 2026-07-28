@@ -42,8 +42,7 @@ class AutoAdvancerTest {
     fun `an ended item advances the queue`() = runTest {
         advancer()
         runCurrent()
-        states.value = state("a", ended = true)
-        runCurrent()
+        playThenEnd("a")
 
         assertEquals(1, advanced)
     }
@@ -66,6 +65,8 @@ class AutoAdvancerTest {
     fun `repeated state while ended advances only once`() = runTest {
         advancer()
         runCurrent()
+        states.value = state("a", ended = false)
+        runCurrent()
         repeat(5) {
             states.value = state("a", ended = true, positionMs = it.toLong())
             runCurrent()
@@ -79,8 +80,7 @@ class AutoAdvancerTest {
         enabled = false
         advancer()
         runCurrent()
-        states.value = state("a", ended = true)
-        runCurrent()
+        playThenEnd("a")
 
         assertEquals(0, advanced)
     }
@@ -91,8 +91,7 @@ class AutoAdvancerTest {
         suppressed = true
         advancer()
         runCurrent()
-        states.value = state("a", ended = true)
-        runCurrent()
+        playThenEnd("a")
 
         assertEquals(0, advanced)
     }
@@ -102,8 +101,7 @@ class AutoAdvancerTest {
         queueHasNext = false
         advancer()
         runCurrent()
-        states.value = state("a", ended = true)
-        runCurrent()
+        playThenEnd("a")
 
         assertEquals(1, advanced)
         assertEquals(1, fellBackToRelated)
@@ -113,12 +111,8 @@ class AutoAdvancerTest {
     fun `each item gets its own end`() = runTest {
         advancer()
         runCurrent()
-        states.value = state("a", ended = true)
-        runCurrent()
-        states.value = state("b", ended = false)
-        runCurrent()
-        states.value = state("b", ended = true)
-        runCurrent()
+        playThenEnd("a")
+        playThenEnd("b")
 
         assertEquals(2, advanced)
     }
@@ -132,13 +126,63 @@ class AutoAdvancerTest {
         enabled = false
         advancer()
         runCurrent()
-        states.value = state("a", ended = true)
-        runCurrent()
+        playThenEnd("a")
 
         enabled = true
         runCurrent()
 
         assertEquals(0, advanced)
+    }
+
+    /**
+     * Connecting to the playback session reports whatever it currently holds. After a process
+     * restart that can be an item which ended long ago, and acting on it would skip an item
+     * the instant the app launched. The reel screen guards the same thing.
+     */
+    @Test
+    fun `an item already ended when we start is not advanced past`() = runTest {
+        states.value = state("a", ended = true)
+        advancer()
+        runCurrent()
+
+        assertEquals(0, advanced)
+    }
+
+    @Test
+    fun `but a genuine end after starting still advances`() = runTest {
+        states.value = state("a", ended = true)
+        advancer()
+        runCurrent()
+        states.value = state("b", ended = false)
+        runCurrent()
+        states.value = state("b", ended = true)
+        runCurrent()
+
+        assertEquals(1, advanced)
+    }
+
+    /** A first state that is mid-playback must not consume the item's real end. */
+    @Test
+    fun `a first state that is still playing does not swallow its end`() = runTest {
+        states.value = state("a", ended = false)
+        advancer()
+        runCurrent()
+        states.value = state("a", ended = true)
+        runCurrent()
+
+        assertEquals(1, advanced)
+    }
+
+    /**
+     * Plays [id] and then ends it — the real sequence. Tests that jumped straight to an ended
+     * state were exercising the already-ended-on-connect path by accident, which is now
+     * deliberately ignored, so they have to start from playing like the player does.
+     */
+    private fun TestScope.playThenEnd(id: String) {
+        states.value = state(id, ended = false)
+        runCurrent()
+        states.value = state(id, ended = true)
+        runCurrent()
     }
 
     private fun state(id: String, ended: Boolean, positionMs: Long = 0) = PlaybackState(
