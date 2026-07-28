@@ -15,12 +15,17 @@ class ExpiredStreamRecoveryTest {
 
     private val failures = MutableSharedFlow<StreamFailure>(extraBufferCapacity = 8)
     private val replayedFrom = mutableListOf<Long>()
+    private var movedOn = 0
 
     private fun TestScope.recovery(maxAttempts: Int = 3): ExpiredStreamRecovery =
         ExpiredStreamRecovery(
             failures = failures,
             replay = { at ->
                 replayedFrom += at
+                true
+            },
+            moveOn = {
+                movedOn++
                 true
             },
             scope = backgroundScope,
@@ -77,6 +82,10 @@ class ExpiredStreamRecoveryTest {
         ExpiredStreamRecovery(
             failures = failures,
             replay = { false },
+            moveOn = {
+                movedOn++
+                true
+            },
             scope = backgroundScope,
         ).start()
         runCurrent()
@@ -84,5 +93,31 @@ class ExpiredStreamRecoveryTest {
         runCurrent()
 
         assertTrue("should not have thrown", true)
+    }
+
+    /**
+     * A real report had the player dead on one item with 58 more behind it, going nowhere.
+     * Giving up on the item must not mean giving up on the queue.
+     */
+    @Test
+    fun `once the budget is spent it moves to the next item`() = runTest {
+        recovery(maxAttempts = 1)
+        runCurrent()
+        failures.emit(StreamFailure(MediaItemId("a"), positionMs = 500))
+        failures.emit(StreamFailure(MediaItemId("a"), positionMs = 500))
+        runCurrent()
+
+        assertEquals(1, replayedFrom.size)
+        assertEquals(1, movedOn)
+    }
+
+    @Test
+    fun `it does not move on while it still has attempts left`() = runTest {
+        recovery(maxAttempts = 3)
+        runCurrent()
+        failures.emit(StreamFailure(MediaItemId("a"), positionMs = 500))
+        runCurrent()
+
+        assertEquals(0, movedOn)
     }
 }

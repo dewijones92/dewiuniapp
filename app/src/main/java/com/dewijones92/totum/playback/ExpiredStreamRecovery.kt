@@ -21,10 +21,12 @@ import kotlinx.coroutines.launch
  * current, which routes by pillar exactly as an ordinary play does.
  *
  * @param replay plays the current item from a position, returning whether it started.
+ * @param moveOn starts the next queue entry, for when re-resolving has stopped helping.
  */
 internal class ExpiredStreamRecovery(
     private val failures: Flow<StreamFailure>,
     private val replay: suspend (Long) -> Boolean,
+    private val moveOn: suspend () -> Boolean,
     private val scope: CoroutineScope,
     private val maxAttempts: Int = MAX_ATTEMPTS,
 ) {
@@ -46,10 +48,14 @@ internal class ExpiredStreamRecovery(
         lastPositionMs = failure.positionMs
 
         if (attempts >= maxAttempts) {
-            // Giving up is the point. Re-resolving repeatedly against something that is
-            // genuinely gone — a private or deleted video — would be the same forever-loop
-            // wearing a different hat, and would hide the real reason behind retry noise.
-            Diag.warn("playback", "stream still failing after $attempts re-resolves; leaving it")
+            // Giving up on THIS item is the point — re-resolving forever against something
+            // genuinely gone would be the same infinite loop wearing a different hat. But
+            // giving up on the whole queue is not: a real report had the player dead on one
+            // item with 58 more behind it, going nowhere. So move on, and say so.
+            Diag.warn("playback", "stream still failing after $attempts re-resolves; skipping it")
+            if (!moveOn()) {
+                Diag.warn("playback", "nothing left in the queue to move on to")
+            }
             return
         }
         attempts++

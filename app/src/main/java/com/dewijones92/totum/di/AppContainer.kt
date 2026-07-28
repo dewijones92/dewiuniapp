@@ -379,6 +379,7 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
         ExpiredStreamRecovery(
             failures = playbackController.streamFailures,
             replay = playbackQueue::replayCurrent,
+            moveOn = { playbackQueue.playNextInQueue() },
             scope = applicationScope,
         ).start()
         DiagnosticsUploader(context, httpClient, applicationScope).uploadPending()
