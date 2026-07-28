@@ -102,7 +102,6 @@ import com.dewijones92.totum.ytdlp.chaquopy.YtDlpUpdater
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import java.io.File
@@ -119,15 +118,6 @@ interface AppContainer {
      * user switched tab 1.7s later, and nothing ever played.
      */
     val applicationScope: CoroutineScope
-
-    /**
-     * Set while a screen pages itself and must not be auto-advanced over — the shorts reel.
-     *
-     * Lives here rather than in the shell because the thing that reads it (auto-advance) is
-     * app-scoped now: it has to keep working with the screen off, so it cannot depend on a
-     * composable being alive to tell it.
-     */
-    val suppressAutoAdvance: MutableStateFlow<Boolean>
 
     val podcastRepository: PodcastRepository
     val channelRepository: ChannelRepository
@@ -286,8 +276,6 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
 
     override val applicationScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
-    override val suppressAutoAdvance: MutableStateFlow<Boolean> = MutableStateFlow(false)
-
     override val playbackProgressStore: PlaybackProgressStore by lazy {
         RoomPlaybackProgressStore(database.playbackProgressDao())
     }
@@ -431,7 +419,6 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
             advance = { playbackQueue.playNextInQueue() },
             whenQueueEmpty = ::playRelatedNext,
             isEnabled = { appPreferences.settings.value.autoPlayNext },
-            isSuppressed = { suppressAutoAdvance.value },
             scope = applicationScope,
         ).start()
         ExpiredStreamRecovery(

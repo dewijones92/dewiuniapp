@@ -82,7 +82,7 @@ fun AppShell(container: AppContainer, modifier: Modifier = Modifier) {
     // than cross-fading the whole app into the floating window.
     val videoBounds = remember { VideoBounds() }
     val inPip = floatingWindowState(playbackState, controller, videoBounds)
-    WatchBindings(container, playbackState, watchViewModel, reelOpen = shortsReel != null)
+    WatchBindings(playbackState, watchViewModel)
 
     // A floating window is centimetres across: the nav bar, mini player and scrolling
     // description would leave no room for the picture, so it renders alone.
@@ -146,20 +146,16 @@ fun AppShell(container: AppContainer, modifier: Modifier = Modifier) {
 }
 
 /**
- * The two things the shell still owes playback, now that advancing is app-scoped.
+ * Binds the watch view model to the current video — comments, related, the like button.
  *
- * Whether the shorts reel is paging itself, which auto-advance must not fight; and binding the
- * watch view model to the current video, which feeds comments, related and the like button —
- * genuinely UI concerns, none of which matter with the screen off.
+ * Genuinely a UI concern, unlike advancing, which is app-scoped so it survives the screen
+ * going off. None of this matters with the screen off, so it belongs here.
  */
 @Composable
 private fun WatchBindings(
-    container: AppContainer,
     state: PlaybackState?,
     watchViewModel: WatchViewModel,
-    reelOpen: Boolean,
 ) {
-    LaunchedEffect(reelOpen) { container.suppressAutoAdvance.value = reelOpen }
     LaunchedEffect(state?.itemId, state?.hasVideo) {
         state?.takeIf { it.hasVideo }?.let { watchViewModel.bind(it.itemId.value) }
     }

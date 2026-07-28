@@ -23,7 +23,6 @@ class AutoAdvancerTest {
     private var advanced = 0
     private var fellBackToRelated = 0
     private var enabled = true
-    private var suppressed = false
     private var queueHasNext = true
 
     private fun TestScope.advancer() = AutoAdvancer(
@@ -34,7 +33,6 @@ class AutoAdvancerTest {
         },
         whenQueueEmpty = { fellBackToRelated++ },
         isEnabled = { enabled },
-        isSuppressed = { suppressed },
         scope = backgroundScope,
     ).also { it.start() }
 
@@ -85,15 +83,19 @@ class AutoAdvancerTest {
         assertEquals(0, advanced)
     }
 
-    /** The shorts reel pages itself; advancing over it would fight the user's swipe. */
+    /**
+     * Shorts are advanced like everything else. The reel used to page itself from a composable
+     * and set a suppression flag to keep this out of the way — which meant a short ending in a
+     * pocket went nowhere, because both mechanisms were asleep. There is no longer any item
+     * this refuses to advance past.
+     */
     @Test
-    fun `a suppressing screen means no advance`() = runTest {
-        suppressed = true
+    fun `a short is advanced past like any other item`() = runTest {
         advancer()
         runCurrent()
-        playThenEnd("a")
+        playThenEnd("a-short")
 
-        assertEquals(0, advanced)
+        assertEquals(1, advanced)
     }
 
     @Test

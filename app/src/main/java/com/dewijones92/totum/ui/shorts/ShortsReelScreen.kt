@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
@@ -40,13 +41,16 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.compose.PlayerSurface
 import androidx.media3.ui.compose.SURFACE_TYPE_TEXTURE_VIEW
 import com.dewijones92.totum.R
+import com.dewijones92.totum.data.queue.QueueGroup
 import com.dewijones92.totum.di.AppContainer
 import com.dewijones92.totum.domain.MediaItem
 import com.dewijones92.totum.domain.PlayHandle
 import com.dewijones92.totum.domain.PlayableItem
 import com.dewijones92.totum.playback.PlaybackState
+import com.dewijones92.totum.queue.PlaybackQueue
 import com.dewijones92.totum.settings.PlaybackMode
 import com.dewijones92.totum.ui.common.ItemActionSheet
+import com.dewijones92.totum.video.VideoPlaybackLauncher
 
 /**
  * A full-screen vertical Shorts reel: swipe up/down between shorts, each playing
@@ -75,6 +79,7 @@ fun ShortsReelScreen(
         PlaybackMode.AUDIO
     val context = LocalContext.current
     val kept = stringResource(R.string.watching_this_one)
+    val shortsRun = stringResource(R.string.shorts_title)
     // Say so once per reel, so forcing video here never looks like the mode changed.
     LaunchedEffect(audioMode) {
         if (audioMode) Toast.makeText(context, kept, Toast.LENGTH_SHORT).show()
@@ -82,28 +87,7 @@ fun ShortsReelScreen(
     val state by playback.state.collectAsStateWithLifecycle()
     val pager = rememberPagerState(pageCount = { shorts.size })
 
-    // Resolve + play whichever short the pager rests on (URLs expire, so play at rest).
-    LaunchedEffect(pager.settledPage) {
-        shorts.getOrNull(pager.settledPage)?.let { short ->
-            val url = short.mediaUrl ?: return@LaunchedEffect
-            // Through the spine like everything else: a short you watched is a thing you
-            // played, so it belongs in the queue and the history.
-            queue.playNow(PlayableItem(short, PlayHandle.Video(url)))
-            // A Shorts reel is inherently visual: show the picture even in audio mode,
-            // for this item only. The mode itself is left alone (and said so, below).
-            launcher.watch()
-        }
-    }
-    // When a short finishes, roll on to the next — once per genuine end. Seed the
-    // already-handled id so a retained `hasEnded` from an item that ended before the
-    // reel opened doesn't immediately skip past the first short.
-    var handledEndFor by remember { mutableStateOf(state?.takeIf { it.hasEnded }?.itemId) }
-    LaunchedEffect(state?.itemId, state?.hasEnded) {
-        val current = state ?: return@LaunchedEffect
-        if (!current.hasEnded || handledEndFor == current.itemId) return@LaunchedEffect
-        handledEndFor = current.itemId
-        if (pager.currentPage < shorts.lastIndex) pager.animateScrollToPage(pager.currentPage + 1)
-    }
+    ReelQueueBinding(shorts, state, pager, queue, launcher, runTitle = shortsRun)
 
     Surface(color = Color.Black, modifier = modifier.fillMaxSize()) {
         VerticalPager(state = pager, modifier = Modifier.fillMaxSize()) { page ->
@@ -123,6 +107,60 @@ fun ShortsReelScreen(
         ) {
             Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.close), tint = Color.White)
         }
+    }
+}
+
+/**
+ * Keeps the reel and the queue agreeing, in both directions.
+ *
+ * The run is enqueued once so that a short can be advanced past by the app-scoped advancer
+ * exactly like any other item — including with the screen off. Queueing one short at a time
+ * (the old behaviour) meant the next one did not exist yet at the moment the current one
+ * ended, which is why the reel needed its own advance and a suppression flag. Neither
+ * survives: shorts are treated equally.
+ */
+@Composable
+private fun ReelQueueBinding(
+    shorts: List<MediaItem>,
+    state: PlaybackState?,
+    pager: PagerState,
+    queue: PlaybackQueue,
+    launcher: VideoPlaybackLauncher,
+    runTitle: String,
+) {
+    LaunchedEffect(shorts) {
+        queue.playAll(
+            shorts.mapNotNull { short ->
+                short.mediaUrl?.let { PlayableItem(short, PlayHandle.Video(it)) }
+            },
+            QueueGroup(id = "shorts:${shorts.firstOrNull()?.id?.value.orEmpty()}", title = runTitle),
+        )
+    }
+
+    // A Shorts reel is inherently visual: show the picture even in audio mode, for these
+    // items only. The mode itself is left alone (and said so, by the toast).
+    LaunchedEffect(state?.itemId) {
+        if (state?.hasVideo == false) launcher.watch()
+    }
+
+    // Swiping picks a short: move the queue cursor rather than playing outside the queue, so
+    // the run stays intact and advancing still knows what follows.
+    LaunchedEffect(pager.settledPage) {
+        val wanted = shorts.getOrNull(pager.settledPage) ?: return@LaunchedEffect
+        if (state?.itemId == wanted.id) return@LaunchedEffect
+        queue.state.value.entries
+            .indexOfFirst { it.item.item.id == wanted.id }
+            .takeIf { it >= 0 }
+            ?.let(queue::jumpTo)
+    }
+
+    // ...and the reverse: when something else advances the queue — a short ending in a pocket
+    // — the pager follows what is playing rather than the two disagreeing.
+    LaunchedEffect(state?.itemId) {
+        val playing = state?.itemId ?: return@LaunchedEffect
+        shorts.indexOfFirst { it.id == playing }
+            .takeIf { it >= 0 && it != pager.currentPage }
+            ?.let { pager.animateScrollToPage(it) }
     }
 }
 

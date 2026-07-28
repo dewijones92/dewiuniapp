@@ -33,7 +33,6 @@ internal class AutoAdvancer(
     private val advance: suspend () -> Boolean,
     private val whenQueueEmpty: suspend () -> Unit,
     private val isEnabled: () -> Boolean,
-    private val isSuppressed: () -> Boolean,
     private val scope: CoroutineScope,
 ) {
     /** Ends are per item, so finishing the same item twice is not a reason to skip. */
@@ -70,7 +69,6 @@ internal class AutoAdvancer(
         // Every branch says why. The failure mode is silence — an item ends, nothing happens,
         // and there is no way to tell which reason applied.
         val refusal = when {
-            isSuppressed() -> "the shorts reel is open and pages itself"
             !isEnabled() -> "auto-play next is off"
             handled == itemId -> "already handled this item's end"
             else -> null
