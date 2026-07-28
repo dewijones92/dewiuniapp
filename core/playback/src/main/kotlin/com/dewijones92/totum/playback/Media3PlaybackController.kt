@@ -3,12 +3,16 @@ package com.dewijones92.totum.playback
 import android.content.ComponentName
 import android.content.Context
 import android.os.Bundle
+import androidx.annotation.OptIn
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.core.os.bundleOf
 import androidx.media3.common.C
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.HttpDataSource
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionToken
@@ -24,8 +28,11 @@ import com.dewijones92.totum.domain.SourceId
 import com.dewijones92.totum.domain.skipTargetFor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.File
@@ -51,7 +58,12 @@ public class Media3PlaybackController(
 ) : PlaybackController {
 
     private val _state = MutableStateFlow<PlaybackState?>(null)
+
+    // extraBufferCapacity so an emit from the player's main-thread callback never suspends.
+    private val _streamFailures = MutableSharedFlow<StreamFailure>(extraBufferCapacity = 1)
     override val state: StateFlow<PlaybackState?> = _state
+
+    override val streamFailures: Flow<StreamFailure> = _streamFailures.asSharedFlow()
 
     private var controller: MediaController? = null
     override val player: Player? get() = controller
@@ -94,6 +106,15 @@ public class Media3PlaybackController(
                             scope.launch { progressStore.setPlayed(MediaItemId(id), played = true) }
                         }
 
+                        @OptIn(markerClass = [UnstableApi::class])
+                        override fun onPlayerError(error: PlaybackException) {
+                            if (!error.looksExpired()) return
+                            val id = connected.currentMediaItem?.mediaId ?: return
+                            val at = connected.currentPosition
+                            Diag.log("playback", "stream looks expired at ${at}ms — asking for a fresh URL")
+                            _streamFailures.tryEmit(StreamFailure(MediaItemId(id), at))
+                        }
+
                         override fun onEvents(player: Player, events: Player.Events) {
                             if (events.containsAny(
                                     Player.EVENT_VIDEO_SIZE_CHANGED,
@@ -127,6 +148,7 @@ public class Media3PlaybackController(
         localPath: String?,
         audioUrl: HttpUrl?,
         subtitles: List<SubtitleTrack>,
+        startPositionMs: Long,
     ) {
         val uri = localPath?.let { File(it).toURI().toString() }
             ?: requireNotNull(item.mediaUrl) { "MediaItem ${item.id.value} has no mediaUrl" }.value
@@ -169,7 +191,10 @@ public class Media3PlaybackController(
         // Resume where this item was left (both pillars). Fetched first so we
         // can hand the start position straight to the player — no jump from 0.
         scope.launch {
-            val resumeMs = progressStore.resumePositionMs(item.id) ?: 0L
+            // An explicit position wins: a re-resolved stream knows exactly where the dead
+            // one stopped, which is finer-grained than the periodically-saved progress.
+            val resumeMs = startPositionMs.takeIf { it > 0 }
+                ?: progressStore.resumePositionMs(item.id) ?: 0L
             val speed = speedStore.speedFor(item.sourceId)
             val boost = boostStore.boostFor(item.sourceId)
             withController { controller ->
@@ -352,3 +377,35 @@ public class Media3PlaybackController(
         const val TICKS_PER_SAVE = 10
     }
 }
+
+/**
+ * Whether a failure is the kind a freshly-resolved URL fixes.
+ *
+ * Matched on the cause chain rather than the top-level error code, because the code is not
+ * reliable: the real report carried ERROR_CODE_IO_UNSPECIFIED even though the cause was a
+ * plain 403.
+ */
+@UnstableApi
+internal fun PlaybackException.looksExpired(): Boolean {
+    var cause: Throwable? = this
+    while (cause != null) {
+        val code = (cause as? HttpDataSource.InvalidResponseCodeException)?.responseCode
+        if (code != null && isExpiredStatus(code)) return true
+        cause = cause.cause
+    }
+    return false
+}
+
+/**
+ * Which HTTP statuses mean "this address is dead, the content is not".
+ *
+ * Split out from the cause-chain walk above so the judgement is unit-testable: building a
+ * Media3 [HttpDataSource.InvalidResponseCodeException] needs an `android.net.Uri`, which a
+ * JVM test cannot make, and the codes are the part that would actually be wrong. 403 is an
+ * expired signature and 410 a retired URL, so both earn a re-resolve. 404 means the content
+ * itself is gone and 5xx would fail identically on a fresh URL, so neither does.
+ */
+internal fun isExpiredStatus(code: Int): Boolean = code == HTTP_FORBIDDEN || code == HTTP_GONE
+
+private const val HTTP_FORBIDDEN = 403
+private const val HTTP_GONE = 410

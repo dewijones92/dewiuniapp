@@ -70,7 +70,7 @@ class VideoPlaybackLauncher(
      * quality ladder) and plays the default quality. Returns false when the
      * video can't be resolved (private, removed, geo-blocked, …).
      */
-    suspend fun play(watchUrl: HttpUrl, sourceId: SourceId): Boolean {
+    suspend fun play(watchUrl: HttpUrl, sourceId: SourceId, startPositionMs: Long = 0): Boolean {
         val resolved = resolver.resolve(watchUrl, sourceId) ?: return false
         current = resolved
         // Record the play against the stable watch URL (streaming URLs expire), so
@@ -86,12 +86,12 @@ class VideoPlaybackLauncher(
         )
         // One place decides audio vs video, so the mode holds no matter which screen
         // started playback. A one-off "watch this" is expressed by [watch].
-        if (audioPreferred() && resolved.audioOnlyUrl != null) listen() else playVideoQuality(resolved)
+        if (audioPreferred() && resolved.audioOnlyUrl != null) listen() else playVideoQuality(resolved, startPositionMs)
         return true
     }
 
     /** Plays [resolved] as video at the best allowed quality — the shared play/"Watch" path. */
-    private fun playVideoQuality(resolved: VideoResolver.Resolved) {
+    private fun playVideoQuality(resolved: VideoResolver.Resolved, startPositionMs: Long = 0) {
         // Auto-pick the best quality within the network's cap; fall back to the
         // reliable muxed default when nothing qualifies (or there are no ladders).
         val chosen = resolved.qualities.filter { it.height <= preferredMaxHeight() }.maxByOrNull { it.height }
@@ -108,12 +108,14 @@ class VideoPlaybackLauncher(
                 skipSegments = resolved.skipSegments,
                 audioUrl = chosen.audioUrl,
                 subtitles = resolved.subtitles,
+                startPositionMs = startPositionMs,
             )
         } else {
             playback.play(
                 resolved.item,
                 skipSegments = resolved.skipSegments,
                 subtitles = resolved.subtitles,
+                startPositionMs = startPositionMs,
             )
         }
     }

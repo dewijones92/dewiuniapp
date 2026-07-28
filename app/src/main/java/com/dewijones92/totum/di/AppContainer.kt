@@ -71,6 +71,7 @@ import com.dewijones92.totum.innertube.subscriptions.HttpYouTubeSubscriptions
 import com.dewijones92.totum.notifications.DownloadNotifier
 import com.dewijones92.totum.notifications.SharedPrefsSeenItemsTracker
 import com.dewijones92.totum.notifications.YouTubeSubscriptionItemsSource
+import com.dewijones92.totum.playback.ExpiredStreamRecovery
 import com.dewijones92.totum.playback.Media3PlaybackController
 import com.dewijones92.totum.playback.PlaybackController
 import com.dewijones92.totum.playback.PlaybackProgressStore
@@ -363,6 +364,13 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
         // Turns the event trail into a timeline: transitions alone never show a download
         // stuck at 40%, which is exactly when it is the problem.
         ActivitySnapshotter(playbackController, downloadManager, playbackQueue, applicationScope).start()
+        // A signed streaming URL expires in hours, so anything paused overnight comes back
+        // to nothing but 403s. Re-resolve and carry on rather than retrying a dead address.
+        ExpiredStreamRecovery(
+            failures = playbackController.streamFailures,
+            replay = playbackQueue::replayCurrent,
+            scope = applicationScope,
+        ).start()
         DiagnosticsUploader(context, httpClient, applicationScope).uploadPending()
     }
 

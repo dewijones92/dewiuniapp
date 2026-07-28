@@ -197,23 +197,41 @@ class PlaybackQueue(
         )
     }
 
+    /**
+     * Replays whatever is current from [positionMs] — how an expired stream is recovered.
+     *
+     * Goes back through [play] rather than nudging the player, because for a video that
+     * routing is what re-resolves the URL: the queue holds the stable watch URL, never the
+     * signed one that died.
+     */
+    suspend fun replayCurrent(positionMs: Long): Boolean {
+        val entry = _state.value.current ?: return false
+        return play(entry.item, positionMs)
+    }
+
     /** Plays [queued]; returns whether it actually started. */
-    private suspend fun play(queued: PlayableItem): Boolean = when (val handle = queued.handle) {
-        is PlayHandle.Video -> launcher.play(handle.watchUrl, queued.item.sourceId)
-        is PlayHandle.LocalVideo -> {
-            launcher.playLocal(queued.item, handle.localPath)
-            true
-        }
-        is PlayHandle.Podcast -> {
-            // A podcast needs either a downloaded file or a stream URL; skip if neither.
-            if (handle.localPath == null && queued.item.mediaUrl == null) {
-                false
-            } else {
-                controller.play(queued.item, MediaKind.PODCAST, localPath = handle.localPath)
+    private suspend fun play(queued: PlayableItem, startPositionMs: Long = 0): Boolean =
+        when (val handle = queued.handle) {
+            is PlayHandle.Video -> launcher.play(handle.watchUrl, queued.item.sourceId, startPositionMs)
+            is PlayHandle.LocalVideo -> {
+                launcher.playLocal(queued.item, handle.localPath)
                 true
             }
+            is PlayHandle.Podcast -> {
+                // A podcast needs either a downloaded file or a stream URL; skip if neither.
+                if (handle.localPath == null && queued.item.mediaUrl == null) {
+                    false
+                } else {
+                    controller.play(
+                        queued.item,
+                        MediaKind.PODCAST,
+                        localPath = handle.localPath,
+                        startPositionMs = startPositionMs,
+                    )
+                    true
+                }
+            }
         }
-    }
 }
 
 /** Inserts [run] immediately after the current entry, leaving the cursor put. */

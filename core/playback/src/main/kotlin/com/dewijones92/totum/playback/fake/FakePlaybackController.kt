@@ -8,9 +8,13 @@ import com.dewijones92.totum.domain.MediaKind
 import com.dewijones92.totum.domain.SkipSegment
 import com.dewijones92.totum.playback.PlaybackController
 import com.dewijones92.totum.playback.PlaybackState
+import com.dewijones92.totum.playback.StreamFailure
 import com.dewijones92.totum.playback.VolumeBoost
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.update
 
 /** In-memory [PlaybackController] for tests and Compose previews. */
@@ -18,6 +22,14 @@ public class FakePlaybackController : PlaybackController {
 
     private val _state = MutableStateFlow<PlaybackState?>(null)
     override val state: StateFlow<PlaybackState?> = _state
+
+    private val _streamFailures = MutableSharedFlow<StreamFailure>(extraBufferCapacity = 1)
+    override val streamFailures: Flow<StreamFailure> = _streamFailures.asSharedFlow()
+
+    /** Lets a test drive the expired-stream path without a player or a network. */
+    public fun failStream(failure: StreamFailure) {
+        _streamFailures.tryEmit(failure)
+    }
 
     /** No real player in the fake, so previews/tests show the audio layout. */
     override val player: Player? = null
@@ -41,6 +53,7 @@ public class FakePlaybackController : PlaybackController {
         localPath: String?,
         audioUrl: HttpUrl?,
         subtitles: List<SubtitleTrack>,
+        startPositionMs: Long,
     ) {
         lastSkipSegments = skipSegments
         lastLocalPath = localPath

@@ -5,6 +5,7 @@ import androidx.media3.common.C
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
+import androidx.media3.datasource.HttpDataSource
 import androidx.media3.datasource.TransferListener
 import com.dewijones92.totum.common.Diag
 
@@ -61,8 +62,13 @@ internal class ChunkedDataSource(
      * an open-ended GET never gets the chance to matter.
      */
     private fun probeLength(dataSpec: DataSpec): Long {
-        val length = runCatching { upstream.open(dataSpec) }.getOrElse {
-            Diag.warn("chunked", "could not measure length; falling back to one request", it)
+        val length = runCatching { upstream.open(dataSpec) }.getOrElse { failure ->
+            // An HTTP status is the resource answering, and answering "no" — rethrow it so
+            // the player sees the real 403 rather than a second, identical failure from the
+            // chunk that would follow. Recovery keys off that status; masking it behind a
+            // fallback doubled every request on the dead-URL path and hid the reason.
+            if (failure is HttpDataSource.InvalidResponseCodeException) throw failure
+            Diag.warn("chunked", "could not measure length; falling back to one request", failure)
             return UNKNOWN_LENGTH
         }
         runCatching { upstream.close() }

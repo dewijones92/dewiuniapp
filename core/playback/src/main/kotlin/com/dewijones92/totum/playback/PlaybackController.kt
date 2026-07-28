@@ -8,6 +8,7 @@ import com.dewijones92.totum.domain.MediaItem
 import com.dewijones92.totum.domain.MediaItemId
 import com.dewijones92.totum.domain.MediaKind
 import com.dewijones92.totum.domain.SkipSegment
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -19,6 +20,21 @@ public interface PlaybackController {
 
     /** Null when nothing has been queued this session. */
     public val state: StateFlow<PlaybackState?>
+
+    /**
+     * Emits when the current stream died in a way a freshly-resolved URL would fix.
+     *
+     * A streaming URL is a lease, not an address: YouTube signs one for a few hours and
+     * then refuses it. Pause overnight, press play in the morning, and every request comes
+     * back 403 — which the player reports as a plain source error and retries forever
+     * against a URL that will never work again. That is a real report (0.1.170, paused at
+     * 23:50, resumed 06:07, seventeen identical 403s).
+     *
+     * Pillar-agnostic on purpose. Podcast enclosures move and expire too, and whoever
+     * listens re-runs whatever produced the item in the first place, which is the same
+     * path for both.
+     */
+    public val streamFailures: Flow<StreamFailure>
 
     /**
      * The underlying player, for binding a video surface (the one place the UI
@@ -33,7 +49,8 @@ public interface PlaybackController {
      * given, [MediaItem.mediaUrl] is a video-only stream and [audioUrl] its
      * separate audio track — the two are merged for playback (how higher-than-
      * muxed video qualities stream). Any [skipSegments] (e.g. SponsorBlock) are
-     * jumped over automatically.
+     * jumped over automatically. [startPositionMs] resumes rather than starting over —
+     * how a re-resolved stream picks up where the dead one stopped.
      */
     public fun play(
         item: MediaItem,
@@ -42,6 +59,7 @@ public interface PlaybackController {
         localPath: String? = null,
         audioUrl: HttpUrl? = null,
         subtitles: List<SubtitleTrack> = emptyList(),
+        startPositionMs: Long = 0,
     )
 
     /**
