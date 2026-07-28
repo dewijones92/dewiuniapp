@@ -1,7 +1,7 @@
 ---
 title: We only surface the FIRST page of every feed
 kind: todo
-status: in progress
+status: shipped
 area: video
 priority: high
 requested: 2026-07-25
@@ -83,8 +83,7 @@ Still on page one, and cheap on the same seam:
 - **search results**
 - a **playlist's** own screen and **related videos** — both currently drop their
   continuation explicitly (with a comment saying so), which is honest but incomplete
-- **podcast episode lists** — a no-op by nature (RSS returns the whole feed), but the
-  seam should be threaded so every screen is uniform rather than some being special
+- **podcast episode lists** — a no-op by nature (RSS returns the whole feed)
 
 ## Search paginated too (2026-07-27)
 
@@ -104,3 +103,27 @@ token replaces the results rather than extending them in any response.
 
 Verified on device: `8 -> 107` results over 16 pages, with the dedupe absorbing YouTube's
 overlapping pages (one page of 8 added only 7).
+
+## Playlists paginated, and the rest resolved (2026-07-28)
+
+`videosIn()` takes an `after` token and returns its `Page` instead of peeling `.items`
+off it; `PlaylistViewModel` gained `loadMore()` on the same shape as the account feeds
+and channel tabs, dedupe included. Six tests, the important one being that the second
+call carries the first page's token — without it `loadMore` silently refetches page one
+and appends nothing, which is indistinguishable from "there was no more".
+
+The two remaining items are **closed as decisions, not gaps**:
+
+**Podcast episode lists** — no. RSS has no continuation; a feed is one document and the
+parser already returns all of it. Threading the seam for uniformity's sake would be
+ceremony, and the earlier note above ("the seam should be threaded so every screen is
+uniform") was wrong to ask for it — uniformity of *shape* is not worth a parameter that
+can only ever be null.
+
+**Related videos** — not now, and for a structural reason worth recording: the full
+player is a `verticalScroll` Column, not a `LazyColumn`, so `LoadMoreOnScrollToEnd`
+cannot drive it. Paging it needs a "show more" affordance, which is a UX decision on a
+screen nobody has complained about, and the existing parser comment already treats the
+up-next list as deliberately short. Revisit if the player ever becomes a LazyColumn.
+
+So the paging work is **done** as far as it is worth doing.
