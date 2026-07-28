@@ -1,7 +1,7 @@
 ---
 title: Mark diagnostics reports as triaged/fixed on the server
 kind: todo
-status: open
+status: shipped
 area: diagnostics
 priority: high
 requested: 2026-07-28
@@ -54,3 +54,37 @@ should never cost anyone attention again.
 - `docs/todos/crash-reporting.md` — the reporting pipeline this sits on top of.
 - The global rule "Date every artefact" now requires the version pass; this is the
   server-side half that makes it cheap.
+
+## Shipped and deployed (2026-07-28)
+
+Built on the existing SQLite index rather than a sidecar — the server already had one, which
+made this much cheaper than the sketch above assumed.
+
+Four columns (`state`, `fixed_in`, `note`, `triaged_at`) with an idempotent
+`ALTER TABLE ADD COLUMN` migration, tested against a copy of the live pre-triage schema
+before deploying: columns added, safe on a second run, existing rows default to `new`.
+
+Endpoints: `POST /api/report/{id}/triage`, `POST /api/triage/signature` (judge a whole group
+at once — reports arrive in elevens, and triaging one at a time is how they stay untriaged),
+and `GET /api/unread` which groups by signature and lists the versions each group spans. The
+index page shows an unread count and a state chip per row.
+
+**Deployed to the Pi and used immediately**, which is the real test:
+
+```
+before   33 unread, nothing distinguishable
+after    12 unread — all diagnostics reports, no crashes outstanding
+         14 fixed, 7 noise
+```
+
+The grouping justified itself on first contact: the 11 PyExceptions collapsed to one row on
+one build (`0.1.142`), which is exactly the "one bug, 11 times" reading that was invisible
+before. `noise` accounted for 7 — deployment smoke tests and two crashes that were my own
+emulator, all of which had previously looked like real reports.
+
+Backup at `/home/pi/crashlog-data/index.db.pre-triage-backup`; the pre-deploy image is still
+on the Pi if a rollback is ever needed.
+
+**Gotcha for next time:** the database is `index.db`, not `reports.db`. The first backup
+attempt silently copied nothing, and only saying "backed up" after checking the listing
+caught it.
