@@ -115,11 +115,16 @@ mutation now carries one word of intent.
 because `AnimatedContent` composes the incoming destination before disposing the outgoing
 one. Not a bug, but it reads like one.
 
-**This paid for itself the same day.** One `nav` line found a root cause on the very next
-report: an `extract` completed, the user switched tab 1.7s later, and nothing ever played —
-because row actions ran playback on `rememberCoroutineScope()`, which dies with the
-composition. A tap that takes a second to become audible was a race against the user's next
-gesture.
+**This paid for itself the same day, twice.** One `nav` line found a root cause on the very
+next report: an `extract` completed, the user switched tab 1.7s later, and nothing ever
+played — because row actions ran playback on `rememberCoroutineScope()`, which dies with the
+composition.
+
+Then the `advance` trail answered "it didn't auto play next in my pocket" outright (the
+setting was off) *and* exposed a second bug in the same report: the decision was not reached
+until seven minutes after the item ended, when the app returned to the foreground. Snapshots
+kept arriving throughout — so the contrast between the two trails is what localised it. A
+lone trail says what happened; two trails disagreeing say *where*.
 
 ## Tests
 

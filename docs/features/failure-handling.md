@@ -65,3 +65,24 @@ Found while writing those: `FakeDownloadManager.emit` fires an event but does **
 the observable state map, so a test driving a consumer of `observeDownloads()` could not see
 a failure at all — the first two retry tests passed against state that was never set.
 `setFailed` mirrors the existing `setDownloading`.
+
+## Postscript: logic that must outlive the UI (2026-07-28)
+
+Two bugs in one day with the same shape, which makes it a pattern rather than two
+accidents: **work the user expects to continue does not belong in a composable.**
+
+1. Row actions started playback on `rememberCoroutineScope()`. Switching tabs cancelled the
+   composition and killed an in-flight extraction — a tap became a race against the user's
+   next gesture.
+2. `AutoAdvance` read playback state through `collectAsStateWithLifecycle()`, which stops
+   collecting when the activity stops. With the screen off the composition never saw
+   `hasEnded`, so nothing advanced. Proven by a seven-minute gap between an item ending and
+   the decision being reached, while 30-second snapshots kept arriving from a plain coroutine
+   the whole time.
+
+Both now run on the application scope. The test for whether something belongs there: *would
+the user expect this to happen with the phone in their pocket?* If yes, a composable cannot
+host it.
+
+Worth noting what makes this hard to catch: neither failed loudly. There was no crash and no
+error — just an absence, which is why both needed the diagnostics trail to find at all.
