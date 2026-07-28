@@ -69,13 +69,34 @@ def _init_storage() -> None:
                 install_id     TEXT,
                 event_count    INTEGER,
                 bytes          INTEGER,
-                parsed         INTEGER NOT NULL DEFAULT 1
+                parsed         INTEGER NOT NULL DEFAULT 1,
+                -- Triage. `new` until someone judges it; see TRIAGE_STATES.
+                state          TEXT NOT NULL DEFAULT 'new',
+                -- The version a fix landed in, so a recurrence AFTER it is obviously a
+                -- regression rather than another copy of a known bug.
+                fixed_in       TEXT,
+                -- One line of why, so a later session inherits the reasoning instead of
+                -- re-deriving it.
+                note           TEXT,
+                triaged_at     TEXT
             )
             """
         )
+        # Migration for databases created before triage existed. ALTER TABLE ADD COLUMN is
+        # the only schema change SQLite does cheaply, and each is idempotent via the guard.
+        existing = {r["name"] for r in connection.execute("PRAGMA table_info(reports)")}
+        for column, ddl in (
+            ("state", "TEXT NOT NULL DEFAULT 'new'"),
+            ("fixed_in", "TEXT"),
+            ("note", "TEXT"),
+            ("triaged_at", "TEXT"),
+        ):
+            if column not in existing:
+                connection.execute(f"ALTER TABLE reports ADD COLUMN {column} {ddl}")
         connection.execute("CREATE INDEX IF NOT EXISTS reports_received ON reports(received_at DESC)")
         connection.execute("CREATE INDEX IF NOT EXISTS reports_commit ON reports(git_commit)")
         connection.execute("CREATE INDEX IF NOT EXISTS reports_exception ON reports(exception)")
+        connection.execute("CREATE INDEX IF NOT EXISTS reports_state ON reports(state)")
         connection.commit()
 
 
@@ -163,6 +184,110 @@ async def ingest(request: Request) -> JSONResponse:
     return JSONResponse({"id": report_id}, status_code=202)
 
 
+#: What a report can be judged as.
+#:
+#: `noise` earns its place alongside `fixed`: on 2026-07-28 one "crash" was Claude's own
+#: `adb` killing the app during testing, and another eleven were an already-fixed R8 bug.
+#: Both cost real attention. A report that has been judged worthless should never cost it
+#: again.
+TRIAGE_STATES = ("new", "triaged", "fixed", "wontfix", "noise")
+
+
+def _signature(row: sqlite3.Row) -> str:
+    """What makes two reports "the same bug", for grouping.
+
+    Exception plus the first line of the message. Deliberately coarse: eleven reports of one
+    already-fixed crash should read as one row, and "11 crashes" that are all one build is a
+    very different story from 11 spread across three.
+    """
+    exception = row["exception"] or row["kind"] or "unknown"
+    message = (row["message"] or "").strip().splitlines()
+    return f"{exception}: {message[0][:80]}" if message else exception
+
+
+@app.post("/api/report/{report_id}/triage")
+def api_triage(
+    report_id: str,
+    state: str = Query(...),
+    fixed_in: str | None = Query(default=None),
+    note: str | None = Query(default=None),
+) -> JSONResponse:
+    """Record a judgement. The point of the whole feature: 26 of 27 reports were unread on
+    2026-07-28 because nothing tracked whether anyone had looked."""
+    if state not in TRIAGE_STATES:
+        return JSONResponse({"error": f"state must be one of {TRIAGE_STATES}"}, status_code=400)
+    with closing(_connect()) as connection:
+        updated = connection.execute(
+            "UPDATE reports SET state = ?, fixed_in = ?, note = ?, triaged_at = ? WHERE id = ?",
+            (state, fixed_in, note, datetime.now(timezone.utc).isoformat(), report_id),
+        ).rowcount
+        connection.commit()
+    if not updated:
+        return JSONResponse({"error": "no such report"}, status_code=404)
+    return JSONResponse({"id": report_id, "state": state, "fixed_in": fixed_in, "note": note})
+
+
+@app.post("/api/triage/signature")
+def api_triage_signature(
+    exception: str = Query(...),
+    state: str = Query(...),
+    fixed_in: str | None = Query(default=None),
+    note: str | None = Query(default=None),
+) -> JSONResponse:
+    """Judge every report sharing an exception at once — because they usually arrive in
+    elevens, and triaging them one at a time is how they end up untriaged."""
+    if state not in TRIAGE_STATES:
+        return JSONResponse({"error": f"state must be one of {TRIAGE_STATES}"}, status_code=400)
+    with closing(_connect()) as connection:
+        updated = connection.execute(
+            "UPDATE reports SET state = ?, fixed_in = ?, note = ?, triaged_at = ? WHERE exception = ?",
+            (state, fixed_in, note, datetime.now(timezone.utc).isoformat(), exception),
+        ).rowcount
+        connection.commit()
+    return JSONResponse({"exception": exception, "state": state, "updated": updated})
+
+
+@app.get("/api/unread")
+def api_unread() -> JSONResponse:
+    """How many reports nobody has judged, grouped by signature.
+
+    The single number that would have surfaced 26 unread reports, and the grouping that
+    turns "11 crashes" into "one bug, 11 times, on one build".
+    """
+    with closing(_connect()) as connection:
+        rows = connection.execute("SELECT * FROM reports WHERE state = 'new'").fetchall()
+    groups: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        group = groups.setdefault(
+            _signature(row),
+            {"count": 0, "versions": set(), "newest": "", "ids": []},
+        )
+        group["count"] += 1
+        group["versions"].add(row["app_version"] or "unknown")
+        group["newest"] = max(group["newest"], row["received_at"] or "")
+        group["ids"].append(row["id"])
+    return JSONResponse(
+        {
+            "unread": len(rows),
+            "groups": sorted(
+                (
+                    {
+                        "signature": signature,
+                        "count": g["count"],
+                        # Sorted so the report reads deterministically, and so a fix landing
+                        # in a later build is obvious from the list alone.
+                        "versions": sorted(g["versions"]),
+                        "newest": g["newest"],
+                        "ids": g["ids"][:MAX_LISTED_IDS],
+                    }
+                    for signature, g in groups.items()
+                ),
+                key=lambda g: -g["count"],
+            ),
+        }
+    )
+
+
 @app.get("/healthz")
 def healthz() -> PlainTextResponse:
     return PlainTextResponse("ok")
@@ -173,9 +298,13 @@ def index(
     request: Request,
     commit: str | None = None,
     exception: str | None = None,
+    state: str | None = None,
     limit: int = Query(default=100, le=1000),
 ) -> HTMLResponse:
     clauses, params = [], []
+    if state:
+        clauses.append("state = ?")
+        params.append(state)
     if commit:
         clauses.append("git_commit LIKE ?")
         params.append(f"{commit}%")
@@ -191,10 +320,18 @@ def index(
         totals = connection.execute(
             "SELECT exception, COUNT(*) AS n FROM reports GROUP BY exception ORDER BY n DESC LIMIT 10"
         ).fetchall()
+        unread = connection.execute("SELECT COUNT(*) AS n FROM reports WHERE state = 'new'").fetchone()["n"]
     return TEMPLATES.TemplateResponse(
         request=request,
         name="index.html",
-        context={"rows": rows, "totals": totals, "commit": commit or "", "exception": exception or ""},
+        context={
+            "rows": rows,
+            "totals": totals,
+            "commit": commit or "",
+            "exception": exception or "",
+            "state": state or "",
+            "unread": unread,
+        },
     )
 
 
@@ -233,6 +370,9 @@ def api_reports(limit: int = Query(default=50, le=1000)) -> JSONResponse:
             "SELECT * FROM reports ORDER BY received_at DESC LIMIT ?", (limit,)
         ).fetchall()
     return JSONResponse([dict(r) for r in rows])
+
+
+MAX_LISTED_IDS = 5
 
 
 @app.get("/latest", response_class=PlainTextResponse)

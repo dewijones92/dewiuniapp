@@ -12,13 +12,23 @@
 
 {% if totals %}
 <p class="muted">Most common: {% for t in totals %}<span class="chip">{{ t['exception'] or 'unknown' }} × {{ t['n'] }}</span> {% endfor %}</p>
+<p>
+  {# The count that would have made 26 unread reports visible instead of invisible. #}
+  <strong>{{ unread }} unread</strong>
+  {% if unread %}<a href="/?state=new">show only these</a>{% endif %}
+  {% if state %}&middot; filtering <span class="chip">{{ state }}</span> <a href="/">clear</a>{% endif %}
+</p>
 {% endif %}
 
 <table>
-  <tr><th>When (UTC)</th><th>Kind</th><th>Exception</th><th>Message</th><th>Version</th><th>Commit</th><th>Device</th><th>Events</th></tr>
+  <tr><th>When (UTC)</th><th>State</th><th>Kind</th><th>Exception</th><th>Message</th><th>Version</th><th>Commit</th><th>Device</th><th>Events</th></tr>
   {% for r in rows %}
   <tr>
     <td><a href="/report/{{ r['id'] }}">{{ r['received_at'][:19] }}</a></td>
+    <td>
+      <span class="chip">{{ r['state'] or 'new' }}</span>
+      {% if r['fixed_in'] %}<span class="muted">in {{ r['fixed_in'] }}</span>{% endif %}
+    </td>
     <td>{{ r['kind'] or '' }}</td>
     <td><code>{{ (r['exception'] or '').split('.')[-1] }}</code></td>
     <td>{{ (r['message'] or '')[:90] }}</td>
