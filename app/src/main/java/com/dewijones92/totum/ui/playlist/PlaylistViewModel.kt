@@ -5,6 +5,8 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.dewijones92.totum.common.Diag
+import com.dewijones92.totum.common.PageToken
 import com.dewijones92.totum.data.download.DownloadManager
 import com.dewijones92.totum.di.AppContainer
 import com.dewijones92.totum.domain.DownloadState
@@ -48,12 +50,17 @@ class PlaylistViewModel(
         val downloadStates: Map<MediaItemId, DownloadState> = emptyMap(),
         val refreshing: Boolean = false,
         val sort: MediaSort = MediaSort.DEFAULT,
+        val canLoadMore: Boolean = false,
+        /** A further page is in flight — drives the footer spinner and blocks re-asking. */
+        val loadingMore: Boolean = false,
     )
 
     private data class FetchState(
         val videos: List<MediaItem> = emptyList(),
         val loading: Boolean = true,
         val error: Boolean = false,
+        val next: PageToken? = null,
+        val loadingMore: Boolean = false,
     )
 
     private val fetch = MutableStateFlow(FetchState())
@@ -74,6 +81,8 @@ class PlaylistViewModel(
             downloadStates = downloadStates,
             refreshing = refreshing,
             sort = sort,
+            canLoadMore = f.next != null,
+            loadingMore = f.loadingMore,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), UiState(title))
 
@@ -98,9 +107,52 @@ class PlaylistViewModel(
     }
 
     private suspend fun fetchState(): FetchState = when (val result = playlists.videosIn(browseId)) {
-        is PlaylistVideosResult.Success ->
-            FetchState(videos = result.videos.map { it.toMediaItem(sourceId) }, loading = false)
+        is PlaylistVideosResult.Success -> FetchState(
+            videos = result.page.items.map { it.toMediaItem(sourceId) },
+            loading = false,
+            next = result.page.next,
+        )
+
         else -> FetchState(videos = fetch.value.videos, loading = false, error = true)
+    }
+
+    /**
+     * Fetches the next page. A playlist can run to hundreds of videos and only the first
+     * page was ever shown — the continuation was parsed and thrown away, so a 184-video
+     * playlist looked like a 20-video one.
+     */
+    fun loadMore() {
+        val state = fetch.value
+        val after = state.next ?: return
+        if (state.loadingMore || state.loading) return
+        fetch.update { it.copy(loadingMore = true) }
+        viewModelScope.launch {
+            when (val result = playlists.videosIn(browseId, after)) {
+                is PlaylistVideosResult.Success -> fetch.update { current ->
+                    Diag.log(
+                        "feed",
+                        "playlist page +${result.page.items.size} (had ${current.videos.size}) " +
+                            "more=${result.page.hasMore}",
+                    )
+                    // Dedupe: YouTube returns overlapping pages, and a duplicate id in a
+                    // LazyColumn key is a crash, not a cosmetic problem.
+                    val existing = current.videos.map { it.id }.toSet()
+                    val fresh = result.page.items
+                        .map { it.toMediaItem(sourceId) }
+                        .filter { it.id !in existing }
+                    current.copy(
+                        videos = current.videos + fresh,
+                        next = result.page.next,
+                        loadingMore = false,
+                    )
+                }
+
+                else -> {
+                    Diag.warn("feed", "playlist page failed; keeping what we have")
+                    fetch.update { it.copy(loadingMore = false) }
+                }
+            }
+        }
     }
 
     fun setSort(order: MediaSort) {

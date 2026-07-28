@@ -1,20 +1,15 @@
 package com.dewijones92.totum.ui.playlist
 
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -31,6 +26,9 @@ import com.dewijones92.totum.di.AppContainer
 import com.dewijones92.totum.domain.DownloadState
 import com.dewijones92.totum.domain.MediaKind
 import com.dewijones92.totum.innertube.playlists.Playlist
+import com.dewijones92.totum.ui.common.BackHeader
+import com.dewijones92.totum.ui.common.LoadMoreOnScrollToEnd
+import com.dewijones92.totum.ui.common.LoadingMoreFooter
 import com.dewijones92.totum.ui.common.MediaItemRow
 import com.dewijones92.totum.ui.common.SectionHeaderWithSort
 import com.dewijones92.totum.ui.common.mediaItemSubtitle
@@ -50,25 +48,20 @@ fun PlaylistScreen(
             factory = PlaylistViewModel.factory(container, playlist.browseId, playlist.title)
         )
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val listState = rememberLazyListState()
+    LoadMoreOnScrollToEnd(
+        listState,
+        enabled = state.canLoadMore && !state.loadingMore,
+        loadMore = viewModel::loadMore,
+    )
 
     Surface(modifier = modifier.fillMaxSize()) {
         PullToRefreshBox(isRefreshing = state.refreshing, onRefresh = viewModel::refresh) {
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
-                item {
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(8.dp)) {
-                        IconButton(onClick = onBack) {
-                            Icon(
-                                Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = stringResource(R.string.back)
-                            )
-                        }
-                        Text(
-                            text = state.title,
-                            style = MaterialTheme.typography.titleLarge,
-                            modifier = Modifier.padding(start = 8.dp),
-                        )
-                    }
-                }
+            LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+                // The shared header rather than a hand-rolled Row: this screen had its own
+                // copy of back-arrow-plus-title, which is the same thing every layer under a
+                // tab needs and now gets from one place.
+                item { BackHeader(title = state.title, onBack = onBack) }
                 when {
                     state.loading -> item { CenteredProgress() }
                     state.error -> item { Message(stringResource(R.string.feed_error)) }
@@ -93,6 +86,7 @@ fun PlaylistScreen(
                             )
                             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                         }
+                        if (state.loadingMore) item { LoadingMoreFooter() }
                     }
                 }
             }

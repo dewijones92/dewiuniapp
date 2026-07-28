@@ -1,5 +1,6 @@
 package com.dewijones92.totum.innertube.playlists
 
+import com.dewijones92.totum.common.PageToken
 import com.dewijones92.totum.innertube.auth.AccessTokenResult
 import com.dewijones92.totum.innertube.auth.YouTubeAccount
 import com.dewijones92.totum.innertube.browse.BrowseTarget
@@ -32,17 +33,16 @@ public class HttpYouTubePlaylists(
         }
     }
 
-    override suspend fun videosIn(browseId: String): PlaylistVideosResult {
+    override suspend fun videosIn(browseId: String, after: PageToken?): PlaylistVideosResult {
         val token = when (val result = account.accessToken()) {
             is AccessTokenResult.Available -> result.token
             AccessTokenResult.SignedOut -> return PlaylistVideosResult.SignedOut
             is AccessTokenResult.Failure -> return PlaylistVideosResult.Failure(result.detail)
         }
-        return when (val browsed = innerTube.browse(BrowseTarget.Id(browseId), token)) {
+        val target = after?.let { BrowseTarget.Continuation(it.value) } ?: BrowseTarget.Id(browseId)
+        return when (val browsed = innerTube.browse(target, token)) {
             is InnerTubeResponse.Success -> when (val parsed = VideoTileParser.parse(browsed.body)) {
-                // A playlist's own screen isn't paged yet, so its continuation is dropped here
-                // rather than silently pretending the first page is the whole playlist.
-                is FeedResult.Success -> PlaylistVideosResult.Success(parsed.page.items)
+                is FeedResult.Success -> PlaylistVideosResult.Success(parsed.page)
                 FeedResult.SignedOut -> PlaylistVideosResult.SignedOut
                 is FeedResult.Failure -> PlaylistVideosResult.Failure(parsed.detail)
             }
