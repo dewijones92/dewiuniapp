@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -131,6 +132,14 @@ fun AppShell(container: AppContainer, modifier: Modifier = Modifier) {
                         channel,
                         onBack = { shellChannel = null },
                         onOpenPlaylist = {},
+                        // An overlay sits in the Box, OUTSIDE the Scaffold, so it never
+                        // receives the innerPadding that keeps tab content clear of the
+                        // system bars — its title and Subscribe button drew underneath the
+                        // clock and battery icons. The same screen opened from within a tab
+                        // is fine, which is why this only bites on "go to channel" from a
+                        // row. The full player and shorts reel are deliberately exempt: they
+                        // are full-bleed video and inset themselves.
+                        modifier = Modifier.safeDrawingPadding(),
                     )
                 }
             }
