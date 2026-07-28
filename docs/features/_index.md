@@ -1,7 +1,7 @@
 ---
 title: Features
 kind: index
-updated: 2026-07-25
+updated: 2026-07-28
 ---
 
 # Features
@@ -24,6 +24,8 @@ alone until they need more.
 | Channel page (subscribe + uploads) | channel | shipped | — |
 | Chapters (yt-dlp + Podcasting 2.0 `psc`/remote) + seek-bar markers | playback | shipped | — |
 | Playback queue (unified up-next) | playback | shipped | — |
+| Streaming reliability (chunked fetch, hardware-aware codec, expired-URL recovery) | playback | shipped | [streaming-reliability.md](streaming-reliability.md) |
+| Tabs remember where you were (per-destination saved state) | ui | shipped | — |
 | Shorts reel (full-screen vertical pager) | video | shipped | — |
 | Skip-silence (audio-only, A/V-safe) | playback | shipped | — |
 | Sleep timer | playback | shipped | — |
@@ -47,6 +49,13 @@ alone until they need more.
 | Picture-in-Picture (video keeps playing when you leave) | playback | shipped | [../todos/feature-gap-review.md](../todos/feature-gap-review.md) |
 | Offline library across both pillars (downloads carry their item) | downloads | shipped | [../todos/library-downloads-podcast-only.md](../todos/library-downloads-podcast-only.md) |
 
-\* Cast: crash + disconnect-loses-playback fixed; real casting unverified (no hardware).
+\* Cast: **tapping the button still crashed the app until 2026-07-28** — this footnote claimed
+otherwise for weeks, because the fix that was made (a themed context for the button) never
+covered the picker dialog, and nobody tapped it again to find out. Two crashes were stacked:
+`IllegalStateException` (the picker is a DialogFragment, so the activity must be a
+`FragmentActivity`) and, once past that, `IllegalArgumentException: background can not be
+translucent` (MediaRouter themes the dialog from AppCompat attributes on the **activity**).
+Both fixed in `8d900c5`, verified by actually tapping it. Real casting still unverified — no
+hardware. Disconnect-loses-playback fixed earlier.
 
 See [`../todos/`](../todos/_index.md) for smaller requested items not yet features.
