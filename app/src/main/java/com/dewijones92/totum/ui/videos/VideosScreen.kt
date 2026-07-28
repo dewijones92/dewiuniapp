@@ -60,6 +60,7 @@ import com.dewijones92.totum.ui.common.MediaItemRow
 import com.dewijones92.totum.ui.common.MediaSort
 import com.dewijones92.totum.ui.common.SectionHeaderWithSort
 import com.dewijones92.totum.ui.common.TotumFab
+import com.dewijones92.totum.ui.common.TrackPlace
 import com.dewijones92.totum.ui.common.mediaItemSubtitle
 import com.dewijones92.totum.ui.common.rememberMediaItemActions
 import com.dewijones92.totum.ui.notifications.NotificationsScreen
@@ -307,22 +308,17 @@ private fun ChannelsAndVideos(
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
+    // The item count belongs in the trail as much as the offset: a restored scroll index
+    // cannot survive being applied to an empty list, so "scroll=40 videos=0" and
+    // "scroll=0 videos=40" are different bugs that look identical without it.
+    TrackPlace("videos") {
+        "feed=${state.selectedFeed} scroll=${listState.firstVisibleItemIndex}" +
+            "+${listState.firstVisibleItemScrollOffset} videos=${state.videos.size}"
+    }
     LoadMoreOnScrollToEnd(listState, enabled = state.canLoadMore && !state.loadingMore, loadMore = onLoadMore)
     LazyColumn(state = listState, modifier = modifier.fillMaxSize()) {
         if (state.subscriptions.isNotEmpty()) {
-            item {
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(horizontal = 16.dp),
-                ) {
-                    items(state.subscriptions) { channel ->
-                        AssistChip(
-                            onClick = { onChannelClick(channel) },
-                            label = { Text(channel.title) },
-                        )
-                    }
-                }
-            }
+            item { SubscriptionChips(state.subscriptions, onChannelClick) }
         }
         if (state.signedIn) {
             item { FeedSelector(state.selectedFeed, onSelectFeed, onOpenPlaylists, onOpenShorts) }
@@ -424,6 +420,29 @@ private fun feedChipRes(feed: AccountFeed): Int = when (feed) {
     AccountFeed.SUBSCRIPTIONS -> R.string.feed_subscriptions
     AccountFeed.WATCH_LATER -> R.string.feed_watch_later
     AccountFeed.HISTORY -> R.string.feed_history
+}
+
+/**
+ * Where the Videos tab was, for the place trail.
+ *
+ * The item count is here for a reason: a restored scroll index cannot survive being applied
+ * to an empty list, so "scroll=40 videos=0" and "scroll=0 videos=40" are different bugs
+ * needing different fixes, and without the count they look identical in a report.
+ */
+/** The horizontal strip of subscribed channels above the feed. */
+@Composable
+private fun SubscriptionChips(
+    subscriptions: List<MediaSource.VideoChannel>,
+    onChannelClick: (MediaSource.VideoChannel) -> Unit,
+) {
+    LazyRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(horizontal = 16.dp),
+    ) {
+        items(subscriptions) { channel ->
+            AssistChip(onClick = { onChannelClick(channel) }, label = { Text(channel.title) })
+        }
+    }
 }
 
 private fun feedTitleRes(feed: AccountFeed?): Int = when (feed) {

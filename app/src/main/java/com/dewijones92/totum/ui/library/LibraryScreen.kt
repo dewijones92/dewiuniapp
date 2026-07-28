@@ -45,6 +45,7 @@ import com.dewijones92.totum.ui.common.LocalItemActions
 import com.dewijones92.totum.ui.common.MediaItemRow
 import com.dewijones92.totum.ui.common.MediaSort
 import com.dewijones92.totum.ui.common.SectionHeaderWithSort
+import com.dewijones92.totum.ui.common.TrackPlace
 import com.dewijones92.totum.ui.common.mediaItemSubtitle
 import com.dewijones92.totum.ui.history.PlayHistoryScreen
 import com.dewijones92.totum.ui.playlist.LocalPlaylistDetailScreen
@@ -59,6 +60,9 @@ fun LibraryScreen(container: AppContainer, modifier: Modifier = Modifier) {
     // The id is a value class over a String, so it saves as one and needs no saver.
     var openPlaylistId by rememberSaveable { mutableStateOf<String?>(null) }
     val playlist = openPlaylistId?.let(::PlaylistId)
+    TrackPlace("library") {
+        "playlists=$showPlaylists history=$showHistory account=$showAccount playlist=$openPlaylistId"
+    }
 
     when {
         playlist != null ->
