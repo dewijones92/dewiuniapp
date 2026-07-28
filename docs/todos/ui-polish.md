@@ -96,3 +96,22 @@ decision and worth keeping.
 Still open from the candidate list: **(c)** demote queue ✕ to a swipe, **(d)** channel avatar
 instead of the AccountCircle glyph, **(i)** collapsing large-title headers across the feeds.
 (i) remains the biggest identity win and the biggest job — it touches every feed screen.
+
+## Flash pass 2026-07-28 — and a decision about titles
+
+Dancing equaliser (queue marker + mini-player badge), shimmer skeletons replacing the feed
+spinners, and a collapsing large title. Detail in the commit; the reasoning worth keeping is
+that each replaced something static rather than being added on top of it.
+
+**Decided: the other tabs stay titleless.** I flagged "wire CollapsingTitle into the remaining
+feeds" as an easy next sweep and that was wrong — Videos, Podcasts, Search and Library have no
+screen title at all, so it would mean *introducing* a 32sp heading that repeats the nav label
+directly underneath it, plus ~50dp at the top of every feed. Dewi chose to leave them clean
+(2026-07-28).
+
+So `CollapsingTitle` applies where a screen already needs a title-with-action — Queue's "Clear
+all" is what earns it there. Do not blanket-apply it; a heading that only says what the nav bar
+already says is decoration.
+
+Still open: **(c)** swipe-to-remove in the queue, **(d)** channel avatar instead of the
+AccountCircle glyph.
