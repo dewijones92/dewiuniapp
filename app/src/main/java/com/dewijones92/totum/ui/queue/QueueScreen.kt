@@ -1,11 +1,16 @@
 package com.dewijones92.totum.ui.queue
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Close
@@ -13,6 +18,7 @@ import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -52,6 +58,7 @@ fun QueueScreen(container: AppContainer, modifier: Modifier = Modifier) {
     val queue = container.playbackQueue
     val snapshot by queue.state.collectAsStateWithLifecycle()
     val downloads by container.downloadManager.observeDownloads().collectAsStateWithLifecycle(emptyMap())
+    val playing by container.playbackController.state.collectAsStateWithLifecycle()
     val entries = snapshot.entries
     val scope = rememberCoroutineScope()
 
@@ -68,7 +75,7 @@ fun QueueScreen(container: AppContainer, modifier: Modifier = Modifier) {
             LazyColumn(Modifier.fillMaxSize()) {
                 itemsWithGroupHeaders(
                     entries = entries,
-                    currentIndex = snapshot.currentIndex,
+                    nowPlaying = NowPlaying(snapshot.currentIndex, playing?.progress),
                     downloads = downloads,
                     reorder = reorder,
                     actions = QueueActions(
@@ -103,13 +110,16 @@ private data class QueueActions(
     val onDeleteDownload: (MediaItemId) -> Unit,
 )
 
+/** Where the cursor is and how far through that item playback has got. */
+private data class NowPlaying(val index: Int, val progress: Float?)
+
 /**
  * Emits the queue rows, inserting a header wherever the group tag changes — so a
  * run of entries from one "Play all" reads as a block and can be dropped together.
  */
 private fun androidx.compose.foundation.lazy.LazyListScope.itemsWithGroupHeaders(
     entries: List<QueueEntry>,
-    currentIndex: Int,
+    nowPlaying: NowPlaying,
     downloads: Map<MediaItemId, DownloadState>,
     reorder: ReorderState,
     actions: QueueActions,
@@ -124,7 +134,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.itemsWithGroupHeaders
         }
         item(key = "entry-$index-${entry.item.item.id.value}") {
             val media = entry.item.item
-            if (index == currentIndex) NowPlayingLabel()
+            if (index == nowPlaying.index) NowPlayingLabel(nowPlaying.progress)
             MediaItemRow(
                 item = media,
                 subtitle = mediaItemSubtitle(media),
@@ -171,15 +181,44 @@ private fun QueueHeader(canClear: Boolean, onClear: () -> Unit) {
     }
 }
 
-/** Marks the entry the cursor is on — the playing item is a queue member, not a separate box. */
+/**
+ * Marks the entry the cursor is on — the playing item is a queue member, not a separate box,
+ * which is why this stays a label in place rather than a now-playing card above the list.
+ *
+ * The label alone was easy to miss in a long queue, so it now carries a brand-tinted bar and
+ * the item's progress. The progress line is what makes the tab feel like a player surface
+ * rather than a list that happens to have one row highlighted.
+ */
 @Composable
-private fun NowPlayingLabel() {
-    Text(
-        text = stringResource(R.string.queue_now_playing),
-        style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(start = 16.dp, top = 8.dp),
-    )
+private fun NowPlayingLabel(progress: Float?) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 2.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(width = ACCENT_WIDTH, height = ACCENT_HEIGHT)
+                .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(ACCENT_WIDTH)),
+        )
+        Text(
+            text = stringResource(R.string.queue_now_playing),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(start = 8.dp),
+        )
+        progress?.let {
+            LinearProgressIndicator(
+                progress = { it },
+                modifier = Modifier
+                    .padding(start = 12.dp)
+                    .weight(1f)
+                    .height(PROGRESS_HEIGHT),
+                trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                gapSize = 0.dp,
+                drawStopIndicator = {},
+            )
+        }
+    }
 }
 
 /** The header over a run of entries that arrived together. */
@@ -216,3 +255,7 @@ private fun DragHandle(modifier: Modifier, onRemove: () -> Unit) {
         Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.queue_remove))
     }
 }
+
+private val ACCENT_WIDTH = 3.dp
+private val ACCENT_HEIGHT = 14.dp
+private val PROGRESS_HEIGHT = 2.dp

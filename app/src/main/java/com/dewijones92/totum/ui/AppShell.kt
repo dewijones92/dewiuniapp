@@ -44,6 +44,7 @@ import com.dewijones92.totum.ui.common.MiniPlayerBar
 import com.dewijones92.totum.ui.common.ProvidePlayStates
 import com.dewijones92.totum.ui.common.RequestNotificationPermissionOnFirstPlay
 import com.dewijones92.totum.ui.library.LibraryScreen
+import com.dewijones92.totum.ui.motion.sharedXAxis
 import com.dewijones92.totum.ui.player.CommentReplies
 import com.dewijones92.totum.ui.player.FullPlayerOverlay
 import com.dewijones92.totum.ui.player.LocalVideoBounds
@@ -102,6 +103,7 @@ fun AppShell(container: AppContainer, modifier: Modifier = Modifier) {
                             onTogglePlayPause = controller::togglePlayPause,
                             onExpand = { showFullPlayer = true },
                             onSelect = { selected = it },
+                            onSkipNext = { container.playbackQueue.playNextInQueue() },
                         )
                     },
                 ) { innerPadding ->
@@ -169,10 +171,16 @@ private fun BottomBar(
     onTogglePlayPause: () -> Unit,
     onExpand: () -> Unit,
     onSelect: (TopLevelDestination) -> Unit,
+    onSkipNext: () -> Unit,
 ) {
     Column {
         state?.let {
-            MiniPlayerBar(state = it, onTogglePlayPause = onTogglePlayPause, onExpand = onExpand)
+            MiniPlayerBar(
+                state = it,
+                onTogglePlayPause = onTogglePlayPause,
+                onExpand = onExpand,
+                onSkipNext = onSkipNext,
+            )
         }
         TopLevelNavigationBar(
             selected,
@@ -361,7 +369,15 @@ private fun TopLevelContent(
     modifier: Modifier,
 ) {
     val stateHolder = rememberSaveableStateHolder()
-    AnimatedContent(targetState = selected, modifier = modifier, label = "top-level-destination") { destination ->
+    AnimatedContent(
+        targetState = selected,
+        modifier = modifier,
+        label = "top-level-destination",
+        // Shared-axis rather than the default cross-fade-and-scale. Tabs sit in a row, so
+        // moving right should look like moving right — a fade alone tells you something
+        // changed but not which way you went, and the scale reads as a dialog opening.
+        transitionSpec = { sharedXAxis(forward = targetState.ordinal > initialState.ordinal) },
+    ) { destination ->
         stateHolder.SaveableStateProvider(destination.name) {
             Destination(container, destination, onOpenShorts)
         }

@@ -100,6 +100,8 @@
     <string name="chapters_title">Chapters</string>
     <string name="queue_menu">More options</string>
     <string name="queue_play_next">Play next</string>
+    <!-- Transport control, distinct from queue_play_next which ADDS an item to the queue. -->
+    <string name="skip_to_next">Skip to next</string>
     <string name="queue_add">Add to queue</string>
     <string name="queue_up_next_title">Up next</string>
     <string name="queue_remove">Remove from queue</string>

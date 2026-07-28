@@ -1,14 +1,20 @@
 package com.dewijones92.totum.ui.common
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -25,6 +31,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.dewijones92.totum.R
+import com.dewijones92.totum.common.HttpUrl
 import com.dewijones92.totum.playback.PlaybackState
 
 /**
@@ -37,6 +44,7 @@ fun MiniPlayerBar(
     onTogglePlayPause: () -> Unit,
     onExpand: () -> Unit,
     modifier: Modifier = Modifier,
+    onSkipNext: (() -> Unit)? = null,
 ) {
     val buffering = stringResource(R.string.buffering)
     Surface(
@@ -46,25 +54,15 @@ fun MiniPlayerBar(
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
     ) {
         Column {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                // Marks the pillar at a glance — video vs podcast.
-                Icon(
-                    imageVector = pillarIcon(state.kind),
-                    contentDescription = null,
-                    modifier = Modifier
-                        .padding(start = 16.dp)
-                        .size(18.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text(
-                    text = state.title,
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(start = 12.dp),
-                )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+            ) {
+                // Artwork, because this bar is the app's most-seen surface and a row of text
+                // gives no sense of what is playing. The pillar glyph rides on the corner
+                // rather than taking a slot of its own.
+                ArtworkWithPillarBadge(state)
+                NowPlayingText(state, modifier = Modifier.weight(1f))
                 // The bar is where you spend most of the time, and it was the one
                 // surface that showed nothing while stalled — so a stall here was
                 // indistinguishable from the app simply having stopped.
@@ -85,13 +83,73 @@ fun MiniPlayerBar(
                         }
                     }
                 }
+                // Skip-next belongs here now the queue is the spine: reaching the next item
+                // otherwise means opening the full player to press one button.
+                onSkipNext?.let { skip ->
+                    IconButton(onClick = skip) {
+                        Icon(Icons.Filled.SkipNext, contentDescription = stringResource(R.string.skip_to_next))
+                    }
+                }
             }
-            state.progress?.let { progress ->
-                LinearProgressIndicator(
-                    progress = { progress },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
+            // Hairline rather than the default indicator, which is thick enough to read as a
+            // control you could drag. This is a status line, so it should whisper.
+            LinearProgressIndicator(
+                progress = { state.progress ?: 0f },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(PROGRESS_HEIGHT),
+                trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                gapSize = 0.dp,
+                drawStopIndicator = {},
+            )
         }
     }
 }
+
+/** Artwork with the pillar glyph on its corner, so marking video-vs-podcast costs no width. */
+@Composable
+private fun ArtworkWithPillarBadge(state: PlaybackState) {
+    Box {
+        MediaThumbnail(
+            url = state.artworkUrl?.let(HttpUrl::parse),
+            contentDescription = null,
+            modifier = Modifier.size(ARTWORK),
+            shape = RoundedCornerShape(6.dp),
+        )
+        Icon(
+            imageVector = pillarIcon(state.kind),
+            contentDescription = null,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .size(PILLAR_BADGE)
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape)
+                .padding(1.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun NowPlayingText(state: PlaybackState, modifier: Modifier = Modifier) {
+    Column(modifier = modifier.padding(start = 12.dp)) {
+        Text(
+            text = state.title,
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        state.artist?.let { artist ->
+            Text(
+                text = artist,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+private val ARTWORK = 40.dp
+private val PILLAR_BADGE = 14.dp
+private val PROGRESS_HEIGHT = 2.dp
