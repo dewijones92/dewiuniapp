@@ -82,9 +82,7 @@ fun AppShell(container: AppContainer, modifier: Modifier = Modifier) {
     // than cross-fading the whole app into the floating window.
     val videoBounds = remember { VideoBounds() }
     val inPip = floatingWindowState(playbackState, controller, videoBounds)
-    // End-of-item advance lives here, always composed — so the queue advances in the
-    // mini player / with the screen off, not only while the full player is expanded.
-    AutoAdvance(playbackState, watchViewModel, container, reelOpen = shortsReel != null)
+    WatchBindings(container, playbackState, watchViewModel, reelOpen = shortsReel != null)
 
     // A floating window is centimetres across: the nav bar, mini player and scrolling
     // description would leave no room for the picture, so it renders alone.
@@ -147,6 +145,26 @@ fun AppShell(container: AppContainer, modifier: Modifier = Modifier) {
     }
 }
 
+/**
+ * The two things the shell still owes playback, now that advancing is app-scoped.
+ *
+ * Whether the shorts reel is paging itself, which auto-advance must not fight; and binding the
+ * watch view model to the current video, which feeds comments, related and the like button —
+ * genuinely UI concerns, none of which matter with the screen off.
+ */
+@Composable
+private fun WatchBindings(
+    container: AppContainer,
+    state: PlaybackState?,
+    watchViewModel: WatchViewModel,
+    reelOpen: Boolean,
+) {
+    LaunchedEffect(reelOpen) { container.suppressAutoAdvance.value = reelOpen }
+    LaunchedEffect(state?.itemId, state?.hasVideo) {
+        state?.takeIf { it.hasVideo }?.let { watchViewModel.bind(it.itemId.value) }
+    }
+}
+
 /** The mini player sitting above the tabs — one bar, so neither appears without the other. */
 @Composable
 private fun BottomBar(
@@ -186,51 +204,6 @@ private fun TopLevelNavigationBar(selected: TopLevelDestination, onSelect: (TopL
                 },
                 label = { Text(stringResource(destination.labelRes)) },
             )
-        }
-    }
-}
-
-/**
- * Binds the watch view model to the current video and advances at end-of-item.
- * Always composed (independent of the full player) so the queue keeps advancing
- * in the mini player and with the screen off. Fires once per genuine end — a
- * retained `hasEnded` from a previous item (e.g. on first composition) is seeded
- * as already-handled so it can't trigger a spurious skip — and stands down while
- * the Shorts reel, which drives its own advancement, is up.
- */
-@Composable
-private fun AutoAdvance(
-    state: PlaybackState?,
-    watchViewModel: WatchViewModel,
-    container: AppContainer,
-    reelOpen: Boolean,
-) {
-    LaunchedEffect(state?.itemId, state?.hasVideo) {
-        if (state != null && state.hasVideo) watchViewModel.bind(state.itemId.value)
-    }
-    val autoPlayNext by container.appPreferences.settings.collectAsStateWithLifecycle()
-    var handledEndFor by remember { mutableStateOf(state?.takeIf { it.hasEnded }?.itemId) }
-    LaunchedEffect(state?.itemId, state?.hasEnded) {
-        val ended = state?.takeIf { it.hasEnded } ?: return@LaunchedEffect
-        // Every branch says why, because the failure mode is silence: a real report showed
-        // an item end with 58 things queued and nothing happen for three minutes, and there
-        // was no way to tell which of these four reasons it was.
-        val refusal = when {
-            reelOpen -> "the shorts reel is open and pages itself"
-            !autoPlayNext.autoPlayNext -> "auto-play next is off"
-            handledEndFor == ended.itemId -> "already handled this item's end"
-            else -> null
-        }
-        if (refusal != null) {
-            Diag.log("advance", "not advancing past ${ended.itemId.value}: $refusal")
-            return@LaunchedEffect
-        }
-        handledEndFor = ended.itemId
-        val advanced = container.playbackQueue.playNextInQueue()
-        Diag.log("advance", "${ended.itemId.value} ended -> queue advance=$advanced")
-        if (!advanced && ended.hasVideo) {
-            Diag.log("advance", "queue had nothing playable; trying a related video")
-            watchViewModel.autoplayNext()
         }
     }
 }

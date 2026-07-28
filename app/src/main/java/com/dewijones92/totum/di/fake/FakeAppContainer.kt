@@ -63,6 +63,7 @@ import com.dewijones92.totum.ytdlp.fake.FakeYtDlpEngine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
 
 /** In-memory [AppContainer] for previews and UI tests. */
 class FakeAppContainer(
@@ -70,6 +71,7 @@ class FakeAppContainer(
     override val channelRepository: ChannelRepository = FakeChannelRepository(),
     override val ytDlpEngine: YtDlpEngine = FakeYtDlpEngine(),
     override val applicationScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
+    override val suppressAutoAdvance: MutableStateFlow<Boolean> = MutableStateFlow(false),
     override val playbackController: PlaybackController = FakePlaybackController(),
     override val podcastSearchSource: SearchSource = SearchSource { _, _, _ ->
         SearchOutcome.Success(Page.empty())

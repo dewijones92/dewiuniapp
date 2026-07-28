@@ -6,6 +6,7 @@ import com.dewijones92.totum.BuildConfig
 import com.dewijones92.totum.account.SharedPrefsTokenStore
 import com.dewijones92.totum.backup.BackupService
 import com.dewijones92.totum.backup.asBackupSettings
+import com.dewijones92.totum.common.Diag
 import com.dewijones92.totum.data.channel.ChannelRepository
 import com.dewijones92.totum.data.channel.DefaultChannelRepository
 import com.dewijones92.totum.data.content.ContentRefresher
@@ -48,6 +49,8 @@ import com.dewijones92.totum.diagnostics.installAndroidLogSink
 import com.dewijones92.totum.domain.MediaKind
 import com.dewijones92.totum.domain.PlayHandle
 import com.dewijones92.totum.domain.PlayableItem
+import com.dewijones92.totum.domain.SourceId
+import com.dewijones92.totum.domain.toPlayableOrNull
 import com.dewijones92.totum.importexport.SubscriptionImporter
 import com.dewijones92.totum.innertube.actions.HttpYouTubeActions
 import com.dewijones92.totum.innertube.actions.YouTubeActions
@@ -65,12 +68,14 @@ import com.dewijones92.totum.innertube.history.YouTubeWatchHistory
 import com.dewijones92.totum.innertube.playlists.HttpYouTubePlaylists
 import com.dewijones92.totum.innertube.playlists.YouTubePlaylists
 import com.dewijones92.totum.innertube.related.HttpYouTubeRelated
+import com.dewijones92.totum.innertube.related.RelatedResult
 import com.dewijones92.totum.innertube.related.YouTubeRelated
 import com.dewijones92.totum.innertube.search.HttpYouTubeSearch
 import com.dewijones92.totum.innertube.subscriptions.HttpYouTubeSubscriptions
 import com.dewijones92.totum.notifications.DownloadNotifier
 import com.dewijones92.totum.notifications.SharedPrefsSeenItemsTracker
 import com.dewijones92.totum.notifications.YouTubeSubscriptionItemsSource
+import com.dewijones92.totum.playback.AutoAdvancer
 import com.dewijones92.totum.playback.ExpiredStreamRecovery
 import com.dewijones92.totum.playback.Media3PlaybackController
 import com.dewijones92.totum.playback.PlaybackController
@@ -85,6 +90,7 @@ import com.dewijones92.totum.settings.AppPreferences
 import com.dewijones92.totum.settings.NetworkStatus
 import com.dewijones92.totum.settings.PlaybackMode
 import com.dewijones92.totum.settings.SharedPrefsAppPreferences
+import com.dewijones92.totum.ui.common.toMediaItem
 import com.dewijones92.totum.video.AccountSubscriptions
 import com.dewijones92.totum.video.PlatformVideoCodecSupport
 import com.dewijones92.totum.video.VideoPlaybackLauncher
@@ -96,6 +102,7 @@ import com.dewijones92.totum.ytdlp.chaquopy.YtDlpUpdater
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import java.io.File
@@ -112,6 +119,15 @@ interface AppContainer {
      * user switched tab 1.7s later, and nothing ever played.
      */
     val applicationScope: CoroutineScope
+
+    /**
+     * Set while a screen pages itself and must not be auto-advanced over — the shorts reel.
+     *
+     * Lives here rather than in the shell because the thing that reads it (auto-advance) is
+     * app-scoped now: it has to keep working with the screen off, so it cannot depend on a
+     * composable being alive to tell it.
+     */
+    val suppressAutoAdvance: MutableStateFlow<Boolean>
 
     val podcastRepository: PodcastRepository
     val channelRepository: ChannelRepository
@@ -270,6 +286,8 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
 
     override val applicationScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
+    override val suppressAutoAdvance: MutableStateFlow<Boolean> = MutableStateFlow(false)
+
     override val playbackProgressStore: PlaybackProgressStore by lazy {
         RoomPlaybackProgressStore(database.playbackProgressDao())
     }
@@ -368,6 +386,33 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
         DownloadNotifier(context, downloadManager, applicationScope).start()
     }
 
+    /**
+     * Plays the top related video when the queue has run out — the end-of-queue fallback.
+     *
+     * App-side rather than through the player's view model, which is where it used to live:
+     * the queue running dry has nothing to do with whether a screen is on, and reaching into
+     * a view model would have put the UI's lifecycle back in the path this change exists to
+     * remove.
+     */
+    private suspend fun playRelatedNext() {
+        val playing = playbackQueue.nowPlaying.value ?: return
+        val related = youTubeRelated.relatedTo(playing.item.id.value)
+        if (related !is RelatedResult.Success) {
+            Diag.warn("advance", "no related videos to fall back on")
+            return
+        }
+        val next = related.videos
+            .firstOrNull { it.videoId != playing.item.id.value }
+            ?.toMediaItem(SourceId("ytrelated"))
+            ?.toPlayableOrNull()
+        if (next == null) {
+            Diag.warn("advance", "related list had nothing playable")
+            return
+        }
+        Diag.log("advance", "queue empty — playing related \"${next.item.title}\"")
+        playbackQueue.playNow(next)
+    }
+
     override fun installCrashReporting() {
         installAndroidLogSink()
         crashReporter.install()
@@ -376,6 +421,19 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
         ActivitySnapshotter(playbackController, downloadManager, playbackQueue, applicationScope).start()
         // A signed streaming URL expires in hours, so anything paused overnight comes back
         // to nothing but 403s. Re-resolve and carry on rather than retrying a dead address.
+        // Auto-advance is app-scoped for the same reason the recovery is: it must keep
+        // working with the screen off. It used to be a composable effect fed by
+        // collectAsStateWithLifecycle, which stops collecting when the activity stops — so a
+        // phone in a pocket never advanced (proven: a 7-minute gap between an item ending
+        // and the decision being reached).
+        AutoAdvancer(
+            states = playbackController.state,
+            advance = { playbackQueue.playNextInQueue() },
+            whenQueueEmpty = ::playRelatedNext,
+            isEnabled = { appPreferences.settings.value.autoPlayNext },
+            isSuppressed = { suppressAutoAdvance.value },
+            scope = applicationScope,
+        ).start()
         ExpiredStreamRecovery(
             failures = playbackController.streamFailures,
             replay = playbackQueue::replayCurrent,
