@@ -18,6 +18,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -318,7 +319,19 @@ private fun AppShellPreview() {
     TotumTheme { AppShell(FakeAppContainer()) }
 }
 
-/** The selected pillar's screen, cross-faded as the bottom navigation changes. */
+/**
+ * The selected pillar's screen, cross-faded as the bottom navigation changes.
+ *
+ * Each destination keeps its own state while you are away from it. Switching tabs
+ * tears the outgoing screen out of composition, so without this a glance at the queue
+ * threw away a long scroll through subscriptions and dropped you back at the top —
+ * which made the tabs feel unsafe to use. [rememberSaveableStateHolder] is what a
+ * NavHost uses for the same job: state saved under a key per destination, restored when
+ * that destination comes back.
+ *
+ * Applied around the whole `when` rather than per screen on purpose. A tab that has to
+ * opt in is a bug waiting for the next tab to be added.
+ */
 @Composable
 private fun TopLevelContent(
     container: AppContainer,
@@ -326,14 +339,27 @@ private fun TopLevelContent(
     onOpenShorts: (List<MediaItem>) -> Unit,
     modifier: Modifier,
 ) {
+    val stateHolder = rememberSaveableStateHolder()
     AnimatedContent(targetState = selected, modifier = modifier, label = "top-level-destination") { destination ->
-        when (destination) {
-            TopLevelDestination.Videos -> VideosScreen(container, onOpenShorts = onOpenShorts)
-            TopLevelDestination.Podcasts -> PodcastsScreen(container)
-            TopLevelDestination.Queue -> QueueScreen(container)
-            TopLevelDestination.Search -> SearchScreen(container)
-            TopLevelDestination.Library -> LibraryScreen(container)
+        stateHolder.SaveableStateProvider(destination.name) {
+            Destination(container, destination, onOpenShorts)
         }
+    }
+}
+
+/** The one place a destination maps to its screen. */
+@Composable
+private fun Destination(
+    container: AppContainer,
+    destination: TopLevelDestination,
+    onOpenShorts: (List<MediaItem>) -> Unit,
+) {
+    when (destination) {
+        TopLevelDestination.Videos -> VideosScreen(container, onOpenShorts = onOpenShorts)
+        TopLevelDestination.Podcasts -> PodcastsScreen(container)
+        TopLevelDestination.Queue -> QueueScreen(container)
+        TopLevelDestination.Search -> SearchScreen(container)
+        TopLevelDestination.Library -> LibraryScreen(container)
     }
 }
 

@@ -21,7 +21,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,20 +53,21 @@ import com.dewijones92.totum.ui.playlist.rememberPlaylistAdder
 
 @Composable
 fun LibraryScreen(container: AppContainer, modifier: Modifier = Modifier) {
-    var showPlaylists by remember { mutableStateOf(false) }
-    var showHistory by remember { mutableStateOf(false) }
-    var showAccount by remember { mutableStateOf(false) }
-    var openPlaylist by remember { mutableStateOf<PlaylistId?>(null) }
-    val playlist = openPlaylist
+    var showPlaylists by rememberSaveable { mutableStateOf(false) }
+    var showHistory by rememberSaveable { mutableStateOf(false) }
+    var showAccount by rememberSaveable { mutableStateOf(false) }
+    // The id is a value class over a String, so it saves as one and needs no saver.
+    var openPlaylistId by rememberSaveable { mutableStateOf<String?>(null) }
+    val playlist = openPlaylistId?.let(::PlaylistId)
 
     when {
         playlist != null ->
-            LocalPlaylistDetailScreen(container, playlist, onBack = { openPlaylist = null }, modifier = modifier)
+            LocalPlaylistDetailScreen(container, playlist, onBack = { openPlaylistId = null }, modifier = modifier)
         showPlaylists ->
             LocalPlaylistsScreen(
                 container,
                 onBack = { showPlaylists = false },
-                onOpen = { openPlaylist = it },
+                onOpen = { openPlaylistId = it.value },
                 modifier = modifier,
             )
         showHistory ->

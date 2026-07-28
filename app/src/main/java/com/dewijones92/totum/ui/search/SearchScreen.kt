@@ -56,6 +56,7 @@ import com.dewijones92.totum.ui.common.LoadMoreOnScrollToEnd
 import com.dewijones92.totum.ui.common.MediaItemActions
 import com.dewijones92.totum.ui.common.MediaItemRow
 import com.dewijones92.totum.ui.common.MediaThumbnail
+import com.dewijones92.totum.ui.common.VideoChannelSaver
 import com.dewijones92.totum.ui.common.mediaSubtitle
 import com.dewijones92.totum.ui.common.rememberMediaItemActions
 import com.dewijones92.totum.ui.common.toMediaItem
@@ -69,7 +70,9 @@ fun SearchScreen(container: AppContainer, modifier: Modifier = Modifier) {
     val actions = rememberMediaItemActions(container)
     // "Go to channel" needs somewhere to land, so Search hosts the channel page as an
     // overlay exactly as the Videos tab does.
-    var browsingChannel by remember { mutableStateOf<MediaSource.VideoChannel?>(null) }
+    var browsingChannel by rememberSaveable(stateSaver = VideoChannelSaver) {
+        mutableStateOf<MediaSource.VideoChannel?>(null)
+    }
     val channel = browsingChannel
     if (channel != null) {
         ChannelScreen(

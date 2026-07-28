@@ -20,7 +20,6 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -43,6 +42,7 @@ import com.dewijones92.totum.theme.TotumTheme
 import com.dewijones92.totum.ui.common.EmptyState
 import com.dewijones92.totum.ui.common.MediaItemRow
 import com.dewijones92.totum.ui.common.MediaSort
+import com.dewijones92.totum.ui.common.PodcastFeedSaver
 import com.dewijones92.totum.ui.common.SectionHeaderWithSort
 import com.dewijones92.totum.ui.common.TotumFab
 import com.dewijones92.totum.ui.common.mediaItemSubtitle
@@ -53,7 +53,9 @@ import com.dewijones92.totum.ui.playlist.rememberPlaylistAdder
 fun PodcastsScreen(container: AppContainer, modifier: Modifier = Modifier) {
     val viewModel: PodcastsViewModel = viewModel(factory = PodcastsViewModel.factory(container))
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    var openFeed by remember { mutableStateOf<MediaSource.PodcastFeed?>(null) }
+    var openFeed by rememberSaveable(stateSaver = PodcastFeedSaver) {
+        mutableStateOf<MediaSource.PodcastFeed?>(null)
+    }
 
     val feed = openFeed
     if (feed != null) {
