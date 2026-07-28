@@ -37,6 +37,17 @@ public class FakePlaybackController : PlaybackController {
      * way to reach that state there is no way to test the thing at all, and the shorts reel's
      * advance is only reachable through it.
      */
+    /**
+     * Publishes an arbitrary state, so a test can drive a consumer of [state] directly.
+     *
+     * Needed for anything that reacts to the state stream rather than to a play() call —
+     * the YouTube watch-history sync, for one, which has to be exercised across pillars and
+     * with and without a video track.
+     */
+    public fun emitState(state: PlaybackState?) {
+        _state.value = state
+    }
+
     public fun endCurrent() {
         _state.update { it?.copy(hasEnded = true, isPlaying = false) }
     }
