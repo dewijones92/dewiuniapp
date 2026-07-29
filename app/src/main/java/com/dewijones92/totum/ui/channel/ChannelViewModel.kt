@@ -17,6 +17,8 @@ import com.dewijones92.totum.domain.MediaItemId
 import com.dewijones92.totum.domain.MediaSource
 import com.dewijones92.totum.domain.PlayHandle
 import com.dewijones92.totum.domain.PlayableItem
+import com.dewijones92.totum.domain.isSameChannelAs
+import com.dewijones92.totum.domain.youTubeChannelId
 import com.dewijones92.totum.innertube.channel.ChannelPlaylists
 import com.dewijones92.totum.innertube.channel.ChannelVideos
 import com.dewijones92.totum.innertube.channel.YouTubeChannel
@@ -95,8 +97,7 @@ class ChannelViewModel(
         val resolving: String? = null,
     )
 
-    private val channelId: String? =
-        source.channelUrl.value.substringAfterLast("/channel/", "").ifBlank { null }
+    private val channelId: String? = source.youTubeChannelId
 
     private val content = MutableStateFlow(Content(source.title))
 
@@ -113,7 +114,11 @@ class ChannelViewModel(
             playlists = c.playlists,
             searchResults = c.searchResults,
             searchQuery = c.searchQuery,
-            subscribed = subs.any { it.id == source.id },
+            // Compared by CHANNEL, not by URL. The account's subscriptions arrive keyed by their
+            // canonical /channel/UC… URL while a channel opened from a video row or a search hit
+            // carries whatever form that source used, so string equality reported "not subscribed"
+            // for channels Dewi was plainly subscribed to.
+            subscribed = subs.any { it.isSameChannelAs(source) },
             downloadStates = downloadStates,
             resolving = c.resolving,
         )

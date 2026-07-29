@@ -284,9 +284,14 @@ class PlaybackQueue(
         touched = true
         _state.update(block)
         val now = _state.value
+        // The title is labelled, because it is the CURRENT entry and not whatever was just
+        // added — reading it as "the item this operation touched" cost a wrong diagnosis on
+        // 2026-07-29 (I searched Watch Later for the playing video instead of the queued one and
+        // concluded the write had failed when it had not).
         Diag.log(
             "queue",
-            "$why: size=${now.entries.size} current=${now.currentIndex} ${now.current?.item?.item?.title ?: "-"}",
+            "$why: size=${now.entries.size} current=${now.currentIndex} " +
+                "playing=${now.current?.item?.item?.title ?: "-"}",
         )
     }
 

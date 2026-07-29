@@ -1,6 +1,7 @@
 package com.dewijones92.totum.data.importexport
 
 import com.dewijones92.totum.domain.MediaSource
+import com.dewijones92.totum.domain.youTubeChannelId
 
 /**
  * Serialises the current subscriptions to OPML 2.0 — the lingua franca podcast
@@ -27,7 +28,7 @@ public class OpmlExporter {
     private fun outlineFor(source: MediaSource): String? = when (source) {
         is MediaSource.PodcastFeed -> outline(source.title, source.feedUrl.value, source.websiteUrl?.value)
         is MediaSource.VideoChannel -> {
-            val channelId = source.channelUrl.value.substringAfterLast("/channel/", "").ifBlank { null }
+            val channelId = source.youTubeChannelId
             channelId?.let {
                 outline(
                     source.title,

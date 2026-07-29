@@ -2,6 +2,7 @@ package com.dewijones92.totum.video
 
 import com.dewijones92.totum.domain.MediaSource
 import com.dewijones92.totum.domain.SourceId
+import com.dewijones92.totum.domain.youTubeChannelId
 import com.dewijones92.totum.innertube.actions.ActionResult
 import com.dewijones92.totum.innertube.actions.YouTubeActions
 import com.dewijones92.totum.innertube.auth.YouTubeAccount
@@ -86,6 +87,5 @@ class AccountSubscriptions(
         channelUrl = channelUrl,
     )
 
-    private fun MediaSource.VideoChannel.channelId(): String? =
-        channelUrl.value.substringAfterLast("/channel/", "").ifBlank { null }
+    private fun MediaSource.VideoChannel.channelId(): String? = youTubeChannelId
 }
