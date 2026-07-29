@@ -42,8 +42,16 @@ class PlaybackQueueTest {
 
     private val store = InMemoryQueueStore()
 
+    /** Items the mirror was told about — how the Watch Later signal is asserted. */
+    private val mirrored = mutableListOf<String>()
+
+    private var mirrorFails = false
+
     private fun queue(withStore: QueueStore = store) =
-        PlaybackQueue(controller, launcher, CoroutineScope(dispatcher), withStore)
+        PlaybackQueue(controller, launcher, CoroutineScope(dispatcher), withStore) { item ->
+            if (mirrorFails) error("network down")
+            mirrored += item.item.id.value
+        }
 
     /**
      * Dewi's report: "when I click play next on something already in the queue, it dups it."
@@ -138,6 +146,55 @@ class PlaybackQueueTest {
         assertEquals(listOf("a", "b"), q.state.value.entries.map { it.item.item.id.value })
         // The cursor still points at the entry it pointed at, not at whatever landed on index 1.
         assertEquals("b", q.state.value.current?.item?.item?.id?.value)
+    }
+
+    /**
+     * Dewi's ask: queueing something should tell YouTube he likes it. The two deliberate
+     * add-paths mirror; the bulk ones must not.
+     */
+    @Test
+    fun `adding to the queue mirrors the choice`() = runTest(dispatcher) {
+        val q = queue()
+
+        q.enqueue(podcast("a"))
+        q.playNext(podcast("b"))
+        advanceUntilIdle()
+
+        assertEquals(listOf("a", "b"), mirrored)
+    }
+
+    /** playAll is a bulk run — the shorts reel hands over fifty at once and would bury it. */
+    @Test
+    fun `play all does not mirror`() = runTest(dispatcher) {
+        val q = queue()
+
+        q.playAll(listOf(podcast("a"), podcast("b")))
+        advanceUntilIdle()
+
+        assertTrue("a bulk run must not touch Watch Later", mirrored.isEmpty())
+    }
+
+    /** playNow means "watching it now", which the watch-history sync already reports. */
+    @Test
+    fun `play now does not mirror`() = runTest(dispatcher) {
+        val q = queue()
+
+        q.playNow(podcast("a"))
+        advanceUntilIdle()
+
+        assertTrue(mirrored.isEmpty())
+    }
+
+    /** The queue is local and must be instant; the network is not allowed to break it. */
+    @Test
+    fun `a failing mirror still queues the item`() = runTest(dispatcher) {
+        mirrorFails = true
+        val q = queue()
+
+        q.enqueue(podcast("a"))
+        advanceUntilIdle()
+
+        assertEquals(listOf("a"), q.state.value.entries.map { it.item.item.id.value })
     }
 
     private fun podcast(id: String) = PlayableItem(

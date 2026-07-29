@@ -240,6 +240,10 @@ interface AppContainer {
     fun refreshSubscriptions()
 }
 
+// The count is the app's whole integration surface — every start*/install* entry point the
+// Application calls, plus the few private wire-ups they need. Splitting it would scatter the
+// one place the graph is built, which is the point of the class.
+@Suppress("TooManyFunctions")
 class DefaultAppContainer(private val context: Context) : AppContainer {
 
     private val httpClient: OkHttpClient = OkHttpClient.Builder()
@@ -375,6 +379,31 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
     }
 
     /**
+     * Mirrors a deliberate queue-add to YouTube's Watch Later.
+     *
+     * Dewi's ask: queueing something here should tell YouTube he likes it, so the algorithm
+     * learns from what he lines up rather than only from what he finishes. Watch Later is the
+     * right shelf for it — it is literally "I intend to watch this", which is what queueing
+     * means — and it is a signal YouTube's own clients send.
+     *
+     * Only YouTube videos, and only while signed in. A podcast has no YouTube identity, and
+     * signed out there is no account to teach. Both are silent no-ops rather than warnings,
+     * because neither is a fault.
+     */
+    private suspend fun saveToWatchLater(queued: PlayableItem) {
+        val handle = queued.handle as? PlayHandle.Video ?: return
+        if (!accountSubscriptions.signedIn.value) {
+            Diag.log("yt-signal", "not saving \"${queued.item.title}\" to Watch Later: signed out")
+            return
+        }
+        val videoId = queued.item.id.value
+        val result = youTubeActions.setSavedToWatchLater(videoId, saved = true)
+        // Logged either way: this is the proof that queueing reached the account, and a silent
+        // failure here would look identical to the feature not existing.
+        Diag.log("yt-signal", "watch-later += $videoId -> $result")
+    }
+
+    /**
      * Plays the top related video when the queue has run out — the end-of-queue fallback.
      *
      * App-side rather than through the player's view model, which is where it used to live:
@@ -484,7 +513,13 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
     }
 
     override val playbackQueue: PlaybackQueue by lazy {
-        PlaybackQueue(playbackController, videoPlaybackLauncher, applicationScope, queueStore)
+        PlaybackQueue(
+            playbackController,
+            videoPlaybackLauncher,
+            applicationScope,
+            queueStore,
+            onQueuedByUser = ::saveToWatchLater,
+        )
     }
 
     override val localPlaylistStore: LocalPlaylistStore by lazy {

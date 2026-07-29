@@ -49,6 +49,20 @@ class PlaybackQueue(
     private val launcher: VideoPlaybackLauncher,
     private val scope: CoroutineScope,
     private val store: QueueStore = InMemoryQueueStore(),
+    /**
+     * Called when the user deliberately queues a single item, so the choice can be mirrored
+     * somewhere else — today, to YouTube's Watch Later, which is how queueing something here
+     * becomes a preference signal on the account.
+     *
+     * A hook rather than a YouTube dependency: the queue has no business knowing an account
+     * exists, and the mirror is wired in AppContainer where every other integration lives.
+     *
+     * Deliberately NOT called by playAll or playNow. playAll is a bulk run — the shorts reel
+     * hands over fifty items at a time and would bury Watch Later — and playNow means "I am
+     * watching this now", which the watch-history sync already reports. Watch Later is for
+     * intent, so only the two add-paths that express intent fire it.
+     */
+    private val onQueuedByUser: suspend (PlayableItem) -> Unit = {},
 ) {
     private val _state = MutableStateFlow(QueueSnapshot())
 
@@ -97,6 +111,7 @@ class PlaybackQueue(
                 without.copy(entries = without.entries + QueueEntry(item, group))
             }
         }
+        mirror(item)
     }
 
     /** Inserts so it plays immediately after the current entry, moving it if already queued. */
@@ -105,6 +120,21 @@ class PlaybackQueue(
             snapshot.relocating(item) { without ->
                 without.inserted(listOf(QueueEntry(item, group)))
             }
+        }
+        mirror(item)
+    }
+
+    /**
+     * Fires the mirror without letting it affect queueing.
+     *
+     * Its own coroutine and its own try/catch: the queue must change instantly and locally
+     * whatever the network does, so a slow or failed Watch Later write can never delay a tap or
+     * lose the queue entry that the user actually asked for.
+     */
+    private fun mirror(item: PlayableItem) {
+        scope.launch {
+            runCatching { onQueuedByUser(item) }
+                .onFailure { Diag.warn("queue", "could not mirror \"${item.item.title}\" to the account", it) }
         }
     }
 
