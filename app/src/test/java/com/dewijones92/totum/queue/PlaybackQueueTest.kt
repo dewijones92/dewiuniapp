@@ -197,6 +197,59 @@ class PlaybackQueueTest {
         assertEquals(listOf("a"), q.state.value.entries.map { it.item.item.id.value })
     }
 
+    /**
+     * The loop from Dewi's 0.1.199 report. He PEEKED a video that was also in the queue; peek
+     * clears the cursor to -1 by design, so `currentIndex + 1` was 0 — and entry 0 was the very
+     * video playing, so "advancing" replayed it. The trail said `advance=true` the whole time.
+     */
+    @Test
+    fun `advancing never replays the item already playing`() = runTest(dispatcher) {
+        val q = queue()
+        q.enqueue(podcast("a"))
+        q.enqueue(podcast("b"))
+        advanceUntilIdle()
+        // Peek the item that sits at index 0: cursor goes to -1 while "a" is what plays.
+        q.peek(podcast("a"))
+        advanceUntilIdle()
+        assertEquals(-1, q.state.value.currentIndex)
+
+        val advanced = q.playNextInQueue()
+        advanceUntilIdle()
+
+        assertTrue("should have advanced", advanced)
+        assertEquals("b", q.state.value.current?.item?.item?.id?.value)
+    }
+
+    /** Advancing is relative to what is PLAYING, not to a cursor that may point elsewhere. */
+    @Test
+    fun `advancing follows the playing item even when the cursor is stale`() = runTest(dispatcher) {
+        val q = queue()
+        q.enqueue(podcast("a"))
+        q.enqueue(podcast("b"))
+        q.enqueue(podcast("c"))
+        advanceUntilIdle()
+        q.peek(podcast("b"))
+        advanceUntilIdle()
+
+        q.playNextInQueue()
+        advanceUntilIdle()
+
+        // From "b", the next is "c" — not "a", which is where a -1 cursor would have gone.
+        assertEquals("c", q.state.value.current?.item?.item?.id?.value)
+    }
+
+    /** The return value is the truth now: it used to say true before trying anything. */
+    @Test
+    fun `advancing past the last item reports false`() = runTest(dispatcher) {
+        val q = queue()
+        q.enqueue(podcast("a"))
+        advanceUntilIdle()
+        q.peek(podcast("a"))
+        advanceUntilIdle()
+
+        assertFalse("nothing follows the only entry", q.playNextInQueue())
+    }
+
     private fun podcast(id: String) = PlayableItem(
         MediaItem(
             id = MediaItemId(id),

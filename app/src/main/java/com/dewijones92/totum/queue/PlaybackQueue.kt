@@ -226,24 +226,43 @@ class PlaybackQueue(
     }
 
     /**
-     * Starts the entry after the current one, skipping any that fail to play (an
-     * expired or private video, a broken item) so one bad entry can't strand the
-     * rest. Returns whether there was anything to try.
+     * Starts the entry after the one that is PLAYING, skipping any that fail to play (an expired
+     * or private video, a broken item) so one bad entry cannot strand the rest.
+     *
+     * Advances from what is playing rather than from the stored cursor, and that distinction is
+     * the whole bug this fixes. A peeked item plays with the cursor at -1 **by design**, so
+     * `currentIndex + 1` was `0` — and when the peeked item was itself somewhere in the queue,
+     * "advancing" replayed the very video that had just finished. A real report (0.1.199): peek at
+     * 19:11, ended at 19:27, `advance=true`, and the next transition was the same id. It then
+     * ended again and was refused as "already handled", leaving playback stuck until Dewi moved
+     * it by hand.
+     *
+     * Suspending, so the returned value is the truth. It used to return `true` the moment an index
+     * existed, before the coroutine had tried anything — which is why the trail said `advance=true`
+     * while nothing had actually moved on, and why the report was harder to read than it should
+     * have been.
      */
-    fun playNextInQueue(): Boolean {
-        val start = _state.value.currentIndex + 1
-        if (start > _state.value.entries.lastIndex) {
-            Diag.log("queue", "nothing after cursor ${_state.value.currentIndex} of ${_state.value.entries.size}")
+    suspend fun playNextInQueue(): Boolean {
+        val snapshot = _state.value
+        val playingId = _nowPlaying.value?.item?.id
+        val from = playingId
+            ?.let { id -> snapshot.entries.indexOfFirst { it.item.item.id == id } }
+            ?.takeIf { it >= 0 }
+            ?: snapshot.currentIndex
+        var index = from + 1
+        if (index > snapshot.entries.lastIndex) {
+            Diag.log("queue", "nothing after ${playingId?.value ?: "cursor $from"} of ${snapshot.entries.size}")
             return false
         }
-        scope.launch {
-            var index = start
-            while (index <= _state.value.entries.lastIndex) {
-                if (playAt(index)) return@launch
-                index++
-            }
+        while (index <= _state.value.entries.lastIndex) {
+            val entry = _state.value.entries[index]
+            // Never advance onto the thing already playing. Belt and braces alongside the index
+            // fix above: it also covers a duplicate that predates the de-duplication work.
+            if (entry.item.item.id != playingId && playAt(index)) return true
+            index++
         }
-        return true
+        Diag.log("queue", "nothing playable after index $from")
+        return false
     }
 
     /** Moves the cursor to [index] and plays it; false when out of range or unplayable. */

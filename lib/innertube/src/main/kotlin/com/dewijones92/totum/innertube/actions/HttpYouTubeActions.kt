@@ -68,10 +68,37 @@ public class HttpYouTubeActions(
 
     private suspend fun perform(url: String, fields: String, token: AccessToken): ActionResult =
         when (val response = innerTube.action(url, fields, token)) {
-            is InnerTubeResponse.Success -> ActionResult.Success
+            is InnerTubeResponse.Success -> response.body.actionOutcome()
             InnerTubeResponse.Unauthorized -> ActionResult.SignedOut
             is InnerTubeResponse.Failure -> ActionResult.Failure(response.detail)
         }
+
+    /**
+     * Whether InnerTube actually did the thing, as opposed to merely answering.
+     *
+     * A rejected edit comes back as **HTTP 200** with the refusal in the body, so treating any 2xx
+     * as success was reporting work that never happened. Proven end to end on 2026-07-29: adding a
+     * video to Watch Later logged `-> Success` and the video was not in Watch Later afterwards,
+     * confirmed by reading the list back and refreshing it.
+     *
+     * Conservative on purpose. Only an explicit refusal is treated as failure — a body with no
+     * status field still counts as success, because the action endpoints do not all report one and
+     * demanding it would break like, subscribe and the rest for no evidence.
+     */
+    private fun String.actionOutcome(): ActionResult = when {
+        contains(STATUS_FAILED) -> ActionResult.Failure(STATUS_FAILED)
+        contains(ERROR_OBJECT) -> ActionResult.Failure(errorReason() ?: ERROR_OBJECT)
+        else -> ActionResult.Success
+    }
+
+    /** The human-readable half of an InnerTube error, so the log says WHY rather than just "failed". */
+    private fun String.errorReason(): String? =
+        Regex(""""message"\s*:\s*"([^"]{1,160})"""").find(this)?.groupValues?.getOrNull(1)
+
+    private companion object {
+        const val STATUS_FAILED = "STATUS_FAILED"
+        const val ERROR_OBJECT = "\"error\""
+    }
 
     private fun escape(value: String): String =
         value.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "")

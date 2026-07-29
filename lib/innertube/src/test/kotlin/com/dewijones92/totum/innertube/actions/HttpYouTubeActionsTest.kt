@@ -108,4 +108,48 @@ class HttpYouTubeActionsTest {
     private companion object {
         val TOKENS = OAuthTokens(AccessToken("at"), RefreshToken("rt"), expiresAtEpochSeconds = 3_600)
     }
+
+    /**
+     * The bug proven end to end on 2026-07-29: adding to Watch Later logged Success and the video
+     * was not there afterwards. InnerTube refuses inside a **200**, so treating any 2xx as success
+     * reported work that never happened.
+     */
+    @Test
+    fun `a refusal inside a 200 is a failure, not a success`() = runBlocking {
+        server.enqueue(
+            MockResponse.Builder()
+                .code(200)
+                .body("""{"actionResult":{"status":"STATUS_FAILED"}}""")
+                .build(),
+        )
+
+        val result = actions().setSavedToWatchLater("abc123", saved = true)
+
+        assertTrue("expected a failure, got $result", result is ActionResult.Failure)
+    }
+
+    @Test
+    fun `an error object inside a 200 is a failure and carries the reason`() = runBlocking {
+        server.enqueue(
+            MockResponse.Builder()
+                .code(200)
+                .body("""{"error":{"code":400,"message":"Precondition check failed."}}""")
+                .build(),
+        )
+
+        val result = actions().setSavedToWatchLater("abc123", saved = true)
+
+        assertEquals(ActionResult.Failure("Precondition check failed."), result)
+    }
+
+    /**
+     * Conservative on purpose: not every action endpoint reports a status, so a body without one
+     * still counts as success. Demanding it would break like and subscribe for no evidence.
+     */
+    @Test
+    fun `a body with no status is still a success`() = runBlocking {
+        server.enqueue(MockResponse.Builder().code(200).body("""{"responseContext":{}}""").build())
+
+        assertEquals(ActionResult.Success, actions().setSavedToWatchLater("abc123", saved = true))
+    }
 }

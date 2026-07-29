@@ -18,6 +18,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
@@ -62,6 +63,7 @@ import com.dewijones92.totum.ui.search.SearchScreen
 import com.dewijones92.totum.ui.shorts.ShortsReelScreen
 import com.dewijones92.totum.ui.videos.VideosScreen
 import com.dewijones92.totum.video.VideoPlaybackLauncher
+import kotlinx.coroutines.launch
 
 /**
  * Top-level scaffold: bottom navigation across the app's pillars with
@@ -82,6 +84,8 @@ fun AppShell(container: AppContainer, modifier: Modifier = Modifier) {
     // The stage reports where the picture is, so the system animates from it rather
     // than cross-fading the whole app into the floating window.
     val videoBounds = remember { VideoBounds() }
+    // The mini player's skip is a UI gesture; the advance itself is app-scoped elsewhere.
+    val skipScope = rememberCoroutineScope()
     val inPip = floatingWindowState(playbackState, controller, videoBounds)
     WatchBindings(playbackState, watchViewModel)
 
@@ -103,7 +107,7 @@ fun AppShell(container: AppContainer, modifier: Modifier = Modifier) {
                             onTogglePlayPause = controller::togglePlayPause,
                             onExpand = { showFullPlayer = true },
                             onSelect = { selected = it },
-                            onSkipNext = { container.playbackQueue.playNextInQueue() },
+                            onSkipNext = { skipScope.launch { container.playbackQueue.playNextInQueue() } },
                         )
                     },
                 ) { innerPadding ->
