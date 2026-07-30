@@ -1,0 +1,33 @@
+{
+  "comment": "The TV tile badge shape, captured live 2026-07-30 and rewritten with invented titles. Real badges: a 4K label (seen on the live subscriptions feed) and a Members only label beside it.",
+  "contents": {"tvBrowseRenderer": {"content": {"items": [
+    {"tileRenderer": {
+      "contentType": "TILE_CONTENT_TYPE_VIDEO",
+      "onSelectCommand": {"watchEndpoint": {"videoId": "aaaaaaaaaaa"}},
+      "metadata": {"tileMetadataRenderer": {
+        "title": {"simpleText": "An ordinary upload"},
+        "lines": [{"lineRenderer": {"items": [
+          {"lineItemRenderer": {"badge": {"metadataBadgeRenderer": {
+            "style": "BADGE_STYLE_TYPE_SIMPLE", "label": "4K"}}}},
+          {"lineItemRenderer": {"text": {"simpleText": "A Channel"}}},
+          {"lineItemRenderer": {"text": {"simpleText": "12K views"}}},
+          {"lineItemRenderer": {"text": {"simpleText": "2 days ago"}}}
+        ]}}]
+      }}
+    }},
+    {"tileRenderer": {
+      "contentType": "TILE_CONTENT_TYPE_VIDEO",
+      "onSelectCommand": {"watchEndpoint": {"videoId": "bbbbbbbbbbb"}},
+      "metadata": {"tileMetadataRenderer": {
+        "title": {"simpleText": "Behind the membership"},
+        "lines": [{"lineRenderer": {"items": [
+          {"lineItemRenderer": {"badge": {"metadataBadgeRenderer": {
+            "style": "BADGE_STYLE_TYPE_SIMPLE", "label": "Members only"}}}},
+          {"lineItemRenderer": {"text": {"simpleText": "A Channel"}}},
+          {"lineItemRenderer": {"text": {"simpleText": "3K views"}}},
+          {"lineItemRenderer": {"text": {"simpleText": "1 day ago"}}}
+        ]}}]
+      }}
+    }}
+  ]}}}
+}

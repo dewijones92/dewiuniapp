@@ -14,6 +14,21 @@ class VideoTileParserTest {
     private fun parsed(): List<FeedVideo> =
         (VideoTileParser.parse(fixture()) as FeedResult.Success).page.items
 
+    /**
+     * The badge shape, captured live. This is the end of the chain that never worked: the
+     * parser read metadata TEXT for a members marker, while YouTube puts it in a `badge`
+     * node beside that text. Nothing failed — members-only just always reported false.
+     */
+    @Test
+    fun `a members-only badge is read off the tile`() {
+        val body = checkNotNull(javaClass.getResourceAsStream("/tile_badges_tv_sample.json")) { "missing" }
+            .bufferedReader().readText()
+        val videos = (VideoTileParser.parse(body) as FeedResult.Success).page.items
+
+        assertEquals(listOf(false, true), videos.map { it.membersOnly })
+        assertEquals(listOf("An ordinary upload", "Behind the membership"), videos.map { it.title })
+    }
+
     @Test
     fun `collects videos in order, deduped, ignoring channel tiles`() {
         assertEquals(

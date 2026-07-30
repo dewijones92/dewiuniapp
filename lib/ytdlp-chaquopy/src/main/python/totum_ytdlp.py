@@ -177,6 +177,21 @@ def download(url, target_dir, format_id, listener, ffmpeg_location, sponsorblock
         "no_warnings": True,
         "outtmpl": target_dir + "/%(id)s.%(ext)s",
         "progress_hooks": [hook],
+        # Fetch everything in Python, never through ffmpeg.
+        #
+        # Our bundled ffmpeg is built --disable-network, so it has NO http/https protocol.
+        # Proven on-device: an https input gives "Protocol not found", and its protocol list
+        # holds only file/pipe/hls/concat. yt-dlp reaches for its ffmpeg *downloader* for
+        # m3u8 and live formats, which then fails with the singularly unhelpful "ffmpeg
+        # exited with code 8" — the unexplained download failure in a real report (Novara
+        # Media, 0.1.201). "native" tells yt-dlp to use no external downloader at all, which
+        # covers non-live HLS and live DASH; ffmpeg is then only ever asked to merge local
+        # files, which is exactly what a remux-only build is for.
+        #
+        # LIVE HLS is still impossible: get_suitable_downloader returns FFmpegFD for a live
+        # m3u8 before it ever looks at this setting. Recording a live stream is not something
+        # this build can do, and the failure is classified permanent so it stops retrying.
+        "external_downloader": "native",
     }
     if format_id:
         options["format"] = format_id

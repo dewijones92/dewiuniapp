@@ -2,6 +2,7 @@ package com.dewijones92.totum.innertube.feeds
 
 import com.dewijones92.totum.common.HttpUrl
 import com.dewijones92.totum.common.Page
+import com.dewijones92.totum.innertube.browse.Badges
 import com.dewijones92.totum.innertube.browse.Continuations
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -66,7 +67,7 @@ internal object VideoTileParser {
             },
             publishedText = metadata.metadataLine { it.looksLikePublished() },
             viewsText = metadata.metadataLine { it.looksLikeViews() },
-            membersOnly = metadata.metadataLine { it.looksLikeMembers() } != null,
+            membersOnly = Badges.labelsIn(this).any { it.looksLikeMembers() },
         )
     }
 

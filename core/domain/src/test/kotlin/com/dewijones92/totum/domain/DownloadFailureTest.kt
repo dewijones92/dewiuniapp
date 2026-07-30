@@ -30,6 +30,16 @@ class DownloadFailureTest {
         assertTrue(failed("JOIN THIS CHANNEL to get access").isPermanent)
     }
 
+    /**
+     * The exact text from the 0.1.201 report, and the reason it was worth chasing: our
+     * bundled ffmpeg has no network protocols by design, so a format yt-dlp insists on
+     * fetching through ffmpeg can never succeed — yet this was retried on every queue change.
+     */
+    @Test
+    fun `an ffmpeg downloader failure is permanent`() {
+        assertTrue(failed("Extractor(detail=ERROR: ffmpeg exited with code 8)").isPermanent)
+    }
+
     @Test
     fun `a network failure stays retryable`() {
         assertFalse(failed("Unable to connect: timeout").isPermanent)

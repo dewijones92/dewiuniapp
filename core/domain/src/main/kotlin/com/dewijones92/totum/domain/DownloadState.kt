@@ -61,10 +61,15 @@ public val DownloadState.Failed.isPermanent: Boolean
     get() = reason.lowercase().let { text -> PERMANENT_MARKERS.any { it in text } }
 
 /**
- * Phrases meaning "this content is not available to you", as the extractor words them.
+ * Phrases meaning "asking again cannot help", as the extractor words them.
  *
- * Age-gating is here because it needs a signed-in fetch the downloader cannot do, so
- * retrying unattended will not fix it either.
+ * Mostly "this content is not available to you". Age-gating is here because it needs a
+ * signed-in fetch the downloader cannot do, so retrying unattended will not fix it either.
+ *
+ * So is an ffmpeg downloader failure: our bundled ffmpeg has no network protocols by
+ * design, so a format yt-dlp insists on fetching THROUGH ffmpeg — a live HLS stream — can
+ * never succeed however many times it is asked. It read as transient and was re-attempted
+ * on every queue change.
  */
 private val PERMANENT_MARKERS = listOf(
     "join this channel",
@@ -76,6 +81,7 @@ private val PERMANENT_MARKERS = listOf(
     "sign in to confirm your age",
     "who has paid for access",
     "not made this video available",
+    "ffmpeg exited with code",
 )
 
 /**

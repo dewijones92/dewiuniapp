@@ -2,6 +2,7 @@ package com.dewijones92.totum.innertube.feeds
 
 import com.dewijones92.totum.common.HttpUrl
 import com.dewijones92.totum.common.Page
+import com.dewijones92.totum.innertube.browse.Badges
 import com.dewijones92.totum.innertube.browse.Continuations
 import com.dewijones92.totum.innertube.playlists.Playlist
 import kotlinx.serialization.json.Json
@@ -105,7 +106,7 @@ internal object LockupParser {
             },
             publishedText = metadata.publishedText(),
             viewsText = metadata.viewsText(),
-            membersOnly = isMembersOnly(),
+            membersOnly = Badges.labelsIn(this).any { it.looksLikeMembers() },
         )
     }
 
@@ -152,19 +153,6 @@ internal object LockupParser {
     private fun JsonObject.viewsText(): String? {
         forEachMetadataPart { text -> if (text.looksLikeViews()) return text }
         return null
-    }
-
-    /**
-     * A membership badge on the tile. Worth carrying: without it a members-only video looks
-     * identical to any other until it fails to play, which is how three sat unexplained in a
-     * real download queue.
-     */
-    private fun JsonObject.isMembersOnly(): Boolean {
-        var found = false
-        collect(this, "badgeViewModel") { badge ->
-            if (badge.stringAt("text")?.looksLikeMembers() == true) found = true
-        }
-        return found
     }
 
     /** The metadata part YouTube uses for the published date (e.g. "2 days ago"). */

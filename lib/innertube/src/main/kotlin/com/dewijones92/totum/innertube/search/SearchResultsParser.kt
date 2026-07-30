@@ -1,6 +1,7 @@
 package com.dewijones92.totum.innertube.search
 
 import com.dewijones92.totum.common.HttpUrl
+import com.dewijones92.totum.innertube.browse.Badges
 import com.dewijones92.totum.innertube.feeds.FeedVideo
 import com.dewijones92.totum.innertube.feeds.looksLikeMembers
 import com.dewijones92.totum.innertube.feeds.parseClockToSeconds
@@ -55,21 +56,8 @@ internal object SearchResultsParser {
             thumbnailUrl = bestThumbnailUrl(),
             watchUrl = watchUrl,
             viewsText = textAt("shortViewCountText") ?: textAt("viewCountText"),
-            membersOnly = badgeLabels().any { it.looksLikeMembers() },
+            membersOnly = Badges.labelsIn(this).any { it.looksLikeMembers() },
         )
-    }
-
-    /**
-     * Every badge label on the result ("Members only", "4K", "New"). Collected rather than
-     * indexed: YouTube nests them differently between result types, and the membership one is
-     * the difference between a video that plays and one that fails with "Join this channel".
-     */
-    private fun JsonObject.badgeLabels(): List<String> {
-        val labels = mutableListOf<String>()
-        collect(this, "metadataBadgeRenderer") { badge ->
-            badge.stringAt("label")?.let(labels::add)
-        }
-        return labels
     }
 
     /** A classic text field: either `simpleText` or the concatenation of `runs`. */
