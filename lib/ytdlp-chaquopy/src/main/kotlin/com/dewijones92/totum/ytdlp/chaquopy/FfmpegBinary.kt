@@ -1,9 +1,6 @@
 package com.dewijones92.totum.ytdlp.chaquopy
 
 import android.content.Context
-import android.system.ErrnoException
-import android.system.Os
-import android.system.OsConstants
 import java.io.File
 
 /**
@@ -38,27 +35,8 @@ internal object FfmpegBinary {
         if (!File(nativeDir, "libffmpeg.so").exists()) return null
 
         val dir = File(context.filesDir, LINK_DIR).apply { mkdirs() }
-        if (!link(File(nativeDir, "libffmpeg.so"), File(dir, "ffmpeg"))) return null
-        link(File(nativeDir, "libffprobe.so"), File(dir, "ffprobe"))
+        if (!NativeBinaryLink.point(File(dir, "ffmpeg"), File(nativeDir, "libffmpeg.so"))) return null
+        NativeBinaryLink.point(File(dir, "ffprobe"), File(nativeDir, "libffprobe.so"))
         return dir.absolutePath
     }
-
-    /** Points [link] at [target], replacing any stale link. False when the target is absent. */
-    private fun link(target: File, link: File): Boolean {
-        if (!target.exists()) return false
-        return try {
-            if (link.exists() || isSymlink(link)) link.delete()
-            Os.symlink(target.absolutePath, link.absolutePath)
-            true
-        } catch (e: ErrnoException) {
-            e.errno == OsConstants.EEXIST
-        }
-    }
-
-    private fun isSymlink(file: File): Boolean =
-        try {
-            OsConstants.S_ISLNK(Os.lstat(file.absolutePath).st_mode)
-        } catch (_: ErrnoException) {
-            false
-        }
 }

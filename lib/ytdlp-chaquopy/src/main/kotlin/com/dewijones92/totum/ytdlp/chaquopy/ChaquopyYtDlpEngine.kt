@@ -55,11 +55,23 @@ public class ChaquopyYtDlpEngine(
     /** Directory yt-dlp is pointed at for ffmpeg; null if not bundled for this ABI. */
     private val ffmpegLocation: String? by lazy { FfmpegBinary.locationDir(appContext) }
 
+    /**
+     * Hands yt-dlp the bundled QuickJS once, rather than per call: the path never changes for
+     * an install, and yt-dlp reads it out of its options on every extraction anyway.
+     */
+    private val jsRuntimeConfigured: Boolean by lazy {
+        val path = QuickJsBinary.executablePath(appContext)
+        bridge.callAttr("configure_js_runtime", path)
+        Diag.log("engine", "JS runtime: ${path ?: "none bundled for this ABI — formats will be missing"}")
+        true
+    }
+
     override suspend fun versions(): EngineVersions = withContext(dispatcher) {
         parseVersions(bridge.callAttr("versions").toString())
     }
 
     override suspend fun extract(url: HttpUrl): ExtractionResult = withContext(dispatcher) {
+        check(jsRuntimeConfigured)
         timed("extract ${url.value}") { parseExtraction(url, bridge.callAttr("extract", url.value).toString()) }
     }
 
@@ -105,6 +117,7 @@ public class ChaquopyYtDlpEngine(
     }
 
     override fun download(request: DownloadRequest): Flow<DownloadEvent> = channelFlow {
+        check(jsRuntimeConfigured)
         trySend(DownloadEvent.Started(request.url))
         // yt-dlp calls the hook synchronously on the download thread. A plain
         // flow{} would reject emissions from there ("flow invariant violated"),

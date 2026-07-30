@@ -40,6 +40,45 @@ def versions():
 # a flag. Until then this is a real ceiling on kids content and nothing else.
 PLAYER_CLIENTS = {"youtube": {"player_client": ["default", "android"]}}
 
+# Path to the bundled QuickJS interpreter, set once from Kotlin (see configure_js_runtime).
+#
+# yt-dlp has deprecated YouTube extraction without a JavaScript runtime and silently drops
+# formats without one — a 1080p made-for-kids video came back as a single 360p stream on
+# Dewi's phone. Its default runtime is deno, which is not something you ship to a phone at
+# ~100MB; quickjs is the smallest of the four it supports, at about a megabyte.
+_JS_RUNTIME_PATH = None
+
+
+def configure_js_runtime(qjs_path):
+    """Point yt-dlp at the bundled `qjs`. Called once at engine construction."""
+    global _JS_RUNTIME_PATH
+    _JS_RUNTIME_PATH = qjs_path
+
+
+def _js_runtimes():
+    """yt-dlp's `js_runtimes` param: {runtime: {config}}, or none enabled at all.
+
+    An EMPTY dict rather than the default when we have no binary: leaving the default in
+    place makes yt-dlp hunt for a `deno` that cannot exist on Android and warn about it on
+    every single extraction.
+    """
+    if not _JS_RUNTIME_PATH:
+        return {}
+    return {"quickjs": {"path": _JS_RUNTIME_PATH}}
+
+
+# DOWNLOADS ONLY, deliberately — measured on the emulator 2026-07-30.
+#
+# Solving YouTube's JS challenge with QuickJS is not cheap: a normal video's extraction went
+# from ~1.5s to 7.9s, and a challenged one to 38s, EVERY time (yt-dlp does not cache the
+# result across runs). That is latency the user waits through before a video starts, and it
+# buys nothing they would notice: the resolver's InnerTube fallback already recovers the full
+# 1080p ladder for those videos in about 150ms.
+#
+# A download is background work measured in minutes, so seconds there are free — and that is
+# where a JS runtime genuinely earns its place, deciphering the `n` parameter that otherwise
+# throttles the transfer. So extraction stays fast and downloads get the runtime.
+
 
 def extract(url):
     # mark_watched=True makes yt-dlp compute the watch-progress tracking URLs; we
@@ -223,6 +262,7 @@ def download(url, target_dir, format_id, listener, ffmpeg_location, sponsorblock
         # this build can do, and the failure is classified permanent so it stops retrying.
         "external_downloader": "native",
         "extractor_args": PLAYER_CLIENTS,
+        "js_runtimes": _js_runtimes(),
     }
     if format_id:
         options["format"] = format_id
