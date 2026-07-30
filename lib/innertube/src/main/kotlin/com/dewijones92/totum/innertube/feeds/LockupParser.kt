@@ -104,6 +104,8 @@ internal object LockupParser {
                 else -> FeedVideo.Kind.VIDEO
             },
             publishedText = metadata.publishedText(),
+            viewsText = metadata.viewsText(),
+            membersOnly = isMembersOnly(),
         )
     }
 
@@ -145,6 +147,25 @@ internal object LockupParser {
 
     private fun JsonObject.lockupMetadata(): JsonObject? =
         (this["metadata"] as? JsonObject)?.get("lockupMetadataViewModel") as? JsonObject
+
+    /** The metadata part holding the view count ("1.2M views", "No views"). */
+    private fun JsonObject.viewsText(): String? {
+        forEachMetadataPart { text -> if (text.looksLikeViews()) return text }
+        return null
+    }
+
+    /**
+     * A membership badge on the tile. Worth carrying: without it a members-only video looks
+     * identical to any other until it fails to play, which is how three sat unexplained in a
+     * real download queue.
+     */
+    private fun JsonObject.isMembersOnly(): Boolean {
+        var found = false
+        collect(this, "badgeViewModel") { badge ->
+            if (badge.stringAt("text")?.looksLikeMembers() == true) found = true
+        }
+        return found
+    }
 
     /** The metadata part YouTube uses for the published date (e.g. "2 days ago"). */
     private fun JsonObject.publishedText(): String? {

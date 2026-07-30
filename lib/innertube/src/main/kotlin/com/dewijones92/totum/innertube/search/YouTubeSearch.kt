@@ -14,6 +14,10 @@ public data class SearchedVideo(
     public val durationSeconds: Long?,
     public val thumbnailUrl: HttpUrl?,
     public val watchUrl: HttpUrl,
+    /** How YouTube renders the view count ("1.2M views"); null if the result omits it. */
+    public val viewsText: String? = null,
+    /** Behind a channel membership — it will not play or download without one. */
+    public val membersOnly: Boolean = false,
 )
 
 public sealed interface SearchVideosResult {

@@ -23,6 +23,8 @@ public class InnerTubeVideoSearchSource(private val search: YouTubeSearch) : Sea
                         watchUrl = video.watchUrl,
                         durationSeconds = video.durationSeconds,
                         publishedText = video.publishedText,
+                        viewsText = video.viewsText,
+                        membersOnly = video.membersOnly,
                     )
                 },
             )

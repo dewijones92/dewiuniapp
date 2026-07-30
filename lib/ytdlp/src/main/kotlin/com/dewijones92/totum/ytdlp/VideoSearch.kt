@@ -30,6 +30,10 @@ public data class VideoSearchEntry(
     val durationSeconds: Long?,
     val watchUrl: HttpUrl,
     val thumbnailUrl: String?,
+    /** How many have watched, when the extractor says; null otherwise. */
+    val viewCount: Long? = null,
+    /** Behind a channel membership — it will not play or download without one. */
+    val membersOnly: Boolean = false,
 ) {
     init {
         require(id.isNotBlank()) { "id must not be blank" }

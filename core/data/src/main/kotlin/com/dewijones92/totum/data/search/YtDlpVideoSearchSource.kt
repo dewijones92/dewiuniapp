@@ -3,6 +3,7 @@ package com.dewijones92.totum.data.search
 import com.dewijones92.totum.common.HttpUrl
 import com.dewijones92.totum.common.Page
 import com.dewijones92.totum.common.PageToken
+import com.dewijones92.totum.domain.formatViewCount
 import com.dewijones92.totum.ytdlp.VideoSearchResult
 import com.dewijones92.totum.ytdlp.YtDlpEngine
 
@@ -27,6 +28,8 @@ public class YtDlpVideoSearchSource(private val engine: YtDlpEngine) : SearchSou
                             artworkUrl = entry.thumbnailUrl?.let(HttpUrl::parse),
                             watchUrl = entry.watchUrl,
                             durationSeconds = entry.durationSeconds,
+                            viewsText = entry.viewCount?.let(::formatViewCount),
+                            membersOnly = entry.membersOnly,
                         )
                     },
                 ),

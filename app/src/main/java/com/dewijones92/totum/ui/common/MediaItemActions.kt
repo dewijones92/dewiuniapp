@@ -6,6 +6,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
+import com.dewijones92.totum.common.Diag
 import com.dewijones92.totum.data.source.SourceLocator
 import com.dewijones92.totum.di.AppContainer
 import com.dewijones92.totum.domain.MediaItem
@@ -23,13 +24,23 @@ import kotlinx.coroutines.launch
  * pillar/handle is inferred from its media URL ([toPlayableOrNull]); items
  * without a playable URL yet simply can't be queued (the action no-ops).
  */
+/**
+ * The two things a row action needs from the surrounding UI and cannot do itself: say
+ * something, and open the player. Bundled because they travel together and are the only
+ * parts of [MediaItemActions] that are not pure app state.
+ */
+interface UiEffects {
+    fun announce(message: String)
+    fun expandPlayer()
+}
+
 class MediaItemActions internal constructor(
     private val queue: PlaybackQueue,
     private val openPlaylistPicker: (MediaItem) -> Unit,
     private val locator: SourceLocator,
     private val scope: CoroutineScope,
     private val preferences: AppPreferences,
-    private val announce: (String) -> Unit,
+    private val ui: UiEffects,
 ) {
     /** The mode right now, so a row can label its action "Listen only" vs "Watch with video". */
     val audioMode: Boolean get() = preferences.settings.value.playbackMode == PlaybackMode.AUDIO
@@ -41,7 +52,7 @@ class MediaItemActions internal constructor(
      */
     fun switchMode(item: MediaItem, toAudio: Boolean, audioOnMessage: String, videoOnMessage: String) {
         preferences.setPlaybackMode(if (toAudio) PlaybackMode.AUDIO else PlaybackMode.VIDEO)
-        announce(if (toAudio) audioOnMessage else videoOnMessage)
+        ui.announce(if (toAudio) audioOnMessage else videoOnMessage)
         val playable = item.toPlayableOrNull() ?: return
         scope.launch { queue.playNow(playable) }
     }
@@ -60,10 +71,23 @@ class MediaItemActions internal constructor(
     /**
      * Plays the item **without touching the queue** — a one-off, so a carefully
      * built queue survives. The counterpart to tapping, which queues.
+     *
+     * Opens the full player with it, once it is actually playing. Peeking is "show me
+     * this one thing", so leaving it to start invisibly behind the list you peeked from
+     * made the action feel like it had done nothing (Dewi, 2026-07-30). Gated on the play
+     * succeeding — expanding on a failed resolve would leave the player poised to spring
+     * open the next time anything played.
      */
     fun peek(item: MediaItem) {
-        val playable = item.toPlayableOrNull() ?: return
-        scope.launch { queue.peek(playable) }
+        val playable = item.toPlayableOrNull() ?: run {
+            Diag.warn("peek", "\"${item.title}\" has nothing playable to peek at")
+            return
+        }
+        scope.launch {
+            val playing = queue.peek(playable)
+            Diag.log("peek", "\"${item.title}\" -> ${if (playing) "playing, opening the player" else "did not start"}")
+            if (playing) ui.expandPlayer()
+        }
     }
 
     /**
@@ -94,19 +118,24 @@ fun rememberMediaItemActions(
     // nothing to say once its host is gone — stays tied to the composition.
     val uiScope = rememberCoroutineScope()
     val context = LocalContext.current
-    return remember(container, adder, uiScope, snackbar) {
+    val expandPlayer = LocalExpandPlayer.current
+    return remember(container, adder, uiScope, snackbar, expandPlayer) {
         MediaItemActions(
             queue = container.playbackQueue,
             openPlaylistPicker = adder,
             locator = container.sourceLocator,
             scope = container.applicationScope,
             preferences = container.appPreferences,
-            announce = { message ->
-                if (snackbar != null) {
-                    uiScope.launch { snackbar.showSnackbar(message) }
-                } else {
-                    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+            ui = object : UiEffects {
+                override fun announce(message: String) {
+                    if (snackbar != null) {
+                        uiScope.launch { snackbar.showSnackbar(message) }
+                    } else {
+                        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                    }
                 }
+
+                override fun expandPlayer() = expandPlayer()
             },
         )
     }

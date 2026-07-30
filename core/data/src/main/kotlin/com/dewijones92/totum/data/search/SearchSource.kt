@@ -59,5 +59,9 @@ public sealed interface SearchHit {
         val durationSeconds: Long?,
         /** How the source renders the upload date ("1 year ago"); null when unknown. */
         val publishedText: String? = null,
+        /** How the source renders the view count ("1.2M views"); null when unknown. */
+        val viewsText: String? = null,
+        /** Behind a channel membership — it will not play or download without one. */
+        val membersOnly: Boolean = false,
     ) : SearchHit
 }

@@ -91,6 +91,8 @@ def search(query, max_results):
                     "title": entry.get("title"),
                     "uploader": entry.get("uploader") or entry.get("channel"),
                     "duration": entry.get("duration"),
+                    "view_count": entry.get("view_count"),
+                    "members_only": _members_only(entry),
                     "url": entry.get("url") or entry.get("webpage_url"),
                     "thumbnail": _first_thumbnail(entry),
                 }
@@ -99,6 +101,13 @@ def search(query, max_results):
             return json.dumps({"ok": True, "entries": entries})
     except yt_dlp.utils.DownloadError as e:
         return json.dumps({"ok": False, "kind": _classify(e), "detail": str(e)})
+
+
+def _members_only(entry):
+    """Behind a channel membership. yt-dlp says so in availability, and — for a flat
+    extraction, which does not fetch the player — sometimes only in the availability
+    string. Either way the caller wants to know BEFORE trying to play it."""
+    return entry.get("availability") in ("subscriber_only", "premium_only")
 
 
 def _first_thumbnail(entry):
@@ -134,6 +143,8 @@ def channel(url, max_videos):
                     "title": entry.get("title"),
                     "uploader": entry.get("uploader") or info.get("channel") or info.get("uploader"),
                     "duration": entry.get("duration"),
+                    "view_count": entry.get("view_count"),
+                    "members_only": _members_only(entry),
                     "url": entry.get("url") or entry.get("webpage_url"),
                     "thumbnail": _first_thumbnail(entry),
                 }

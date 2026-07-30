@@ -41,6 +41,7 @@ import com.dewijones92.totum.queue.PlaybackQueue
 import com.dewijones92.totum.theme.TotumTheme
 import com.dewijones92.totum.ui.channel.ChannelScreen
 import com.dewijones92.totum.ui.common.ItemActionSheet
+import com.dewijones92.totum.ui.common.LocalExpandPlayer
 import com.dewijones92.totum.ui.common.MiniPlayerBar
 import com.dewijones92.totum.ui.common.ProvidePlayStates
 import com.dewijones92.totum.ui.common.RequestNotificationPermissionOnFirstPlay
@@ -96,27 +97,26 @@ fun AppShell(container: AppContainer, modifier: Modifier = Modifier) {
         return
     }
 
-    CompositionLocalProvider(LocalVideoBounds provides videoBounds) {
+    CompositionLocalProvider(
+        LocalVideoBounds provides videoBounds,
+        // Peeking opens the player, and the shell is what owns "open".
+        LocalExpandPlayer provides { showFullPlayer = true },
+    ) {
         ProvidePlayStates(container, onOpenChannel = { shellChannel = it }) {
             Box(modifier = modifier.fillMaxSize()) {
                 Scaffold(
                     bottomBar = {
                         BottomBar(
-                            state = playbackState,
-                            selected = selected,
-                            onTogglePlayPause = controller::togglePlayPause,
+                            playbackState,
+                            selected,
+                            controller::togglePlayPause,
                             onExpand = { showFullPlayer = true },
                             onSelect = { selected = it },
                             onSkipNext = { skipScope.launch { container.playbackQueue.playNextInQueue() } },
                         )
                     },
                 ) { innerPadding ->
-                    TopLevelContent(
-                        container = container,
-                        selected = selected,
-                        onOpenShorts = { shortsReel = it },
-                        modifier = Modifier.padding(innerPadding),
-                    )
+                    TopLevelContent(container, selected, { shortsReel = it }, Modifier.padding(innerPadding))
                 }
 
                 // Full player overlays the whole app (above the mini player + nav) when

@@ -57,7 +57,7 @@ import com.dewijones92.totum.ui.common.MediaItemActions
 import com.dewijones92.totum.ui.common.MediaItemRow
 import com.dewijones92.totum.ui.common.MediaThumbnail
 import com.dewijones92.totum.ui.common.VideoChannelSaver
-import com.dewijones92.totum.ui.common.mediaSubtitle
+import com.dewijones92.totum.ui.common.mediaItemSubtitle
 import com.dewijones92.totum.ui.common.rememberMediaItemActions
 import com.dewijones92.totum.ui.common.toMediaItem
 import com.dewijones92.totum.ui.search.SearchViewModel.Results
@@ -373,11 +373,9 @@ private fun VideoHitRow(
     val item = remember(hit) { hit.toMediaItem(SearchViewModel.AD_HOC_VIDEO_SOURCE) }
     MediaItemRow(
         item = item,
-        subtitle = mediaSubtitle(
-            author = hit.subtitle,
-            dateText = hit.publishedText,
-            durationMinutes = hit.durationSeconds?.let { it / SECONDS_PER_MINUTE },
-        ),
+        // The hit is already a MediaItem here, so it reads through the one shared
+        // formatter rather than assembling a second, subtly different subtitle.
+        subtitle = mediaItemSubtitle(item),
         pillar = MediaKind.VIDEO,
         onPlay = onPlay,
         onDownload = {},
@@ -412,8 +410,6 @@ private fun HitTitles(title: String, subtitle: String?, modifier: Modifier = Mod
         }
     }
 }
-
-private const val SECONDS_PER_MINUTE = 60L
 
 // Search hits carry their source's natural artwork shape: podcast art is
 // square, a video still is 16:9.

@@ -3,15 +3,18 @@ package com.dewijones92.totum.ui.common
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
@@ -28,6 +31,10 @@ import com.dewijones92.totum.common.HttpUrl
  *
  * The image crops to fill its box ([ContentScale.Crop]) so mixed aspect ratios
  * (square podcast art, 16:9 video stills) sit uniformly in a list.
+ *
+ * [durationLabel] rides in the bottom-right corner, where every video app puts it and
+ * where nothing can push it out: as part of the subtitle line it was the first thing an
+ * ellipsis ate, so the one number you scan a list for was the one most often missing.
  */
 @Composable
 fun MediaThumbnail(
@@ -35,6 +42,7 @@ fun MediaThumbnail(
     contentDescription: String?,
     modifier: Modifier = Modifier,
     shape: Shape = RoundedCornerShape(8.dp),
+    durationLabel: String? = null,
 ) {
     Box(
         modifier = modifier
@@ -58,7 +66,25 @@ fun MediaThumbnail(
                 modifier = Modifier.fillMaxSize(),
             )
         }
+        durationLabel?.let { DurationChip(it, Modifier.align(Alignment.BottomEnd)) }
     }
 }
 
+/** Black-on-white-ish so it stays readable over any still, as YouTube's own does. */
+@Composable
+private fun DurationChip(label: String, modifier: Modifier = Modifier) {
+    Text(
+        text = label,
+        style = MaterialTheme.typography.labelSmall,
+        color = Color.White,
+        maxLines = 1,
+        modifier = modifier
+            .padding(3.dp)
+            .clip(RoundedCornerShape(3.dp))
+            .background(Color.Black.copy(alpha = CHIP_SCRIM))
+            .padding(horizontal = 4.dp, vertical = 1.dp),
+    )
+}
+
 private const val PLACEHOLDER_GLYPH_FRACTION = 0.4f
+private const val CHIP_SCRIM = 0.72f

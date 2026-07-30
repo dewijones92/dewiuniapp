@@ -35,6 +35,20 @@ public data class MediaItem(
     val thumbnailUrl: HttpUrl? = null,
     /** Where the playable media lives (podcast enclosure, resolved stream); null until known. */
     val mediaUrl: HttpUrl? = null,
+    /**
+     * How many have watched/listened, as the source renders it ("1.2M views"), or null when
+     * the source does not say. Text rather than a number because YouTube only ever gives
+     * text, and re-formatting a parsed approximation would say the same thing less
+     * accurately; sources that DO give a number format it with [formatViewCount] so every
+     * list reads the same either way.
+     */
+    val viewsText: String? = null,
+    /**
+     * Behind a channel membership. Worth showing rather than discovering at play time: a
+     * members-only video looks identical in a list and then fails with "Join this channel
+     * to get access" — three of them sat unexplained in a real download queue.
+     */
+    val membersOnly: Boolean = false,
     /** Whether this is a normal video, a live stream or a Short — for feed tagging. */
     val contentKind: MediaContentKind = MediaContentKind.STANDARD,
     /** Named points along the media (video/podcast chapters), earliest first; empty if none. */
@@ -44,3 +58,27 @@ public data class MediaItem(
         require(duration == null || duration.isPositive()) { "duration must be positive when present" }
     }
 }
+
+/**
+ * "1.2M views" from a raw count — YouTube's own shape, so a yt-dlp-sourced row and an
+ * InnerTube-sourced one read identically in the same list.
+ */
+public fun formatViewCount(views: Long): String = when {
+    views < THOUSAND -> "$views views"
+    views < MILLION -> "${(views / THOUSAND.toDouble()).trimmed()}K views"
+    views < BILLION -> "${(views / MILLION.toDouble()).trimmed()}M views"
+    else -> "${(views / BILLION.toDouble()).trimmed()}B views"
+}
+
+/** One decimal place, but not a trailing ".0" — YouTube writes "12K", not "12.0K". */
+private fun Double.trimmed(): String {
+    val oneDecimal = kotlin.math.floor(this * DECIMAL_PLACE) / DECIMAL_PLACE
+    return if (oneDecimal == kotlin.math.floor(oneDecimal)) oneDecimal.toLong().toString() else oneDecimal.toString()
+}
+
+/** Truncating to one decimal: never rounds a count UP, so "1M views" is never a lie. */
+private const val DECIMAL_PLACE = 10.0
+
+private const val THOUSAND = 1_000L
+private const val MILLION = 1_000_000L
+private const val BILLION = 1_000_000_000L

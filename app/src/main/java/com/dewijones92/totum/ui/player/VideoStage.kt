@@ -102,8 +102,8 @@ internal fun VideoStageWithControls(
     }
     val aspect = state.videoAspectRatio
     val sizing = Modifier.stageSizing(aspect, fullscreen)
-    // Slide over the picture for brightness (left) / volume (right). On the stage rather
-    // than on the fullscreen branch, so the gesture is the same inline and fullscreen.
+    // Slide over the picture for brightness (left) / volume (right) — fullscreen only, so
+    // windowed the same drag still minimises the player. See videoAdjustmentGestures.
     val gestures = rememberVideoGestures()
     DisposableEffect(gestures) { onDispose { gestures.release() } }
     Box(
@@ -111,7 +111,7 @@ internal fun VideoStageWithControls(
             .background(Color.Black)
             // Ahead of `clickable`: the tap detector claims the pointer stream first
             // otherwise, and a vertical drag never reaches the adjustment gestures.
-            .videoAdjustmentGestures(gestures)
+            .videoAdjustmentGestures(gestures, enabled = fullscreen)
             .reportVideoBounds(LocalVideoBounds.current)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },

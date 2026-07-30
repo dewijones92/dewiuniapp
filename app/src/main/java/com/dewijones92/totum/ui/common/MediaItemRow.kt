@@ -3,6 +3,7 @@ package com.dewijones92.totum.ui.common
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -173,6 +174,7 @@ private fun ThumbnailWithProgress(item: MediaItem, playState: PlayState) {
             url = item.thumbnailUrl,
             contentDescription = item.title,
             modifier = Modifier.size(width = THUMBNAIL_WIDTH, height = THUMBNAIL_HEIGHT),
+            durationLabel = durationLabel(item),
         )
         PlayProgressSliver(playState, Modifier.width(THUMBNAIL_WIDTH))
     }
@@ -188,10 +190,7 @@ private fun TitleAndSubtitle(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier) {
-        if (item.contentKind != MediaContentKind.STANDARD) {
-            ContentKindBadge(item.contentKind)
-            Spacer(Modifier.height(2.dp))
-        }
+        ItemBadges(item)
         Text(
             text = item.title,
             style = MaterialTheme.typography.bodyLarge,
@@ -215,14 +214,34 @@ private fun TitleAndSubtitle(
     }
 }
 
-/** A small pill tagging a live stream or a Short in the unified feed. */
+/**
+ * What a row needs to say about itself before you read the title: LIVE / SHORT, and
+ * whether it is members-only. These are pills rather than subtitle text on purpose —
+ * the subtitle truncates, and "you cannot actually play this" must not be the part that
+ * gets cut.
+ */
 @Composable
-private fun ContentKindBadge(kind: MediaContentKind) {
-    val (label, color) = when (kind) {
+private fun ItemBadges(item: MediaItem) {
+    val kindLabel = when (item.contentKind) {
         MediaContentKind.LIVE -> stringResource(R.string.tag_live) to MaterialTheme.colorScheme.error
         MediaContentKind.SHORT -> stringResource(R.string.tag_short) to MaterialTheme.colorScheme.tertiary
-        MediaContentKind.STANDARD -> return
+        MediaContentKind.STANDARD -> null
     }
+    val members = if (item.membersOnly) {
+        stringResource(R.string.tag_members_only) to MaterialTheme.colorScheme.secondary
+    } else {
+        null
+    }
+    val badges = listOfNotNull(kindLabel, members)
+    if (badges.isEmpty()) return
+    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        badges.forEach { (label, color) -> Badge(label, color) }
+    }
+    Spacer(Modifier.height(2.dp))
+}
+
+@Composable
+private fun Badge(label: String, color: androidx.compose.ui.graphics.Color) {
     Text(
         text = label,
         style = MaterialTheme.typography.labelSmall,

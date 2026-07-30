@@ -153,6 +153,8 @@ private fun JsonObject.toSearchEntryOrNull(): VideoSearchEntry? {
         durationSeconds = this["duration"]?.jsonPrimitive?.doubleOrNull?.toLong()?.takeIf { it > 0 },
         watchUrl = watchUrl,
         thumbnailUrl = stringOrNull("thumbnail"),
+        viewCount = this["view_count"]?.jsonPrimitive?.doubleOrNull?.toLong()?.takeIf { it >= 0 },
+        membersOnly = this["members_only"]?.jsonPrimitive?.booleanOrNull == true,
     )
 }
 

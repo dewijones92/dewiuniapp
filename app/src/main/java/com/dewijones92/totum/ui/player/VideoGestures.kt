@@ -115,23 +115,33 @@ internal fun rememberVideoGestures(): VideoGestureState {
 /**
  * Attaches the drag gestures. Separate from the tap that toggles the controls, which
  * stays on its own modifier — a drag must not also count as a tap.
+ *
+ * **Fullscreen only**, which is where PipePipe puts them and why. Windowed, the same
+ * downward drag on the stage is swipe-to-minimise, and this handler consumed it first —
+ * so adding brightness/volume silently took away the gesture that drops the player back
+ * to the mini bar (Dewi, 2026-07-30). Two vertical gestures on one surface cannot both
+ * win; splitting them by mode means each is unambiguous where it lives.
  */
-internal fun Modifier.videoAdjustmentGestures(state: VideoGestureState): Modifier =
-    pointerInput(state) {
-        var kind = VideoAdjustment.VOLUME
-        val height = size.height.toFloat()
-        detectVerticalDragGestures(
-            onDragStart = { offset ->
-                kind = if (offset.x < size.width / 2f) VideoAdjustment.BRIGHTNESS else VideoAdjustment.VOLUME
-                state.begin(kind)
-            },
-            onDragEnd = { state.end() },
-            onDragCancel = { state.end() },
-            onVerticalDrag = { change, delta ->
-                change.consume()
-                state.adjust(kind, delta, height)
-            },
-        )
+internal fun Modifier.videoAdjustmentGestures(state: VideoGestureState, enabled: Boolean): Modifier =
+    if (!enabled) {
+        this
+    } else {
+        pointerInput(state) {
+            var kind = VideoAdjustment.VOLUME
+            val height = size.height.toFloat()
+            detectVerticalDragGestures(
+                onDragStart = { offset ->
+                    kind = if (offset.x < size.width / 2f) VideoAdjustment.BRIGHTNESS else VideoAdjustment.VOLUME
+                    state.begin(kind)
+                },
+                onDragEnd = { state.end() },
+                onDragCancel = { state.end() },
+                onVerticalDrag = { change, delta ->
+                    change.consume()
+                    state.adjust(kind, delta, height)
+                },
+            )
+        }
     }
 
 private fun Activity.applyBrightness(value: Float) {

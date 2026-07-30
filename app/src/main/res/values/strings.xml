@@ -36,6 +36,7 @@
     <string name="feed_error">Couldn\'t load this feed. Check your connection and try again.</string>
     <string name="tag_live">LIVE</string>
     <string name="tag_short">SHORT</string>
+    <string name="tag_members_only">MEMBERS</string>
     <string name="feed_empty">Nothing here yet.</string>
     <string name="playlists_title">Playlists</string>
     <string name="playlists_empty">No playlists yet.</string>

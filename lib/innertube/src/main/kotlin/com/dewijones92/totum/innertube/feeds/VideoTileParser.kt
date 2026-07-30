@@ -64,12 +64,18 @@ internal object VideoTileParser {
                 isShort() -> FeedVideo.Kind.SHORT
                 else -> FeedVideo.Kind.VIDEO
             },
-            publishedText = metadata.publishedLine(),
+            publishedText = metadata.metadataLine { it.looksLikePublished() },
+            viewsText = metadata.metadataLine { it.looksLikeViews() },
+            membersOnly = metadata.metadataLine { it.looksLikeMembers() } != null,
         )
     }
 
-    /** The metadata line YouTube uses for the published date (e.g. "2 days ago"). */
-    private fun JsonObject.publishedLine(): String? {
+    /**
+     * The first metadata line matching [matches], or null. Matched by shape rather than by
+     * position: YouTube reorders these lines between tile types, so reading "line 2" for the
+     * date silently picks up the view count on some feeds.
+     */
+    private inline fun JsonObject.metadataLine(matches: (String) -> Boolean): String? {
         val lines = this["lines"] as? JsonArray ?: return null
         for (line in lines) {
             val items = ((line as? JsonObject)?.get("lineRenderer") as? JsonObject)?.get("items") as? JsonArray
@@ -77,7 +83,7 @@ internal object VideoTileParser {
             for (item in items) {
                 val text = ((item as? JsonObject)?.get("lineItemRenderer") as? JsonObject)?.get("text")
                     ?.let { it as? JsonObject }?.readText()
-                if (text != null && text.looksLikePublished()) return text
+                if (text != null && matches(text)) return text
             }
         }
         return null

@@ -26,6 +26,8 @@ fun FeedVideo.toMediaItem(sourceId: SourceId): MediaItem = MediaItem(
     author = author,
     thumbnailUrl = thumbnailUrl,
     mediaUrl = watchUrl,
+    viewsText = viewsText,
+    membersOnly = membersOnly,
     contentKind = when (kind) {
         FeedVideo.Kind.VIDEO -> MediaContentKind.STANDARD
         FeedVideo.Kind.LIVE -> MediaContentKind.LIVE
@@ -55,4 +57,6 @@ fun SearchHit.Video.toMediaItem(sourceId: SourceId): MediaItem = MediaItem(
     author = subtitle,
     thumbnailUrl = artworkUrl,
     mediaUrl = watchUrl,
+    viewsText = viewsText,
+    membersOnly = membersOnly,
 )

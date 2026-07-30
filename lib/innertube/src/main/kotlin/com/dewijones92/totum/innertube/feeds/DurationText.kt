@@ -22,3 +22,16 @@ private const val MAX_CLOCK_FIELDS = 3
 private val PUBLISHED_HINT = Regex("""\bago\b|Streamed|Premiered""", RegexOption.IGNORE_CASE)
 
 internal fun String.looksLikePublished(): Boolean = PUBLISHED_HINT.containsMatchIn(this)
+
+// The view-count metadata part: "1.2M views", "No views", and the live variant
+// "12K watching". Matched by shape rather than position, because YouTube reorders the
+// metadata parts between tile types and a positional read silently picks the wrong one.
+private val VIEWS_HINT = Regex("""\bviews?\b|\bwatching\b""", RegexOption.IGNORE_CASE)
+
+internal fun String.looksLikeViews(): Boolean = VIEWS_HINT.containsMatchIn(this)
+
+// A membership badge: "Members only", "Members first". Same reasoning — matched by text,
+// since the badge renderers differ between the lockup and classic tile shapes.
+private val MEMBERS_HINT = Regex("""\bmembers\b""", RegexOption.IGNORE_CASE)
+
+internal fun String.looksLikeMembers(): Boolean = MEMBERS_HINT.containsMatchIn(this)

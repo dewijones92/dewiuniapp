@@ -18,6 +18,10 @@ public data class FeedVideo(
     val kind: Kind = Kind.VIDEO,
     /** How YouTube renders the published date (e.g. "2 days ago"); null if absent. */
     val publishedText: String? = null,
+    /** How YouTube renders the view count ("1.2M views"); null if the tile omits it. */
+    val viewsText: String? = null,
+    /** Behind a channel membership — it will not play or download without one. */
+    val membersOnly: Boolean = false,
 ) {
     public enum class Kind { VIDEO, LIVE, SHORT }
 
