@@ -26,6 +26,9 @@ import com.dewijones92.totum.common.Diag
  * The wrapper is transparent. ExoPlayer opens once and reads to the end; each time a
  * chunk is exhausted the next range is opened underneath, so nothing above needs to know.
  */
+// The count is DataSource's interface plus the small helpers that decide a chunk's bounds;
+// splitting it would scatter the one thing this class knows, which is how to range a request.
+@Suppress("TooManyFunctions")
 @UnstableApi
 internal class ChunkedDataSource(
     private val upstream: DataSource,
@@ -49,10 +52,29 @@ internal class ChunkedDataSource(
     override fun open(dataSpec: DataSpec): Long {
         spec = dataSpec
         position = dataSpec.position
-        remaining = if (dataSpec.length != UNKNOWN_LENGTH) dataSpec.length else probeLength(dataSpec)
+        remaining = when {
+            dataSpec.length != UNKNOWN_LENGTH -> dataSpec.length
+            // Ask the URL before asking the server. YouTube puts the content length in a
+            // `clen` parameter, so a probe request is both slower and — for the ANDROID
+            // client's URLs — fatal: they answer an UNBOUNDED GET with 403, which is exactly
+            // what a probe is. That broke every video resolved through the InnerTube
+            // fallback on Dewi's phone, retrying ~20 times in 13 seconds and never playing.
+            else -> declaredLength(dataSpec.uri) ?: probeLength(dataSpec)
+        }
         openNextChunk()
         return remaining
     }
+
+    /**
+     * The length YouTube states in the URL's `clen`, or null when it says nothing.
+     *
+     * Free — no request at all — and it sidesteps the probe entirely for the streams we
+     * actually play.
+     */
+    private fun declaredLength(uri: Uri): Long? =
+        runCatching { uri.getQueryParameter("clen")?.toLongOrNull() }
+            .getOrNull()
+            ?.takeIf { it > 0 }
 
     /**
      * Asks how long the resource is, then closes without reading it.

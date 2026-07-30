@@ -99,7 +99,6 @@ import com.dewijones92.totum.settings.PlaybackMode
 import com.dewijones92.totum.settings.SharedPrefsAppPreferences
 import com.dewijones92.totum.ui.common.toMediaItem
 import com.dewijones92.totum.video.AccountSubscriptions
-import com.dewijones92.totum.video.InnerTubePlayerStreams
 import com.dewijones92.totum.video.PlatformVideoCodecSupport
 import com.dewijones92.totum.video.VideoPlaybackLauncher
 import com.dewijones92.totum.video.VideoResolver
@@ -385,8 +384,11 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
             ytDlpEngine,
             skipSegmentSource,
             PlatformVideoCodecSupport(),
-            // The second opinion, asked only when yt-dlp's ladder comes back degraded.
-            playerStreams = InnerTubePlayerStreams(innerTubeClient),
+            // DISABLED. The ladder it returns is real, but the URLs do not play: YouTube's
+            // ANDROID-client streams 403 for us where yt-dlp's do not, so a kids video went
+            // from playing at 360p to not playing at all — worse than the bug it fixed.
+            // Re-enable only once a video has been watched end to end, not merely resolved.
+            playerStreams = null,
         )
     }
 
