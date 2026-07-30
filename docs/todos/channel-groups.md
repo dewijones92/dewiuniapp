@@ -3,7 +3,7 @@ title: Channel groups (groups of sources)
 kind: todo
 area: video
 priority: high
-status: in progress
+status: shipped
 updated: 2026-07-30
 ---
 
@@ -26,19 +26,26 @@ it finds — the Unified law at no extra cost. See `SourceGroup` in `:core:domai
    tables). Membership is a toggle; the stored order is for editing, the feed
    sorts by date. Wired into `AppContainer`; instrumented tests cover the cascade
    and cross-group isolation.
-2. **Merged feed fetch — next.** Design settled: resolve each member `SourceId`
-   against the app's known sources so the fanout routes on the **sealed**
-   `MediaSource` (VideoChannel | PodcastFeed) in an exhaustive `when`, the same
-   way `RoutedDownloadStrategy` routes downloads — never by sniffing the URL,
-   which is the mistake that once made a Shorts URL download as a video and queue
-   as a podcast enclosure. Per-channel fetch rather than filtering the account
-   subscriptions feed, because Dewi wants shorts and live too and the account
-   feed carries neither reliably. Merge newest-first across members.
-3. **Chips + manage screen — after that.** Groups appear as chips in the Videos
-   feed selector beside RECOMMENDED / SUBSCRIPTIONS; membership is toggled from a
-   channel page.
+2. **Merged feed fetch — shipped** (`ca0bd1e`). `GroupFeed` fans out over members
+   concurrently and merges newest-first. Routes on the **sealed** `MediaSource` in
+   one exhaustive `when` (`RoutedSourceItems`), never by sniffing a URL. Per-member
+   fetch, not a filter over the account subscriptions feed, because that feed is a
+   sample and carries neither shorts nor live reliably.
+3. **Chips + picker — shipped** (`c24af57`). `FeedChoice` is a sealed
+   account-feed-or-group; groups are chips beside YouTube's feeds, and a checklist
+   dialog on any channel page creates and fills them.
+4. **Members carry their source — shipped** (`13fa325`). Stage 1 stored only ids;
+   a group may name a channel you never subscribed to, so there was nothing to
+   resolve it against and those members silently contributed nothing. v16.
+
+## Verified on-device
+
+Signed out, zero subscriptions, one unsubscribed channel grouped: "Tech" merged
+to 20 items and rendered. That is the case that used to return nothing.
 
 ## Open
 
-- How many members before the per-channel fanout is too slow to do on entry? Fetch
-  concurrently and cap, or refresh in the background and show what is cached.
+- How many members before the per-member fanout is too slow on entry? It is
+  concurrent, but a twenty-channel group is still twenty requests. Consider
+  refreshing in the background and showing what is cached.
+- No reorder or rename in the UI yet — the store supports rename, nothing calls it.
