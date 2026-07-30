@@ -34,6 +34,8 @@ it finds — the Unified law at no extra cost. See `SourceGroup` in `:core:domai
 3. **Chips + picker — shipped** (`c24af57`). `FeedChoice` is a sealed
    account-feed-or-group; groups are chips beside YouTube's feeds, and a checklist
    dialog on any channel page creates and fills them.
+5. **Rename and delete — shipped**. In the same picker, per row, behind an overflow;
+   renaming happens in place rather than in a dialog on top of a dialog.
 4. **Members carry their source — shipped** (`13fa325`). Stage 1 stored only ids;
    a group may name a channel you never subscribed to, so there was nothing to
    resolve it against and those members silently contributed nothing. v16.
@@ -48,4 +50,7 @@ to 20 items and rendered. That is the case that used to return nothing.
 - How many members before the per-member fanout is too slow on entry? It is
   concurrent, but a twenty-channel group is still twenty requests. Consider
   refreshing in the background and showing what is cached.
-- No reorder or rename in the UI yet — the store supports rename, nothing calls it.
+- **Reordering is deliberately not built.** Member order within a group has no effect —
+  the feed sorts by date, which is the point of the feature — and group order is the
+  order they were created, which is fine for the handful of chips a person makes. If
+  either ever matters it needs a `position` column and drag handles; it does not yet.

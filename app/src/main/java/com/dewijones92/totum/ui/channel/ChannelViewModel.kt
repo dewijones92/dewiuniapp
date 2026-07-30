@@ -175,6 +175,20 @@ class ChannelViewModel(
         }
     }
 
+    fun renameGroup(group: SourceGroup, name: String) {
+        viewModelScope.launch {
+            groups.store.rename(group.id, name)
+            Diag.log("group", "renamed \"${group.name}\" to \"$name\"")
+        }
+    }
+
+    fun deleteGroup(group: SourceGroup) {
+        viewModelScope.launch {
+            groups.store.delete(group.id)
+            Diag.log("group", "deleted \"${group.name}\" (${group.members.size} members)")
+        }
+    }
+
     /** Creates a group and puts this channel in it — you name one when you have something for it. */
     fun createGroupWith(name: String) {
         viewModelScope.launch {

@@ -42,6 +42,10 @@
     <string name="groups_none_yet">No groups yet. Name one below to start.</string>
     <string name="groups_new">New group</string>
     <string name="groups_create">Create</string>
+    <string name="groups_rename">Rename</string>
+    <string name="groups_delete">Delete group</string>
+    <string name="groups_edit">Edit group</string>
+
     <string name="groups_add_to">Add to group</string>
 
     <string name="feed_empty">Nothing here yet.</string>

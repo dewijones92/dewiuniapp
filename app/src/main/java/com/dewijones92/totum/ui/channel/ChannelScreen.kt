@@ -77,6 +77,8 @@ fun ChannelScreen(
             groups = state.groups,
             onToggle = viewModel::toggleGroup,
             onCreate = viewModel::createGroupWith,
+            onRename = viewModel::renameGroup,
+            onDelete = viewModel::deleteGroup,
             onDismiss = { showGroups = false },
         )
     }
