@@ -13,6 +13,9 @@ import com.dewijones92.totum.domain.SourceId
 import com.dewijones92.totum.ytdlp.ExtractionResult
 import com.dewijones92.totum.ytdlp.YtDlpEngine
 import com.dewijones92.totum.ytdlp.bestPlayableFormat
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -46,6 +49,14 @@ class VideoResolver(
      */
     private var cached: Pair<HttpUrl, Resolved>? = null
     private var cachedAt = 0L
+
+    /**
+     * The extraction currently running, if any, and what it is for. Concurrent callers for
+     * the same video await this rather than starting a second one.
+     */
+    private var inFlight: Pair<HttpUrl, CompletableDeferred<Resolved?>>? = null
+    private val inFlightMutex = Mutex()
+
     data class Resolved(
         val item: MediaItem,
         val skipSegments: List<SkipSegment>,
@@ -69,6 +80,42 @@ class VideoResolver(
      * problem.
      */
     suspend fun resolve(watchUrl: HttpUrl, sourceId: SourceId, asked: String = "play"): Resolved? {
+        // Share one extraction between concurrent askers.
+        //
+        // The cache only helps a caller arriving AFTER the first has finished. A real report
+        // (0.1.226) shows the same video resolved twice, overlapping: the second started
+        // while the first was still running, saw an empty cache, and did the whole 10s
+        // extraction again. Two callers wanting the same video at the same moment should
+        // wait on one answer.
+        //
+        // The FIRST caller does the work on its own dispatcher and the others await it —
+        // rather than handing it to a scope this class owns, which would take the work off
+        // whatever dispatcher the caller (or a test) is driving.
+        val joined = inFlightMutex.withLock {
+            inFlight?.takeIf { it.first == watchUrl && it.second.isActive }?.second
+        }
+        if (joined != null) {
+            Diag.log(
+                "resolve",
+                "joining the extraction already running for " +
+                    "${watchUrl.value.takeLast(ID_CHARS)} ($asked)",
+            )
+            return joined.await()
+        }
+
+        val mine = CompletableDeferred<Resolved?>()
+        inFlightMutex.withLock { inFlight = watchUrl to mine }
+        return try {
+            extractAndCache(watchUrl, sourceId, asked).also(mine::complete)
+        } finally {
+            // Always settled, never left hanging: whoever joined must not wait forever
+            // because the caller that started the work threw or was cancelled.
+            mine.complete(null)
+            inFlightMutex.withLock { if (inFlight?.second === mine) inFlight = null }
+        }
+    }
+
+    private suspend fun extractAndCache(watchUrl: HttpUrl, sourceId: SourceId, asked: String): Resolved? {
         cached?.takeIf { it.first == watchUrl && now() - cachedAt < CACHE_TTL_MS }?.let { (_, hit) ->
             // Kept, not consumed. It used to be cleared on first use, which was right when an
             // extraction cost ~1.7s and the cache existed only to hand a prefetched result to
