@@ -6,7 +6,9 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.lifecycleScope
+import com.dewijones92.totum.common.Diag
 import com.dewijones92.totum.common.HttpUrl
+import com.dewijones92.totum.common.canonicalWatchUrl
 import com.dewijones92.totum.domain.PlayHandle
 import com.dewijones92.totum.domain.PlayableItem
 import com.dewijones92.totum.domain.SourceId
@@ -46,6 +48,13 @@ class MainActivity : FragmentActivity() {
 
     private fun handleShareIntent(intent: Intent) {
         val url = intent.sharedWatchUrl() ?: return
+        // Logged because this path was completely silent: a shared link that misbehaved left
+        // nothing in a report tying the playback to the share (0.1.228).
+        Diag.log("share", "shared link -> $url")
+        // Consumed, so it plays ONCE. The activity's intent outlives a recreation, and
+        // onCreate reads it — so a rotation, a theme change or a process restart replayed
+        // the shared video over whatever was playing, days after it was shared.
+        setIntent(Intent())
         // Resolved first so the queue entry carries a real title rather than a URL; a
         // shared link is a deliberate, occasional action, so the extra resolve is cheap.
         lifecycleScope.launch {
@@ -63,7 +72,12 @@ class MainActivity : FragmentActivity() {
         } ?: return null
         val match = URL_PATTERN.find(raw)?.value ?: return null
         val url = HttpUrl.parse(match) ?: return null
+        // Canonicalised at the door. The URL becomes this video's identity everywhere —
+        // MediaItemId, the resolve cache key, what the queue dedupes on — so a share link's
+        // `?si=` tracking parameter would make it a DIFFERENT video from the same one
+        // already queued, which is exactly what went wrong.
         return url.takeIf { candidate -> WATCH_MARKERS.any { it in candidate.value } }
+            ?.canonicalWatchUrl()
     }
 
     private companion object {
