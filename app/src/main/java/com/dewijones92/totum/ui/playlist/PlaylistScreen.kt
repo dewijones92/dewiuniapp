@@ -52,6 +52,7 @@ fun PlaylistScreen(
     LoadMoreOnScrollToEnd(
         listState,
         enabled = state.canLoadMore && !state.loadingMore,
+        shownCount = state.videos.size,
         loadMore = viewModel::loadMore,
     )
 

@@ -322,7 +322,10 @@ private fun ChannelsAndVideos(
         "feed=${state.selectedFeed} scroll=${listState.firstVisibleItemIndex}" +
             "+${listState.firstVisibleItemScrollOffset} videos=${state.videos.size}"
     }
-    LoadMoreOnScrollToEnd(listState, enabled = state.canLoadMore && !state.loadingMore, loadMore = onLoadMore)
+    // The SHOWN count, not state.videos.size: with a filter on, a page of arriving videos
+    // can add nothing visible, and paging on the raw count never notices.
+    val shown = state.videos.filteredBy(filter) { playStates[it] ?: PlayState.Unplayed }
+    LoadMoreOnScrollToEnd(listState, state.canLoadMore && !state.loadingMore, shown.size, onLoadMore)
     LazyColumn(state = listState, modifier = modifier.fillMaxSize()) {
         if (state.subscriptions.isNotEmpty()) {
             item { SubscriptionChips(state.subscriptions, onChannelClick) }
@@ -343,9 +346,6 @@ private fun ChannelsAndVideos(
                     )
                 }
                 item { MediaFilterChips(selected = filter, onSelect = onSetFilter) }
-                // Filtered here rather than in the view model so the chips react instantly
-                // without a round trip, and so one domain function serves every feed.
-                val shown = state.videos.filteredBy(filter) { playStates[it] ?: PlayState.Unplayed }
                 if (shown.isEmpty()) {
                     item { FeedMessage(stringResource(R.string.filter_hides_everything)) }
                 }

@@ -173,13 +173,17 @@ internal object LockupParser {
         return null
     }
 
-    /** First metadata row's first part is the channel/author line. */
+    /**
+     * The channel/author line — usually the first metadata part, but NOT always present.
+     *
+     * On a channel's own page the tiles omit the channel name (you are already on it), so the
+     * first part is the view count instead. Taking it positionally therefore set author to
+     * "6.2K views" and every row read "6.2K views · 6.2K views · 10 hours ago". So: the first
+     * part that is not one of the things we can recognise as something else.
+     */
     private fun JsonObject.authorLine(): String? {
-        val rows = metadataRows() ?: return null
-        for (row in rows) {
-            val parts = (row as? JsonObject)?.get("metadataParts") as? JsonArray ?: continue
-            val text = ((parts.firstOrNull() as? JsonObject)?.get("text") as? JsonObject)?.stringAt("content")
-            if (text != null) return text
+        forEachMetadataPart { text ->
+            if (!text.looksLikeViews() && !text.looksLikePublished()) return text
         }
         return null
     }

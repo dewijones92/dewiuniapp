@@ -10,24 +10,39 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.dewijones92.totum.common.Diag
 
 /**
  * Asks for the next page as the list nears its end — written once, for every paged list.
  *
  * Fires while there are still [PREFETCH_ITEMS] rows below the fold, so the next page is
  * usually there before the user reaches the bottom; waiting for the true end makes
- * scrolling stutter on every page boundary. The caller's `loadMore` is expected to be
- * idempotent and self-guarding (the view models are), so a repeat fire is harmless.
+ * scrolling stutter on every page boundary.
+ *
+ * [shownCount] is how many CONTENT rows the list displays — after any filtering, and not
+ * counting headers, chips or the loading footer. It is what stops this running away.
+ *
+ * A list shorter than the viewport is trivially "near its end": its last item is always
+ * visible, so the condition never goes false and every arriving page immediately asks for
+ * another. Usually that self-limits, because the pages fill the screen. But with a filter
+ * on (Unplayed, In progress) the arriving rows can all be hidden, so the list never grows
+ * and the feed pages itself to exhaustion — measured on a real account: **80 requests and
+ * 1220 videos fetched at launch, to display one row.** So a page that adds no visible
+ * content stops the chain until something actually changes: the user scrolls new rows in,
+ * or the filter opens up.
  */
 @Composable
 internal fun LoadMoreOnScrollToEnd(
     listState: LazyListState,
     enabled: Boolean,
+    shownCount: Int,
     loadMore: () -> Unit,
 ) {
     val shouldLoad by remember(listState) {
@@ -37,9 +52,29 @@ internal fun LoadMoreOnScrollToEnd(
             total > 0 && lastVisible >= total - 1 - PREFETCH_ITEMS
         }
     }
-    LaunchedEffect(listState, enabled) {
+    var askedAt by remember(listState) { mutableIntStateOf(NEVER_ASKED) }
+    LaunchedEffect(listState, enabled, shownCount) {
         snapshotFlow { shouldLoad }
-            .collect { near -> if (near && enabled) loadMore() }
+            .collect { near ->
+                if (!near) return@collect
+                val fresh = shownCount > askedAt
+                // The numbers behind the decision, not just that it fired: a run of these is
+                // how you tell "the user scrolled fast" from "the list is paging itself to
+                // exhaustion", and those are indistinguishable from the outcome alone.
+                Diag.log(
+                    "load-more",
+                    "shown=$shownCount askedAt=$askedAt enabled=$enabled -> " +
+                        when {
+                            !enabled -> "no more to fetch"
+                            !fresh -> "stopping, the last page added nothing visible"
+                            else -> "fetching"
+                        },
+                )
+                if (enabled && fresh) {
+                    askedAt = shownCount
+                    loadMore()
+                }
+            }
     }
 }
 
@@ -57,4 +92,7 @@ internal fun LoadingMoreFooter(modifier: Modifier = Modifier) {
 }
 
 private const val PREFETCH_ITEMS = 4
+
+/** Below any real count, so the first ask always goes through. */
+private const val NEVER_ASKED = -1
 private val FOOTER_SPINNER = 28.dp

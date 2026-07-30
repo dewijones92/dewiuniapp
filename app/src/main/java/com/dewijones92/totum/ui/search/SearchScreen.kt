@@ -251,6 +251,7 @@ private fun ResultsList(
     LoadMoreOnScrollToEnd(
         listState,
         enabled = results.canLoadMore && !results.loadingMore,
+        shownCount = results.videos.items.size,
         loadMore = onLoadMoreVideos,
     )
     LazyColumn(state = listState, modifier = modifier.fillMaxSize()) {

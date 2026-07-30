@@ -200,7 +200,7 @@ private fun MediaItemTab(
     onLoadMore: () -> Unit,
 ) {
     val listState = rememberLazyListState()
-    LoadMoreOnScrollToEnd(listState, enabled = tab.canLoadMore, loadMore = onLoadMore)
+    LoadMoreOnScrollToEnd(listState, tab.canLoadMore, tab.items.size, onLoadMore)
     when {
         tab.loading && tab.items.isEmpty() -> CenteredProgress()
         tab.error -> Message(stringResource(R.string.feed_error))
@@ -227,7 +227,7 @@ private fun MediaItemTab(
 @Composable
 private fun PlaylistTab(tab: TabState<Playlist>, onOpen: (Playlist) -> Unit, onLoadMore: () -> Unit) {
     val listState = rememberLazyListState()
-    LoadMoreOnScrollToEnd(listState, enabled = tab.canLoadMore, loadMore = onLoadMore)
+    LoadMoreOnScrollToEnd(listState, tab.canLoadMore, tab.items.size, onLoadMore)
     when {
         tab.loading && tab.items.isEmpty() -> CenteredProgress()
         tab.error -> Message(stringResource(R.string.feed_error))

@@ -25,6 +25,23 @@ class LockupParserTest {
     }
 
     @Test
+    fun `a channel tab carries view counts`() {
+        val videos = LockupParser.videos(fixture("channel_videos_web_sample.json")).items
+        assertTrue("view counts present", videos.count { it.viewsText != null } > videos.size / 2)
+        assertTrue("and they say views", videos.mapNotNull { it.viewsText }.all { it.looksLikeViews() })
+    }
+
+    @Test
+    fun `the author line is never the view count`() {
+        // A channel's own tiles omit the channel name — you are already on the channel — so the
+        // first metadata part is the view count. Reading it positionally made every row say
+        // "6.2K views · 6.2K views · 10 hours ago" (seen on Novara Media, 2026-07-30).
+        val videos = LockupParser.videos(fixture("channel_videos_web_sample.json")).items
+        val authorsThatAreReallyViews = videos.mapNotNull { it.author }.filter { it.looksLikeViews() }
+        assertEquals(emptyList<String>(), authorsThatAreReallyViews)
+    }
+
+    @Test
     fun `channel Shorts tab parses and tags SHORT`() {
         val shorts = LockupParser.shorts(fixture("channel_shorts_web_sample.json")).items
         assertTrue("expected shorts", shorts.size > 5)
