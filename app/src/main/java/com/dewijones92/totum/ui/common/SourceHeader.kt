@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.outlined.Bookmarks
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -31,6 +32,8 @@ fun SourceHeader(
     subscribed: Boolean,
     onBack: () -> Unit,
     onToggleSubscribed: () -> Unit,
+    /** Opens the group checklist; omitted where grouping does not apply. */
+    onOpenGroups: (() -> Unit)? = null,
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -50,6 +53,11 @@ fun SourceHeader(
                 .weight(1f)
                 .padding(horizontal = 8.dp),
         )
+        onOpenGroups?.let { open ->
+            IconButton(onClick = open) {
+                Icon(Icons.Outlined.Bookmarks, contentDescription = stringResource(R.string.groups_add_to))
+            }
+        }
         if (subscribed) {
             OutlinedButton(onClick = onToggleSubscribed) {
                 Text(stringResource(R.string.channel_unsubscribe))

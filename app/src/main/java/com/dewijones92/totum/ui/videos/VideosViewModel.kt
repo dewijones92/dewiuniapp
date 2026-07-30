@@ -11,6 +11,7 @@ import com.dewijones92.totum.data.channel.ChannelRepository
 import com.dewijones92.totum.data.channel.ChannelVideosResult
 import com.dewijones92.totum.data.download.DownloadManager
 import com.dewijones92.totum.di.AppContainer
+import com.dewijones92.totum.di.GroupServices
 import com.dewijones92.totum.di.YouTubeAccountServices
 import com.dewijones92.totum.domain.DownloadState
 import com.dewijones92.totum.domain.MediaItem
@@ -18,6 +19,7 @@ import com.dewijones92.totum.domain.MediaItemId
 import com.dewijones92.totum.domain.MediaSource
 import com.dewijones92.totum.domain.PlayHandle
 import com.dewijones92.totum.domain.PlayableItem
+import com.dewijones92.totum.domain.SourceGroup
 import com.dewijones92.totum.domain.SourceId
 import com.dewijones92.totum.domain.videoFileOrNull
 import com.dewijones92.totum.innertube.feeds.AccountFeed
@@ -47,6 +49,7 @@ class VideosViewModel(
     private val queue: PlaybackQueue,
     private val downloads: DownloadManager,
     private val youtube: YouTubeAccountServices,
+    private val groups: GroupServices,
 ) : TrackedViewModel("videos") {
 
     data class UiState(
@@ -59,7 +62,9 @@ class VideosViewModel(
         val downloadStates: Map<MediaItemId, DownloadState> = emptyMap(),
         /** Account feeds are offered only when signed in. */
         val signedIn: Boolean = false,
-        val selectedFeed: AccountFeed? = null,
+        val selected: FeedChoice? = null,
+        /** Dewi's own groups, offered as chips beside the account feeds. */
+        val groups: List<SourceGroup> = emptyList(),
         val feedLoading: Boolean = false,
         val feedError: Boolean = false,
         /** Pull-to-refresh in progress (keeps content visible, unlike [feedLoading]). */
@@ -90,7 +95,7 @@ class VideosViewModel(
     private val sort = MutableStateFlow(MediaSort.DEFAULT)
 
     private data class FeedState(
-        val selected: AccountFeed? = null,
+        val selected: FeedChoice? = null,
         val loading: Boolean = false,
         val videos: List<MediaItem> = emptyList(),
         val error: Boolean = false,
@@ -107,39 +112,62 @@ class VideosViewModel(
         // uploads) as the default when signed in, clear it when signed out.
         viewModelScope.launch {
             accountSubscriptions.signedIn.collect { signed ->
-                if (signed) {
-                    if (feedState.value.selected == null) selectFeed(AccountFeed.SUBSCRIPTIONS)
-                } else {
-                    feedState.value = FeedState()
+                when {
+                    signed -> if (feedState.value.selected == null) {
+                        select(FeedChoice.Account(AccountFeed.SUBSCRIPTIONS))
+                    }
+                    // Only an ACCOUNT feed depends on being signed in. A group can be all
+                    // podcasts, which need no account at all, so clearing everything here
+                    // would empty a feed that was working perfectly well.
+                    feedState.value.selected is FeedChoice.Group -> Diag.log(
+                        "feed",
+                        "signed out, but a group is showing — leaving it be",
+                    )
+                    else -> feedState.value = FeedState()
                 }
             }
         }
     }
 
     private val flags = combine(subscribing, resolving, refreshing) { sub, res, ref -> Triple(sub, res, ref) }
-    private val feedView =
-        combine(feedState, accountSubscriptions.signedIn, sort) { feed, si, s -> Triple(feed, si, s) }
+
+    /** What the feed area shows, gathered so the main combine stays inside its arity. */
+    private data class FeedView(
+        val feed: FeedState,
+        val signedIn: Boolean,
+        val sort: MediaSort,
+        val groups: List<SourceGroup>,
+    )
+
+    private val feedView = combine(
+        feedState,
+        accountSubscriptions.signedIn,
+        sort,
+        groups.store.observeGroups(),
+        ::FeedView,
+    )
 
     val uiState: StateFlow<UiState> = combine(
         accountSubscriptions.channels,
         downloads.observeDownloads(),
         flags,
         feedView,
-    ) { subs, downloadStates, (subscribing, resolving, refreshing), (feed, isSignedIn, sort) ->
+    ) { subs, downloadStates, (subscribing, resolving, refreshing), view ->
         UiState(
             subscriptions = subs,
-            videos = sort.apply(feed.videos),
+            videos = view.sort.apply(view.feed.videos),
             subscribing = subscribing,
             resolving = resolving,
             downloadStates = downloadStates,
-            signedIn = isSignedIn,
-            selectedFeed = feed.selected,
-            feedLoading = feed.loading,
-            feedError = feed.error,
+            signedIn = view.signedIn,
+            selected = view.feed.selected,
+            groups = view.groups,
+            feedLoading = view.feed.loading,
+            feedError = view.feed.error,
             refreshing = refreshing,
-            canLoadMore = feed.next != null,
-            loadingMore = feed.loadingMore,
-            sort = sort,
+            canLoadMore = view.feed.next != null,
+            loadingMore = view.feed.loadingMore,
+            sort = view.sort,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), UiState())
 
@@ -147,26 +175,44 @@ class VideosViewModel(
         sort.value = order
     }
 
-    fun selectFeed(feed: AccountFeed?) {
-        feedState.update { it.copy(selected = feed, error = false) }
-        if (feed == null) return
+    fun select(choice: FeedChoice?) {
+        feedState.update { it.copy(selected = choice, error = false) }
+        if (choice == null) return
+        Diag.log("feed", "selected ${choice.describe()}")
         viewModelScope.launch {
             feedState.update { it.copy(loading = true) }
-            feedState.value = when (val result = loadFeed(feed)) {
-                is FeedResult.Success -> FeedState(
-                    selected = feed,
+            feedState.value = when (choice) {
+                is FeedChoice.Account -> accountFeedState(choice)
+                // A group is fetched whole — each member gives what it has, and there is no
+                // continuation to follow — so it lands with no paging token by design.
+                is FeedChoice.Group -> FeedState(
+                    selected = choice,
                     loading = false,
-                    videos = result.page.items.map { it.toMediaItem(feed) },
-                    next = result.page.next,
+                    videos = groups.feed.itemsFor(choice.group),
                 )
-                FeedResult.SignedOut -> {
-                    // Token died mid-session — re-check, which clears signedIn app-wide.
-                    accountSubscriptions.refresh()
-                    FeedState()
-                }
-                is FeedResult.Failure -> FeedState(feed, loading = false, error = true)
             }
         }
+    }
+
+    private suspend fun accountFeedState(choice: FeedChoice.Account): FeedState =
+        when (val result = loadFeed(choice.feed)) {
+            is FeedResult.Success -> FeedState(
+                selected = choice,
+                loading = false,
+                videos = result.page.items.map { it.toMediaItem(choice.feed) },
+                next = result.page.next,
+            )
+            FeedResult.SignedOut -> {
+                // Token died mid-session — re-check, which clears signedIn app-wide.
+                accountSubscriptions.refresh()
+                FeedState()
+            }
+            is FeedResult.Failure -> FeedState(choice, loading = false, error = true)
+        }
+
+    private fun FeedChoice.describe(): String = when (this) {
+        is FeedChoice.Account -> feed.name
+        is FeedChoice.Group -> "group \"${group.name}\" (${group.members.size} sources)"
     }
 
     /**
@@ -179,18 +225,12 @@ class VideosViewModel(
         viewModelScope.launch {
             refreshing.value = true
             accountSubscriptions.refresh()
-            feedState.value.selected?.let { feed ->
-                when (val result = loadFeed(feed)) {
-                    is FeedResult.Success -> {
-                        val items = result.page.items.map { it.toMediaItem(feed) }
-                        // A refresh replaces the feed, so paging restarts from this
-                        // page's token — keeping the old one would append pages that
-                        // continue a list the user can no longer see.
-                        feedState.update { it.copy(videos = items, error = false, next = result.page.next) }
-                    }
-                    FeedResult.SignedOut -> accountSubscriptions.refresh()
-                    is FeedResult.Failure -> Unit // keep what's shown
+            when (val choice = feedState.value.selected) {
+                is FeedChoice.Account -> refreshAccountFeed(choice.feed)
+                is FeedChoice.Group -> feedState.update {
+                    it.copy(videos = groups.feed.itemsFor(choice.group), error = false)
                 }
+                null -> Unit
             }
             refreshing.value = false
         }
@@ -201,9 +241,25 @@ class VideosViewModel(
      * cannot fire overlapping requests, and so it no-ops once the feed is exhausted —
      * the list asks whenever it nears the end, and asking is cheap only if repeats are.
      */
+    private suspend fun refreshAccountFeed(feed: AccountFeed) {
+        when (val result = loadFeed(feed)) {
+            is FeedResult.Success -> {
+                val items = result.page.items.map { it.toMediaItem(feed) }
+                // A refresh replaces the feed, so paging restarts from this page's token —
+                // keeping the old one would append pages that continue a list the user can
+                // no longer see.
+                feedState.update { it.copy(videos = items, error = false, next = result.page.next) }
+            }
+            FeedResult.SignedOut -> accountSubscriptions.refresh()
+            is FeedResult.Failure -> Unit // keep what's shown
+        }
+    }
+
     fun loadMore() {
         val state = feedState.value
-        val feed = state.selected ?: return
+        // Only an account feed pages; a group is already whole, and `next` is null for one
+        // anyway — this says so out loud rather than relying on that.
+        val feed = (state.selected as? FeedChoice.Account)?.feed ?: return
         val after = state.next ?: return
         if (state.loadingMore || state.loading) return
         feedState.update { it.copy(loadingMore = true) }
@@ -322,6 +378,7 @@ class VideosViewModel(
                         feeds = container.youTubeFeeds,
                         actions = container.youTubeActions,
                     ),
+                    groups = GroupServices(container.sourceGroupStore, container.groupFeed),
                 )
             }
         }

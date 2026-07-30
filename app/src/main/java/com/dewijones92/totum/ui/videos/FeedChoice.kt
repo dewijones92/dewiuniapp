@@ -1,0 +1,24 @@
+package com.dewijones92.totum.ui.videos
+
+import com.dewijones92.totum.domain.SourceGroup
+import com.dewijones92.totum.innertube.feeds.AccountFeed
+
+/**
+ * What the Videos tab is showing: one of YouTube's account feeds, or one of Dewi's own
+ * groups of sources read as a merged feed.
+ *
+ * Sealed rather than "an AccountFeed, or else a group id if that is null", so loading,
+ * refreshing and paging each route in an exhaustive `when` — the two behave differently
+ * enough (a group does not paginate, and spans both pillars) that a nullable pair would
+ * have meant remembering the rule at every call site.
+ */
+sealed interface FeedChoice {
+    data class Account(val feed: AccountFeed) : FeedChoice
+
+    /**
+     * Holds the whole group, not its id: a group's membership can change while it is on
+     * screen, and a loader given only an id would have to go and look it up again — with
+     * nothing to stop it looking up a different version than the one being displayed.
+     */
+    data class Group(val group: SourceGroup) : FeedChoice
+}

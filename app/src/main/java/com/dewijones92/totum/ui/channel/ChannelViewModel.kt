@@ -12,12 +12,14 @@ import com.dewijones92.totum.data.channel.ChannelRepository
 import com.dewijones92.totum.data.channel.ChannelVideosResult
 import com.dewijones92.totum.data.download.DownloadManager
 import com.dewijones92.totum.di.AppContainer
+import com.dewijones92.totum.di.GroupServices
 import com.dewijones92.totum.domain.DownloadState
 import com.dewijones92.totum.domain.MediaItem
 import com.dewijones92.totum.domain.MediaItemId
 import com.dewijones92.totum.domain.MediaSource
 import com.dewijones92.totum.domain.PlayHandle
 import com.dewijones92.totum.domain.PlayableItem
+import com.dewijones92.totum.domain.SourceGroup
 import com.dewijones92.totum.domain.containsChannel
 import com.dewijones92.totum.domain.youTubeChannelId
 import com.dewijones92.totum.innertube.channel.ChannelPlaylists
@@ -48,12 +50,20 @@ import kotlinx.coroutines.launch
 @Suppress("TooManyFunctions")
 class ChannelViewModel(
     private val source: MediaSource.VideoChannel,
-    private val channel: YouTubeChannel,
-    private val channelFallback: ChannelRepository,
+    private val reader: ChannelReader,
     private val queue: PlaybackQueue,
     private val accountSubscriptions: AccountSubscriptions,
     private val downloads: DownloadManager,
+    private val groups: GroupServices,
 ) : ViewModel() {
+
+    /**
+     * The two ways to read a channel, as one collaborator: InnerTube (which carries upload
+     * dates, shorts and playlists) and the yt-dlp uploads list it falls back to for a
+     * channel reached by handle, whose URL carries no `UC…` id. They are alternatives for
+     * the same job, so they travel together.
+     */
+    class ChannelReader(val innerTube: YouTubeChannel, val fallback: ChannelRepository)
 
     enum class Tab { VIDEOS, SHORTS, PLAYLISTS, SEARCH }
 
@@ -83,6 +93,8 @@ class ChannelViewModel(
         val searchResults: TabState<MediaItem> = TabState(),
         val searchQuery: String = "",
         val subscribed: Boolean = false,
+        /** Dewi's groups, so the picker can show which ones this channel is already in. */
+        val groups: List<SourceGroup> = emptyList(),
         val downloadStates: Map<MediaItemId, DownloadState> = emptyMap(),
         val resolving: String? = null,
     )
@@ -115,7 +127,8 @@ class ChannelViewModel(
         content,
         accountSubscriptions.channels,
         downloads.observeDownloads(),
-    ) { c, subs, downloadStates ->
+        groups.store.observeGroups(),
+    ) { c, subs, downloadStates, groups ->
         UiState(
             title = c.title,
             tab = c.tab,
@@ -129,6 +142,7 @@ class ChannelViewModel(
             // carries whatever form that source used, so string equality reported "not subscribed"
             // for channels Dewi was plainly subscribed to.
             subscribed = subs.subscribedTo(c),
+            groups = groups,
             downloadStates = downloadStates,
             resolving = c.resolving,
         )
@@ -152,6 +166,23 @@ class ChannelViewModel(
     }
 
     private var lastSubscribedDecision: String? = null
+
+    /** Adds this channel to [group], or removes it. The picker is a checklist of these. */
+    fun toggleGroup(group: SourceGroup) {
+        viewModelScope.launch {
+            val added = groups.store.toggleMember(group.id, source.id)
+            Diag.log("group", "\"${source.title}\" ${if (added) "added to" else "removed from"} \"${group.name}\"")
+        }
+    }
+
+    /** Creates a group and puts this channel in it — you name one when you have something for it. */
+    fun createGroupWith(name: String) {
+        viewModelScope.launch {
+            val id = groups.store.create(name)
+            groups.store.toggleMember(id, source.id)
+            Diag.log("group", "created \"$name\" starting with \"${source.title}\"")
+        }
+    }
 
     init {
         loadVideos()
@@ -182,7 +213,7 @@ class ChannelViewModel(
         }
         viewModelScope.launch {
             content.update { it.copy(searchResults = it.searchResults.copy(loading = true, error = false)) }
-            val page = videoPage(channel.search(id, trimmed))
+            val page = videoPage(reader.innerTube.search(id, trimmed))
             // Dropped if the query moved on while this was in flight.
             if (content.value.searchQuery.trim() != trimmed) return@launch
             content.update {
@@ -202,7 +233,7 @@ class ChannelViewModel(
         viewModelScope.launch {
             content.update { it.copy(videos = it.videos.copy(loading = true, error = false)) }
             val page = channelId?.let { id ->
-                when (val r = channel.videos(id)) {
+                when (val r = reader.innerTube.videos(id)) {
                     is ChannelVideos.Success -> r.page.map { it.toMediaItem(source.id) }
                     is ChannelVideos.Failure -> null
                 }
@@ -224,7 +255,7 @@ class ChannelViewModel(
 
     /** yt-dlp uploads for a channel we can't address by `UC…` id. */
     private suspend fun fallbackVideos(): List<MediaItem>? =
-        when (val r = channelFallback.fetchChannelVideos(source.channelUrl)) {
+        when (val r = reader.fallback.fetchChannelVideos(source.channelUrl)) {
             is ChannelVideosResult.Success -> {
                 // Keep the id it resolved: this is the only way a handle-only channel ever
                 // learns its own UC id, and without it the subscribe button cannot tell whether
@@ -244,7 +275,7 @@ class ChannelViewModel(
         }
         viewModelScope.launch {
             content.update { it.copy(shorts = it.shorts.copy(loading = true, error = false)) }
-            val page = when (val r = channel.shorts(id)) {
+            val page = when (val r = reader.innerTube.shorts(id)) {
                 is ChannelVideos.Success -> r.page.map { it.toMediaItem(source.id) }
                 is ChannelVideos.Failure -> null
             }
@@ -268,7 +299,7 @@ class ChannelViewModel(
         }
         viewModelScope.launch {
             content.update { it.copy(playlists = it.playlists.copy(loading = true, error = false)) }
-            val page = when (val r = channel.playlists(id)) {
+            val page = when (val r = reader.innerTube.playlists(id)) {
                 is ChannelPlaylists.Success -> r.page
                 is ChannelPlaylists.Failure -> null
             }
@@ -296,22 +327,22 @@ class ChannelViewModel(
             Tab.VIDEOS -> pageMore(
                 state = { it.videos },
                 update = { c, s -> c.copy(videos = s) },
-                fetch = { after -> videoPage(channel.videos(id, after)) },
+                fetch = { after -> videoPage(reader.innerTube.videos(id, after)) },
             )
             Tab.SHORTS -> pageMore(
                 state = { it.shorts },
                 update = { c, s -> c.copy(shorts = s) },
-                fetch = { after -> videoPage(channel.shorts(id, after)) },
+                fetch = { after -> videoPage(reader.innerTube.shorts(id, after)) },
             )
             Tab.PLAYLISTS -> pageMore(
                 state = { it.playlists },
                 update = { c, s -> c.copy(playlists = s) },
-                fetch = { after -> (channel.playlists(id, after) as? ChannelPlaylists.Success)?.page },
+                fetch = { after -> (reader.innerTube.playlists(id, after) as? ChannelPlaylists.Success)?.page },
             )
             Tab.SEARCH -> pageMore(
                 state = { it.searchResults },
                 update = { c, s -> c.copy(searchResults = s) },
-                fetch = { after -> videoPage(channel.search(id, content.value.searchQuery.trim(), after)) },
+                fetch = { after -> videoPage(reader.innerTube.search(id, content.value.searchQuery.trim(), after)) },
             )
         }
     }
@@ -383,11 +414,11 @@ class ChannelViewModel(
                 initializer {
                     ChannelViewModel(
                         source = source,
-                        channel = container.youTubeChannel,
-                        channelFallback = container.channelRepository,
+                        reader = ChannelReader(container.youTubeChannel, container.channelRepository),
                         queue = container.playbackQueue,
                         accountSubscriptions = container.accountSubscriptions,
                         downloads = container.downloadManager,
+                        groups = GroupServices(container.sourceGroupStore, container.groupFeed),
                     )
                 }
             }

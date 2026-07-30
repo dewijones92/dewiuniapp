@@ -5,9 +5,12 @@ import com.dewijones92.totum.common.Page
 import com.dewijones92.totum.common.PageToken
 import com.dewijones92.totum.data.channel.DefaultChannelRepository
 import com.dewijones92.totum.data.download.fake.FakeDownloadManager
+import com.dewijones92.totum.data.group.FakeSourceGroupStore
+import com.dewijones92.totum.data.group.GroupFeed
 import com.dewijones92.totum.data.history.fake.InMemoryPlayHistoryStore
 import com.dewijones92.totum.data.queue.fake.InMemoryQueueStore
 import com.dewijones92.totum.data.sponsorblock.SkipSegmentSource
+import com.dewijones92.totum.di.GroupServices
 import com.dewijones92.totum.di.YouTubeAccountServices
 import com.dewijones92.totum.innertube.actions.fake.FakeYouTubeActions
 import com.dewijones92.totum.innertube.auth.AccessToken
@@ -98,6 +101,10 @@ class VideosPagingTest {
             ),
             downloads = FakeDownloadManager(),
             youtube = YouTubeAccountServices(account, feeds, FakeYouTubeActions()),
+            groups = GroupServices(
+                FakeSourceGroupStore(),
+                GroupFeed(items = { emptyList() }, locate = { null }),
+            ),
         )
     }
 
@@ -108,7 +115,7 @@ class VideosPagingTest {
 
         val model = viewModel()
         backgroundScope.launch { model.uiState.collect {} }
-        model.selectFeed(AccountFeed.SUBSCRIPTIONS)
+        model.select(FeedChoice.Account(AccountFeed.SUBSCRIPTIONS))
         advanceUntilIdle()
 
         assertTrue(model.uiState.value.canLoadMore)
@@ -120,7 +127,7 @@ class VideosPagingTest {
 
         val model = viewModel()
         backgroundScope.launch { model.uiState.collect {} }
-        model.selectFeed(AccountFeed.SUBSCRIPTIONS)
+        model.select(FeedChoice.Account(AccountFeed.SUBSCRIPTIONS))
         advanceUntilIdle()
 
         assertFalse(model.uiState.value.canLoadMore)
@@ -134,7 +141,7 @@ class VideosPagingTest {
 
         val model = viewModel()
         backgroundScope.launch { model.uiState.collect {} }
-        model.selectFeed(AccountFeed.SUBSCRIPTIONS)
+        model.select(FeedChoice.Account(AccountFeed.SUBSCRIPTIONS))
         advanceUntilIdle()
         model.loadMore()
         advanceUntilIdle()
@@ -153,7 +160,7 @@ class VideosPagingTest {
 
         val model = viewModel()
         backgroundScope.launch { model.uiState.collect {} }
-        model.selectFeed(AccountFeed.SUBSCRIPTIONS)
+        model.select(FeedChoice.Account(AccountFeed.SUBSCRIPTIONS))
         advanceUntilIdle()
         model.loadMore()
         advanceUntilIdle()
@@ -167,7 +174,7 @@ class VideosPagingTest {
 
         val model = viewModel()
         backgroundScope.launch { model.uiState.collect {} }
-        model.selectFeed(AccountFeed.SUBSCRIPTIONS)
+        model.select(FeedChoice.Account(AccountFeed.SUBSCRIPTIONS))
         advanceUntilIdle()
         val requestsAfterFirstPage = feeds.requested.size
         model.loadMore()
@@ -188,7 +195,7 @@ class VideosPagingTest {
 
         val model = viewModel()
         backgroundScope.launch { model.uiState.collect {} }
-        model.selectFeed(AccountFeed.SUBSCRIPTIONS)
+        model.select(FeedChoice.Account(AccountFeed.SUBSCRIPTIONS))
         advanceUntilIdle()
         val before = feeds.requested.size
         model.loadMore()
@@ -208,7 +215,7 @@ class VideosPagingTest {
 
         val model = viewModel()
         backgroundScope.launch { model.uiState.collect {} }
-        model.selectFeed(AccountFeed.SUBSCRIPTIONS)
+        model.select(FeedChoice.Account(AccountFeed.SUBSCRIPTIONS))
         advanceUntilIdle()
         model.loadMore()
         advanceUntilIdle()
@@ -234,7 +241,7 @@ class VideosPagingTest {
 
         val model = viewModel()
         backgroundScope.launch { model.uiState.collect {} }
-        model.selectFeed(AccountFeed.SUBSCRIPTIONS)
+        model.select(FeedChoice.Account(AccountFeed.SUBSCRIPTIONS))
         advanceUntilIdle()
 
         feeds.results[AccountFeed.SUBSCRIPTIONS] =

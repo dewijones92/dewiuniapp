@@ -23,6 +23,9 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -45,6 +48,7 @@ import com.dewijones92.totum.ui.common.MediaListSkeleton
 import com.dewijones92.totum.ui.common.MediaThumbnail
 import com.dewijones92.totum.ui.common.SourceHeader
 import com.dewijones92.totum.ui.common.mediaItemSubtitle
+import com.dewijones92.totum.ui.group.GroupPicker
 import com.dewijones92.totum.ui.channel.ChannelViewModel.Tab as ChannelTab
 
 /**
@@ -66,9 +70,21 @@ fun ChannelScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val addToPlaylist = com.dewijones92.totum.ui.playlist.rememberPlaylistAdder(container)
 
+    var showGroups by remember { mutableStateOf(false) }
+    if (showGroups) {
+        GroupPicker(
+            sourceId = source.id,
+            groups = state.groups,
+            onToggle = viewModel::toggleGroup,
+            onCreate = viewModel::createGroupWith,
+            onDismiss = { showGroups = false },
+        )
+    }
+
     ChannelContent(
         state = state,
         onBack = onBack,
+        onOpenGroups = { showGroups = true },
         onToggleSubscribed = viewModel::toggleSubscribed,
         onSelectTab = viewModel::selectTab,
         onSearch = viewModel::search,
@@ -87,6 +103,7 @@ fun ChannelScreen(
 internal fun ChannelContent(
     state: ChannelViewModel.UiState,
     onBack: () -> Unit,
+    onOpenGroups: () -> Unit,
     onToggleSubscribed: () -> Unit,
     onSelectTab: (ChannelTab) -> Unit,
     onSearch: (String) -> Unit,
@@ -105,6 +122,7 @@ internal fun ChannelContent(
                 subscribed = state.subscribed,
                 onBack = onBack,
                 onToggleSubscribed = onToggleSubscribed,
+                onOpenGroups = onOpenGroups,
             )
             SecondaryTabRow(selectedTabIndex = state.tab.ordinal) {
                 ChannelTab.entries.forEach { tab ->

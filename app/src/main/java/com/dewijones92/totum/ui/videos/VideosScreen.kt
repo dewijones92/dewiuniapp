@@ -106,7 +106,7 @@ fun VideosScreen(
             onPlay = viewModel::play,
             onDownload = viewModel::download,
             onDeleteDownload = viewModel::deleteDownload,
-            onSelectFeed = viewModel::selectFeed,
+            onSelectFeed = viewModel::select,
             onChannelClick = { nav.channel = it },
             onSwitchMode = switchMode,
             onGoToChannel = { item ->
@@ -196,7 +196,7 @@ internal fun VideosContent(
     onPlay: (MediaItem) -> Unit,
     onDownload: (MediaItem) -> Unit,
     onDeleteDownload: (MediaItem) -> Unit,
-    onSelectFeed: (AccountFeed?) -> Unit,
+    onSelectFeed: (FeedChoice?) -> Unit,
     onChannelClick: (MediaSource.VideoChannel) -> Unit,
     onSwitchMode: (MediaItem) -> Unit,
     onGoToChannel: (MediaItem) -> Unit,
@@ -222,7 +222,10 @@ internal fun VideosContent(
                 onRefresh = onRefresh,
                 modifier = Modifier.fillMaxSize(),
             ) {
-                if (state.subscriptions.isEmpty() && !state.signedIn) {
+                // Groups count as something to show. Signed out with no subscriptions, the
+                // whole list was replaced by "nothing here yet" — including the groups Dewi
+                // had made, which need no account and were the one thing still working.
+                if (state.subscriptions.isEmpty() && !state.signedIn && state.groups.isEmpty()) {
                     EmptyState(
                         icon = Icons.Outlined.SmartDisplay,
                         headline = stringResource(R.string.videos_empty_headline),
@@ -301,7 +304,7 @@ private fun ChannelsAndVideos(
     onPlay: (MediaItem) -> Unit,
     onDownload: (MediaItem) -> Unit,
     onDeleteDownload: (MediaItem) -> Unit,
-    onSelectFeed: (AccountFeed?) -> Unit,
+    onSelectFeed: (FeedChoice?) -> Unit,
     onChannelClick: (MediaSource.VideoChannel) -> Unit,
     onSwitchMode: (MediaItem) -> Unit,
     onGoToChannel: (MediaItem) -> Unit,
@@ -319,7 +322,7 @@ private fun ChannelsAndVideos(
     // cannot survive being applied to an empty list, so "scroll=40 videos=0" and
     // "scroll=0 videos=40" are different bugs that look identical without it.
     TrackPlace("videos") {
-        "feed=${state.selectedFeed} scroll=${listState.firstVisibleItemIndex}" +
+        "feed=${state.selected} scroll=${listState.firstVisibleItemIndex}" +
             "+${listState.firstVisibleItemScrollOffset} videos=${state.videos.size}"
     }
     // The SHOWN count, not state.videos.size: with a filter on, a page of arriving videos
@@ -330,8 +333,11 @@ private fun ChannelsAndVideos(
         if (state.subscriptions.isNotEmpty()) {
             item { SubscriptionChips(state.subscriptions, onChannelClick) }
         }
-        if (state.signedIn) {
-            item { FeedSelector(state.selectedFeed, onSelectFeed, onOpenPlaylists, onOpenShorts) }
+        // Signed in OR holding groups. The account feeds need an account, but a group can be
+        // all podcasts and needs none — gating the whole selector on sign-in hid every group
+        // Dewi had made, which is a strange way to treat the one part that was still working.
+        if (state.signedIn || state.groups.isNotEmpty()) {
+            item { FeedSelector(state, onSelectFeed, onOpenPlaylists, onOpenShorts) }
         }
         when {
             state.feedLoading -> item { FeedLoading() }
@@ -340,7 +346,7 @@ private fun ChannelsAndVideos(
             else -> {
                 item {
                     SectionHeaderWithSort(
-                        title = stringResource(feedTitleRes(state.selectedFeed)),
+                        title = feedTitle(state.selected),
                         sort = state.sort,
                         onSetSort = onSetSort,
                     )
@@ -377,8 +383,8 @@ private fun ChannelsAndVideos(
 
 @Composable
 private fun FeedSelector(
-    selected: AccountFeed?,
-    onSelectFeed: (AccountFeed?) -> Unit,
+    state: VideosViewModel.UiState,
+    onSelectFeed: (FeedChoice?) -> Unit,
     onOpenPlaylists: () -> Unit,
     onOpenShorts: () -> Unit,
 ) {
@@ -387,11 +393,22 @@ private fun FeedSelector(
         contentPadding = PaddingValues(horizontal = 16.dp),
         modifier = Modifier.padding(top = 8.dp),
     ) {
-        items(AccountFeed.entries) { feed ->
+        // YouTube's own feeds need a signed-in account; groups do not.
+        items(if (state.signedIn) AccountFeed.entries else emptyList()) { feed ->
             FilterChip(
-                selected = feed == selected,
-                onClick = { onSelectFeed(feed) },
+                selected = state.selected == FeedChoice.Account(feed),
+                onClick = { onSelectFeed(FeedChoice.Account(feed)) },
                 label = { Text(stringResource(feedChipRes(feed))) },
+            )
+        }
+        // Dewi's own groups sit alongside YouTube's feeds rather than behind a sub-tab:
+        // they are the same kind of thing to choose between — "what am I looking at" —
+        // and a group he made is likelier to be what he wants than HISTORY.
+        items(state.groups, key = { it.id.value }) { group ->
+            FilterChip(
+                selected = (state.selected as? FeedChoice.Group)?.group?.id == group.id,
+                onClick = { onSelectFeed(FeedChoice.Group(group)) },
+                label = { Text(group.name) },
             )
         }
         // Not feed filters — open the Shorts reel and the playlists list.
@@ -459,9 +476,12 @@ private fun SubscriptionChips(
     }
 }
 
-private fun feedTitleRes(feed: AccountFeed?): Int = when (feed) {
-    null -> R.string.latest_videos
-    else -> feedChipRes(feed)
+@Composable
+private fun feedTitle(selected: FeedChoice?): String = when (selected) {
+    null -> stringResource(R.string.latest_videos)
+    is FeedChoice.Account -> stringResource(feedChipRes(selected.feed))
+    // The group's own name, which is the whole point of having named it.
+    is FeedChoice.Group -> selected.group.name
 }
 
 @Preview(showBackground = true)
