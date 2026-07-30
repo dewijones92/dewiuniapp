@@ -88,4 +88,22 @@ class VideoResolverSharingTest {
 
         assertEquals(2, calls.get())
     }
+
+    /**
+     * The cache held exactly one video, so tapping through a few evicted each on the next
+     * and going back re-extracted: a report showed one video extracted three times in under
+     * a minute at 20-26s each.
+     */
+    @Test
+    fun `going back to an earlier video does not re-extract it`() = runTest {
+        val calls = AtomicInteger()
+        val resolver = resolver(calls)
+        val others = (1..4).map { HttpUrl.of("https://www.youtube.com/watch?v=other$it") }
+
+        resolver.resolve(url, source)
+        others.forEach { resolver.resolve(it, source) }
+        resolver.resolve(url, source)
+
+        assertEquals("the first video should still be cached", 1 + others.size, calls.get())
+    }
 }

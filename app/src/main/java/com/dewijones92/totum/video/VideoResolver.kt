@@ -47,8 +47,18 @@ class VideoResolver(
      * The single entry is also why the TTL stays short: a stale URL 403s, and
      * ExpiredStreamRecovery only re-resolves, so serving one from here would loop.
      */
-    private var cached: Pair<HttpUrl, Resolved>? = null
-    private var cachedAt = 0L
+    private data class Cached(val resolved: Resolved, val at: Long)
+
+    /**
+     * Recently resolved videos, least-recently-resolved first, [CACHE_SIZE] at most.
+     *
+     * It held exactly ONE, which was enough when it only handed a prefetched result to the
+     * next play. Tapping through a few videos then evicted each on the next, so going back to
+     * one just played re-extracted it: a real report (0.1.227) shows the same video extracted
+     * three times in under a minute at 20-26s each. The TTL is what keeps a URL from going
+     * stale, not the count, so holding a handful is no less safe than holding one.
+     */
+    private val cache = LinkedHashMap<HttpUrl, Cached>()
 
     /**
      * The extraction currently running, if any, and what it is for. Concurrent callers for
@@ -116,7 +126,7 @@ class VideoResolver(
     }
 
     private suspend fun extractAndCache(watchUrl: HttpUrl, sourceId: SourceId, asked: String): Resolved? {
-        cached?.takeIf { it.first == watchUrl && now() - cachedAt < CACHE_TTL_MS }?.let { (_, hit) ->
+        fresh(watchUrl)?.let { hit ->
             // Kept, not consumed. It used to be cleared on first use, which was right when an
             // extraction cost ~1.7s and the cache existed only to hand a prefetched result to
             // the next play. With a JS runtime an extraction costs 10-14s on a real phone, so
@@ -177,8 +187,7 @@ class VideoResolver(
         // Remembered on EVERY resolve, not only when prefetched: a replay, a seek that
         // forces a re-resolve or a quality change all ask for the same video again, and each
         // one used to pay the full extraction.
-        cached = watchUrl to resolved
-        cachedAt = now()
+        remember(watchUrl, resolved)
         return resolved
     }
 
@@ -216,6 +225,18 @@ class VideoResolver(
         return better
     }
 
+    /** A cached entry still inside its TTL, or null. */
+    private fun fresh(watchUrl: HttpUrl): Resolved? =
+        cache[watchUrl]?.takeIf { now() - it.at < CACHE_TTL_MS }?.resolved
+
+    private fun remember(watchUrl: HttpUrl, resolved: Resolved) {
+        // Re-inserting makes a re-resolved video the newest, so LinkedHashMap's insertion
+        // order is a least-recently-resolved order and the first key is the one to drop.
+        cache.remove(watchUrl)
+        cache[watchUrl] = Cached(resolved, now())
+        while (cache.size > CACHE_SIZE) cache.remove(cache.keys.first())
+    }
+
     /**
      * Says so when a video came back with nothing but the legacy 360p stream.
      *
@@ -246,14 +267,13 @@ class VideoResolver(
      * resolve will run and report properly when the item is actually needed.
      */
     suspend fun prefetch(watchUrl: HttpUrl, sourceId: SourceId) {
-        if (cached?.first == watchUrl && now() - cachedAt < CACHE_TTL_MS) return
+        if (fresh(watchUrl) != null) return
         Diag.log("resolve", "prefetching ${watchUrl.value.takeLast(ID_CHARS)}")
         val resolved = runCatching { resolve(watchUrl, sourceId, asked = "prefetch") }.getOrNull() ?: run {
             Diag.log("resolve", "prefetch produced nothing; the real resolve will try again")
             return
         }
-        cached = watchUrl to resolved
-        cachedAt = now()
+        remember(watchUrl, resolved)
     }
 
     private companion object {
@@ -266,6 +286,12 @@ class VideoResolver(
 
         /** Enough of a watch URL to recognise the video in a log line. */
         const val ID_CHARS = 11
+
+        /**
+         * Enough to cover flicking between a few videos without holding URLs so long that
+         * the TTL stops being the thing that governs staleness.
+         */
+        const val CACHE_SIZE = 8
 
         /** Format 18's height — the only stream that survives a SABR-only response. */
         const val DEGRADED_HEIGHT = 360
