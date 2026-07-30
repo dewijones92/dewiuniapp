@@ -52,12 +52,21 @@ class QueueAutoDownloader(
         val item = entry.item.item
         val skip = skipReason(entry, states[item.id])
         if (skip != null) {
-            if (skip.isNotEmpty()) Diag.log("download", "not fetching \"${item.title}\": $skip")
+            // Said ONCE per item, not on every queue change. Three permanently-failed
+            // members-only videos repeated their reason on every pass and took 14% of a
+            // 387-event report (0.1.229) saying nothing new — and the report buffer is
+            // bounded, so noise like that is evidence thrown away.
+            if (skip.isNotEmpty() && explained.add(entry.item.item.id)) {
+                Diag.log("download", "not fetching \"${item.title}\": $skip")
+            }
             return
         }
         // The whole entry, handle included, so the video route gets its watch URL.
         downloads.download(entry.item, audioOnly = true)
     }
+
+    /** Items whose skip reason has already been logged; it does not change between passes. */
+    private val explained = mutableSetOf<MediaItemId>()
 
     /**
      * Null to fetch it; a reason to skip. An empty reason means "ordinary, not worth a line" —

@@ -1,5 +1,6 @@
 package com.dewijones92.totum.queue
 
+import com.dewijones92.totum.common.Diag
 import com.dewijones92.totum.common.HttpUrl
 import com.dewijones92.totum.data.download.fake.FakeDownloadManager
 import com.dewijones92.totum.data.queue.QueueEntry
@@ -181,5 +182,27 @@ class QueueAutoDownloaderTest {
         }
 
         assertEquals(2, downloads.requested.count { it.first.value == "a" })
+    }
+
+    /**
+     * The reason a permanently-failed item is skipped does not change between passes, and
+     * the report buffer is bounded: three such videos repeated theirs on every queue change
+     * and took 14% of a 387-event report (0.1.229) saying nothing new.
+     */
+    @Test
+    fun `a permanent failure is explained once, however many passes it survives`() = runTest(dispatcher) {
+        val lines = mutableListOf<String>()
+        val previous = Diag.sink
+        Diag.sink = Diag.Sink { _, _, message, _ -> if ("not fetching" in message) lines += message }
+
+        downloads.setFailed(MediaItemId("a"), "ERROR: [youtube] a: Join this channel to get access")
+        downloader().start()
+        repeat(5) {
+            queue.value = QueueSnapshot(listOf(entry("a"), entry("b$it")))
+            testScheduler.advanceUntilIdle()
+        }
+
+        Diag.sink = previous
+        assertEquals(1, lines.size)
     }
 }
