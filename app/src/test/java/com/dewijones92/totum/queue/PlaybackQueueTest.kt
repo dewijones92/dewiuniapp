@@ -47,11 +47,21 @@ class PlaybackQueueTest {
 
     private var mirrorFails = false
 
+    /** Drives the repeat guard's clock; tests advance it rather than sleeping. */
+    private var nowMs = 1_000L
+
     private fun queue(withStore: QueueStore = store) =
-        PlaybackQueue(controller, launcher, CoroutineScope(dispatcher), withStore) { item ->
-            if (mirrorFails) error("network down")
-            mirrored += item.item.id.value
-        }
+        PlaybackQueue(
+            controller,
+            launcher,
+            CoroutineScope(dispatcher),
+            withStore,
+            onQueuedByUser = { item ->
+                if (mirrorFails) error("network down")
+                mirrored += item.item.id.value
+            },
+            clock = { nowMs },
+        )
 
     /**
      * Dewi's report: "when I click play next on something already in the queue, it dups it."
@@ -483,5 +493,52 @@ class PlaybackQueueTest {
         // x plays now; y is queued ahead of what was already there, and "mine" survives.
         assertEquals("x", controller.state.value?.itemId?.value)
         assertEquals(listOf("y", "mine"), q.state.value.upNext.map { it.item.item.id.value })
+    }
+
+    /**
+     * A real report (0.1.225): play-now fired seventeen times in twelve seconds, about every
+     * 170ms, alternating between two videos. Each one resolves, and a resolve costs 10-20s
+     * with the JS runtime — so one tap became minutes of duplicated extraction.
+     */
+    @Test
+    fun `a storm of identical play-now calls plays once`() = runTest(dispatcher) {
+        val q = queue()
+        val item = podcast("a")
+
+        repeat(10) {
+            q.playNow(item)
+            nowMs += 170
+            testScheduler.advanceUntilIdle()
+        }
+
+        assertEquals(1, q.state.value.entries.size)
+        assertEquals(1, controller.played.size)
+    }
+
+    @Test
+    fun `the same video played again later is honoured, not swallowed`() = runTest(dispatcher) {
+        val q = queue()
+        val item = podcast("a")
+
+        q.playNow(item)
+        testScheduler.advanceUntilIdle()
+        nowMs += 5_000
+        q.playNow(item)
+        testScheduler.advanceUntilIdle()
+
+        assertEquals(2, controller.played.size)
+    }
+
+    @Test
+    fun `two different videos in quick succession both play`() = runTest(dispatcher) {
+        val q = queue()
+
+        q.playNow(podcast("a"))
+        nowMs += 50
+        testScheduler.advanceUntilIdle()
+        q.playNow(podcast("b"))
+        testScheduler.advanceUntilIdle()
+
+        assertEquals(2, controller.played.size)
     }
 }

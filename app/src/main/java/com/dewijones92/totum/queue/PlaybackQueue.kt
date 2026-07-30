@@ -64,6 +64,8 @@ class PlaybackQueue(
      * intent, so only the two add-paths that express intent fire it.
      */
     private val onQueuedByUser: suspend (PlayableItem) -> Unit = {},
+    /** Injected so the repeat guard is testable without waiting in real time. */
+    private val clock: () -> Long = System::currentTimeMillis,
 ) {
     private val _state = MutableStateFlow(QueueSnapshot())
 
@@ -145,6 +147,26 @@ class PlaybackQueue(
      * An item already queued is moved rather than duplicated.
      */
     suspend fun playNow(item: PlayableItem, group: QueueGroup? = null): Boolean {
+        // A repeat of the SAME item within a blink is never a real second request. A report
+        // from Dewi's phone showed play-now firing seventeen times in twelve seconds, about
+        // every 170ms, alternating between two videos — and since each one resolves, and a
+        // resolve now costs 10-20s with the JS runtime, that is minutes of duplicated work
+        // for a single tap. No human taps the same row twice in a sixth of a second, so
+        // collapsing them changes nothing a user asked for.
+        //
+        // A guard rather than a fix for the caller: whatever is re-firing is still worth
+        // finding (the log below names it), but the queue should not be re-entrant on a
+        // repeat regardless of who calls it.
+        val now = clock()
+        val sinceLast = now - lastPlayNowAt
+        val repeat = item.item.id == lastPlayNowId && sinceLast < REPEAT_WINDOW_MS
+        lastPlayNowId = item.item.id
+        lastPlayNowAt = now
+        if (repeat) {
+            Diag.warn("queue", "play-now REPEAT ${sinceLast}ms apart — ignored: ${item.item.title.take(TITLE_CHARS)}")
+            return true
+        }
+
         var index = NOTHING_PLAYING
         mutate("play-now") { snapshot ->
             val withoutIt = snapshot.removing { it.item.item.id == item.item.id }
@@ -152,6 +174,9 @@ class PlaybackQueue(
         }
         return playAt(index)
     }
+
+    private var lastPlayNowId: MediaItemId? = null
+    private var lastPlayNowAt = 0L
 
     /**
      * Plays [items] as a run inserted after the current entry, starting with the
@@ -422,3 +447,11 @@ private fun QueueSnapshot.removingAt(index: Int): QueueSnapshot {
     }
     return copy(entries = kept, currentIndex = cursor)
 }
+
+/**
+ * How close two identical play-now calls have to be to count as one. Well below a
+ * deliberate double-tap, well above the ~170ms storm a real report showed, so it collapses
+ * the storm without swallowing anything intended.
+ */
+private const val REPEAT_WINDOW_MS = 400L
+private const val TITLE_CHARS = 60

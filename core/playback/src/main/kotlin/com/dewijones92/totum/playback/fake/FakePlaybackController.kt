@@ -23,6 +23,9 @@ import kotlinx.coroutines.flow.update
 @Suppress("TooManyFunctions")
 public class FakePlaybackController : PlaybackController {
 
+    /** Every play() in order — lets a test assert how MANY times something was played. */
+    public val played: MutableList<String> = mutableListOf()
+
     private val _state = MutableStateFlow<PlaybackState?>(null)
     override val state: StateFlow<PlaybackState?> = _state
 
@@ -80,6 +83,7 @@ public class FakePlaybackController : PlaybackController {
         subtitles: List<SubtitleTrack>,
         startPositionMs: Long,
     ) {
+        played += item.id.value
         lastSkipSegments = skipSegments
         lastLocalPath = localPath
         lastAudioUrl = audioUrl
