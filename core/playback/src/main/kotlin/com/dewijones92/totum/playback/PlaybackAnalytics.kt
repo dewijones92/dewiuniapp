@@ -34,7 +34,20 @@ internal class PlaybackAnalytics : AnalyticsListener {
     private var outstanding = 0
     private var loads = 0L
     private var bytes = 0L
-    private var loadMs = 0L
+
+    /**
+     * The last few completed loads, for a throughput figure that describes NOW.
+     *
+     * It used to be a lifetime running total, which meant one bad sample poisoned every
+     * reading that followed — and there is a very common bad sample: a load that spans a
+     * pause. Media3 measures a load's duration in wall time, and pausing suspends the
+     * loader mid-chunk, so a real report showed 15MB "in" 772 seconds. That dragged the
+     * reported rate from 53 Mbps down to 57 kbps and kept it there, turning a healthy
+     * connection into a apparent crawl for the rest of the session.
+     */
+    private val recent = ArrayDeque<Sample>()
+
+    private data class Sample(val bytes: Long, val durationMs: Long)
 
     /**
      * Which stream is actually playing. "6 qualities available" says nothing about which
@@ -71,9 +84,22 @@ internal class PlaybackAnalytics : AnalyticsListener {
         Vitals.set("playback.loadsOutstanding", outstanding.toString())
         loads++
         bytes += loadEventInfo.bytesLoaded
-        loadMs += loadEventInfo.loadDurationMs
-        Vitals.set("playback.avgLoadKbps", averageKbps().toString())
         Vitals.set("playback.loadedMb", (bytes / BYTES_PER_MB).toString())
+
+        if (loadEventInfo.loadDurationMs > SUSPENDED_LOAD_MS) {
+            // Not a slow network — a load the player sat on while paused. Said out loud,
+            // because a chunk that "took" twelve minutes reads as a catastrophe otherwise,
+            // and it is the reason the throughput number used to lie.
+            Diag.log(
+                "load",
+                "${mediaLoadData.trackName()} chunk spanned ${loadEventInfo.loadDurationMs}ms " +
+                    "(paused mid-load?) — not counting it towards throughput",
+            )
+            return
+        }
+        recent.addLast(Sample(loadEventInfo.bytesLoaded, loadEventInfo.loadDurationMs))
+        while (recent.size > RECENT_LOADS) recent.removeFirst()
+        Vitals.set("playback.avgLoadKbps", averageKbps().toString())
 
         // One line only when a single chunk was slow enough to be the problem, so the
         // trail keeps the loads worth seeing and drops the dozens that were fine.
@@ -148,8 +174,10 @@ internal class PlaybackAnalytics : AnalyticsListener {
         else -> "track-$trackType"
     }
 
-    private fun averageKbps(): Long =
-        if (loadMs <= 0) 0 else bytes * BITS_PER_BYTE / loadMs
+    private fun averageKbps(): Long {
+        val totalMs = recent.sumOf { it.durationMs }
+        return if (totalMs <= 0) 0 else recent.sumOf { it.bytes } * BITS_PER_BYTE / totalMs
+    }
 
     private fun LoadEventInfo.kbps(): Long? =
         if (loadDurationMs <= 0) null else bytesLoaded * BITS_PER_BYTE / loadDurationMs
@@ -170,5 +198,17 @@ internal class PlaybackAnalytics : AnalyticsListener {
         /** Below this, for long enough to matter, a chunk is worth naming individually. */
         const val SLOW_LOAD_KBPS = 800L
         const val SLOW_LOAD_MS = 1_000L
+
+        /**
+         * Recent enough to describe the connection now, long enough not to swing on one
+         * chunk — roughly the last minute of a video at typical chunk sizes.
+         */
+        const val RECENT_LOADS = 20
+
+        /**
+         * No genuine chunk takes this long: media3 gives up on a stuck load far sooner, so
+         * anything past it is wall time the player spent paused mid-load, not transfer time.
+         */
+        const val SUSPENDED_LOAD_MS = 60_000L
     }
 }
