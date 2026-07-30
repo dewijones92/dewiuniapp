@@ -10,6 +10,7 @@ import com.dewijones92.totum.data.content.fake.InMemorySeenItemsTracker
 import com.dewijones92.totum.data.download.DownloadManager
 import com.dewijones92.totum.data.download.fake.FakeDownloadManager
 import com.dewijones92.totum.data.group.FakeSourceGroupStore
+import com.dewijones92.totum.data.group.GroupFeed
 import com.dewijones92.totum.data.group.SourceGroupStore
 import com.dewijones92.totum.data.history.PlayHistoryStore
 import com.dewijones92.totum.data.history.fake.InMemoryPlayHistoryStore
@@ -84,6 +85,7 @@ class FakeAppContainer(
     override val skipSegmentSource: SkipSegmentSource = SkipSegmentSource { emptyList() },
     override val downloadManager: DownloadManager = FakeDownloadManager(),
     override val sourceGroupStore: SourceGroupStore = FakeSourceGroupStore(),
+    override val groupFeed: GroupFeed = GroupFeed(items = { emptyList() }, locate = { null }),
     override val videoResolver: VideoResolver = VideoResolver(ytDlpEngine, skipSegmentSource),
     override val videoPlaybackLauncher: VideoPlaybackLauncher =
         VideoPlaybackLauncher(videoResolver, playbackController, FakeYouTubeWatchHistory(), playHistoryStore),
