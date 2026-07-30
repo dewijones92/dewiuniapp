@@ -28,8 +28,16 @@ def versions():
 #
 # APPENDED to the defaults rather than replacing them, verified both ways: a kids video
 # resolves at 360p where it previously failed outright, and an ordinary video still offers
-# its full ladder up to 1080p+. 360p is a real quality drop, but it is the only thing
-# YouTube will serve for this content, and it beats not playing at all.
+# its full ladder up to 1080p+.
+#
+# 360p is NOT the quality YouTube has for this content — it is the best yt-dlp can currently
+# REACH. The higher formats are present in the player response but arrive with no URL:
+# YouTube serves them SABR-only (yt-dlp issue #12482), and yt-dlp does not speak that
+# protocol, so it drops them. Confirmed here: cookies from a signed-in browser do not
+# restore the URLs, nor does `formats=missing_pot`, and the bundled yt-dlp is already the
+# newest on PyPI. SmartTube plays the same videos at full quality because it implements
+# YouTube's own streaming path rather than extracting plain URLs — which is a project, not
+# a flag. Until then this is a real ceiling on kids content and nothing else.
 PLAYER_CLIENTS = {"youtube": {"player_client": ["default", "android"]}}
 
 
