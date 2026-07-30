@@ -39,6 +39,11 @@ internal class AutoAdvancer(
     private var handled: MediaItemId? = null
 
     fun start() {
+        // Said out loud so "nothing ended" and "the advancer was not running" stop looking
+        // identical in a report. Dewi asked whether a report showed auto-play-next failing;
+        // it showed no end-of-video at all, and without this line there is no way to tell
+        // that apart from a collector that never started or was cancelled.
+        Diag.log("advance", "watching for end of playback (auto-play next is ${onOrOff()})")
         scope.launch {
             var seenAnyState = false
             states
@@ -64,6 +69,8 @@ internal class AutoAdvancer(
                 }
         }
     }
+
+    private fun onOrOff(): String = if (isEnabled()) "on" else "off"
 
     private suspend fun advancePast(itemId: MediaItemId) {
         // Every branch says why. The failure mode is silence — an item ends, nothing happens,
