@@ -78,6 +78,7 @@ import com.dewijones92.totum.notifications.YouTubeSubscriptionItemsSource
 import com.dewijones92.totum.playback.AutoAdvancer
 import com.dewijones92.totum.playback.ExpiredStreamRecovery
 import com.dewijones92.totum.playback.Media3PlaybackController
+import com.dewijones92.totum.playback.NextUpPrefetcher
 import com.dewijones92.totum.playback.PlaybackController
 import com.dewijones92.totum.playback.PlaybackProgressStore
 import com.dewijones92.totum.playback.SharedPrefsPlaybackSpeedStore
@@ -450,6 +451,18 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
             isEnabled = { appPreferences.settings.value.autoPlayNext },
             scope = applicationScope,
         ).start()
+        // Videos resolve just-in-time, which meant yt-dlp's ~7 seconds landed in the silence
+        // AFTER the previous item ended. Same rule, started a minute earlier.
+        NextUpPrefetcher(
+            states = playbackController.state,
+            nextUp = playbackQueue::peekNext,
+            prefetch = { next ->
+                (next.handle as? PlayHandle.Video)?.let { video ->
+                    videoResolver.prefetch(video.watchUrl, next.item.sourceId)
+                }
+            },
+            scope = applicationScope,
+        ).start()
         ExpiredStreamRecovery(
             failures = playbackController.streamFailures,
             replay = playbackQueue::replayCurrent,
@@ -491,6 +504,14 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
             put("settings.autoDownloadWifiOnly", settings.autoDownloadWifiOnly.toString())
             put("settings.wifiMaxHeight", settings.wifiMaxHeight.toString())
             put("settings.cellularMaxHeight", settings.cellularMaxHeight.toString())
+        }
+        runCatching {
+            // The account's subscription list, because "it offered me Subscribe to a channel I
+            // follow" is unanswerable without knowing how many channels the app thinks it has.
+            val subs = accountSubscriptions.channels.value
+            put("account.signedIn", accountSubscriptions.signedIn.value.toString())
+            put("account.subscriptions", subs.size.toString())
+            put("account.subscriptionTitles", subs.joinToString(" | ") { it.title })
         }
         runCatching { put("network.metered", networkStatus.isMetered().toString()) }
     }

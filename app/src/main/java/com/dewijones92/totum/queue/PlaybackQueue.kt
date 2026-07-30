@@ -7,6 +7,7 @@ import com.dewijones92.totum.data.queue.QueueSnapshot
 import com.dewijones92.totum.data.queue.QueueSnapshot.Companion.NOTHING_PLAYING
 import com.dewijones92.totum.data.queue.QueueStore
 import com.dewijones92.totum.data.queue.fake.InMemoryQueueStore
+import com.dewijones92.totum.domain.MediaItemId
 import com.dewijones92.totum.domain.MediaKind
 import com.dewijones92.totum.domain.PlayHandle
 import com.dewijones92.totum.domain.PlayableItem
@@ -245,10 +246,7 @@ class PlaybackQueue(
     suspend fun playNextInQueue(): Boolean {
         val snapshot = _state.value
         val playingId = _nowPlaying.value?.item?.id
-        val from = playingId
-            ?.let { id -> snapshot.entries.indexOfFirst { it.item.item.id == id } }
-            ?.takeIf { it >= 0 }
-            ?: snapshot.currentIndex
+        val from = advanceFrom(snapshot, playingId)
         var index = from + 1
         if (index > snapshot.entries.lastIndex) {
             Diag.log("queue", "nothing after ${playingId?.value ?: "cursor $from"} of ${snapshot.entries.size}")
@@ -264,6 +262,33 @@ class PlaybackQueue(
         Diag.log("queue", "nothing playable after index $from")
         return false
     }
+
+    /**
+     * What playing on would start, without starting it — so the next item can be resolved
+     * BEFORE it is needed.
+     *
+     * Shares [advanceFrom] with the advance itself rather than re-deriving "next", because two
+     * definitions of the same thing is precisely the bug that made a finished video replay
+     * itself: one place asked the cursor, the other asked what was playing.
+     */
+    fun peekNext(): PlayableItem? {
+        val snapshot = _state.value
+        val playingId = _nowPlaying.value?.item?.id
+        return snapshot.entries
+            .drop(advanceFrom(snapshot, playingId) + 1)
+            .firstOrNull { it.item.item.id != playingId }
+            ?.item
+    }
+
+    /**
+     * The index advancing counts from: where the PLAYING item sits, falling back to the cursor
+     * when what is playing is not a queue member at all.
+     */
+    private fun advanceFrom(snapshot: QueueSnapshot, playingId: MediaItemId?): Int =
+        playingId
+            ?.let { id -> snapshot.entries.indexOfFirst { it.item.item.id == id } }
+            ?.takeIf { it >= 0 }
+            ?: snapshot.currentIndex
 
     /** Moves the cursor to [index] and plays it; false when out of range or unplayable. */
     private suspend fun playAt(index: Int): Boolean {

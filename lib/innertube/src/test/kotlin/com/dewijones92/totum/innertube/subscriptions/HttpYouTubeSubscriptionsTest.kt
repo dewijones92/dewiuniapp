@@ -66,6 +66,53 @@ class HttpYouTubeSubscriptionsTest {
         assertTrue(subscriptions().list() is SubscriptionsResult.Failure)
     }
 
+    @Test
+    fun `follows continuations to the end of the grid`() = runBlocking {
+        server.enqueue(page("UCone", "One", continuation = "page2"))
+        server.enqueue(page("UCtwo", "Two", continuation = "page3"))
+        server.enqueue(page("UCthree", "Three", continuation = null))
+
+        val result = subscriptions().list()
+
+        assertEquals(
+            listOf("UCone", "UCtwo", "UCthree"),
+            (result as SubscriptionsResult.Success).channels.map { it.channelId },
+        )
+        assertEquals(3, server.requestCount)
+    }
+
+    @Test
+    fun `a channel seen on both pages is listed once`() = runBlocking {
+        server.enqueue(page("UCone", "One", continuation = "page2"))
+        server.enqueue(page("UCone", "One", continuation = null))
+
+        val result = subscriptions().list()
+
+        assertEquals(1, (result as SubscriptionsResult.Success).channels.size)
+    }
+
+    @Test
+    fun `keeps the pages that worked when a later one fails`() = runBlocking {
+        server.enqueue(page("UCone", "One", continuation = "page2"))
+        server.enqueue(MockResponse.Builder().code(500).body("").build())
+
+        val result = subscriptions().list()
+
+        assertEquals("UCone", (result as SubscriptionsResult.Success).channels.single().channelId)
+    }
+
+    private fun page(channelId: String, title: String, continuation: String?): MockResponse {
+        val tile = """{"tileRenderer":{"contentType":"TILE_CONTENT_TYPE_CHANNEL",""" +
+            """"onSelectCommand":{"browseEndpoint":{"browseId":"$channelId"}},""" +
+            """"metadata":{"tileMetadataRenderer":{"title":{"simpleText":"$title"}}}}}"""
+        val more = continuation?.let {
+            ""","continuations":[{"nextContinuationData":{"continuation":"$it"}}]"""
+        }.orEmpty()
+        return MockResponse.Builder().code(200)
+            .body("""{"contents":{"tvBrowseRenderer":{"content":{"items":[$tile]$more}}}}""")
+            .build()
+    }
+
     private companion object {
         val TOKENS = OAuthTokens(AccessToken("at"), RefreshToken("rt"), expiresAtEpochSeconds = 3_600)
     }

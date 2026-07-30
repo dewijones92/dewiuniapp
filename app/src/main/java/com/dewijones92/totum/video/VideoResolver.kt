@@ -25,7 +25,20 @@ class VideoResolver(
     private val skipSegments: SkipSegmentSource,
     /** Keeps undecodable streams out of the quality ladder (see [VideoCodecSupport]). */
     private val codecSupport: VideoCodecSupport = VideoCodecSupport.Permissive,
+    private val now: () -> Long = System::currentTimeMillis,
 ) {
+    /**
+     * One recently-resolved video, so playing the next queue item does not wait on yt-dlp.
+     *
+     * Extraction measured 7.2 SECONDS on a real device, and because videos resolve
+     * just-in-time that was seven seconds of silence between every track. Prefetching only
+     * helps if the answer survives to be used, hence this.
+     *
+     * Exactly one entry: what is being prefetched is the ONE item playing next, and a larger
+     * cache would hold URLs long enough to expire — which is the failure this must not cause.
+     */
+    private var cached: Pair<HttpUrl, Resolved>? = null
+    private var cachedAt = 0L
     data class Resolved(
         val item: MediaItem,
         val skipSegments: List<SkipSegment>,
@@ -49,7 +62,12 @@ class VideoResolver(
      * problem.
      */
     suspend fun resolve(watchUrl: HttpUrl, sourceId: SourceId): Resolved? {
-        val startedAt = System.currentTimeMillis()
+        cached?.takeIf { it.first == watchUrl && now() - cachedAt < CACHE_TTL_MS }?.let { (_, hit) ->
+            cached = null
+            Diag.log("resolve", "cache hit for ${watchUrl.value.takeLast(ID_CHARS)}, skipped extraction")
+            return hit
+        }
+        val startedAt = now()
         val extraction = engine.extract(watchUrl)
         val metadata = (extraction as? ExtractionResult.Success)?.metadata ?: run {
             Vitals.add("resolve.extractFailures")
@@ -70,11 +88,11 @@ class VideoResolver(
         Vitals.add("resolve.successes")
         Diag.log(
             "resolve",
-            "${metadata.id} in ${System.currentTimeMillis() - startedAt}ms — " +
+            "${metadata.id} in ${now() - startedAt}ms — " +
                 "${qualities.size} qualities, ${metadata.subtitles.size} subtitle tracks, " +
                 "audioOnly=${metadata.bestAudioUrl() != null}",
         )
-        return Resolved(
+        val resolved = Resolved(
             item = MediaItem(
                 id = MediaItemId(metadata.id),
                 sourceId = sourceId,
@@ -98,5 +116,37 @@ class VideoResolver(
             watchtimeTrackingUrl = metadata.watchtimeTrackingUrl,
             subtitles = metadata.subtitles,
         )
+        return resolved
+    }
+
+    /**
+     * Resolves [watchUrl] and keeps the answer for the next [resolve] of the same URL.
+     *
+     * Called shortly before the current item ends, so the seven seconds of extraction happen
+     * while something is still playing rather than in the silence afterwards. Failure is
+     * deliberately swallowed: a prefetch that does not work must cost nothing, and the real
+     * resolve will run and report properly when the item is actually needed.
+     */
+    suspend fun prefetch(watchUrl: HttpUrl, sourceId: SourceId) {
+        if (cached?.first == watchUrl && now() - cachedAt < CACHE_TTL_MS) return
+        Diag.log("resolve", "prefetching ${watchUrl.value.takeLast(ID_CHARS)}")
+        val resolved = runCatching { resolve(watchUrl, sourceId) }.getOrNull() ?: run {
+            Diag.log("resolve", "prefetch produced nothing; the real resolve will try again")
+            return
+        }
+        cached = watchUrl to resolved
+        cachedAt = now()
+    }
+
+    private companion object {
+        /**
+         * Far below a signed URL's lifetime. A prefetch is used within a minute or two, so this
+         * only has to outlive that — holding one longer risks handing back a URL that has already
+         * expired, which is a worse failure than the wait it saves.
+         */
+        const val CACHE_TTL_MS = 10 * 60 * 1000L
+
+        /** Enough of a watch URL to recognise the video in a log line. */
+        const val ID_CHARS = 11
     }
 }

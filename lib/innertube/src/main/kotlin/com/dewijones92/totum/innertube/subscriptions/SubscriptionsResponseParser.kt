@@ -1,6 +1,8 @@
 package com.dewijones92.totum.innertube.subscriptions
 
 import com.dewijones92.totum.common.HttpUrl
+import com.dewijones92.totum.common.PageToken
+import com.dewijones92.totum.innertube.browse.Continuations
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -22,14 +24,20 @@ internal object SubscriptionsResponseParser {
     private const val CHANNEL_CONTENT_TYPE = "TILE_CONTENT_TYPE_CHANNEL"
     private val json = Json { ignoreUnknownKeys = true }
 
-    fun parse(body: String): SubscriptionsResult {
-        val root = runCatching { json.parseToJsonElement(body) }.getOrNull()
-            ?: return SubscriptionsResult.Failure("Unparseable subscriptions response")
+    /** One page's channels plus where the next page starts, or null when there is no more. */
+    data class Page(val channels: List<SubscribedChannel>, val next: PageToken?)
+
+    fun parse(body: String): SubscriptionsResult =
+        parsePage(body)?.let { SubscriptionsResult.Success(it.channels) }
+            ?: SubscriptionsResult.Failure("Unparseable subscriptions response")
+
+    fun parsePage(body: String): Page? {
+        val root = runCatching { json.parseToJsonElement(body) }.getOrNull() ?: return null
         val channels = LinkedHashMap<String, SubscribedChannel>()
         collectChannelTiles(root) { tile ->
             tile.toSubscribedChannel()?.let { channels.putIfAbsent(it.channelId, it) }
         }
-        return SubscriptionsResult.Success(channels.values.toList())
+        return Page(channels.values.toList(), Continuations.find(root))
     }
 
     private fun collectChannelTiles(node: JsonElement, onTile: (JsonObject) -> Unit) {

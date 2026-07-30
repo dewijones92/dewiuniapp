@@ -128,11 +128,30 @@ class ChannelViewModel(
             // canonical /channel/UC… URL while a channel opened from a video row or a search hit
             // carries whatever form that source used, so string equality reported "not subscribed"
             // for channels Dewi was plainly subscribed to.
-            subscribed = subs.containsChannel(source, channelId ?: c.resolvedChannelId),
+            subscribed = subs.subscribedTo(c),
             downloadStates = downloadStates,
             resolving = c.resolving,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), UiState(source.title))
+
+    /**
+     * Logged, not just returned. "It offered me Subscribe to a channel I follow" has three
+     * possible causes that look identical on screen — the id never resolved, the account list
+     * is short, or the two ids genuinely differ — and only the values tell them apart. Logged
+     * on change alone, since this recomputes on every download tick.
+     */
+    private fun List<MediaSource.VideoChannel>.subscribedTo(c: Content): Boolean {
+        val id = channelId ?: c.resolvedChannelId
+        val answer = containsChannel(source, id)
+        val decision = "${source.title} id=${id ?: "unresolved"} in $size subs -> $answer"
+        if (decision != lastSubscribedDecision) {
+            lastSubscribedDecision = decision
+            Diag.log("channel", "subscribed? $decision")
+        }
+        return answer
+    }
+
+    private var lastSubscribedDecision: String? = null
 
     init {
         loadVideos()
