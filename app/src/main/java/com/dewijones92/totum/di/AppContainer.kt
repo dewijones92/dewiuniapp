@@ -17,6 +17,7 @@ import com.dewijones92.totum.data.download.DownloadManager
 import com.dewijones92.totum.data.download.EngineDownloadStrategy
 import com.dewijones92.totum.data.download.HttpDownloadStrategy
 import com.dewijones92.totum.data.download.RoutedDownloadStrategy
+import com.dewijones92.totum.data.group.SourceGroupStore
 import com.dewijones92.totum.data.history.PlayHistoryStore
 import com.dewijones92.totum.data.importexport.OpmlExporter
 import com.dewijones92.totum.data.importexport.SubscriptionImportParser
@@ -40,6 +41,7 @@ import com.dewijones92.totum.database.RoomLocalPlaylistStore
 import com.dewijones92.totum.database.RoomPlayHistoryStore
 import com.dewijones92.totum.database.RoomPlaybackProgressStore
 import com.dewijones92.totum.database.RoomQueueStore
+import com.dewijones92.totum.database.RoomSourceGroupStore
 import com.dewijones92.totum.database.RoomSubscriptionStore
 import com.dewijones92.totum.database.TotumDatabase
 import com.dewijones92.totum.diagnostics.ActivitySnapshotter
@@ -139,6 +141,9 @@ interface AppContainer {
     fun freeDownloadSpaceBytes(): Long?
     val videoResolver: VideoResolver
     val videoPlaybackLauncher: VideoPlaybackLauncher
+
+    /** Named groups of sources, read as one merged feed. */
+    val sourceGroupStore: SourceGroupStore
 
     /** Sleep timer that pauses playback after a chosen delay. */
     val sleepTimer: SleepTimer
@@ -361,6 +366,10 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
             ),
             scope = applicationScope,
         )
+    }
+
+    override val sourceGroupStore: SourceGroupStore by lazy {
+        RoomSourceGroupStore(database.sourceGroupDao())
     }
 
     override val videoResolver: VideoResolver by lazy {

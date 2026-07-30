@@ -17,8 +17,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         LocalPlaylistItemEntity::class,
         PlayHistoryEntity::class,
         QueueEntity::class,
+        SourceGroupEntity::class,
+        SourceGroupMemberEntity::class,
     ],
-    version = 14,
+    version = 15,
     exportSchema = false,
 )
 public abstract class TotumDatabase : RoomDatabase() {
@@ -34,6 +36,8 @@ public abstract class TotumDatabase : RoomDatabase() {
     public abstract fun playHistoryDao(): PlayHistoryDao
 
     public abstract fun queueDao(): QueueDao
+
+    public abstract fun sourceGroupDao(): SourceGroupDao
 
     public companion object {
         public fun build(context: Context): TotumDatabase =
@@ -57,7 +61,31 @@ public abstract class TotumDatabase : RoomDatabase() {
                 MIGRATION_11_12,
                 MIGRATION_12_13,
                 MIGRATION_13_14,
+                MIGRATION_14_15,
             )
+
+        /**
+         * v15: named groups of sources, read as one merged feed. Purely additive — two new
+         * tables, nothing existing touched — so there is no backfill to get wrong.
+         */
+        private val MIGRATION_14_15 = object : Migration(14, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS source_groups (" +
+                        "id TEXT NOT NULL PRIMARY KEY, name TEXT NOT NULL, createdAtEpochMs INTEGER NOT NULL)",
+                )
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS source_group_members (" +
+                        "groupId TEXT NOT NULL, sourceId TEXT NOT NULL, position INTEGER NOT NULL, " +
+                        "PRIMARY KEY(groupId, sourceId), " +
+                        "FOREIGN KEY(groupId) REFERENCES source_groups(id) ON DELETE CASCADE)",
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_source_group_members_groupId " +
+                        "ON source_group_members(groupId)",
+                )
+            }
+        }
 
         /**
          * v14: a download record carries the item it is for, on the same denormalized
