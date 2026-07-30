@@ -7,43 +7,61 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
 
 /**
- * The badge labels on a tile — "4K", "New", "Members only", "Verified".
+ * The badges on a tile — "4K", "New", "Members only" — across every shape YouTube uses.
  *
- * One reader for every shape, because the three tile parsers each guessed a different one
- * and two of them guessed wrong. Checked against live responses on 2026-07-30:
+ * One reader, because the three tile parsers each guessed a different shape and each
+ * guessed differently wrong. Verified against live responses on 2026-07-30:
  *
- * - TV tiles put badges at `lineItemRenderer.badge.metadataBadgeRenderer.label` — the
- *   subscriptions feed carries `"label": "4K"` there. [VideoTileParser] was reading
- *   `lineItemRenderer.text` instead, so it could never see one.
- * - WEB search uses the same `metadataBadgeRenderer.label`, nested differently.
- * - Channel-tab lockups carry no `badgeViewModel` at all — the key [LockupParser] matched
- *   on appears in exactly zero real responses, and in none of the captured fixtures.
+ * - **Channel lockups**: `badges[].badgeViewModel` with the text in `badgeText` and a style
+ *   in `badgeStyle`. This is where "Members only" actually lives (The Rest Is Politics'
+ *   Videos tab carries seven, signed out).
+ * - **TV tiles**: `lineItemRenderer.badge.metadataBadgeRenderer` with the text in `label` —
+ *   the subscriptions feed carries "4K" there. A different key AND a different field.
+ * - **WEB search**: `metadataBadgeRenderer.label` again, nested differently.
  *
- * So: walk the subtree and take every `metadataBadgeRenderer.label`, which is where YouTube
- * puts badge TEXT in every shape seen. Position-independent for the usual reason — YouTube
- * reshuffles, and a path-based read fails silently rather than loudly.
+ * [membersOnly] keys on the STYLE, not the words. `BADGE_MEMBERS_ONLY` is a constant;
+ * "Members only" is English, and YouTube localises badge text. The text match stays as a
+ * fallback for any shape that omits the style.
  */
 public object Badges {
 
-    public fun labelsIn(node: JsonElement): List<String> {
-        val labels = mutableListOf<String>()
-        walk(node, labels)
-        return labels
+    private const val MEMBERS_ONLY_STYLE = "BADGE_MEMBERS_ONLY"
+
+    /** Every badge's visible text, whichever renderer carries it. */
+    public fun labelsIn(node: JsonElement): List<String> = collect(node) { badge ->
+        badge.stringAt("badgeText") ?: badge.stringAt("label")
     }
 
-    private fun walk(node: JsonElement, into: MutableList<String>) {
+    /** Whether this tile is behind a channel membership. */
+    public fun membersOnly(node: JsonElement): Boolean {
+        val styles = collect(node) { it.stringAt("badgeStyle") ?: it.stringAt("style") }
+        return MEMBERS_ONLY_STYLE in styles || labelsIn(node).any { it.contains("members", ignoreCase = true) }
+    }
+
+    private fun collect(node: JsonElement, from: (JsonObject) -> String?): List<String> {
+        val found = mutableListOf<String>()
+        walk(node, from, found)
+        return found
+    }
+
+    private fun walk(node: JsonElement, from: (JsonObject) -> String?, into: MutableList<String>) {
         when (node) {
             is JsonObject -> {
-                (node["metadataBadgeRenderer"] as? JsonObject)
-                    ?.get("label")
-                    ?.jsonPrimitive
-                    ?.contentOrNull
-                    ?.ifBlank { null }
-                    ?.let(into::add)
-                node.values.forEach { walk(it, into) }
+                BADGE_KEYS.forEach { key -> (node[key] as? JsonObject)?.let(from)?.let(into::add) }
+                node.values.forEach { walk(it, from, into) }
             }
-            is JsonArray -> node.forEach { walk(it, into) }
+            is JsonArray -> node.forEach { walk(it, from, into) }
             else -> Unit
         }
     }
+
+    /**
+     * `thumbnailBadgeViewModel` is deliberately absent: it carries the duration and the LIVE
+     * marker, which are read elsewhere and would otherwise turn every video's length into a
+     * "badge".
+     */
+    private val BADGE_KEYS = listOf("badgeViewModel", "metadataBadgeRenderer")
+
+    private fun JsonObject.stringAt(key: String): String? =
+        this[key]?.jsonPrimitive?.contentOrNull?.ifBlank { null }
 }

@@ -29,9 +29,3 @@ internal fun String.looksLikePublished(): Boolean = PUBLISHED_HINT.containsMatch
 private val VIEWS_HINT = Regex("""\bviews?\b|\bwatching\b""", RegexOption.IGNORE_CASE)
 
 internal fun String.looksLikeViews(): Boolean = VIEWS_HINT.containsMatchIn(this)
-
-// A membership badge: "Members only", "Members first". Same reasoning — matched by text,
-// since the badge renderers differ between the lockup and classic tile shapes.
-private val MEMBERS_HINT = Regex("""\bmembers\b""", RegexOption.IGNORE_CASE)
-
-internal fun String.looksLikeMembers(): Boolean = MEMBERS_HINT.containsMatchIn(this)

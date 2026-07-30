@@ -106,7 +106,7 @@ internal object LockupParser {
             },
             publishedText = metadata.publishedText(),
             viewsText = metadata.viewsText(),
-            membersOnly = Badges.labelsIn(this).any { it.looksLikeMembers() },
+            membersOnly = Badges.membersOnly(this),
         )
     }
 

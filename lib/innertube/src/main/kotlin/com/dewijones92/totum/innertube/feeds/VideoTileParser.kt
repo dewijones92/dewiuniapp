@@ -67,7 +67,7 @@ internal object VideoTileParser {
             },
             publishedText = metadata.metadataLine { it.looksLikePublished() },
             viewsText = metadata.metadataLine { it.looksLikeViews() },
-            membersOnly = Badges.labelsIn(this).any { it.looksLikeMembers() },
+            membersOnly = Badges.membersOnly(this),
         )
     }
 

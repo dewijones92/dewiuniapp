@@ -3,7 +3,6 @@ package com.dewijones92.totum.innertube.search
 import com.dewijones92.totum.common.HttpUrl
 import com.dewijones92.totum.innertube.browse.Badges
 import com.dewijones92.totum.innertube.feeds.FeedVideo
-import com.dewijones92.totum.innertube.feeds.looksLikeMembers
 import com.dewijones92.totum.innertube.feeds.parseClockToSeconds
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -56,7 +55,7 @@ internal object SearchResultsParser {
             thumbnailUrl = bestThumbnailUrl(),
             watchUrl = watchUrl,
             viewsText = textAt("shortViewCountText") ?: textAt("viewCountText"),
-            membersOnly = Badges.labelsIn(this).any { it.looksLikeMembers() },
+            membersOnly = Badges.membersOnly(this),
         )
     }
 

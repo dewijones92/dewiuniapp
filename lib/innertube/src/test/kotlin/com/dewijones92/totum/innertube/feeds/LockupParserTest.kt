@@ -41,6 +41,42 @@ class LockupParserTest {
         assertEquals(emptyList<String>(), authorsThatAreReallyViews)
     }
 
+    /**
+     * The gap this feature had until now: a REAL "Members only" badge, from a live channel
+     * tab (The Rest Is Politics, captured signed out 2026-07-30). Everything before this was
+     * tested against a shape I had assumed.
+     */
+    @Test
+    fun `members-only videos are flagged from a real channel tab`() {
+        val videos = LockupParser.videos(fixture("channel_members_only_web_sample.json")).items
+        val members = videos.filter { it.membersOnly }
+
+        // Exact, because the fixture is frozen: 18 of the 30 videos on this tab are member cuts.
+        // (That members OUTNUMBER public videos here is real — it is how the channel posts —
+        // and an assertion that assumed otherwise is what caught my own wrong guess.)
+        assertEquals(18, members.size)
+        assertEquals(12, videos.count { !it.membersOnly })
+
+        // Two of the three videos that sat failing to download in a real queue for days,
+        // logged only as "Join this channel to get access". They were members-only all
+        // along, and nothing in the app said so. Now they arrive flagged.
+        val flagged = members.map { it.title }
+        assertTrue(
+            "expected the queue's stuck downloads among them: $flagged",
+            flagged.any { it.startsWith("AD FREE | Education, Education") } &&
+                flagged.any { it.startsWith("Britain's Ticking Time Bomb") },
+        )
+    }
+
+    @Test
+    fun `a duration badge is not mistaken for a membership`() {
+        // thumbnailBadgeViewModel carries the length and the LIVE marker; reading it as a
+        // badge would flag every video on the channel.
+        val videos = LockupParser.videos(fixture("channel_videos_web_sample.json")).items
+
+        assertEquals(emptyList<String>(), videos.filter { it.membersOnly }.map { it.title })
+    }
+
     @Test
     fun `channel Shorts tab parses and tags SHORT`() {
         val shorts = LockupParser.shorts(fixture("channel_shorts_web_sample.json")).items
