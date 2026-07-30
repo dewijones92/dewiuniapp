@@ -25,6 +25,11 @@ class VideoResolver(
     private val skipSegments: SkipSegmentSource,
     /** Keeps undecodable streams out of the quality ladder (see [VideoCodecSupport]). */
     private val codecSupport: VideoCodecSupport = VideoCodecSupport.Permissive,
+    /**
+     * Asked only when yt-dlp comes back with a degraded ladder — see [betterQualities].
+     * Null disables the fallback entirely, which is what tests and previews want.
+     */
+    private val playerStreams: PlayerStreams? = null,
     private val now: () -> Long = System::currentTimeMillis,
 ) {
     /**
@@ -84,8 +89,7 @@ class VideoResolver(
             )
             return null
         }
-        val qualities = metadata.videoQualities(codecSupport)
-        reportIfDegraded(metadata.id, qualities)
+        val qualities = betterQualities(metadata.id, metadata.videoQualities(codecSupport))
         Vitals.add("resolve.successes")
         Diag.log(
             "resolve",
@@ -118,6 +122,40 @@ class VideoResolver(
             subtitles = metadata.subtitles,
         )
         return resolved
+    }
+
+    /**
+     * Replaces a degraded ladder with a better one, when YouTube will give us one.
+     *
+     * A single 360p quality is the signature of yt-dlp having lost the rest: it has
+     * deprecated extraction without a JavaScript runtime, and Chaquopy cannot give it one,
+     * so on a phone it quietly drops formats. Asking `/player` ourselves as the ANDROID
+     * client gets them back — 32 formats to 1080p where yt-dlp offered one at 360p, with no
+     * `n` parameter to decipher and so no runtime implied. Proven on the same video from
+     * which yt-dlp on a laptop WITH node also gets the full ladder, which is what identified
+     * the missing runtime as the cause.
+     *
+     * Only on the degraded case, deliberately. yt-dlp handles a great deal this does not —
+     * age gates, region locks, signature ciphers, non-YouTube sources — so it stays the
+     * primary and this is the second opinion, asked when the first is visibly poor.
+     */
+    private suspend fun betterQualities(id: String, qualities: List<VideoQuality>): List<VideoQuality> {
+        val fallback = playerStreams ?: return qualities.also { reportIfDegraded(id, it) }
+        val best = qualities.maxOfOrNull { it.height } ?: 0
+        if (qualities.size > 1 || best > DEGRADED_HEIGHT) return qualities
+        Diag.log("resolve", "$id offered one quality at ${best}p — asking YouTube directly")
+
+        val streams = fallback.streamsFor(id) ?: return qualities.also { reportIfDegraded(id, it) }
+        val better = streams.videoQualities()
+        val betterBest = better.maxOfOrNull { it.height } ?: 0
+        if (betterBest <= best) {
+            Diag.log("resolve", "$id: the direct ask offered no better (${betterBest}p) — keeping yt-dlp's")
+            reportIfDegraded(id, qualities)
+            return qualities
+        }
+        Vitals.add("resolve.playerFallbackWins")
+        Diag.log("resolve", "$id: direct ask gave ${better.size} qualities to ${betterBest}p, up from ${best}p")
+        return better
     }
 
     /**

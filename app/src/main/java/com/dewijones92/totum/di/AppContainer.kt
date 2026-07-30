@@ -99,6 +99,7 @@ import com.dewijones92.totum.settings.PlaybackMode
 import com.dewijones92.totum.settings.SharedPrefsAppPreferences
 import com.dewijones92.totum.ui.common.toMediaItem
 import com.dewijones92.totum.video.AccountSubscriptions
+import com.dewijones92.totum.video.InnerTubePlayerStreams
 import com.dewijones92.totum.video.PlatformVideoCodecSupport
 import com.dewijones92.totum.video.VideoPlaybackLauncher
 import com.dewijones92.totum.video.VideoResolver
@@ -380,7 +381,13 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
     }
 
     override val videoResolver: VideoResolver by lazy {
-        VideoResolver(ytDlpEngine, skipSegmentSource, PlatformVideoCodecSupport())
+        VideoResolver(
+            ytDlpEngine,
+            skipSegmentSource,
+            PlatformVideoCodecSupport(),
+            // The second opinion, asked only when yt-dlp's ladder comes back degraded.
+            playerStreams = InnerTubePlayerStreams(innerTubeClient),
+        )
     }
 
     override val sleepTimer: SleepTimer by lazy {

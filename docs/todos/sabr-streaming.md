@@ -1,48 +1,57 @@
 ---
-title: SABR streaming (kids videos stuck at 360p)
+title: yt-dlp needs a JavaScript runtime (kids videos were stuck at 360p)
 kind: todo
 area: video
 priority: medium
-status: open
+status: partly shipped
 updated: 2026-07-30
 ---
 
-# SABR-only formats
+# The 360p problem, and what it actually was
 
-Made-for-kids videos (Ms Rachel and everything like her) play at **360p only**, while
-SmartTube plays the same videos at full quality. Dewi spotted the discrepancy, and it is
-real — 360p is not what YouTube has, it is what yt-dlp can currently reach.
+Made-for-kids videos (Ms Rachel) played at 360p while SmartTube played them properly.
 
-## What is actually happening
+**It was never SABR, and never a YouTube policy.** An earlier version of this document
+recommended implementing YouTube's SABR/UMP protocol, a multi-week project. That was wrong.
+Dewi asked the obvious question — "you sure the yt-dlp CLI can't play 1080p?" — and the CLI
+answered it:
 
-Measured 2026-07-30 against yt-dlp 2026.07.04 (which IS the newest on PyPI):
+    WARNING: No supported JavaScript runtime could be found. Only deno is enabled by
+    default ... YouTube extraction without a JS runtime has been deprecated, and some
+    formats may be missing
 
-- Only the `android` player client returns any usable stream: format 18, 360p progressive.
-- The higher formats **are in the player response** but carry no URL. yt-dlp says so:
-  *"Some android client https formats have been skipped as they are missing a URL. YouTube
-  may have enabled the SABR-only streaming experiment"* — [yt-dlp#12482].
-- Ruled out, each tested rather than assumed: every one of the 12 player clients (none
-  beat 360p); cookies exported from a signed-in browser (made it worse — the authenticated
-  web client is fully SABR); `formats=missing_pot`; a newer yt-dlp (there isn't one).
+With `--js-runtimes node`, the same yt-dlp returns the full ladder to 1080p (avc1, vp9 and
+av01). Without one it returns a single 360p stream. **Chaquopy cannot provide a JS runtime,
+so the app is permanently in the degraded case.**
 
-Ordinary videos are unaffected — they still resolve to 1080p+ ladders.
+## Shipped: a second opinion that needs no JS
 
-## Why SmartTube manages it
+`PlayerStreams` / `InnerTubePlayerStreams` asks YouTube's `/player` directly as the ANDROID
+client, and `VideoResolver` uses it **only when yt-dlp comes back with a single quality at
+360p**. Measured 2026-07-30:
 
-SmartTube is a full InnerTube client: it speaks YouTube's own streaming protocol (SABR/UMP)
-rather than extracting a plain URL and handing it to a player. That is the difference, and
-it is a project rather than a flag.
+| video | our `/player` call | app's yt-dlp (no JS) |
+|---|---|---|
+| kids (Ms Rachel) | 32/32 urls, 1080p | 1 format, 360p |
+| normal (Fireship) | 32/32 urls, 1080p | 23 formats, 1080p |
+| music video | 30/30 urls, 2160p | 27 formats, 2160p |
 
-## Options, none of them small
+Those URLs carry no `n` parameter, so nothing needs deciphering and no runtime is implied —
+which is exactly why this works on a phone where yt-dlp cannot. Verified end to end: a
+ranged GET returns HTTP 206 at ~29 MB/s, and on-device the resolver logs
+`direct ask gave 6 qualities to 1080p, up from 360p`.
 
-1. **Implement SABR/UMP in `:lib:innertube`.** We already own an InnerTube layer with TV
-   OAuth, which is the hard half of what SmartTube has. Needs the UMP protobuf framing and
-   a Media3 `DataSource` that speaks it. Biggest job, best outcome, and would also protect
-   us when YouTube widens SABR beyond kids content — which is the way this is trending.
-2. **PO token provider.** Restores URLs for web clients. Needs BotGuard JS execution, which
-   Chaquopy cannot do — it would mean shipping a JS runtime or calling out to a server.
-3. **Leave it.** Kids content plays at 360p; everything else is unaffected.
+Deliberately a fallback, not a replacement: yt-dlp handles age gates, region locks,
+signature ciphers and non-YouTube sources that this does not.
 
-Worth deciding before YouTube extends the experiment, not after.
+## Open: ship QuickJS, so yt-dlp itself works properly
 
-[yt-dlp#12482]: https://github.com/yt-dlp/yt-dlp/issues/12482
+yt-dlp supports `deno`, `node`, `quickjs`, `bun`, and looks for quickjs as a binary named
+`qjs` at a path we can supply. That is **the machinery we already have for ffmpeg**: build a
+static binary, ship it in `jniLibs` as a `.so`, expose it under `nativeLibraryDir` (the only
+executable location under Android 14 W^X) and pass the path.
+
+QuickJS is around a megabyte, against ffmpeg's seven. It would fix yt-dlp broadly rather
+than one symptom — including `n`-parameter deciphering, which otherwise throttles downloads
+— and it is insurance for the next thing YouTube changes, since yt-dlp has now deprecated
+running without it.
