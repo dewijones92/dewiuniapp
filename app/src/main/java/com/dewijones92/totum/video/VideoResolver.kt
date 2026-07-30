@@ -33,7 +33,7 @@ class VideoResolver(
     private val now: () -> Long = System::currentTimeMillis,
 ) {
     /**
-     * One recently-resolved video, so playing the next queue item does not wait on yt-dlp.
+     * The most recently resolved video, reused until it goes stale.
      *
      * Extraction measured 7.2 SECONDS on a real device, and because videos resolve
      * just-in-time that was seven seconds of silence between every track. Prefetching only
@@ -41,6 +41,8 @@ class VideoResolver(
      *
      * Exactly one entry: what is being prefetched is the ONE item playing next, and a larger
      * cache would hold URLs long enough to expire — which is the failure this must not cause.
+     * The single entry is also why the TTL stays short: a stale URL 403s, and
+     * ExpiredStreamRecovery only re-resolves, so serving one from here would loop.
      */
     private var cached: Pair<HttpUrl, Resolved>? = null
     private var cachedAt = 0L
@@ -68,7 +70,11 @@ class VideoResolver(
      */
     suspend fun resolve(watchUrl: HttpUrl, sourceId: SourceId): Resolved? {
         cached?.takeIf { it.first == watchUrl && now() - cachedAt < CACHE_TTL_MS }?.let { (_, hit) ->
-            cached = null
+            // Kept, not consumed. It used to be cleared on first use, which was right when an
+            // extraction cost ~1.7s and the cache existed only to hand a prefetched result to
+            // the next play. With a JS runtime an extraction costs 10-14s on a real phone, so
+            // every replay, seek-triggered re-resolve and quality change was paying it again:
+            // one video was extracted FOUR times in 30 seconds on Dewi's Pixel.
             Diag.log("resolve", "cache hit for ${watchUrl.value.takeLast(ID_CHARS)}, skipped extraction")
             return hit
         }
@@ -121,6 +127,11 @@ class VideoResolver(
             watchtimeTrackingUrl = metadata.watchtimeTrackingUrl,
             subtitles = metadata.subtitles,
         )
+        // Remembered on EVERY resolve, not only when prefetched: a replay, a seek that
+        // forces a re-resolve or a quality change all ask for the same video again, and each
+        // one used to pay the full extraction.
+        cached = watchUrl to resolved
+        cachedAt = now()
         return resolved
     }
 
