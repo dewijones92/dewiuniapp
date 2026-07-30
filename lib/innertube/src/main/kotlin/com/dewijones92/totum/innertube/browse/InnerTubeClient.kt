@@ -23,17 +23,37 @@ import java.io.IOException
  *
  * Both go through one [execute] so the HTTP + error mapping lives in one place.
  */
+// The count is InnerTube's endpoint surface — browse, next, search, player, the write
+// actions — plus three small body builders. Splitting it would scatter the one place that
+// knows how to talk to InnerTube, which is the point of the class.
+@Suppress("TooManyFunctions")
 public class InnerTubeClient(
     private val client: OkHttpClient,
     private val browseUrl: String = BROWSE_URL,
     private val nextUrl: String = NEXT_URL,
     private val searchUrl: String = SEARCH_URL,
+    private val playerUrl: String = PLAYER_URL,
     private val tvClientVersion: String = TV_CLIENT_VERSION,
     private val webClientVersion: String = WEB_CLIENT_VERSION,
+    private val androidClientVersion: String = ANDROID_CLIENT_VERSION,
 ) {
 
     public suspend fun browse(target: BrowseTarget, accessToken: AccessToken): InnerTubeResponse =
         execute(browseUrl, tvContext(target.fields()), accessToken)
+
+    /**
+     * A video's streaming data, as the ANDROID client.
+     *
+     * That client specifically, because it is the only one YouTube still serves playable
+     * streams to for restricted content — measured across all twelve of yt-dlp's clients on
+     * 2026-07-30. It is also the response that carries `serverAbrStreamingUrl`, which is how
+     * the formats WITHOUT a plain URL are fetched (see docs/todos/sabr-streaming.md).
+     *
+     * Unauthenticated: the TV client refuses with "Sign in to confirm you're not a bot"
+     * unless it can present a full session, which a bearer token alone is not.
+     */
+    public suspend fun player(videoId: String): InnerTubeResponse =
+        execute(playerUrl, androidContext(videoId), bearer = null)
 
     /** Watch-page data for a video (WEB client, no auth). */
     public suspend fun next(videoId: String): InnerTubeResponse =
@@ -65,8 +85,17 @@ public class InnerTubeClient(
     private fun tvContext(fields: String): String =
         """{"context":{"client":{"clientName":"TVHTML5","clientVersion":"$tvClientVersion"}},$fields}"""
 
+    private fun androidContext(videoId: String): String =
+        clientContext(
+            """"clientName":"ANDROID","clientVersion":"$androidClientVersion","androidSdkVersion":34,"hl":"en"""",
+            """"videoId":"$videoId","contentCheckOk":true,"racyCheckOk":true""",
+        )
+
     private fun webContext(field: String): String =
-        """{"context":{"client":{"clientName":"WEB","clientVersion":"$webClientVersion"}},$field}"""
+        clientContext(""""clientName":"WEB","clientVersion":"$webClientVersion"""", field)
+
+    private fun clientContext(client: String, fields: String): String =
+        """{"context":{"client":{$client}},$fields}"""
 
     private suspend fun execute(url: String, jsonBody: String, bearer: AccessToken?): InnerTubeResponse =
         withContext(Dispatchers.IO) {
@@ -95,6 +124,10 @@ public class InnerTubeClient(
         public const val BROWSE_URL: String = "$BASE/browse?prettyPrint=false"
         public const val NEXT_URL: String = "$BASE/next?prettyPrint=false"
         public const val SEARCH_URL: String = "$BASE/search?prettyPrint=false"
+        public const val PLAYER_URL: String = "$BASE/player?prettyPrint=false"
+
+        /** Matches yt-dlp's android client; YouTube rejects a stale one. */
+        public const val ANDROID_CLIENT_VERSION: String = "20.10.38"
         public const val LIKE_URL: String = "$BASE/like/like?prettyPrint=false"
         public const val DISLIKE_URL: String = "$BASE/like/dislike?prettyPrint=false"
         public const val REMOVE_LIKE_URL: String = "$BASE/like/removelike?prettyPrint=false"

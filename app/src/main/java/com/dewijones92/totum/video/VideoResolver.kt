@@ -85,6 +85,7 @@ class VideoResolver(
             return null
         }
         val qualities = metadata.videoQualities(codecSupport)
+        reportIfDegraded(metadata.id, qualities)
         Vitals.add("resolve.successes")
         Diag.log(
             "resolve",
@@ -120,6 +121,27 @@ class VideoResolver(
     }
 
     /**
+     * Says so when a video came back with nothing but the legacy 360p stream.
+     *
+     * That is the signature of YouTube serving a video SABR-only: the higher formats are
+     * listed in the player response but carry no URL, so yt-dlp drops them and format 18 —
+     * the old progressive muxed stream — is all that survives. Today it happens on
+     * made-for-kids videos; the experiment has been widening, and the point of counting it
+     * is to learn that from a diagnostics report rather than from Dewi noticing a video
+     * looks soft. See docs/todos/sabr-streaming.md.
+     */
+    private fun reportIfDegraded(id: String, qualities: List<VideoQuality>) {
+        val best = qualities.maxOfOrNull { it.height } ?: return
+        if (qualities.size > 1 || best > DEGRADED_HEIGHT) return
+        Vitals.add("resolve.sabrDegraded")
+        Diag.warn(
+            "resolve",
+            "$id offered ONE quality at ${best}p — YouTube is almost certainly serving this " +
+                "SABR-only, so the higher formats exist but have no URL to fetch",
+        )
+    }
+
+    /**
      * Resolves [watchUrl] and keeps the answer for the next [resolve] of the same URL.
      *
      * Called shortly before the current item ends, so the seven seconds of extraction happen
@@ -148,5 +170,8 @@ class VideoResolver(
 
         /** Enough of a watch URL to recognise the video in a log line. */
         const val ID_CHARS = 11
+
+        /** Format 18's height — the only stream that survives a SABR-only response. */
+        const val DEGRADED_HEIGHT = 360
     }
 }
