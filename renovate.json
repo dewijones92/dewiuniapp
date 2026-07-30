@@ -5,42 +5,102 @@
     ":dependencyDashboard",
     ":semanticCommits"
   ],
-  "labels": ["dependencies"],
-  "schedule": ["before 6am on monday"],
+  "labels": [
+    "dependencies"
+  ],
+  "schedule": [
+    "before 6am on monday"
+  ],
   "prConcurrentLimit": 5,
   "minimumReleaseAge": "3 days",
   "packageRules": [
     {
       "description": "Auto-merge low-risk updates once CI (detekt/lint/test/kover/build) is green.",
-      "matchUpdateTypes": ["patch", "minor"],
+      "matchUpdateTypes": [
+        "patch",
+        "minor"
+      ],
       "automerge": true
     },
     {
       "description": "One grouped PR for routine Gradle library bumps (versions live in the catalog).",
-      "matchManagers": ["gradle"],
-      "matchUpdateTypes": ["patch", "minor"],
+      "matchManagers": [
+        "gradle"
+      ],
+      "matchUpdateTypes": [
+        "patch",
+        "minor"
+      ],
       "groupName": "gradle dependencies"
     },
     {
       "description": "Group and auto-merge GitHub Actions bumps (also clears the Node 20 deprecation warnings).",
-      "matchManagers": ["github-actions"],
+      "matchManagers": [
+        "github-actions"
+      ],
       "groupName": "github actions"
     },
     {
-      "description": "Kotlin and KSP must move in lockstep and can break builds — review manually.",
-      "matchPackageNames": ["org.jetbrains.kotlin**", "com.google.devtools.ksp**"],
+      "description": "Kotlin and KSP must move in lockstep and can break builds \u2014 review manually.",
+      "matchPackageNames": [
+        "org.jetbrains.kotlin**",
+        "com.google.devtools.ksp**"
+      ],
       "groupName": "kotlin + ksp",
       "automerge": false
     },
     {
-      "description": "AGP updates gate on compileSdk compatibility — review manually.",
-      "matchPackageNames": ["com.android.**"],
+      "description": "AGP updates gate on compileSdk compatibility \u2014 review manually.",
+      "matchPackageNames": [
+        "com.android.**"
+      ],
       "automerge": false
     },
     {
-      "description": "Chaquopy is pinned to the build-host Python minor (3.12) — review manually.",
-      "matchPackageNames": ["com.chaquo.python**"],
+      "description": "Chaquopy is pinned to the build-host Python minor (3.12) \u2014 review manually.",
+      "matchPackageNames": [
+        "com.chaquo.python**"
+      ],
       "automerge": false
+    },
+    {
+      "description": "Bumping a bundled binary means re-running its build script by hand and committing new .so files, which no CI job does \u2014 so these must never auto-merge.",
+      "matchDepNames": [
+        "quickjs-ng/quickjs",
+        "FFmpeg/FFmpeg"
+      ],
+      "automerge": false,
+      "labels": [
+        "dependencies",
+        "needs-manual-rebuild"
+      ]
+    }
+  ],
+  "customManagers": [
+    {
+      "description": "QuickJS, cross-compiled by tools/quickjs. Its version is a shell variable that no built-in manager reads \u2014 which is how it sat on 0.10.1, a release yt-dlp warns is far too slow to solve its JS challenges (500s vs 8s).",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^tools/quickjs/build-quickjs-android\\.sh$/"
+      ],
+      "matchStrings": [
+        "VERSION=(?<currentValue>v[0-9.]+)"
+      ],
+      "depNameTemplate": "quickjs-ng/quickjs",
+      "datasourceTemplate": "github-releases"
+    },
+    {
+      "description": "FFmpeg, cross-compiled by tools/ffmpeg. Same reason; tags are prefixed 'n'.",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^tools/ffmpeg/build-ffmpeg-android\\.sh$/"
+      ],
+      "matchStrings": [
+        "VERSION=(?<currentValue>[0-9.]+)"
+      ],
+      "depNameTemplate": "FFmpeg/FFmpeg",
+      "datasourceTemplate": "github-tags",
+      "extractVersionTemplate": "^n(?<version>.+)$"
     }
   ]
 }
