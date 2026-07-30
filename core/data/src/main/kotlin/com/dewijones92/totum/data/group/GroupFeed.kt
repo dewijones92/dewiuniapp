@@ -4,7 +4,6 @@ import com.dewijones92.totum.common.Diag
 import com.dewijones92.totum.domain.MediaItem
 import com.dewijones92.totum.domain.MediaSource
 import com.dewijones92.totum.domain.SourceGroup
-import com.dewijones92.totum.domain.SourceId
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 
@@ -26,16 +25,12 @@ import kotlinx.coroutines.coroutineScope
  * but it is logged, because "this channel has nothing new" and "this channel could not be
  * reached" look identical in a merged list and only one of them is a problem.
  */
-public class GroupFeed(
-    private val items: SourceItems,
-    /** Resolves a membership to the source it names; null when the app no longer knows it. */
-    private val locate: suspend (SourceId) -> MediaSource?,
-) {
+public class GroupFeed(private val items: SourceItems) {
     public suspend fun itemsFor(group: SourceGroup): List<MediaItem> = coroutineScope {
         val members = group.members
         Diag.log("group", "loading \"${group.name}\" from ${members.size} source(s)")
         val fetched = members
-            .map { sourceId -> async { itemsForMember(sourceId) } }
+            .map { source -> async { itemsForMember(source) } }
             .flatMap { it.await() }
         // Undated items sort last rather than being dropped: a channel that gives no date
         // is still worth reading, just not worth claiming a position among the dated ones.
@@ -49,16 +44,8 @@ public class GroupFeed(
         merged
     }
 
-    private suspend fun itemsForMember(sourceId: SourceId): List<MediaItem> {
-        val source = locate(sourceId) ?: run {
-            // A membership outliving its subscription: you unsubscribed but the group still
-            // names it. Not an error — but silence here would look exactly like a channel
-            // that had posted nothing.
-            Diag.log("group", "skipping ${sourceId.value}: no longer a known source")
-            return emptyList()
-        }
-        return runCatching { items.itemsFor(source) }
+    private suspend fun itemsForMember(source: MediaSource): List<MediaItem> =
+        runCatching { items.itemsFor(source) }
             .onFailure { Diag.warn("group", "\"${source.title}\" could not be read", it) }
             .getOrDefault(emptyList())
-    }
 }

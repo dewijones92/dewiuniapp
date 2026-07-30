@@ -2,6 +2,8 @@ package com.dewijones92.totum.database
 
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import com.dewijones92.totum.common.HttpUrl
+import com.dewijones92.totum.domain.MediaSource
 import com.dewijones92.totum.domain.SourceId
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -24,8 +26,16 @@ class RoomSourceGroupStoreTest {
     private lateinit var database: TotumDatabase
     private lateinit var store: RoomSourceGroupStore
 
-    private val channel = SourceId("https://www.youtube.com/channel/UCaaa")
-    private val podcast = SourceId("https://example.com/feed.xml")
+    private val channel = MediaSource.VideoChannel(
+        SourceId("https://www.youtube.com/channel/UCaaa"),
+        "A channel",
+        HttpUrl.of("https://www.youtube.com/channel/UCaaa"),
+    )
+    private val podcast = MediaSource.PodcastFeed(
+        SourceId("https://example.com/feed.xml"),
+        "A podcast",
+        HttpUrl.of("https://example.com/feed.xml"),
+    )
 
     @Before
     fun setUp() {
@@ -47,7 +57,7 @@ class RoomSourceGroupStoreTest {
 
         assertEquals(1, groups.size)
         assertEquals("Politics", groups.single().name)
-        assertEquals(emptyList<SourceId>(), groups.single().sourceIds)
+        assertEquals(emptyList<MediaSource>(), groups.single().sources)
     }
 
     @Test
@@ -55,10 +65,10 @@ class RoomSourceGroupStoreTest {
         val id = store.create("Politics")
 
         assertTrue("first toggle should add", store.toggleMember(id, channel))
-        assertEquals(listOf(channel), store.observeGroups().first().single().sourceIds)
+        assertEquals(listOf(channel), store.observeGroups().first().single().sources)
 
         assertFalse("second toggle should remove", store.toggleMember(id, channel))
-        assertEquals(emptyList<SourceId>(), store.observeGroups().first().single().sourceIds)
+        assertEquals(emptyList<MediaSource>(), store.observeGroups().first().single().sources)
     }
 
     @Test
@@ -67,7 +77,7 @@ class RoomSourceGroupStoreTest {
         store.toggleMember(id, channel)
         store.toggleMember(id, podcast)
 
-        assertEquals(listOf(channel, podcast), store.observeGroups().first().single().sourceIds)
+        assertEquals(listOf(channel, podcast), store.observeGroups().first().single().sources)
     }
 
     @Test
@@ -78,8 +88,8 @@ class RoomSourceGroupStoreTest {
 
         val groups = store.observeGroups().first().associateBy { it.name }
 
-        assertEquals(listOf(channel), groups.getValue("Politics").sourceIds)
-        assertEquals(emptyList<SourceId>(), groups.getValue("Tech").sourceIds)
+        assertEquals(listOf(channel), groups.getValue("Politics").sources)
+        assertEquals(emptyList<MediaSource>(), groups.getValue("Tech").sources)
         assertEquals(tech, groups.getValue("Tech").id)
     }
 
@@ -105,6 +115,6 @@ class RoomSourceGroupStoreTest {
 
         val group = store.observeGroups().first().single()
         assertEquals("UK politics", group.name)
-        assertEquals(listOf(channel), group.sourceIds)
+        assertEquals(listOf(channel), group.sources)
     }
 }

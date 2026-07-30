@@ -53,7 +53,6 @@ import com.dewijones92.totum.diagnostics.CrashReporter
 import com.dewijones92.totum.diagnostics.DiagnosticsUploader
 import com.dewijones92.totum.diagnostics.installAndroidLogSink
 import com.dewijones92.totum.domain.MediaKind
-import com.dewijones92.totum.domain.MediaSource
 import com.dewijones92.totum.domain.PlayHandle
 import com.dewijones92.totum.domain.PlayableItem
 import com.dewijones92.totum.domain.SourceId
@@ -110,7 +109,6 @@ import com.dewijones92.totum.ytdlp.chaquopy.YtDlpUpdater
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import java.io.File
@@ -570,30 +568,16 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
     }
 
     override val groupFeed: GroupFeed by lazy {
+        // The only place a group's fanout knows pillars exist — exhaustive over the sealed
+        // MediaSource, so a third pillar cannot be added without it failing to compile. Same
+        // shape as RoutedDownloadStrategy, deliberately.
         GroupFeed(
-            // The only place a group's fanout knows pillars exist — exhaustive over the
-            // sealed MediaSource, so a third pillar cannot be added without it failing to
-            // compile. Same shape as RoutedDownloadStrategy, deliberately.
-            items = RoutedSourceItems(
+            RoutedSourceItems(
                 video = ChannelSourceItems(channelRepository),
                 podcast = PodcastSourceItems(podcastRepository),
             ),
-            locate = ::knownSource,
         )
     }
-
-    /**
-     * A membership's source, from what the app already knows it subscribes to — the live
-     * account channels and the local podcast feeds.
-     *
-     * Resolved against subscriptions rather than parsed out of the id, because the id is a
-     * URL and deciding a pillar by looking at a URL is the mistake that once made a Shorts
-     * link download as a video and queue as a podcast enclosure.
-     */
-    private suspend fun knownSource(sourceId: SourceId): MediaSource? =
-        accountSubscriptions.channels.value.firstOrNull { it.id == sourceId }
-            ?: podcastRepository.observeSubscriptions().first().map { it.source }
-                .firstOrNull { it.id == sourceId }
 
     override val playHistoryStore: PlayHistoryStore by lazy {
         RoomPlayHistoryStore(database.playHistoryDao())

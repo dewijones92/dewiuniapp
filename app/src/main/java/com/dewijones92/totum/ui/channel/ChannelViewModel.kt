@@ -170,7 +170,7 @@ class ChannelViewModel(
     /** Adds this channel to [group], or removes it. The picker is a checklist of these. */
     fun toggleGroup(group: SourceGroup) {
         viewModelScope.launch {
-            val added = groups.store.toggleMember(group.id, source.id)
+            val added = groups.store.toggleMember(group.id, source)
             Diag.log("group", "\"${source.title}\" ${if (added) "added to" else "removed from"} \"${group.name}\"")
         }
     }
@@ -179,7 +179,7 @@ class ChannelViewModel(
     fun createGroupWith(name: String) {
         viewModelScope.launch {
             val id = groups.store.create(name)
-            groups.store.toggleMember(id, source.id)
+            groups.store.toggleMember(id, source)
             Diag.log("group", "created \"$name\" starting with \"${source.title}\"")
         }
     }

@@ -1,8 +1,8 @@
 package com.dewijones92.totum.data.group
 
+import com.dewijones92.totum.domain.MediaSource
 import com.dewijones92.totum.domain.SourceGroup
 import com.dewijones92.totum.domain.SourceGroupId
-import com.dewijones92.totum.domain.SourceId
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -22,6 +22,11 @@ public interface SourceGroupStore {
 
     public suspend fun delete(id: SourceGroupId)
 
-    /** Adds [sourceId] to the group, or removes it if already a member. Returns the new state. */
-    public suspend fun toggleMember(id: SourceGroupId, sourceId: SourceId): Boolean
+    /**
+     * Adds [source] to the group, or removes it if already a member. Returns the new state.
+     *
+     * Takes the whole source, not an id: the group stores what it needs to read the member
+     * later, because a member need not be a subscription there is anything to look up.
+     */
+    public suspend fun toggleMember(id: SourceGroupId, source: MediaSource): Boolean
 }

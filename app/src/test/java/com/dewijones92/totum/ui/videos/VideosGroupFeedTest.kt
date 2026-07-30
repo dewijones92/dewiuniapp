@@ -70,7 +70,7 @@ class VideosGroupFeedTest {
         "A channel",
         HttpUrl.of("https://www.youtube.com/channel/UCaaa"),
     )
-    private val group = SourceGroup(SourceGroupId("g"), "Politics", listOf(channel.id))
+    private val group = SourceGroup(SourceGroupId("g"), "Politics", listOf(channel))
 
     private fun viewModel(scope: kotlinx.coroutines.CoroutineScope): VideosViewModel {
         val engine = FakeYtDlpEngine()
@@ -103,7 +103,7 @@ class VideosGroupFeedTest {
             youtube = YouTubeAccountServices(account, FakeYouTubeFeeds(), FakeYouTubeActions()),
             groups = GroupServices(
                 FakeSourceGroupStore(listOf(group)),
-                GroupFeed(items = { listOf(item("from the group")) }, locate = { channel }),
+                GroupFeed { listOf(item("from the group")) },
             ),
         )
     }

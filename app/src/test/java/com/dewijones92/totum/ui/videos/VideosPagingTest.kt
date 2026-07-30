@@ -103,7 +103,7 @@ class VideosPagingTest {
             youtube = YouTubeAccountServices(account, feeds, FakeYouTubeActions()),
             groups = GroupServices(
                 FakeSourceGroupStore(),
-                GroupFeed(items = { emptyList() }, locate = { null }),
+                GroupFeed { emptyList() },
             ),
         )
     }

@@ -20,7 +20,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         SourceGroupEntity::class,
         SourceGroupMemberEntity::class,
     ],
-    version = 15,
+    version = 16,
     exportSchema = false,
 )
 public abstract class TotumDatabase : RoomDatabase() {
@@ -62,7 +62,26 @@ public abstract class TotumDatabase : RoomDatabase() {
                 MIGRATION_12_13,
                 MIGRATION_13_14,
                 MIGRATION_14_15,
+                MIGRATION_15_16,
             )
+
+        /**
+         * v16: a group's membership carries the source, not just its id.
+         *
+         * Resolving an id against the app's subscriptions found nothing for a channel the
+         * user had grouped but never subscribed to — which the picker allows — so those
+         * members silently contributed nothing to the feed. Existing rows are backfilled as
+         * video channels with the id as both title and URL, which is what every row written
+         * so far actually is; a wrong title is visible and fixable, a dropped group is not.
+         */
+        private val MIGRATION_15_16 = object : Migration(15, 16) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE source_group_members ADD COLUMN title TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE source_group_members ADD COLUMN kind TEXT NOT NULL DEFAULT 'VIDEO'")
+                db.execSQL("ALTER TABLE source_group_members ADD COLUMN url TEXT NOT NULL DEFAULT ''")
+                db.execSQL("UPDATE source_group_members SET title = sourceId, url = sourceId")
+            }
+        }
 
         /**
          * v15: named groups of sources, read as one merged feed. Purely additive — two new

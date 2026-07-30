@@ -85,7 +85,7 @@ class FakeAppContainer(
     override val skipSegmentSource: SkipSegmentSource = SkipSegmentSource { emptyList() },
     override val downloadManager: DownloadManager = FakeDownloadManager(),
     override val sourceGroupStore: SourceGroupStore = FakeSourceGroupStore(),
-    override val groupFeed: GroupFeed = GroupFeed(items = { emptyList() }, locate = { null }),
+    override val groupFeed: GroupFeed = GroupFeed { emptyList() },
     override val videoResolver: VideoResolver = VideoResolver(ytDlpEngine, skipSegmentSource),
     override val videoPlaybackLauncher: VideoPlaybackLauncher =
         VideoPlaybackLauncher(videoResolver, playbackController, FakeYouTubeWatchHistory(), playHistoryStore),
