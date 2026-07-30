@@ -1,7 +1,7 @@
 ---
 title: Backlog
 kind: index
-updated: 2026-07-25
+updated: 2026-07-30
 ---
 
 # Backlog
@@ -33,6 +33,7 @@ to `shipped` and migrate it to `../features/` once it's a real feature on `main`
 | [row-status-indicators](row-status-indicators.md) | ui | high | shipped (real PlayState behind it) |
 | [high-quality-playback-fix](high-quality-playback-fix.md) | video | high | shipped |
 | [feature-gap-review](feature-gap-review.md) | planning | — | triage of the AI review |
+| [channel-groups](channel-groups.md) | video | high | domain + storage shipped; feed + UI open |
 | [feed-pagination](feed-pagination.md) | video | high | feeds + channel tabs shipped; search pending |
 | [testing-depth](testing-depth.md) | tests | medium | refining |
 | [audio-video-switching](audio-video-switching.md) | playback | high | shipped (local-audio merge outstanding) |
