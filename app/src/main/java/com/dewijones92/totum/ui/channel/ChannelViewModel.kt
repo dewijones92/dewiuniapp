@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.dewijones92.totum.common.Diag
 import com.dewijones92.totum.common.Page
 import com.dewijones92.totum.common.PageToken
 import com.dewijones92.totum.data.channel.ChannelRepository
@@ -17,7 +18,7 @@ import com.dewijones92.totum.domain.MediaItemId
 import com.dewijones92.totum.domain.MediaSource
 import com.dewijones92.totum.domain.PlayHandle
 import com.dewijones92.totum.domain.PlayableItem
-import com.dewijones92.totum.domain.isSameChannelAs
+import com.dewijones92.totum.domain.containsChannel
 import com.dewijones92.totum.domain.youTubeChannelId
 import com.dewijones92.totum.innertube.channel.ChannelPlaylists
 import com.dewijones92.totum.innertube.channel.ChannelVideos
@@ -95,6 +96,15 @@ class ChannelViewModel(
         val searchResults: TabState<MediaItem> = TabState(),
         val searchQuery: String = "",
         val resolving: String? = null,
+        /**
+         * The channel's `UC…` id once something has actually resolved it.
+         *
+         * A channel reached by handle — /@name — carries no id in its URL, so it could only be
+         * compared to the account's subscriptions by URL string, and those never match. The
+         * yt-dlp fallback resolves the real channel and its result has carried the id all
+         * along; it was simply discarded.
+         */
+        val resolvedChannelId: String? = null,
     )
 
     private val channelId: String? = source.youTubeChannelId
@@ -118,7 +128,7 @@ class ChannelViewModel(
             // canonical /channel/UC… URL while a channel opened from a video row or a search hit
             // carries whatever form that source used, so string equality reported "not subscribed"
             // for channels Dewi was plainly subscribed to.
-            subscribed = subs.any { it.isSameChannelAs(source) },
+            subscribed = subs.containsChannel(source, channelId ?: c.resolvedChannelId),
             downloadStates = downloadStates,
             resolving = c.resolving,
         )
@@ -196,7 +206,15 @@ class ChannelViewModel(
     /** yt-dlp uploads for a channel we can't address by `UC…` id. */
     private suspend fun fallbackVideos(): List<MediaItem>? =
         when (val r = channelFallback.fetchChannelVideos(source.channelUrl)) {
-            is ChannelVideosResult.Success -> r.videos
+            is ChannelVideosResult.Success -> {
+                // Keep the id it resolved: this is the only way a handle-only channel ever
+                // learns its own UC id, and without it the subscribe button cannot tell whether
+                // you follow this channel.
+                content.update { it.copy(resolvedChannelId = r.channelId) }
+                Diag.log("channel", "resolved ${source.title} to ${r.channelId}")
+                r.videos
+            }
+
             is ChannelVideosResult.Failure -> null
         }
 

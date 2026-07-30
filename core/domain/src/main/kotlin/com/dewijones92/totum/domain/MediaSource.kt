@@ -69,3 +69,21 @@ public fun MediaSource.VideoChannel.isSameChannelAs(other: MediaSource.VideoChan
     val theirs = other.youTubeChannelId
     return if (mine != null && theirs != null) mine == theirs else id == other.id
 }
+
+/**
+ * Whether this list of channels contains [source], preferring [resolvedId] over anything the
+ * source's own URL can offer.
+ *
+ * Two identities are in play and only one is reliable. An account's subscriptions are keyed by
+ * canonical `/channel/UC…` URLs, but the channel in front of the user may have arrived as a
+ * handle — `/@name` — whose URL yields no id at all. Given the id resolved by actually loading
+ * the channel, the comparison is exact. Without one it falls back to [isSameChannelAs], which
+ * still beats string equality on URLs but cannot match a handle against a canonical URL.
+ */
+public fun List<MediaSource.VideoChannel>.containsChannel(
+    source: MediaSource.VideoChannel,
+    resolvedId: String? = null,
+): Boolean = when (resolvedId) {
+    null -> any { it.isSameChannelAs(source) }
+    else -> any { it.youTubeChannelId == resolvedId || it.isSameChannelAs(source) }
+}

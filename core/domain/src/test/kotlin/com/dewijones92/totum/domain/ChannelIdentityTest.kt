@@ -45,6 +45,35 @@ class ChannelIdentityTest {
         assertFalse(byHandle.isSameChannelAs(canonical))
     }
 
+    /**
+     * The gap this closes: a channel opened by handle has no id in its URL, so it could never be
+     * matched against subscriptions keyed by canonical URLs. Loading the channel resolves the real
+     * id, and that is what the comparison must use.
+     */
+    @Test
+    fun `a handle-only channel matches once its id has been resolved`() {
+        val subscriptions = listOf(canonical)
+
+        assertFalse("no id yet — this is the bug", subscriptions.containsChannel(byHandle))
+        assertTrue("resolved", subscriptions.containsChannel(byHandle, resolvedId = "UCabc123"))
+    }
+
+    @Test
+    fun `a resolved id that is not subscribed still reports false`() {
+        assertFalse(listOf(canonical).containsChannel(byHandle, resolvedId = "UCsomethingelse"))
+    }
+
+    @Test
+    fun `an empty subscription list contains nothing`() {
+        assertFalse(emptyList<MediaSource.VideoChannel>().containsChannel(canonical, "UCabc123"))
+    }
+
+    /** A canonical URL needs no resolution — the id is already in it. */
+    @Test
+    fun `a canonical channel matches with no resolved id`() {
+        assertTrue(listOf(canonical).containsChannel(channel("https://www.youtube.com/channel/UCabc123/videos")))
+    }
+
     private fun channel(url: String) = MediaSource.VideoChannel(
         id = SourceId(url),
         title = "a channel",
