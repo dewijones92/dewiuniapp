@@ -68,21 +68,21 @@ class VideoResolver(
      * with nothing playable in it — a difference between a YouTube change and a codec
      * problem.
      */
-    suspend fun resolve(watchUrl: HttpUrl, sourceId: SourceId): Resolved? {
+    suspend fun resolve(watchUrl: HttpUrl, sourceId: SourceId, asked: String = "play"): Resolved? {
         cached?.takeIf { it.first == watchUrl && now() - cachedAt < CACHE_TTL_MS }?.let { (_, hit) ->
             // Kept, not consumed. It used to be cleared on first use, which was right when an
             // extraction cost ~1.7s and the cache existed only to hand a prefetched result to
             // the next play. With a JS runtime an extraction costs 10-14s on a real phone, so
             // every replay, seek-triggered re-resolve and quality change was paying it again:
             // one video was extracted FOUR times in 30 seconds on Dewi's Pixel.
-            Diag.log("resolve", "cache hit for ${watchUrl.value.takeLast(ID_CHARS)}, skipped extraction")
+            Diag.log("resolve", "cache hit for ${watchUrl.value.takeLast(ID_CHARS)} ($asked), skipped extraction")
             return hit
         }
         val startedAt = now()
         val extraction = engine.extract(watchUrl)
         val metadata = (extraction as? ExtractionResult.Success)?.metadata ?: run {
             Vitals.add("resolve.extractFailures")
-            Diag.warn("resolve", "extract failed for ${watchUrl.value}: $extraction")
+            Diag.warn("resolve", "extract failed for ${watchUrl.value} ($asked): $extraction")
             return null
         }
         // Default stream stays the best muxed format (one stream, reliable, data-friendly);
@@ -99,7 +99,7 @@ class VideoResolver(
         Vitals.add("resolve.successes")
         Diag.log(
             "resolve",
-            "${metadata.id} in ${now() - startedAt}ms — " +
+            "${metadata.id} in ${now() - startedAt}ms for $asked — " +
                 "${qualities.size} qualities, ${metadata.subtitles.size} subtitle tracks, " +
                 "audioOnly=${metadata.bestAudioUrl() != null}",
         )
@@ -201,7 +201,7 @@ class VideoResolver(
     suspend fun prefetch(watchUrl: HttpUrl, sourceId: SourceId) {
         if (cached?.first == watchUrl && now() - cachedAt < CACHE_TTL_MS) return
         Diag.log("resolve", "prefetching ${watchUrl.value.takeLast(ID_CHARS)}")
-        val resolved = runCatching { resolve(watchUrl, sourceId) }.getOrNull() ?: run {
+        val resolved = runCatching { resolve(watchUrl, sourceId, asked = "prefetch") }.getOrNull() ?: run {
             Diag.log("resolve", "prefetch produced nothing; the real resolve will try again")
             return
         }

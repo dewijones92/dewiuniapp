@@ -63,7 +63,7 @@ class VideoPlaybackLauncher(
      * share-target uses it; every other caller already holds a [MediaItem].
      */
     suspend fun describe(watchUrl: HttpUrl, sourceId: SourceId): MediaItem? =
-        resolver.resolve(watchUrl, sourceId)?.item?.copy(mediaUrl = watchUrl)
+        resolver.resolve(watchUrl, sourceId, asked = "describe")?.item?.copy(mediaUrl = watchUrl)
 
     /**
      * Resolves [watchUrl] to a playable stream (with its skip segments and
@@ -71,7 +71,9 @@ class VideoPlaybackLauncher(
      * video can't be resolved (private, removed, geo-blocked, …).
      */
     suspend fun play(watchUrl: HttpUrl, sourceId: SourceId, startPositionMs: Long = 0): Boolean {
-        val resolved = resolver.resolve(watchUrl, sourceId) ?: return false
+        // `asked` names WHO wanted this, because a report showed one video extracted four
+        // times in thirty seconds and the log could not say by whom.
+        val resolved = resolver.resolve(watchUrl, sourceId, asked = "play") ?: return false
         current = resolved
         // Record the play against the stable watch URL (streaming URLs expire), so
         // a history replay re-resolves through this same launcher.

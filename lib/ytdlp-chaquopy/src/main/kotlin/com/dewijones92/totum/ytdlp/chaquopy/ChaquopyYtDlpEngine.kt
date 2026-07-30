@@ -133,6 +133,10 @@ public class ChaquopyYtDlpEngine(
                 )
             }
         }
+        // Named because a download's extraction is invisible otherwise: yt-dlp does its own
+        // extract_info inside the download, so a report showed two ~12s extractions per
+        // queued play with nothing to say the second was the downloader's.
+        Diag.log("download", "extracting for download: ${request.url.value.takeLast(ID_CHARS)}")
         val resultJson = bridge.callAttr(
             "download",
             request.url.value,
@@ -145,6 +149,9 @@ public class ChaquopyYtDlpEngine(
         trySend(parseDownloadCompletion(request.url, resultJson) { File(it) })
     }.buffer(Channel.UNLIMITED).flowOn(dispatcher)
 }
+
+/** Enough of a watch URL to recognise the video in a log line. */
+private const val ID_CHARS = 11
 
 /** Called from Python (yt-dlp progress hook) via Chaquopy's Java proxying. */
 public interface ProgressListener {
