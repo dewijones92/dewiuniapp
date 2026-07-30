@@ -17,12 +17,34 @@ def versions():
     })
 
 
+# Ask the ANDROID player client as well as yt-dlp's defaults.
+#
+# Made-for-kids videos — Ms Rachel and everything like her — serve NO playable streams to
+# any default client. Measured against this exact yt-dlp (2026.07.04) on 2026-07-30: tv,
+# tv_embedded, web, web_safari, mweb, ios, android_vr and web_embedded each returned zero
+# audio/video formats (the web client returns only storyboards, and tv reports "DRM
+# protected"), so the app said "This video is not available" for every one of them. The
+# android client returns format 18 — 360p progressive H.264+AAC — which plays.
+#
+# APPENDED to the defaults rather than replacing them, verified both ways: a kids video
+# resolves at 360p where it previously failed outright, and an ordinary video still offers
+# its full ladder up to 1080p+. 360p is a real quality drop, but it is the only thing
+# YouTube will serve for this content, and it beats not playing at all.
+PLAYER_CLIENTS = {"youtube": {"player_client": ["default", "android"]}}
+
+
 def extract(url):
     # mark_watched=True makes yt-dlp compute the watch-progress tracking URLs; we
     # capture them (rather than let yt-dlp ping) so the app can report the real
     # position to the account. yt-dlp already fetches a playable player response
     # past YouTube's anti-bot, so this is the one reliable source of those URLs.
-    options = {"quiet": True, "no_warnings": True, "skip_download": True, "mark_watched": True}
+    options = {
+        "quiet": True,
+        "no_warnings": True,
+        "skip_download": True,
+        "mark_watched": True,
+        "extractor_args": PLAYER_CLIENTS,
+    }
     tracking = {}
     restore = _install_tracking_capture(tracking)
     try:
@@ -192,6 +214,7 @@ def download(url, target_dir, format_id, listener, ffmpeg_location, sponsorblock
         # m3u8 before it ever looks at this setting. Recording a live stream is not something
         # this build can do, and the failure is classified permanent so it stops retrying.
         "external_downloader": "native",
+        "extractor_args": PLAYER_CLIENTS,
     }
     if format_id:
         options["format"] = format_id
