@@ -91,6 +91,7 @@ def extract(url):
         "skip_download": True,
         "mark_watched": True,
         "extractor_args": PLAYER_CLIENTS,
+        "js_runtimes": _js_runtimes(),
     }
     tracking = {}
     restore = _install_tracking_capture(tracking)
