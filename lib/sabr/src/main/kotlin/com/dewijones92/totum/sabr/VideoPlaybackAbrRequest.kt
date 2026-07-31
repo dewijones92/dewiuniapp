@@ -18,18 +18,35 @@ public class VideoPlaybackAbrRequest(
      * from the player response, base64url-DECODED. It is the one field the server insists on.
      */
     private val ustreamerConfig: ByteArray,
-    /** Where playback is, in milliseconds — what the server picks the next segments around. */
-    private val playerTimeMs: Long? = null,
+    /**
+     * Where playback is. **This is what advances the stream**, and it has to go inside
+     * `ClientAbrState` — the top-level `player_time_ms` (field 4) is ignored outright.
+     * Measured 2026-07-31: at 0ms the response reached byte 1271335 of the video, and at
+     * 30000ms it reached 8761825, from the same request in every other respect.
+     */
+    private val playerTimeMs: Long = 0,
+    private val audio: SabrFormat? = null,
+    private val video: SabrFormat? = null,
+    private val tracks: SabrTracks = SabrTracks.AUDIO_AND_VIDEO,
 ) {
     public fun encode(): ByteArray {
-        var body = ByteArray(0)
-        if (playerTimeMs != null) body += Protobuf.number(FIELD_PLAYER_TIME_MS, playerTimeMs)
+        val abrState = Protobuf.number(STATE_PLAYER_TIME_MS, playerTimeMs) +
+            Protobuf.number(STATE_ENABLED_TRACKS, tracks.bitfield.toLong())
+        var body = Protobuf.bytes(FIELD_CLIENT_ABR_STATE, abrState)
+        // Preferred rather than "selected": selected_format_ids (field 2) was ignored, while
+        // these are what the server actually honoured.
+        audio?.let { body += Protobuf.bytes(FIELD_PREFERRED_AUDIO, it.encode()) }
+        video?.let { body += Protobuf.bytes(FIELD_PREFERRED_VIDEO, it.encode()) }
         body += Protobuf.bytes(FIELD_USTREAMER_CONFIG, ustreamerConfig)
         return body
     }
 
     private companion object {
-        const val FIELD_PLAYER_TIME_MS = 4
+        const val FIELD_CLIENT_ABR_STATE = 1
         const val FIELD_USTREAMER_CONFIG = 5
+        const val FIELD_PREFERRED_AUDIO = 16
+        const val FIELD_PREFERRED_VIDEO = 17
+        const val STATE_PLAYER_TIME_MS = 28
+        const val STATE_ENABLED_TRACKS = 40
     }
 }

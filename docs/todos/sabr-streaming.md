@@ -155,16 +155,56 @@ real bytes are somebody's copyrighted video and prove nothing the framing does n
    52-byte header. The mapping is confirmed by container magic rather than by plausible
    numbers: field 3 said itag 396 and the bytes that followed began `ftypdash`, while itag 249
    was followed by `1a45dfa3`.
-2. **Select formats** in the request (`selected_format_ids`, `preferred_*_format_ids`) instead
-   of taking the server's default, which currently answers with an `av01` `SABR_ERROR`.
-3. **A Media3 `DataSource`**, and this is the real design question: SABR interleaves audio and
-   video in one response, while ExoPlayer wants a byte stream per track. So it needs a
-   `MediaSource` that demuxes, or a pair of data sources sharing one request and buffering the
-   other's bytes.
-4. **State across requests** — `buffered_ranges` and `player_time_ms` — so seeking and
-   continued playback ask for the right segments.
-5. **PO token**, if it turns out to be needed for sustained playback. It was not needed for a
-   first request.
+2. ~~**Select formats**~~ — done, and `xtags` turned out to be the crux. See below.
+3. ~~**State across requests**~~ — `ClientAbrState.player_time_ms` does it. See below.
+4. **A Media3 `DataSource`** — all that is left, and the only remaining unknown.
+5. **PO token**: not needed. Never sent one, and full-quality media came back every time.
+
+## It fetches real, decodable media. Verified 2026-07-31.
+
+Everything the protocol needs is now proven, and the last three unknowns fell to probing:
+
+**`xtags` is mandatory, not optional.** A real response carried **22 entries for each audio
+itag** — one per dubbed language track. Selecting itag 251 by itag and `lastModified` alone
+matched an arbitrary one of the 22 and the server answered
+`RELOAD_PLAYER_RESPONSE: sabr.no_audio_selected`. With `xtags` (`acont=original`, `lang=en-US`)
+in the `FormatId` it served exactly the requested track.
+
+**`preferred_audio_format_ids` (16) and `preferred_video_format_ids` (17) are honoured;
+`selected_format_ids` (2) is ignored.** Asking for itag 251 + itag 137 returned precisely
+those two, 1.44MB in one request.
+
+**`player_time_ms` must be inside `ClientAbrState` (field 28); the top-level field 4 is
+ignored.** Four requests differing only in the top-level field returned byte-identical
+responses. Moved inside, 0ms reached video byte 1271335 and 30000ms reached 8761825 — the same
+request in every other respect.
+
+**`enabled_track_types_bitfield` (40) = 1 gives audio ALONE** — 167876 bytes, one itag. Values
+0, 2, 3, 6 and 7 all returned audio and video together, and no value was found that gives video
+without audio. That is fine: playing a video needs both, so one request carrying both is
+efficient rather than wasteful, and the two are separated by their `MediaHeader` itag.
+
+### The proof
+
+A request built by **our Kotlin encoder** (9715 bytes) was POSTed to the live endpoint:
+
+```
+itag 137: 1389065 bytes, magic 0000001c66747970  (ftypdash — fMP4 init)
+itag 251:   34893 bytes, magic 1a45dfa39f428681  (WebM/EBML)
+```
+
+and the audio bytes handed to ffprobe:
+
+```
+codec_name=opus   codec_type=audio   sample_rate=48000   channels=2
+format_name=matroska,webm            duration=1087.701
+```
+
+then decoded to PCM: **2.13s of 48kHz stereo, mean volume -14.7 dB, max -0.0 dB.** Real audio,
+not silence. ("File ended prematurely" is expected — that was one segment.)
+
+So the protocol layer works. What is left is plumbing it into Media3, which is engineering
+against a known quantity rather than a research problem.
 
 The prize remains what it was: a ~150ms resolve instead of 2-4s, and no JS runtime on the
 playback path at all.

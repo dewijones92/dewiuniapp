@@ -2,6 +2,9 @@ package com.dewijones92.totum.sabr
 
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -24,12 +27,69 @@ class VideoPlaybackAbrRequestTest {
 
     @Test
     fun `the config goes in field 5 as a length-delimited value`() {
-        val config = byteArrayOf(1, 2, 3)
+        val body = VideoPlaybackAbrRequest(byteArrayOf(1, 2, 3)).encode()
 
-        val body = VideoPlaybackAbrRequest(config).encode()
+        // tag = (5 << 3) | 2 = 0x2A, then length 3, then the bytes — at the end, after state.
+        assertTrue(
+            "the config must be present as field 5",
+            body.toList().windowed(5).any { it == listOf<Byte>(0x2A, 0x03, 1, 2, 3) },
+        )
+    }
 
-        // tag = (5 << 3) | 2 = 0x2A, then length 3, then the bytes.
-        assertArrayEquals(byteArrayOf(0x2A, 0x03, 1, 2, 3), body)
+    /**
+     * `player_time_ms` has to sit inside `ClientAbrState` as field 28. The top-level field 4 is
+     * IGNORED — measured 2026-07-31, four requests differing only in it returned byte-identical
+     * responses, while moving it inside took the video from byte 1271335 to 8761825.
+     */
+    @Test
+    fun `player time goes inside ClientAbrState, not at the top level`() {
+        val body = VideoPlaybackAbrRequest(byteArrayOf(9), playerTimeMs = 30_000).encode()
+
+        val state = Protobuf.read(body)[1]?.firstOrNull() as Protobuf.Value.Bytes
+        assertEquals(30_000L, Protobuf.read(state.value)[28]?.let { (it.first() as Protobuf.Value.Number).value })
+        assertNull("nothing may be written to the ignored top-level field 4", Protobuf.read(body)[4])
+    }
+
+    /**
+     * A format needs its `xtags`: a real response carried 22 entries for itag 251, one per
+     * dubbed language, and selecting without xtags made the server answer
+     * `sabr.no_audio_selected`.
+     */
+    @Test
+    fun `a preferred format carries itag, lastModified and xtags`() {
+        val audio = SabrFormat(itag = 251, lastModified = 1_785_351_922_567_103L, xtags = "ChEKBWFjb250")
+
+        val body = VideoPlaybackAbrRequest(byteArrayOf(9), audio = audio).encode()
+
+        val field = Protobuf.read(body)[16]?.firstOrNull() as Protobuf.Value.Bytes
+        val parsed = Protobuf.read(field.value)
+        assertEquals(251L, (parsed[1]!!.first() as Protobuf.Value.Number).value)
+        assertEquals(1_785_351_922_567_103L, (parsed[2]!!.first() as Protobuf.Value.Number).value)
+        assertEquals("ChEKBWFjb250", (parsed[3]!!.first() as Protobuf.Value.Bytes).value.decodeToString())
+    }
+
+    @Test
+    fun `audio and video go in fields 16 and 17, the ones the server honoured`() {
+        val body = VideoPlaybackAbrRequest(
+            byteArrayOf(9),
+            audio = SabrFormat(251, 1L),
+            video = SabrFormat(137, 2L),
+        ).encode()
+
+        val fields = Protobuf.read(body)
+        assertNotNull("preferred_audio_format_ids", fields[16])
+        assertNotNull("preferred_video_format_ids", fields[17])
+        // selected_format_ids was measured to be ignored, so nothing is written to it.
+        assertNull(fields[2])
+    }
+
+    /** Verified by probing: 1 returns audio alone; every other value tried sent video too. */
+    @Test
+    fun `audio-only is requested with the track bitfield set to one`() {
+        val body = VideoPlaybackAbrRequest(byteArrayOf(9), tracks = SabrTracks.AUDIO_ONLY).encode()
+
+        val state = Protobuf.read(body)[1]?.firstOrNull() as Protobuf.Value.Bytes
+        assertEquals(1L, (Protobuf.read(state.value)[40]!!.first() as Protobuf.Value.Number).value)
     }
 
     @Test
@@ -38,17 +98,7 @@ class VideoPlaybackAbrRequestTest {
 
         val body = VideoPlaybackAbrRequest(config).encode()
 
-        // 9613 needs two protobuf varint bytes, so: tag + 2 length bytes + payload.
-        assertEquals(1 + 2 + config.size, body.size)
-        assertEquals(0x2A.toByte(), body[0])
-    }
-
-    @Test
-    fun `player time is sent as a plain number before the config`() {
-        val body = VideoPlaybackAbrRequest(byteArrayOf(9), playerTimeMs = 5_000).encode()
-
-        // field 4, wire type 0 -> tag 0x20, then varint 5000.
-        assertEquals(0x20.toByte(), body[0])
-        assertArrayEquals(Protobuf.varint(5_000), body.copyOfRange(1, 3))
+        val read = Protobuf.read(body)[5]?.firstOrNull() as Protobuf.Value.Bytes
+        assertEquals(config.size, read.value.size)
     }
 }
