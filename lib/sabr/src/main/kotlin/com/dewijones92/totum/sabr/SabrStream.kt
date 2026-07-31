@@ -87,13 +87,18 @@ public class SabrStream(
         ).encode()
         val response = transport.post(url, body)
         val added = absorb(response)
-        playerTimeMs += stepMs
         if (added == 0) {
-            // The server answering with nothing new twice over is how a stream ends; there is
-            // no explicit "that's all" part for a non-live video.
+            // Says WHAT came back instead of just that nothing did. An empty result has three
+            // very different causes — a refusal, media for a format we did not ask for, or a
+            // genuine end — and they are indistinguishable without this.
             exhausted = true
-            Diag.log("sabr", "itag ${format.itag} gave nothing at ${playerTimeMs}ms — treating as complete")
+            Diag.warn(
+                "sabr",
+                "itag ${format.itag} got no bytes at ${playerTimeMs}ms from ${response.size}B: " +
+                    describe(response),
+            )
         }
+        playerTimeMs += stepMs
     }
 
     /** Files away every MEDIA run belonging to [format]. Returns how many bytes were added. */
@@ -120,6 +125,17 @@ public class SabrStream(
         return added
     }
 
+    /** What a response actually contained, for when it contained nothing we wanted. */
+    private fun describe(response: ByteArray): String {
+        val parts = UmpReader.read(response).parts
+        val itags = parts.filter { it.type == UmpPart.MEDIA_HEADER }
+            .mapNotNull { MediaHeader.parse(it.payload)?.itag }
+            .distinct()
+        val reasons = parts.filter { it.type == UmpPart.SABR_ERROR || it.type == UmpPart.RELOAD_PLAYER_RESPONSE }
+            .map { part -> part.payload.decodeToString().filter { it.code in PRINTABLE }.take(REASON_CHARS) }
+        return "parts=${parts.map { it.name }.distinct()} itags=$itags reasons=$reasons"
+    }
+
     /** The media in [payload] when it belongs to our format, else nothing. */
     private fun mediaFor(header: MediaHeader?, payload: ByteArray): ByteArray =
         if (header?.itag != format.itag || payload.isEmpty()) {
@@ -141,5 +157,7 @@ public class SabrStream(
 
         /** A read that cannot be satisfied in this many fetches is a stuck stream, not a slow one. */
         const val MAX_FETCHES_PER_READ = 6
+        val PRINTABLE = 32..126
+        const val REASON_CHARS = 60
     }
 }

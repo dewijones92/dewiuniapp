@@ -10,6 +10,7 @@ import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
+import java.util.Base64
 
 /**
  * Reads a `/player` response into [StreamingData].
@@ -26,6 +27,8 @@ import kotlinx.serialization.json.longOrNull
 public object PlayerResponseParser {
 
     private val json = Json { ignoreUnknownKeys = true }
+
+    private const val PADDING = 4
 
     public fun parse(body: String): PlayerResult {
         val root = runCatching { json.parseToJsonElement(body) as? JsonObject }.getOrNull()
@@ -49,6 +52,7 @@ public object PlayerResponseParser {
             StreamingData(
                 formats = formats,
                 serverAbrStreamingUrl = streaming.stringAt("serverAbrStreamingUrl")?.let(HttpUrl::parse),
+                ustreamerConfig = root.ustreamerConfig(),
             ),
             details = (root["videoDetails"] as? JsonObject)?.toDetails(),
             subtitles = root.captionTracks(),
@@ -121,7 +125,26 @@ public object PlayerResponseParser {
             height = this["height"]?.jsonPrimitive?.longOrNull?.toInt(),
             bitrate = this["bitrate"]?.jsonPrimitive?.longOrNull,
             url = stringAt("url")?.let(HttpUrl::parse),
+            lastModified = stringAt("lastModified")?.toLongOrNull(),
+            xtags = stringAt("xtags"),
         )
+    }
+
+    /**
+     * The SABR config, base64url-DECODED.
+     *
+     * YouTube writes it base64url without padding, which `Base64.getUrlDecoder` rejects, so the
+     * padding is restored first. Getting this wrong yields a config the server calls malformed,
+     * which is indistinguishable from not sending one.
+     */
+    private fun JsonObject.ustreamerConfig(): ByteArray? {
+        val encoded = (this["playerConfig"] as? JsonObject)
+            ?.let { it["mediaCommonConfig"] as? JsonObject }
+            ?.let { it["mediaUstreamerRequestConfig"] as? JsonObject }
+            ?.stringAt("videoPlaybackUstreamerConfig")
+            ?: return null
+        val padded = encoded + "=".repeat((PADDING - encoded.length % PADDING) % PADDING)
+        return runCatching { Base64.getUrlDecoder().decode(padded) }.getOrNull()
     }
 
     private fun JsonObject.stringAt(key: String): String? =

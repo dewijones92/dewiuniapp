@@ -133,6 +133,8 @@ dependencies {
   testImplementation(libs.kotlinx.coroutines.test)
 
   // Instrumented tests: jUnit rules and runners
+  // The SABR playback test drives a real ExoPlayer; :core:playback keeps media3 internal.
+  androidTestImplementation(libs.media3.exoplayer)
   androidTestImplementation(libs.androidx.test.core)
   androidTestImplementation(libs.androidx.test.ext.junit)
   androidTestImplementation(libs.androidx.test.runner)

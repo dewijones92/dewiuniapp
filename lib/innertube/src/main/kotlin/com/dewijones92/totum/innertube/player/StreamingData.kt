@@ -23,6 +23,11 @@ public data class StreamingData(
      * every format is directly fetchable, which is still the common case.
      */
     val serverAbrStreamingUrl: HttpUrl? = null,
+    /**
+     * `videoPlaybackUstreamerConfig`, base64url-decoded — the one field a SABR request cannot
+     * omit. Without it the server answers `RELOAD_PLAYER_RESPONSE: sabr.malformed_config`.
+     */
+    val ustreamerConfig: ByteArray? = null,
 ) {
     /** Formats we could play today — those with a direct URL. */
     public val directlyPlayable: List<PlayableFormat> get() = formats.filter { it.url != null }
@@ -52,6 +57,13 @@ public data class PlayableFormat(
     val height: Int?,
     val bitrate: Long?,
     val url: HttpUrl?,
+    /**
+     * Identifies this format to SABR, together with [xtags]. A real response carried 22
+     * entries for one audio itag — one per dubbed language — so the itag alone names nothing.
+     */
+    val lastModified: Long? = null,
+    /** YouTube's `xtags`, verbatim. Without it SABR answers `sabr.no_audio_selected`. */
+    val xtags: String? = null,
 )
 
 public sealed interface PlayerResult {

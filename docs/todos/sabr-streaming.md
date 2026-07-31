@@ -157,7 +157,7 @@ real bytes are somebody's copyrighted video and prove nothing the framing does n
    was followed by `1a45dfa3`.
 2. ~~**Select formats**~~ — done, and `xtags` turned out to be the crux. See below.
 3. ~~**State across requests**~~ — `ClientAbrState.player_time_ms` does it. See below.
-4. **A Media3 `DataSource`** — all that is left, and the only remaining unknown.
+4. ~~**A Media3 `DataSource`**~~ — done, and **a real video plays through it on Android**.
 5. **PO token**: not needed. Never sent one, and full-quality media came back every time.
 
 ## It fetches real, decodable media. Verified 2026-07-31.
@@ -208,3 +208,42 @@ against a known quantity rather than a research problem.
 
 The prize remains what it was: a ~150ms resolve instead of 2-4s, and no JS runtime on the
 playback path at all.
+
+## It plays. On the device. 2026-07-31.
+
+```
+[sabr] opened at 0 of -1 bytes
+[sabr] PLAYED 1187ms of itag 140 over SABR
+```
+
+`SabrPlaybackTest` (instrumented, `:app`) does the whole thing with no fakes: a live `/player`
+call, the real `SabrStream`, the real `SabrDataSource`, a real `ExoPlayer`. The only assertion
+that matters is the one it makes — **the playback position moved**. It reached 1187ms of itag
+140 on "Me at the zoo", chosen because it is short and unlikely ever to be taken down.
+
+So the chain is complete: `/player` in ~150ms → SABR request → UMP → media bytes → ExoPlayer →
+audio out.
+
+### What the failure taught, before it passed
+
+The first run failed with `Source error` and nothing to explain it. The fix was instrumentation,
+not guesswork: `SabrStream` now says what a response *did* contain when it contains nothing
+useful — part names, itags and any refusal — because an empty result has three very different
+causes (a refusal, media for a format we did not ask for, or a genuine end) and they are
+indistinguishable otherwise. That line is what turned "Source error" into "itag 140 got no bytes
+from 1562B, reasons=[…]".
+
+Also learned: **itag 139 is refused outright** (`sabr.no_audio_selected`) while 140, 249, 251,
+599 and 600 all serve, so a format chooser cannot assume every listed audio format is
+obtainable.
+
+## What is left before this can be the app's default
+
+- **Seeking.** `SabrDataSource` is not seekable to an arbitrary byte: SABR is asked for a media
+  TIME, not an offset. A reader opening at a position we have not reached gets nothing. Playing
+  from the start works; scrubbing does not.
+- **Video as well as audio.** The video path is written and the request is honoured, but only
+  audio has been played end to end.
+- **Adaptive switching**, which is the entire point of the "ABR" in SABR and currently unused —
+  one format is picked and kept.
+- **Then, and only then**, wiring it in front of yt-dlp for the ~150ms resolve.
