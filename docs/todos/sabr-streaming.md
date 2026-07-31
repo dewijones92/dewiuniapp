@@ -359,3 +359,46 @@ not left stranded behind an offset key while the stream declares itself finished
   than yt-dlp would give, but it plays, where before the request came back empty.
 - **Live does not work at all** on this path and falls back to extraction, which is correct.
 - Seeking still does not work, and the quality menu is still deliberately empty.
+
+## Diagnostics, and what they immediately found
+
+Dewi: *"put extensive logs/diags to ensure the ux is good"*. The instrumentation earned its
+place within one run.
+
+**What is logged now**
+
+- **The quality actually delivered, against what YouTube offered**, and why it differs:
+  `prepared LXb3EKWsInQ — audio itag 251 @149kbps, video itag 135 480p30, YouTube offered up to
+  2160p — CAPPED, SABR refuses 22x 60fps and 17x VP9/webm formats; our own cap is 1080p`.
+  A report saying only "SABR was used" would have hidden a 2160p video playing at 480p.
+- **Every network fetch**: `fetch #4 itag 137 at 30000ms -> 8306200B response, 4760631B kept,
+  2390ms`, flagged `— SLOW` past 3s. One line per round trip (~10s of media), not per read, so
+  it is a few lines a minute rather than a flood.
+- **A seek, by name.** Seeking is the known hole, and an open at a non-zero byte offset now says
+  so loudly instead of presenting as "the player froze after I scrubbed".
+- **A per-track summary on close**: fetches, reads, how many reads had to WAIT on the network,
+  bytes served, bytes discarded, average fetch latency, media time reached.
+- **A stuck stream** names the offset it wanted and the runs it is holding, rather than going
+  quiet.
+- Vitals for the report header: `sabr.fetches`, `sabr.fetchMs`, `sabr.bytesKept`,
+  `sabr.bytesDiscarded`, `sabr.quality`, `sabr.seekAttempts`, `sabr.emptyResponses`.
+
+**And it found a real cost nobody had measured.** On a 1080p video the fetches look like this:
+
+```
+fetch #3  7080300B response, 6743775B kept
+fetch #4  8306200B response, 4760631B kept   <- 43% thrown away
+fetch #5  4842847B response, 1813644B kept   <- 63% thrown away
+```
+
+Two problems in one place:
+
+1. **Roughly 40-60% of every video fetch is discarded**, because a video request also returns
+   audio and no track bitfield was found that suppresses it — and the audio track then fetches
+   that same audio *again*. A video played this way costs meaningfully more data than it needs
+   to. The fix is one shared session feeding both tracks instead of two independent streams.
+2. **The bursts are large** — 5-8MB per 10s of media. Fine on wifi, not fine on a metered
+   connection, and worth a cap before this leaves beta.
+
+Neither is a correctness bug, which is exactly why they would have gone unnoticed without being
+measured. Both are now visible in any report.

@@ -2,6 +2,7 @@ package com.dewijones92.totum.video
 
 import com.dewijones92.totum.common.Diag
 import com.dewijones92.totum.common.HttpUrl
+import com.dewijones92.totum.common.Vitals
 import com.dewijones92.totum.innertube.player.PlayableFormat
 import com.dewijones92.totum.innertube.player.PlayerDetails
 import com.dewijones92.totum.innertube.player.StreamingData
@@ -47,10 +48,7 @@ internal object SabrResolve {
         )
         val audioUrl = SabrSessions.uriFor(videoId, audio.itag)?.let(HttpUrl::parse)
             ?: return refuse(videoId, "could not build a marked endpoint URL")
-        Diag.log(
-            "sabr",
-            "prepared $videoId — audio itag ${audio.itag}, video itag ${video?.itag ?: "none"}",
-        )
+        reportQuality(videoId, streaming.formats, audio, video)
         return Resolved(
             details = known,
             videoUrl = video?.let { SabrSessions.uriFor(videoId, it.itag)?.let(HttpUrl::parse) },
@@ -110,6 +108,46 @@ internal object SabrResolve {
 
     private fun PlayableFormat.toSabrFormat() = SabrFormat(itag, lastModified!!, xtags)
 
+    /**
+     * The quality the user is ACTUALLY getting, against what YouTube offered.
+     *
+     * The 60fps refusal can quietly drop a 4K/60 upload to 480p, and a report saying only "SABR
+     * was used" would make that invisible. This is the line that answers "why did it look worse
+     * than usual".
+     */
+    private fun reportQuality(
+        videoId: String,
+        formats: List<PlayableFormat>,
+        audio: PlayableFormat,
+        video: PlayableFormat?,
+    ) {
+        val offered = formats.mapNotNull { it.height }.maxOrNull() ?: 0
+        val chosen = video?.height ?: 0
+        val capped = if (chosen in 1 until offered) " — CAPPED, ${whyCapped(formats, offered)}" else ""
+        Diag.log(
+            "sabr",
+            "prepared $videoId — audio itag ${audio.itag}" +
+                (audio.bitrate?.let { " @${it / BITS_PER_KILOBIT}kbps" } ?: "") +
+                ", video ${video?.let { "itag ${it.itag} ${it.height}p${it.fps ?: ""}" } ?: "none"}" +
+                ", YouTube offered up to ${offered}p$capped",
+        )
+        Vitals.set("sabr.quality", "${chosen}p of ${offered}p offered")
+    }
+
+    /**
+     * Why the chosen height is below what YouTube offered — named, not left to be inferred.
+     *
+     * There are only a few reasons and each is a rule measured on 2026-07-31, so a report can
+     * say which one bit rather than leaving "it played at 480p" as the whole story.
+     */
+    private fun whyCapped(formats: List<PlayableFormat>, offered: Int): String {
+        val better = formats.filter { (it.height ?: 0) > MAX_SABR_HEIGHT || (it.fps ?: 0) > MAX_SABR_FPS }
+        val sixtyFps = better.count { (it.fps ?: 0) > MAX_SABR_FPS }
+        val webm = formats.count { it.mimeType?.contains("webm") == true && it.height != null }
+        return "SABR refuses ${sixtyFps}x 60fps and ${webm}x VP9/webm formats; " +
+            "our own cap is ${MAX_SABR_HEIGHT}p (offered ${offered}p)"
+    }
+
     private fun refuse(videoId: String, why: String): Resolved? {
         Diag.log("sabr", "not using SABR for $videoId: $why — extracting instead")
         return null
@@ -123,4 +161,6 @@ internal object SabrResolve {
 
     /** SABR refuses every format above this, whatever its codec or resolution. */
     private const val MAX_SABR_FPS = 30
+
+    private const val BITS_PER_KILOBIT = 1000
 }

@@ -48,6 +48,9 @@ class SabrLiveStreamTest {
     @Test
     fun `fetches a run of real audio segments in order`() = runTest {
         assumeTrue("populate /tmp/sabr-live to run this", inputs.isDirectory)
+        // A SABR endpoint carries its own expiry, and stale inputs would fail this for a reason
+        // that has nothing to do with the code — which is exactly what a gate must never do.
+        assumeTrue("inputs have expired; re-populate /tmp/sabr-live", !expired(File(inputs, "url").readText()))
         val spec = File(inputs, "format").readText().trim().split(" ")
         val stream = SabrStream(
             url = File(inputs, "url").readText().trim(),
@@ -78,7 +81,14 @@ class SabrLiveStreamTest {
         )
     }
 
+    /** True when the endpoint's `expire` timestamp has passed. */
+    private fun expired(url: String): Boolean {
+        val seconds = url.substringAfter("expire=", "").substringBefore("&").toLongOrNull() ?: return false
+        return seconds * MILLIS_PER_SECOND < System.currentTimeMillis()
+    }
+
     private companion object {
         const val FETCHES = 6
+        const val MILLIS_PER_SECOND = 1_000L
     }
 }

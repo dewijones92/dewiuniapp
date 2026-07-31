@@ -6,6 +6,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.BaseDataSource
 import androidx.media3.datasource.DataSpec
 import com.dewijones92.totum.common.Diag
+import com.dewijones92.totum.common.Vitals
 import com.dewijones92.totum.sabr.SabrStream
 import kotlinx.coroutines.runBlocking
 
@@ -34,6 +35,7 @@ public class SabrDataSource(private val stream: SabrStream) : BaseDataSource(tru
     private var pending: ByteArray = ByteArray(0)
     private var pendingAt = 0
     private var opened = false
+    private var opens = 0
 
     override fun open(dataSpec: DataSpec): Long {
         uri = dataSpec.uri
@@ -41,10 +43,24 @@ public class SabrDataSource(private val stream: SabrStream) : BaseDataSource(tru
         pending = ByteArray(0)
         pendingAt = 0
         opened = true
+        opens++
         transferInitializing(dataSpec)
         transferStarted(dataSpec)
         val length = stream.contentLength
-        Diag.log("sabr", "opened at $position of ${length ?: -1} bytes")
+        // A non-zero open position is a SEEK, and seeking is the known hole in this path: SABR
+        // is asked for a media time, not a byte offset, so bytes before that offset were never
+        // fetched and never will be. Said loudly and by name, because the symptom otherwise is
+        // "the player froze after I scrubbed" with nothing to connect it to.
+        if (position > 0) {
+            Vitals.add("sabr.seekAttempts")
+            Diag.warn(
+                "sabr",
+                "SEEK to byte $position — not supported on this path (SABR is time-addressed, " +
+                    "not byte-addressed); expect this to stall. open #$opens, ${stream.describeProgress()}",
+            )
+        } else {
+            Diag.log("sabr", "opened at $position of ${length ?: -1} bytes (open #$opens)")
+        }
         return length?.minus(position) ?: C.LENGTH_UNSET.toLong()
     }
 
@@ -70,6 +86,9 @@ public class SabrDataSource(private val stream: SabrStream) : BaseDataSource(tru
         if (opened) {
             opened = false
             transferEnded()
+            // On close so a report has the whole picture per track even if playback was
+            // abandoned: latency, how many reads had to wait, and how far it actually got.
+            Diag.log("sabr", "closed at $position — ${stream.describeProgress()}")
         }
         pending = ByteArray(0)
         pendingAt = 0

@@ -1,6 +1,7 @@
 package com.dewijones92.totum.sabr
 
 import com.dewijones92.totum.common.Diag
+import com.dewijones92.totum.common.Vitals
 
 /** Posts a SABR request body and returns the raw UMP response. */
 public fun interface SabrTransport {
@@ -35,6 +36,7 @@ public class SabrStream(
     private val transport: SabrTransport,
     /** How much media time to advance per fetch. Segments observed at ~10s for audio. */
     private val stepMs: Long = DEFAULT_STEP_MS,
+    private val clock: () -> Long = System::currentTimeMillis,
 ) {
     /** Bytes gathered for [format], keyed by their offset in the whole stream. */
     private val chunks = sortedMapOf<Long, ByteArray>()
@@ -50,6 +52,23 @@ public class SabrStream(
     private var playerTimeMs = 0L
     private var exhausted = false
 
+    /** Counted rather than logged per call: a read happens every few KB and would flood. */
+    private var reads = 0
+    private var fetches = 0
+    private var bytesServed = 0L
+    private var totalFetchMs = 0L
+
+    /**
+     * Bytes downloaded and thrown away, because a VIDEO request also returns audio and no track
+     * bitfield was found that suppresses it. The audio track then fetches that same audio again,
+     * so a video played this way costs noticeably more data than it needs to — worth measuring
+     * rather than discovering on a phone bill.
+     */
+    private var bytesDiscarded = 0L
+
+    /** Reads that had to WAIT on the network. The ones a listener hears as a gap. */
+    private var readsThatFetched = 0
+
     /** Total length of this format, once a header has declared it. */
     public var contentLength: Long? = null
         private set
@@ -63,15 +82,45 @@ public class SabrStream(
      */
     public suspend fun read(from: Long): ByteArray {
         served = from
+        reads++
         var attempts = 0
         while (attempts < MAX_FETCHES_PER_READ) {
-            contiguousFrom(from)?.let { return it }
-            if (exhausted) return ByteArray(0)
+            contiguousFrom(from)?.let { held ->
+                bytesServed += held.size
+                if (attempts > 0) readsThatFetched++
+                return held
+            }
+            if (exhausted) {
+                Diag.log(
+                    "sabr",
+                    "itag ${format.itag} finished at $from after ${bytesServed}B " +
+                        "over $fetches fetches / $reads reads",
+                )
+                return ByteArray(0)
+            }
             fetch()
             attempts++
         }
-        Diag.warn("sabr", "no bytes at offset $from for itag ${format.itag} after $attempts fetches")
+        // The shape of a stall: the network answered but never with the bytes at this offset.
+        Diag.warn(
+            "sabr",
+            "STUCK: itag ${format.itag} has no bytes at offset $from after $attempts fetches " +
+                "(held ${chunks.size} runs at ${chunks.keys.take(HELD_TO_NAME)}, served ${bytesServed}B)",
+        )
         return ByteArray(0)
+    }
+
+    /** What a report needs to judge whether this felt fast: latency, throughput, and waits. */
+    public fun describeProgress(): String {
+        val averageMs = if (fetches == 0) 0 else totalFetchMs / fetches
+        val wasted = if (bytesServed + bytesDiscarded == 0L) {
+            0
+        } else {
+            bytesDiscarded * PERCENT / (bytesServed + bytesDiscarded)
+        }
+        return "itag=${format.itag} fetches=$fetches reads=$reads waited=$readsThatFetched " +
+            "served=${bytesServed}B discarded=${bytesDiscarded}B ($wasted% wasted) " +
+            "avgFetch=${averageMs}ms mediaTime=${playerTimeMs}ms"
     }
 
     /**
@@ -104,13 +153,32 @@ public class SabrStream(
             // bytes; asking for video means accepting audio alongside it.
             tracks = if (kind == SabrTrackKind.AUDIO) SabrTracks.AUDIO_ONLY else SabrTracks.AUDIO_AND_VIDEO,
         ).encode()
+        val startedAt = clock()
         val response = transport.post(url, body)
+        val elapsed = clock() - startedAt
+        fetches++
+        totalFetchMs += elapsed
         val added = absorb(response)
+        bytesDiscarded += (response.size - added).coerceAtLeast(0)
+        Vitals.add("sabr.fetches")
+        Vitals.add("sabr.fetchMs", elapsed)
+        Vitals.add("sabr.bytesKept", added.toLong())
+        Vitals.add("sabr.bytesDiscarded", (response.size - added).coerceAtLeast(0).toLong())
+        Vitals.set("sabr.lastFetch", "itag ${format.itag} +${added}B in ${elapsed}ms")
+        // One line per network round trip, not per read: a fetch covers ~10s of media, so this
+        // is a handful of lines a minute and the only place a stall's cause is visible.
+        Diag.log(
+            "sabr",
+            "fetch #$fetches itag ${format.itag} at ${playerTimeMs}ms -> " +
+                "${response.size}B response, ${added}B kept, ${elapsed}ms" +
+                if (elapsed > SLOW_FETCH_MS) " — SLOW" else "",
+        )
         if (added == 0) {
             // Says WHAT came back instead of just that nothing did. An empty result has three
             // very different causes — a refusal, media for a format we did not ask for, or a
             // genuine end — and they are indistinguishable without this.
             exhausted = true
+            Vitals.add("sabr.emptyResponses")
             Diag.warn(
                 "sabr",
                 "itag ${format.itag} got no bytes at ${playerTimeMs}ms from ${response.size}B: " +
@@ -195,5 +263,12 @@ public class SabrStream(
         const val MAX_FETCHES_PER_READ = 6
         val PRINTABLE = 32..126
         const val REASON_CHARS = 60
+
+        /** A fetch slower than this is a candidate cause for a gap the listener heard. */
+        const val SLOW_FETCH_MS = 3_000L
+
+        /** Enough held offsets to see the shape of a gap without printing a whole map. */
+        const val HELD_TO_NAME = 4
+        const val PERCENT = 100
     }
 }
