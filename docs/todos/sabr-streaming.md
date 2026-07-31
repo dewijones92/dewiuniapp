@@ -92,3 +92,76 @@ yt-dlp's URLs are durable because it uses a client (`WEB_EMBEDDED_PLAYER`) with 
 `n` parameter — which is what the JS runtime buys and why extraction costs 2-4s. **That cost
 is the price of a stream that plays to the end**, and no amount of restructuring around
 InnerTube avoids it.
+
+## The protocol works. Proven 2026-07-31.
+
+Started implementing it, and the unknown part — whether we can talk SABR at all — is now
+answered. Three findings, in the order they arrived:
+
+**1. yt-dlp cannot help.** The bundled 2026.07.04 has zero SABR support (no
+`serverAbrStreamingUrl`, no UMP, nothing). The upstream PR
+[#13515](https://github.com/yt-dlp/yt-dlp/pull/13515) is **still open** — ready for review 13
+July 2026, no milestone — and it is an `fd/` *file downloader*. It would serve yt-dlp
+downloads, not ExoPlayer playback, so it cannot fix video start even once merged. This has to
+be a Media3 `DataSource`.
+
+**2. The inputs are all there**, on the ANDROID client's player response:
+`serverAbrStreamingUrl`, a 12820-char `videoPlaybackUstreamerConfig` (9613 bytes decoded),
+`enableVideoPlaybackRequest`, and 151 formats carrying `initRange`, `indexRange`,
+`lastModified` and `contentLength`. The WEB client returns UNPLAYABLE and none of it.
+
+**3. A minimal request returns real media.** POST to `serverAbrStreamingUrl`:
+
+| Body | Response |
+|---|---|
+| empty | 31 bytes: `RELOAD_PLAYER_RESPONSE` → `sabr.malformed_config` |
+| `field 5 = videoPlaybackUstreamerConfig` | **212246 bytes, 26 UMP parts** |
+
+And the media in it is genuine, identified by magic bytes:
+
+| Part | Magic | What |
+|---|---|---|
+| header 0 | `1a45dfa3` | WebM/EBML header |
+| header 1 | `ftypdash` | fMP4 init segment |
+| header 2 | `1f43b675` | WebM Cluster |
+| headers 3, 4 | `moof` | MP4 fragments |
+
+Audio and video, initialisation and fragments, interleaved in one response — from a body
+containing **one field**. No PO token, no `ClientAbrState`, no format selection needed to get
+bytes flowing.
+
+## What has landed
+
+`:lib:sabr`, pure Kotlin, no Android:
+
+- `UmpVarint` — UMP's width-prefixed little-endian integer, which is **not** protobuf's and
+  sits inches from it in the same response. The five-byte case discards its first byte
+  entirely, unlike every other width; that is the one that would silently corrupt offsets.
+- `UmpReader` — the `[type][size][bytes]` framing, reporting bytes it could **not** consume so
+  a part split across HTTP responses is carried forward rather than dropped. That boundary
+  occurs on every response and is the hardest corruption to notice.
+- `UmpPart` — the part-type names, so a log says `SABR_ERROR` rather than `42`.
+- `Protobuf` + `VideoPlaybackAbrRequest` — enough to write the body that worked. Hand-rolled:
+  the schema is Google's private one with no public `.proto`, and a generator plus runtime
+  would be a build dependency and APK cost for a handful of length-delimited fields.
+
+Tested against the real 26-part sequence (types and sizes genuine, payloads synthetic — the
+real bytes are somebody's copyrighted video and prove nothing the framing does not).
+
+## What is left
+
+1. **Decode `MEDIA_HEADER`** — itag, byte offset, sequence number — to route bytes to the right
+   track. The header protobuf is read shallowly today.
+2. **Select formats** in the request (`selected_format_ids`, `preferred_*_format_ids`) instead
+   of taking the server's default, which currently answers with an `av01` `SABR_ERROR`.
+3. **A Media3 `DataSource`**, and this is the real design question: SABR interleaves audio and
+   video in one response, while ExoPlayer wants a byte stream per track. So it needs a
+   `MediaSource` that demuxes, or a pair of data sources sharing one request and buffering the
+   other's bytes.
+4. **State across requests** — `buffered_ranges` and `player_time_ms` — so seeking and
+   continued playback ask for the right segments.
+5. **PO token**, if it turns out to be needed for sustained playback. It was not needed for a
+   first request.
+
+The prize remains what it was: a ~150ms resolve instead of 2-4s, and no JS runtime on the
+playback path at all.
