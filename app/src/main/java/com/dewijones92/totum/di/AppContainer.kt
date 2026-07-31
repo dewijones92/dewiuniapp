@@ -91,6 +91,7 @@ import com.dewijones92.totum.playback.PlaybackProgressStore
 import com.dewijones92.totum.playback.SharedPrefsPlaybackSpeedStore
 import com.dewijones92.totum.playback.SharedPrefsVolumeBoostStore
 import com.dewijones92.totum.playback.SleepTimer
+import com.dewijones92.totum.playback.StallWatchdog
 import com.dewijones92.totum.queue.PlaybackQueue
 import com.dewijones92.totum.queue.QueueAutoDownloader
 import com.dewijones92.totum.search.SharedPrefsSearchHistoryStore
@@ -474,6 +475,14 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
             states = playbackController.state,
             advance = { playbackQueue.playNextInQueue() },
             whenQueueEmpty = ::playRelatedNext,
+            isEnabled = { appPreferences.settings.value.autoPlayNext },
+            scope = applicationScope,
+        ).start()
+        // The advancer only ever hears about a clean end. An item that stops dead at its own
+        // end without reporting one leaves the queue silently stopped — see StallWatchdog.
+        StallWatchdog(
+            states = playbackController.state,
+            advance = { playbackQueue.playNextInQueue() },
             isEnabled = { appPreferences.settings.value.autoPlayNext },
             scope = applicationScope,
         ).start()

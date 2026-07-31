@@ -1,9 +1,9 @@
 ---
-title: Permanent vs transient failure
+title: Permanent vs transient failure, and playback that goes nowhere
 kind: feature
 status: shipped
 area: playback
-updated: 2026-07-28
+updated: 2026-07-31
 ---
 
 # Knowing when to stop asking
@@ -86,3 +86,56 @@ host it.
 
 Worth noting what makes this hard to catch: neither failed loudly. There was no crash and no
 error — just an absence, which is why both needed the diagnostics trail to find at all.
+
+## The third way playback goes nowhere: a stall (2026-07-31)
+
+Dewi, again with the screen off: *"I expected the next item to be played as it finished the
+first item, but it didn't auto play."*
+
+This time neither watcher was asleep — both were running and neither had anything to react
+to. A 41-minute video reached 2506062ms, **seven seconds from its end**, went to BUFFERING at
+07:55:48 and was still at exactly that position 46 seconds later, across two 30-second
+snapshots, until he picked the next item by hand. Sixty-five items were queued behind it.
+
+That is a third state, distinct from the two the app already handled:
+
+| What happened | Signal | Who acts |
+|---|---|---|
+| Item finished | `hasEnded` | `AutoAdvancer` |
+| Stream died | `StreamFailure` | `ExpiredStreamRecovery` |
+| Item froze | **nothing at all** | `StallWatchdog` |
+
+`StallWatchdog` treats a position that has not moved for 20s while buffering, within 15s of
+the duration, as an end and advances. A stall earlier in an item is **logged only** — same
+fault, just as fatal in a pocket, but re-resolving mid-item would restart the video every
+time a train went through a tunnel, and there is not one observation of it yet to design
+against. The log carries the position and the duration so the next report can settle it.
+
+### The thing that nearly shipped doing nothing
+
+The first version collected `PlaybackController.state`. Its tests failed, which is the only
+reason this is worth writing down: **`state` is a `StateFlow`, and a `StateFlow` drops a value
+equal to the one before it.** A stall is by definition a run of identical states — same item,
+same position, same buffering flag — so a collector gets exactly one emission when the stall
+starts and then silence. An emission-driven timer would have been read once, at zero elapsed,
+and never fired.
+
+Nothing about that failure is observable: no crash, no error, no log line, just a watchdog
+that quietly never triggers. It would have looked shipped and fixed. The tests catch it
+because they hold the state completely still and let *time* pass, which is what a stall
+actually is — so the watchdog samples on a clock instead of collecting.
+
+Generalising: **when the signal you need is "nothing has changed", a conflating flow cannot
+carry it.** Sample, don't observe.
+
+### Files
+
+- `app/…/playback/StallWatchdog.kt` — the sampler and the end-of-item decision
+
+### Tests
+
+`StallWatchdogTest` (11 cases, built on the report's real numbers): the reported stall
+advances; 19s does not; a long stall advances exactly once; a mid-item stall is left alone; a
+paused player is not a stall; buffering that keeps progressing is not a stall; a recovered
+stall does not bank its time towards a later one; auto-play-off reports but does not play;
+each item gets its own stall; an unknown duration is never the end; no state is not a stall.
