@@ -1,6 +1,7 @@
 package com.dewijones92.totum.video
 
 import com.dewijones92.totum.common.Diag
+import com.dewijones92.totum.common.HttpUrl
 import com.dewijones92.totum.innertube.browse.InnerTubeClient
 import com.dewijones92.totum.innertube.browse.InnerTubeResponse
 import com.dewijones92.totum.innertube.player.PlayerResponseParser
@@ -21,14 +22,20 @@ import com.dewijones92.totum.innertube.player.StreamingData
  * no JS runtime is implied. That is why this works on a phone where yt-dlp cannot.
  */
 fun interface PlayerStreams {
-    /** Null when YouTube refuses or the call fails; the caller keeps what it already had. */
-    suspend fun streamsFor(videoId: String): StreamingData?
+    /**
+     * Null when YouTube refuses or the call fails; the caller falls back to yt-dlp.
+     *
+     * The whole response, not just its streams: [PlayerResult.Success.details] and its
+     * subtitles are what let this resolve a video on its own rather than only supplement an
+     * extraction that has already been paid for.
+     */
+    suspend fun playerFor(videoId: String): PlayerResult.Success?
 }
 
 /** [PlayerStreams] over our own InnerTube client. */
 class InnerTubePlayerStreams(private val innerTube: InnerTubeClient) : PlayerStreams {
 
-    override suspend fun streamsFor(videoId: String): StreamingData? {
+    override suspend fun playerFor(videoId: String): PlayerResult.Success? {
         val response = runCatching { innerTube.player(videoId) }.getOrElse { failure ->
             Diag.warn("resolve", "second opinion for $videoId could not be fetched", failure)
             return null
@@ -38,7 +45,7 @@ class InnerTubePlayerStreams(private val innerTube: InnerTubeClient) : PlayerStr
             return null
         }
         return when (val parsed = PlayerResponseParser.parse(body)) {
-            is PlayerResult.Success -> parsed.streaming
+            is PlayerResult.Success -> parsed
             is PlayerResult.Unplayable -> {
                 Diag.log("resolve", "second opinion for $videoId refused: ${parsed.reason}")
                 null
@@ -82,3 +89,23 @@ internal fun StreamingData.videoQualities(): List<VideoQuality> {
         }
         .sortedByDescending { it.height }
 }
+
+/** Best audio-only stream, for "Listen" mode and as the merge partner for a video-only one. */
+internal fun StreamingData.bestAudioUrl(): HttpUrl? =
+    directlyPlayable
+        .filter { it.mimeType?.startsWith("audio/") == true }
+        .maxByOrNull { it.bitrate ?: 0 }
+        ?.url
+
+/**
+ * The best single stream that carries picture AND sound, or null when every format is split.
+ *
+ * The default the app plays, matching what the yt-dlp path picks: one stream is reliable and
+ * data-friendly, and the quality menu offers the higher merged ladders on demand. Choosing the
+ * tallest format here instead would quietly make every play a merged 2160p one.
+ */
+internal fun StreamingData.bestMuxedUrl(): HttpUrl? =
+    directlyPlayable
+        .filter { it.mimeType?.startsWith("video/") == true && it.mimeType?.contains("mp4a") == true }
+        .maxByOrNull { it.height ?: 0 }
+        ?.url

@@ -415,10 +415,27 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
             ytDlpEngine,
             skipSegmentSource,
             PlatformVideoCodecSupport(),
-            // DISABLED. The ladder it returns is real, but the URLs do not play: YouTube's
-            // ANDROID-client streams 403 for us where yt-dlp's do not, so a kids video went
-            // from playing at 360p to not playing at all — worse than the bug it fixed.
-            // Re-enable only once a video has been watched end to end, not merely resolved.
+            // STILL DISABLED, and now for a reason that is measured rather than guessed.
+            //
+            // A `/player` call answers in ~150ms with a full ladder to 2160p and no `n`
+            // parameter to decipher, against 2-4s for an extraction — so it was enabled as the
+            // primary path on 2026-07-31. Videos resolved in 1435ms and then would not play,
+            // exactly as before. Probing the URLs directly found why:
+            //
+            //   first request, bytes 512K-1M   403      (offset, not request count)
+            //   then bytes 0-512K, same URL    206
+            //   the same 0-256K request x3     206 206 206
+            //   ranges ending below ~1MB       206
+            //   ranges ending at or above 1MB  403
+            //
+            // ONLY THE FIRST MEGABYTE IS REACHABLE. Not a rate limit, not the User-Agent, not
+            // the format, and not the length probe that ChunkedDataSource already stopped
+            // making. The rest of the stream is behind SABR, which is what
+            // `serverAbrStreamingUrl` is for and what SmartTube implements.
+            //
+            // So this cannot serve playback at any speed, and re-enabling it will produce a
+            // video that resolves fast and plays for one megabyte. See
+            // docs/todos/sabr-streaming.md.
             playerStreams = null,
         )
     }

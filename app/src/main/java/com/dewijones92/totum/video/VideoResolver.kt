@@ -208,7 +208,7 @@ class VideoResolver(
         if (qualities.size > 1 || best > DEGRADED_HEIGHT) return qualities
         Diag.log("resolve", "$id offered one quality at ${best}p — asking YouTube directly")
 
-        val streams = fallback.streamsFor(id) ?: return qualities.also { reportIfDegraded(id, it) }
+        val streams = fallback.playerFor(id)?.streaming ?: return qualities.also { reportIfDegraded(id, it) }
         val better = streams.videoQualities()
         val betterBest = better.maxOfOrNull { it.height } ?: 0
         if (betterBest <= best) {

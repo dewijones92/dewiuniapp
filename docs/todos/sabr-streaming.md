@@ -55,3 +55,40 @@ QuickJS is around a megabyte, against ffmpeg's seven. It would fix yt-dlp broadl
 than one symptom — including `n`-parameter deciphering, which otherwise throttles downloads
 — and it is insurance for the next thing YouTube changes, since yt-dlp has now deprecated
 running without it.
+
+## Where exactly the wall is (measured 2026-07-31)
+
+The fast path was enabled as the primary resolver and it failed the same way it always had —
+`[resolve] … in 1435ms BY ASKING YOUTUBE` and then `Source error`. This time the URLs were
+probed directly, so the reason is no longer a guess.
+
+| Request against a fresh ANDROID-client URL | Result |
+|---|---|
+| bytes 0–256K | **206** |
+| the same 0–256K request, three times | **206, 206, 206** |
+| bytes 0–896K | **206** |
+| bytes 0–1024K | 403 |
+| **first** request = bytes 512K–1M | **403** |
+| then bytes 0–512K on that same URL | **206** |
+
+**Only the first megabyte of the stream is reachable.** It is not a rate limit (the same
+request repeats fine), not the request count (an early failure happens on request one), not the
+range size in itself (a 896K range from zero is fine), not the User-Agent (identical with
+yt-dlp's, ExoPlayer's, and none), and not the length probe that `ChunkedDataSource` already
+stopped making by reading `clen` from the URL.
+
+151 of 152 formats answer 206 to a first small range, which is exactly why "resolve" looked
+like success for so long, and why a ladder to 2160p means nothing here.
+
+The rest of every stream is behind SABR — which is what `serverAbrStreamingUrl` is for, and
+what SmartTube implements. So:
+
+- `/player` is genuinely ~150ms and gives a full ladder, a title, a length, captions and the
+  channel id. It is a fine METADATA source.
+- It cannot serve **playback** at any speed until SABR is implemented. Re-enabling
+  `playerStreams` as a resolver produces a video that resolves fast and plays for one megabyte.
+
+yt-dlp's URLs are durable because it uses a client (`WEB_EMBEDDED_PLAYER`) with a deciphered
+`n` parameter — which is what the JS runtime buys and why extraction costs 2-4s. **That cost
+is the price of a stream that plays to the end**, and no amount of restructuring around
+InnerTube avoids it.
