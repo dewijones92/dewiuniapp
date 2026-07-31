@@ -152,6 +152,14 @@ public class Media3PlaybackController(
     ) {
         val uri = localPath?.let { File(it).toURI().toString() }
             ?: requireNotNull(item.mediaUrl) { "MediaItem ${item.id.value} has no mediaUrl" }.value
+        // WHAT is actually being played, which nothing recorded before. The queue stores the
+        // stable watch URL, so a report could say a video was played and never say from
+        // where — and an HLS URL with no HLS extractor bundled died instantly with only an
+        // ExoPlayer ClassNotFoundException in logcat to show for it (0.1.230, found on the
+        // emulator 2026-07-31). Signature and expiry parameters are dropped: they are long,
+        // secret, and never the answer.
+        val mergedAudio = audioUrl?.let { " + audio ${it.value.forLog()}" }.orEmpty()
+        Diag.log("playback", "play ${item.id.value} from ${uri.forLog()}$mergedAudio")
         onPlay(item, kind)
         // Each play() claims a generation; only the latest one commits its state and
         // media item. Guards against two quick play() calls (double-tap, queue
@@ -410,3 +418,14 @@ internal fun isExpiredStatus(code: Int): Boolean = code == HTTP_FORBIDDEN || cod
 
 private const val HTTP_FORBIDDEN = 403
 private const val HTTP_GONE = 410
+
+/**
+ * A stream URL short enough to log and safe to keep.
+ *
+ * Host and path answer the questions that matter — which CDN, and whether this is a
+ * progressive stream, an HLS manifest or a local file — while the query carries only a
+ * signature and an expiry, which are secret, enormous, and never the reason something broke.
+ */
+internal fun String.forLog(): String = substringBefore('?').let {
+    if (length > it.length) "$it?…" else it
+}
