@@ -127,6 +127,7 @@
     <string name="shorts_empty">No Shorts in this feed</string>
     <string name="skip_silence">Skip silences</string>
     <string name="auto_play_next">Auto-play next</string>
+    <string name="sabr_playback">Fast start (beta, no seeking)</string>
     <string name="boost_off">Off</string>
     <string name="boost_low">Low</string>
     <string name="boost_medium">Med</string>

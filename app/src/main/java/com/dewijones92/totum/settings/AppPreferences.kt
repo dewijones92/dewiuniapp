@@ -40,6 +40,9 @@ interface AppPreferences {
     fun setWifiMaxHeight(height: Int)
     fun setCellularMaxHeight(height: Int)
     fun setAutoPlayNext(enabled: Boolean)
+
+    /** Experimental: resolve and stream over SABR instead of extracting. Off by default. */
+    fun setSabrPlayback(enabled: Boolean)
     fun setAutoDownloadQueue(enabled: Boolean)
     fun setAutoDownloadWifiOnly(enabled: Boolean)
     fun setPlaybackMode(mode: PlaybackMode)
@@ -53,6 +56,17 @@ interface AppPreferences {
         val cellularMaxHeight: Int = DEFAULT_CELLULAR_MAX_HEIGHT,
         /** Whether the queue advances when an item ends. On by default. */
         val autoPlayNext: Boolean = true,
+        /**
+         * Resolve and stream over YouTube's own SABR protocol instead of extracting with
+         * yt-dlp. **Off by default and experimental.**
+         *
+         * The prize is real — a `/player` call answers in ~150ms where an extraction costs 2-4
+         * seconds on a phone — but SABR is asked for a media TIME rather than a byte offset, so
+         * this cannot seek yet. Off by default because a fast start that cannot scrub is a
+         * worse app, and behind a switch because the only way to find the next problem is to
+         * use it.
+         */
+        val sabrPlayback: Boolean = false,
         /** Whether queued items have their audio fetched for offline listening. */
         val autoDownloadQueue: Boolean = true,
         /** Restricts automatic downloads to Wi-Fi, so a long queue can't eat data. */
@@ -86,6 +100,7 @@ class SharedPrefsAppPreferences(context: Context) : AppPreferences {
             wifiMaxHeight = prefs.getInt(KEY_WIFI, AppPreferences.DEFAULT_WIFI_MAX_HEIGHT),
             cellularMaxHeight = prefs.getInt(KEY_CELLULAR, AppPreferences.DEFAULT_CELLULAR_MAX_HEIGHT),
             autoPlayNext = prefs.getBoolean(KEY_AUTOPLAY, true),
+            sabrPlayback = prefs.getBoolean(KEY_SABR, false),
             autoDownloadQueue = prefs.getBoolean(KEY_AUTO_DOWNLOAD, true),
             autoDownloadWifiOnly = prefs.getBoolean(KEY_AUTO_DOWNLOAD_WIFI, true),
             playbackMode = prefs.getString(KEY_PLAYBACK_MODE, null)
@@ -113,6 +128,9 @@ class SharedPrefsAppPreferences(context: Context) : AppPreferences {
 
     override fun setAutoPlayNext(enabled: Boolean): Unit =
         change("autoPlayNext", enabled, { putBoolean(KEY_AUTOPLAY, enabled) }) { it.copy(autoPlayNext = enabled) }
+
+    override fun setSabrPlayback(enabled: Boolean): Unit =
+        change("sabrPlayback", enabled, { putBoolean(KEY_SABR, enabled) }) { it.copy(sabrPlayback = enabled) }
 
     override fun setAutoDownloadQueue(enabled: Boolean): Unit =
         change("autoDownloadQueue", enabled, { putBoolean(KEY_AUTO_DOWNLOAD, enabled) }) {
@@ -159,6 +177,7 @@ class SharedPrefsAppPreferences(context: Context) : AppPreferences {
         const val KEY_WIFI = "wifi_max_height"
         const val KEY_CELLULAR = "cellular_max_height"
         const val KEY_AUTOPLAY = "auto_play_next"
+        const val KEY_SABR = "sabr_playback"
         const val KEY_AUTO_DOWNLOAD = "auto_download_queue"
         const val KEY_AUTO_DOWNLOAD_WIFI = "auto_download_wifi_only"
         const val KEY_PLAYBACK_MODE = "playback_mode"
@@ -174,6 +193,8 @@ class InMemoryAppPreferences : AppPreferences {
     override fun setWifiMaxHeight(height: Int) = _settings.update { it.copy(wifiMaxHeight = height) }
     override fun setCellularMaxHeight(height: Int) = _settings.update { it.copy(cellularMaxHeight = height) }
     override fun setAutoPlayNext(enabled: Boolean) = _settings.update { it.copy(autoPlayNext = enabled) }
+
+    override fun setSabrPlayback(enabled: Boolean) = _settings.update { it.copy(sabrPlayback = enabled) }
     override fun setAutoDownloadQueue(enabled: Boolean) = _settings.update { it.copy(autoDownloadQueue = enabled) }
     override fun setAutoDownloadWifiOnly(enabled: Boolean) =
         _settings.update { it.copy(autoDownloadWifiOnly = enabled) }

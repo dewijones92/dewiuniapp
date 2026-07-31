@@ -123,7 +123,12 @@ public class PlaybackService : MediaSessionService() {
             .setMediaSourceFactory(
                 MergingAudioVideoFactory(
                     DefaultMediaSourceFactory(this).setDataSourceFactory(
-                        ChunkedDataSource.Factory(DefaultDataSource.Factory(this)),
+                        // sabr:// URLs are served from a registered session; everything else
+                        // goes through the ranged fetcher exactly as before, so the path that
+                        // already works is untouched.
+                        SabrDataSourceFactory(
+                            ChunkedDataSource.Factory(DefaultDataSource.Factory(this)),
+                        ),
                     ),
                 ),
             )

@@ -4,12 +4,14 @@ import com.dewijones92.totum.common.Diag
 import com.dewijones92.totum.common.HttpUrl
 import com.dewijones92.totum.common.SubtitleTrack
 import com.dewijones92.totum.common.Vitals
+import com.dewijones92.totum.common.youTubeVideoId
 import com.dewijones92.totum.data.sponsorblock.SkipSegmentSource
 import com.dewijones92.totum.domain.Chapter
 import com.dewijones92.totum.domain.MediaItem
 import com.dewijones92.totum.domain.MediaItemId
 import com.dewijones92.totum.domain.SkipSegment
 import com.dewijones92.totum.domain.SourceId
+import com.dewijones92.totum.innertube.player.chaptersFromDescription
 import com.dewijones92.totum.ytdlp.ExtractionResult
 import com.dewijones92.totum.ytdlp.YtDlpEngine
 import com.dewijones92.totum.ytdlp.bestPlayableFormat
@@ -33,6 +35,11 @@ class VideoResolver(
      * Null disables the fallback entirely, which is what tests and previews want.
      */
     private val playerStreams: PlayerStreams? = null,
+    /**
+     * Whether to resolve over SABR instead of extracting. Experimental and off by default —
+     * ~150ms against 2-4s, but it cannot seek yet. See `SabrResolve`.
+     */
+    private val sabrEnabled: () -> Boolean = { false },
     private val now: () -> Long = System::currentTimeMillis,
 ) {
     /**
@@ -134,6 +141,17 @@ class VideoResolver(
             return hit
         }
         val startedAt = now()
+        overSabr(watchUrl, sourceId, asked, startedAt)?.let { return it }
+        return byExtraction(watchUrl, sourceId, asked, startedAt)
+    }
+
+    /** The long way round: yt-dlp, ~2-4s on a phone, and what everything falls back to. */
+    private suspend fun byExtraction(
+        watchUrl: HttpUrl,
+        sourceId: SourceId,
+        asked: String,
+        startedAt: Long,
+    ): Resolved? {
         val extraction = engine.extract(watchUrl)
         val metadata = (extraction as? ExtractionResult.Success)?.metadata ?: run {
             Vitals.add("resolve.extractFailures")
@@ -219,6 +237,61 @@ class VideoResolver(
         Vitals.add("resolve.playerFallbackWins")
         Diag.log("resolve", "$id: direct ask gave ${better.size} qualities to ${betterBest}p, up from ${best}p")
         return better
+    }
+
+    /**
+     * Resolves by asking YouTube and streaming over SABR, in about 150ms.
+     *
+     * Off unless [sabrEnabled], and null for anything less than a complete answer, so the
+     * extraction path is reached exactly as before. Every refusal is logged by [SabrResolve]:
+     * "SABR did not happen" with no reason would be the hardest kind of bug to chase.
+     */
+    private suspend fun overSabr(
+        watchUrl: HttpUrl,
+        sourceId: SourceId,
+        asked: String,
+        startedAt: Long,
+    ): Resolved? {
+        if (!sabrEnabled()) return null
+        val fast = playerStreams ?: return null
+        val id = watchUrl.youTubeVideoId() ?: return null
+        val response = fast.playerFor(id) ?: return null
+        val prepared = SabrResolve.prepare(id, response.streaming, response.details) ?: return null
+        val qualities = response.streaming.videoQualities()
+        Vitals.add("resolve.sabrSuccesses")
+        Diag.log(
+            "resolve",
+            "$id in ${now() - startedAt}ms for $asked OVER SABR — " +
+                "${response.subtitles.size} subtitle tracks",
+        )
+        val resolved = Resolved(
+            item = MediaItem(
+                id = MediaItemId(id),
+                sourceId = sourceId,
+                title = prepared.details.title,
+                publishedAt = null,
+                duration = prepared.details.lengthSeconds?.seconds,
+                author = prepared.details.author,
+                description = prepared.details.description,
+                thumbnailUrl = prepared.details.thumbnailUrl,
+                // The sabr:// URL the data source resolves; audio plays alone in Listen mode.
+                mediaUrl = prepared.videoUrl ?: prepared.audioUrl,
+                chapters = chaptersFromDescription(prepared.details.description)
+                    .map { (at, title) -> Chapter(at.seconds, title) },
+                sourceUrl = prepared.details.channelId
+                    ?.let { HttpUrl.parse("https://www.youtube.com/channel/$it") },
+            ),
+            skipSegments = skipSegments.segmentsFor(id),
+            // Quality switching is not offered over SABR yet: the ladder is real but the
+            // adaptive half of "ABR" is unimplemented, so pretending to switch would lie.
+            qualities = emptyList<VideoQuality>().also {
+                if (qualities.size > 1) Diag.log("sabr", "$id has ${qualities.size} qualities; not switchable yet")
+            },
+            audioOnlyUrl = prepared.audioUrl,
+            subtitles = response.subtitles,
+        )
+        remember(watchUrl, resolved)
+        return resolved
     }
 
     /** A cached entry still inside its TTL, or null. */

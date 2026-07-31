@@ -237,7 +237,7 @@ Also learned: **itag 139 is refused outright** (`sabr.no_audio_selected`) while 
 599 and 600 all serve, so a format chooser cannot assume every listed audio format is
 obtainable.
 
-## What is left before this can be the app's default
+## SHIPPED, behind a switch, for audio. 2026-07-31.
 
 - **Seeking.** `SabrDataSource` is not seekable to an arbitrary byte: SABR is asked for a media
   TIME, not an offset. A reader opening at a position we have not reached gets nothing. Playing
@@ -247,3 +247,60 @@ obtainable.
 - **Adaptive switching**, which is the entire point of the "ABR" in SABR and currently unused —
   one format is picked and kept.
 - **Then, and only then**, wiring it in front of yt-dlp for the ~150ms resolve.
+
+## What actually shipped
+
+**Settings → "Fast start (beta, no seeking)", off by default.** With it on, a YouTube video
+resolves over `/player` + SABR instead of an extraction:
+
+```
+[sabr] prepared dc84PmnKlyo — audio itag 251, video itag none
+[resolve] dc84PmnKlyo in 1839ms for describe OVER SABR
+[sabr] serving dc84PmnKlyo itag 251 as AUDIO
+[playback] playing at 1ms
+[snapshot] playing "..." at 53845ms (running)
+```
+
+**1839ms against ~10s on the emulator**, and it sustains — 53 seconds in and still running.
+
+With the switch off, nothing changes: verified on-device, `playing at 1ms` through the ordinary
+extraction path and not a single `[sabr]` line.
+
+### Audio only, and why
+
+Video is written and served but **not shipped**: itag 137 arrives and ExoPlayer rejects it with
+`Invalid NAL length` and `contentIsMalformed` — it reads valid mp4 and then meets a gap, so the
+runs SABR returns for video are not byte-contiguous in the order they arrive and `SabrStream`
+needs to hold them until they are. Shipping a video path that decodes to corruption would be
+worse than shipping none.
+
+### Two format rules, both measured rather than assumed
+
+Probing every format of a real video:
+
+| | Result |
+|---|---|
+| **video/webm (VP9)** — 313, 271, 248, 247, 244, 243, 242, 278, 598 | **every one refused** (`sabr.no_video_selected`) |
+| video/mp4 (H.264, AV1) — 137, 400, 399, 398, 397, 396, 136, 135, 134, 133, 160, 394 | served |
+| audio itag 139 | refused (`sabr.no_audio_selected`) |
+| audio 140, 249, 251, 599, 600 | served |
+
+So a listed format is not an obtainable one, and the chooser excludes VP9 for video and 139 for
+audio. Note the asymmetry: `audio/webm` opus serves perfectly — the webm refusal is video-only.
+
+### No custom URL scheme
+
+`sabr://` would have read better, but `HttpUrl` is deliberately http(s)-only so every URL in the
+app is known-good, and widening that invariant for one feature is a bad trade. The real SABR
+endpoint is already https, so the session and track are marked on it as query parameters — and
+the URL ends up honest about where the bytes come from.
+
+## Still to do
+
+- **Contiguous video assembly**, then video over SABR.
+- **Seeking.** SABR is asked for a media time, not a byte offset, so scrubbing does not work —
+  which is exactly why the switch says "no seeking" and defaults to off.
+- **Adaptive switching**, the "ABR" half, still unimplemented; the quality menu is deliberately
+  empty on this path rather than offering switches that would not work.
+- Watch for whether a 403 seen once from the yt-dlp DOWNLOAD path during a SABR session is
+  related; downloads use the watch URL and should be untouched, so it is more likely transient.

@@ -105,6 +105,7 @@ import com.dewijones92.totum.settings.PlaybackMode
 import com.dewijones92.totum.settings.SharedPrefsAppPreferences
 import com.dewijones92.totum.ui.common.toMediaItem
 import com.dewijones92.totum.video.AccountSubscriptions
+import com.dewijones92.totum.video.InnerTubePlayerStreams
 import com.dewijones92.totum.video.PlatformVideoCodecSupport
 import com.dewijones92.totum.video.VideoPlaybackLauncher
 import com.dewijones92.totum.video.VideoResolver
@@ -415,28 +416,13 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
             ytDlpEngine,
             skipSegmentSource,
             PlatformVideoCodecSupport(),
-            // STILL DISABLED, and now for a reason that is measured rather than guessed.
-            //
-            // A `/player` call answers in ~150ms with a full ladder to 2160p and no `n`
-            // parameter to decipher, against 2-4s for an extraction — so it was enabled as the
-            // primary path on 2026-07-31. Videos resolved in 1435ms and then would not play,
-            // exactly as before. Probing the URLs directly found why:
-            //
-            //   first request, bytes 512K-1M   403      (offset, not request count)
-            //   then bytes 0-512K, same URL    206
-            //   the same 0-256K request x3     206 206 206
-            //   ranges ending below ~1MB       206
-            //   ranges ending at or above 1MB  403
-            //
-            // ONLY THE FIRST MEGABYTE IS REACHABLE. Not a rate limit, not the User-Agent, not
-            // the format, and not the length probe that ChunkedDataSource already stopped
-            // making. The rest of the stream is behind SABR, which is what
-            // `serverAbrStreamingUrl` is for and what SmartTube implements.
-            //
-            // So this cannot serve playback at any speed, and re-enabling it will produce a
-            // video that resolves fast and plays for one megabyte. See
-            // docs/todos/sabr-streaming.md.
-            playerStreams = null,
+            // The InnerTube player source. Its PLAIN URLs are useless — measured
+            // 2026-07-31, a ranged GET of an ANDROID-client stream serves the first megabyte
+            // and then 403s at every offset beyond it, whatever the range size or User-Agent.
+            // Everything past that is behind SABR, which is why this is wired as the SABR
+            // path's source and NOT as a fallback for extraction.
+            playerStreams = InnerTubePlayerStreams(innerTubeClient),
+            sabrEnabled = { appPreferences.settings.value.sabrPlayback },
         )
     }
 

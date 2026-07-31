@@ -40,6 +40,7 @@ import com.dewijones92.totum.navigation.TopLevelDestination
 import com.dewijones92.totum.playback.PlaybackController
 import com.dewijones92.totum.playback.PlaybackState
 import com.dewijones92.totum.queue.PlaybackQueue
+import com.dewijones92.totum.settings.AppPreferences
 import com.dewijones92.totum.theme.TotumTheme
 import com.dewijones92.totum.ui.channel.ChannelScreen
 import com.dewijones92.totum.ui.common.ItemActionSheet
@@ -289,7 +290,7 @@ private fun FullPlayerHost(
         onSeekForward = controller::seekForward,
         onSetSpeed = controller::setSpeed,
         onSetSubtitleLanguage = controller::setSubtitleLanguage,
-        toggles = playbackToggles(state, controller, container, settings.autoPlayNext),
+        toggles = playbackToggles(state, controller, container, settings),
         queue = upNextControls(container.playbackQueue, upNext, currentIndex),
         onMore = { showItemSheet = true }.takeIf { playing != null },
     )
@@ -345,12 +346,14 @@ private fun playbackToggles(
     state: PlaybackState,
     controller: PlaybackController,
     container: AppContainer,
-    autoPlayNext: Boolean,
+    settings: AppPreferences.Settings,
 ) = PlaybackToggles(
     skipSilence = state.skipSilence,
     onSetSkipSilence = controller::setSkipSilence,
-    autoPlayNext = autoPlayNext,
+    autoPlayNext = settings.autoPlayNext,
     onSetAutoPlayNext = container.appPreferences::setAutoPlayNext,
+    sabrPlayback = settings.sabrPlayback,
+    onSetSabrPlayback = container.appPreferences::setSabrPlayback,
     onSetVolumeBoost = controller::setVolumeBoost,
 )
 

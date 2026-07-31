@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.PlaylistPlay
 import androidx.compose.material.icons.automirrored.outlined.VolumeUp
+import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.GraphicEq
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material3.Icon
@@ -56,6 +57,14 @@ internal fun PlaybackTogglesRow(skipSilence: Boolean, toggles: PlaybackToggles) 
         labelRes = R.string.auto_play_next,
         checked = toggles.autoPlayNext,
         onCheckedChange = toggles.onSetAutoPlayNext,
+    )
+    // Experimental, and labelled as such: a ~150ms start against 2-4s, but SABR is asked for a
+    // media time rather than a byte offset so it cannot seek yet.
+    PlayerToggle(
+        icon = Icons.Outlined.Bolt,
+        labelRes = R.string.sabr_playback,
+        checked = toggles.sabrPlayback,
+        onCheckedChange = toggles.onSetSabrPlayback,
     )
 }
 
