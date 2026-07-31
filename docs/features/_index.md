@@ -51,6 +51,7 @@ alone until they need more.
 | Picture-in-Picture (video keeps playing when you leave) | playback | shipped | [../todos/feature-gap-review.md](../todos/feature-gap-review.md) |
 | Offline library across both pillars (downloads carry their item) | downloads | shipped | [../todos/library-downloads-podcast-only.md](../todos/library-downloads-podcast-only.md) |
 | Loading feedback (global busy bar; "go to channel" 12.5s → 59ms) | ui | shipped | [loading-feedback.md](loading-feedback.md) |
+| Feed cache (the Videos tab opens with content, not a blank) | video | shipped | [feed-cache.md](feed-cache.md) |
 
 \* Cast: **tapping the button still crashed the app until 2026-07-28** — this footnote claimed
 otherwise for weeks, because the fix that was made (a themed context for the button) never

@@ -353,7 +353,12 @@ private fun ChannelsAndVideos(
             item { FeedSelector(state, onSelectFeed, onOpenPlaylists, onOpenShorts) }
         }
         when {
-            state.feedLoading -> item { FeedLoading() }
+            // Skeletons only when there is genuinely NOTHING to show. Cached items arrive
+            // while `feedLoading` is still true — that is the whole point of them — and this
+            // branch was hiding them behind placeholders: the log said 45 items and the screen
+            // said loading, which is exactly what a screenshot caught on 2026-07-31. The
+            // global BusyBar and pull-to-refresh still say work is in flight.
+            state.feedLoading && state.videos.isEmpty() -> item { FeedLoading() }
             state.feedError -> item { FeedMessage(stringResource(R.string.feed_error)) }
             state.videos.isEmpty() -> item { FeedMessage(stringResource(R.string.feed_empty)) }
             else -> {

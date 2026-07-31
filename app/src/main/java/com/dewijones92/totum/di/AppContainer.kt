@@ -19,6 +19,7 @@ import com.dewijones92.totum.data.download.DownloadManager
 import com.dewijones92.totum.data.download.EngineDownloadStrategy
 import com.dewijones92.totum.data.download.HttpDownloadStrategy
 import com.dewijones92.totum.data.download.RoutedDownloadStrategy
+import com.dewijones92.totum.data.feed.FeedCache
 import com.dewijones92.totum.data.group.ChannelSourceItems
 import com.dewijones92.totum.data.group.GroupFeed
 import com.dewijones92.totum.data.group.PodcastSourceItems
@@ -43,6 +44,7 @@ import com.dewijones92.totum.data.source.SourceLocator
 import com.dewijones92.totum.data.sponsorblock.SkipSegmentSource
 import com.dewijones92.totum.data.sponsorblock.SponsorBlockSegmentSource
 import com.dewijones92.totum.database.RoomDownloadStore
+import com.dewijones92.totum.database.RoomFeedCache
 import com.dewijones92.totum.database.RoomLocalPlaylistStore
 import com.dewijones92.totum.database.RoomPlayHistoryStore
 import com.dewijones92.totum.database.RoomPlaybackProgressStore
@@ -152,6 +154,9 @@ interface AppContainer {
     val videoPlaybackLauncher: VideoPlaybackLauncher
 
     /** Named groups of sources, read as one merged feed. */
+    /** Last-known feed contents, so the Videos tab opens with something on it. */
+    val feedCache: FeedCache
+
     val sourceGroupStore: SourceGroupStore
 
     /** Reads a group's members as one newest-first feed, across both pillars. */
@@ -398,6 +403,8 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
             scope = applicationScope,
         )
     }
+
+    override val feedCache: FeedCache by lazy { RoomFeedCache(database.cachedFeedDao()) }
 
     override val sourceGroupStore: SourceGroupStore by lazy {
         RoomSourceGroupStore(database.sourceGroupDao())

@@ -19,8 +19,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         QueueEntity::class,
         SourceGroupEntity::class,
         SourceGroupMemberEntity::class,
+        CachedFeedItemEntity::class,
     ],
-    version = 16,
+    version = 17,
     exportSchema = false,
 )
 public abstract class TotumDatabase : RoomDatabase() {
@@ -38,6 +39,8 @@ public abstract class TotumDatabase : RoomDatabase() {
     public abstract fun queueDao(): QueueDao
 
     public abstract fun sourceGroupDao(): SourceGroupDao
+
+    public abstract fun cachedFeedDao(): CachedFeedDao
 
     public companion object {
         public fun build(context: Context): TotumDatabase =
@@ -63,7 +66,34 @@ public abstract class TotumDatabase : RoomDatabase() {
                 MIGRATION_13_14,
                 MIGRATION_14_15,
                 MIGRATION_15_16,
+                MIGRATION_16_17,
             )
+
+        /**
+         * v17: the last-known contents of each video feed, so the app opens with something on
+         * screen instead of a blank tab for the second or so the network takes.
+         *
+         * Purely additive — one new table, nothing existing touched — so there is no backfill
+         * to get wrong. An empty cache is exactly the old behaviour, which is what the first
+         * launch after upgrading gets.
+         */
+        private val MIGRATION_16_17 = object : Migration(16, 17) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS cached_feed_items (" +
+                        "feedKey TEXT NOT NULL, itemId TEXT NOT NULL, position INTEGER NOT NULL, " +
+                        "cachedAtEpochMs INTEGER NOT NULL, sourceId TEXT NOT NULL, title TEXT NOT NULL, " +
+                        "author TEXT, thumbnailUrl TEXT, mediaUrl TEXT, publishedText TEXT, " +
+                        "viewsText TEXT, durationSeconds INTEGER, membersOnly INTEGER NOT NULL, " +
+                        "contentKind TEXT NOT NULL, sourceUrl TEXT, " +
+                        "PRIMARY KEY(feedKey, itemId))",
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_cached_feed_items_feedKey " +
+                        "ON cached_feed_items(feedKey)",
+                )
+            }
+        }
 
         /**
          * v16: a group's membership carries the source, not just its id.

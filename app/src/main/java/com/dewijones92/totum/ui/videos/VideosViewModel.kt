@@ -10,6 +10,8 @@ import com.dewijones92.totum.common.PageToken
 import com.dewijones92.totum.data.channel.ChannelRepository
 import com.dewijones92.totum.data.channel.ChannelVideosResult
 import com.dewijones92.totum.data.download.DownloadManager
+import com.dewijones92.totum.data.feed.FeedCache
+import com.dewijones92.totum.data.feed.NoOpFeedCache
 import com.dewijones92.totum.di.AppContainer
 import com.dewijones92.totum.di.GroupServices
 import com.dewijones92.totum.di.YouTubeAccountServices
@@ -50,6 +52,7 @@ class VideosViewModel(
     private val downloads: DownloadManager,
     private val youtube: YouTubeAccountServices,
     private val groups: GroupServices,
+    private val feedCache: FeedCache = NoOpFeedCache,
 ) : TrackedViewModel("videos") {
 
     data class UiState(
@@ -181,27 +184,60 @@ class VideosViewModel(
         Diag.log("feed", "selected ${choice.describe()}")
         viewModelScope.launch {
             feedState.update { it.copy(loading = true) }
+            showCached(choice)
             feedState.value = when (choice) {
                 is FeedChoice.Account -> accountFeedState(choice)
                 // A group is fetched whole — each member gives what it has, and there is no
                 // continuation to follow — so it lands with no paging token by design.
-                is FeedChoice.Group -> FeedState(
-                    selected = choice,
-                    loading = false,
-                    videos = groups.feed.itemsFor(choice.group),
-                )
+                is FeedChoice.Group -> {
+                    val videos = groups.feed.itemsFor(choice.group)
+                    if (videos.isNotEmpty()) feedCache.save(choice.cacheKey(), videos)
+                    FeedState(selected = choice, loading = false, videos = videos)
+                }
             }
         }
     }
 
+    /**
+     * Puts the last-known contents of [choice] on screen while the network is asked.
+     *
+     * The gap this fills is measured, not assumed: every launch showed an empty Videos tab —
+     * `[place] videos entered … videos=0` — and did not fill it for about 1.2 seconds.
+     *
+     * Dropped if the feed has moved on while this was reading, and never allowed to overwrite
+     * content already showing: a cache is there to fill a blank, never to replace something
+     * fresher. `loading` stays true, so pull-to-refresh and the spinner still say work is in
+     * flight rather than pretending the stale list is the answer.
+     */
+    private suspend fun showCached(choice: FeedChoice) {
+        val cached = feedCache.items(choice.cacheKey())
+        if (cached.isEmpty()) return
+        feedState.update { current ->
+            if (current.selected != choice || current.videos.isNotEmpty()) {
+                current
+            } else {
+                Diag.log("feed", "showing ${cached.size} cached items for ${choice.describe()} while it loads")
+                current.copy(videos = cached)
+            }
+        }
+    }
+
+    /** One key per feed, so account feeds and groups share the cache without colliding. */
+    private fun FeedChoice.cacheKey(): String = when (this) {
+        is FeedChoice.Account -> feed.name
+        is FeedChoice.Group -> "group:${group.id.value}"
+    }
+
     private suspend fun accountFeedState(choice: FeedChoice.Account): FeedState =
         when (val result = loadFeed(choice.feed)) {
-            is FeedResult.Success -> FeedState(
-                selected = choice,
-                loading = false,
-                videos = result.page.items.map { it.toMediaItem(choice.feed) },
-                next = result.page.next,
-            )
+            is FeedResult.Success -> {
+                val videos = result.page.items.map { it.toMediaItem(choice.feed) }
+                // Saved AFTER a successful fetch only, so a failure never overwrites a good
+                // cache with nothing — the launch after an offline start would then be blank
+                // again, which is the bug this exists to fix.
+                feedCache.save(choice.cacheKey(), videos)
+                FeedState(selected = choice, loading = false, videos = videos, next = result.page.next)
+            }
             FeedResult.SignedOut -> {
                 // Token died mid-session — re-check, which clears signedIn app-wide.
                 accountSubscriptions.refresh()
@@ -379,6 +415,7 @@ class VideosViewModel(
                         actions = container.youTubeActions,
                     ),
                     groups = GroupServices(container.sourceGroupStore, container.groupFeed),
+                    feedCache = container.feedCache,
                 )
             }
         }
