@@ -43,6 +43,7 @@ to `shipped` and migrate it to `../features/` once it's a real feature on `main`
 | [listen-mode-exit-ux](listen-mode-exit-ux.md) | playback | high | shipped |
 | [library-downloads-podcast-only](library-downloads-podcast-only.md) | downloads | medium | done |
 | [playback-does-not-resume-after-network-loss](playback-does-not-resume-after-network-loss.md) | playback | high | done — StreamRecovery waits for a validated network, then resumes |
+| [download-races-playback](download-races-playback.md) | playback | high | done — downloads now yield to playback; the duplicate extraction itself remains |
 
 All backlog items are Dewi requests. `refining` = spec written, decisions still open;
 `ready` = decisions made, implementation waits for Dewi's explicit go (his standing

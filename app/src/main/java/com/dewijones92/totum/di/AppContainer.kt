@@ -107,6 +107,7 @@ import com.dewijones92.totum.video.PlatformVideoCodecSupport
 import com.dewijones92.totum.video.VideoPlaybackLauncher
 import com.dewijones92.totum.video.VideoResolver
 import com.dewijones92.totum.video.WatchHistorySync
+import com.dewijones92.totum.ytdlp.InteractiveFirstEngine
 import com.dewijones92.totum.ytdlp.YtDlpEngine
 import com.dewijones92.totum.ytdlp.chaquopy.ChaquopyYtDlpEngine
 import com.dewijones92.totum.ytdlp.chaquopy.YtDlpUpdater
@@ -305,7 +306,7 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
         // Wrapped so extraction reports itself to the global loading bar. This is the slowest
         // thing the app does — an embedded Python interpreter plus a JS runtime, ~8s of
         // startup on first use — so it is the work most worth telling the user about.
-        BusyYtDlpEngine(ChaquopyYtDlpEngine(context, updateCacheDir = ytDlpUpdateDir))
+        BusyYtDlpEngine(InteractiveFirstEngine(ChaquopyYtDlpEngine(context, updateCacheDir = ytDlpUpdateDir)))
     }
 
     private val ytDlpUpdater by lazy { YtDlpUpdater(httpClient, ytDlpUpdateDir) }
