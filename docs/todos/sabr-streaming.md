@@ -402,3 +402,51 @@ Two problems in one place:
 
 Neither is a correctness bug, which is exactly why they would have gone unnoticed without being
 measured. Both are now visible in any report.
+
+## Queue autoplay with the screen off: works. And what the logging found.
+
+Dewi asked for autoplay through the queue to be tested on video and with the screen off, and
+for videos not to "finish" early. Tested with the screen genuinely off
+(`mWakefulness=Asleep`):
+
+```
+[playback] ended at 18944ms of 18933ms — jNQXAC9IVRw "Me at the zoo"
+[advance] jNQXAC9IVRw ended -> queue advance=false
+[advance] queue empty — playing related "Supernanny VS ..."
+[playback] playing at 205770ms
+```
+
+**Advance works with the screen off**, and the end is correctly NOT flagged early — the new
+`ENDED EARLY at Xms of Yms` line only fires when a finish is more than 5s short of the duration.
+
+### Three bugs the logging found, two fixed
+
+**1. `contentLength` was a RUN's length, not the format's.** Fixed. It reported
+`ended at 433081 — 432274B of 807B (53665%)`, 807 being the init segment, which meant the
+premature-end guard was comparing against nonsense and could call a stream complete on its
+first run. The total now comes from the player response, and a correct finish reads
+`433081B of 433081B (100%)`.
+
+**2. A long video stopped at 7%.** `playerTimeMs` only crept forward by one step per fetch, so
+on a long video it fell far behind the bytes already served; SABR then answers "you have enough
+for that time", which the stream read as the end. It is now derived from the bytes held against
+the duration, and never allowed to go backwards.
+
+**3. NOT FIXED — resuming a part-watched video is a SEEK, and seeks do not work.** This is the
+one that matters, because it is the ordinary case rather than an edge:
+
+```
+fetch #1 itag 137 at 0ms -> 2374047B response, 0B kept
+PREMATURE END: itag 137 served 41861347B of 249605762B (16%)
+[playback] playing at 367799ms
+```
+
+The app resumed at 367799ms from saved progress, so ExoPlayer opened the video track ~41MB in.
+SABR is addressed by media TIME, so the bytes it returns start at zero and are discarded as
+already-passed, and the video track dies while audio carries on. The video *played* — it just
+had no picture.
+
+**So SABR must not be used when there is a resume position.** Falling back to extraction for a
+part-watched video keeps resume working, which is not negotiable, and leaves SABR to fresh
+plays where it is a 200ms win. That is the next change, and until it lands the beta switch is
+only honest for videos started from the beginning.

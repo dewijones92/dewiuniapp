@@ -69,6 +69,14 @@ public data class PlayableFormat(
      * `SabrResolve.bestVideo`.
      */
     val fps: Int? = null,
+    /**
+     * The format's TOTAL length in bytes, as the player response states it.
+     *
+     * Not to be confused with a `MEDIA_HEADER`'s `contentLength`, which is one RUN's length —
+     * reading that as the total said "432274B of 807B" and made the stream think it was
+     * complete before it began.
+     */
+    val contentLength: Long? = null,
 )
 
 public sealed interface PlayerResult {

@@ -44,7 +44,13 @@ internal object SabrResolve {
 
         SabrSessions.register(
             videoId,
-            SabrSession(endpoint, config, audio.toSabrFormat(), video?.toSabrFormat()),
+            SabrSession(
+                endpoint,
+                config,
+                audio.toSabrFormat(),
+                video?.toSabrFormat(),
+                known.lengthSeconds?.times(MILLIS_PER_SECOND),
+            ),
         )
         val audioUrl = SabrSessions.uriFor(videoId, audio.itag)?.let(HttpUrl::parse)
             ?: return refuse(videoId, "could not build a marked endpoint URL")
@@ -106,7 +112,7 @@ internal object SabrResolve {
             .filter { it.lastModified != null && (it.height ?: 0) <= MAX_SABR_HEIGHT }
             .maxByOrNull { it.height ?: 0 }
 
-    private fun PlayableFormat.toSabrFormat() = SabrFormat(itag, lastModified!!, xtags)
+    private fun PlayableFormat.toSabrFormat() = SabrFormat(itag, lastModified!!, xtags, contentLength)
 
     /**
      * The quality the user is ACTUALLY getting, against what YouTube offered.
@@ -163,4 +169,5 @@ internal object SabrResolve {
     private const val MAX_SABR_FPS = 30
 
     private const val BITS_PER_KILOBIT = 1000
+    private const val MILLIS_PER_SECOND = 1000L
 }

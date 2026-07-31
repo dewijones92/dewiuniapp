@@ -67,6 +67,8 @@ public class SabrDataSourceFactory(
                     ustreamerConfig = session.ustreamerConfig,
                     format = format,
                     kind = kind,
+                    totalBytes = format.contentLength,
+                    durationMs = session.durationMs,
                     transport = UrlConnectionTransport,
                 ),
             )

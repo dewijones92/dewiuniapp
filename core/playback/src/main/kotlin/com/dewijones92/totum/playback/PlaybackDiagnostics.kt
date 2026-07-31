@@ -69,10 +69,37 @@ internal class PlaybackDiagnostics(
                     )
                 }
             }
-            Player.STATE_ENDED -> Diag.log("playback", "ended — ${describeItem()}")
+            Player.STATE_ENDED -> reportEnd()
             Player.STATE_IDLE -> Diag.log("playback", "idle")
         }
     }
+
+    /**
+     * Says whether a video ended where it was SUPPOSED to.
+     *
+     * "ended" alone cannot be judged: a stream that stops short looks exactly like a short video,
+     * and the queue advances either way. So the end is reported against the duration, and a
+     * finish more than [EARLY_END_TOLERANCE_MS] short of it is named as early — which is the
+     * symptom to look for on the SABR path, where a stalled fetch used to be taken for an end.
+     */
+    private fun reportEnd() {
+        val player = player()
+        val duration = player?.duration?.takeIf { it > 0 }
+        val at = player?.currentPosition ?: 0
+        val shortBy = duration?.minus(at) ?: 0
+        if (duration != null && shortBy > EARLY_END_TOLERANCE_MS) {
+            Vitals.add("playback.earlyEnds")
+            Diag.warn(
+                "playback",
+                "ENDED EARLY at ${at}ms of ${duration}ms — ${shortBy}ms short (${percent(at, duration)}%) " +
+                    "— ${describeItem()}",
+            )
+        } else {
+            Diag.log("playback", "ended at ${at}ms of ${duration ?: -1}ms — ${describeItem()}")
+        }
+    }
+
+    private fun percent(at: Long, duration: Long) = at * PERCENT / duration
 
     /** The reason matters: an automatic advance and a user tap look identical without it. */
     override fun onMediaItemTransition(mediaItem: Media3MediaItem?, reason: Int) {
@@ -119,5 +146,15 @@ internal class PlaybackDiagnostics(
         Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED -> "playlist-changed"
         Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT -> "repeat"
         else -> "reason-$reason"
+    }
+
+    private companion object {
+        /**
+         * How near the duration counts as a proper finish. Generous, because a container's
+         * declared duration and its last sample rarely agree to the millisecond, and crying
+         * "early" on every ordinary ending would make the warning worthless.
+         */
+        const val EARLY_END_TOLERANCE_MS = 5_000L
+        const val PERCENT = 100
     }
 }

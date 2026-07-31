@@ -35,6 +35,23 @@ public class SabrStream(
     private val kind: SabrTrackKind,
     private val transport: SabrTransport,
     /** How much media time to advance per fetch. Segments observed at ~10s for audio. */
+    /**
+     * The format's TOTAL length from the player response, which is what "finished" means.
+     *
+     * A `MEDIA_HEADER` also carries a `contentLength`, but that is one RUN's length — using it
+     * reported "432274B of 807B" and would have let the stream call itself complete on its first
+     * init segment, ending a video seconds in.
+     */
+    private val totalBytes: Long? = null,
+    /**
+     * The media's length, so the time we claim to be at can be derived from the bytes we hold.
+     *
+     * Without it `playerTimeMs` only ever crept forward by [stepMs] a fetch, which for a long
+     * video falls hopelessly behind the bytes already served — SABR then answers "you have
+     * enough for that time", the stream reads it as the end, and a 1.19GB video stops at 7%.
+     * Measured exactly that on 2026-07-31.
+     */
+    private val durationMs: Long? = null,
     private val stepMs: Long = DEFAULT_STEP_MS,
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
@@ -68,10 +85,10 @@ public class SabrStream(
 
     /** Reads that had to WAIT on the network. The ones a listener hears as a gap. */
     private var readsThatFetched = 0
+    private var emptyResponses = 0
 
-    /** Total length of this format, once a header has declared it. */
-    public var contentLength: Long? = null
-        private set
+    /** Total length of this format: the player response's figure, not a run's. */
+    public val contentLength: Long? get() = totalBytes
 
     /**
      * Bytes starting at [from], or empty when the stream is finished.
@@ -91,10 +108,11 @@ public class SabrStream(
                 return held
             }
             if (exhausted) {
+                val length = contentLength
                 Diag.log(
                     "sabr",
-                    "itag ${format.itag} finished at $from after ${bytesServed}B " +
-                        "over $fetches fetches / $reads reads",
+                    "itag ${format.itag} ended at $from — ${bytesServed}B of ${length ?: -1}B " +
+                        "(${percentOf(from, length)}%) over $fetches fetches / $reads reads",
                 )
                 return ByteArray(0)
             }
@@ -174,10 +192,36 @@ public class SabrStream(
                 if (elapsed > SLOW_FETCH_MS) " — SLOW" else "",
         )
         if (added == 0) {
-            // Says WHAT came back instead of just that nothing did. An empty result has three
-            // very different causes — a refusal, media for a format we did not ask for, or a
-            // genuine end — and they are indistinguishable without this.
+            emptyResponses++
+            // NOT the end just because nothing came back. We know how long the format is, so a
+            // stream that stops short of contentLength has STALLED, and calling that "finished"
+            // makes a video end early and the queue advance — which is indistinguishable from
+            // the video simply being short. Measured: itag 140 reported no bytes at 60000ms of a
+            // much longer video, which under the old rule ended it there.
+            val length = contentLength
+            val complete = length != null && served >= length
+            if (!complete && emptyResponses < MAX_EMPTY_RESPONSES) {
+                // Skip further ahead rather than asking the same question again: the server
+                // answers about a media TIME, so the same time returns the same nothing.
+                playerTimeMs += stepMs * EMPTY_SKIP_STEPS
+                Diag.warn(
+                    "sabr",
+                    "itag ${format.itag} gave nothing at ${playerTimeMs}ms but only ${served}B of " +
+                        "${length ?: -1}B served — NOT ending, skipping ahead (empty #$emptyResponses)",
+                )
+                return
+            }
             exhausted = true
+            if (!complete) {
+                // The line that says a video is about to end early, and by how much.
+                Vitals.add("sabr.prematureEnds")
+                Diag.warn(
+                    "sabr",
+                    "PREMATURE END: itag ${format.itag} served ${served}B of ${length ?: -1}B " +
+                        "(${percentOf(served, length)}%) after $emptyResponses empty responses — " +
+                        "the player will treat this as the end of the video",
+                )
+            }
             Vitals.add("sabr.emptyResponses")
             Diag.warn(
                 "sabr",
@@ -185,7 +229,7 @@ public class SabrStream(
                     describe(response),
             )
         }
-        playerTimeMs += stepMs
+        advanceClaimedTime()
     }
 
     /**
@@ -227,7 +271,6 @@ public class SabrStream(
         headers[known.headerId] = known
         // Where this run starts in the whole format; every MEDIA part for it continues from here.
         writeAt[known.headerId] = known.startBytes
-        if (known.itag == format.itag) contentLength = known.contentLength
     }
 
     /** Appends one MEDIA part to whichever run it names. Returns bytes kept. */
@@ -244,6 +287,29 @@ public class SabrStream(
         chunks[offset] = (chunks[offset] ?: ByteArray(0)) + bytes
         return bytes.size
     }
+
+    /**
+     * Moves the time we claim to be at to match the bytes we now hold.
+     *
+     * SABR decides what to send from the player's reported position, so that position has to
+     * reflect reality. Derived from bytes rather than counted in steps: a fetch returns however
+     * much the server feels like, so a fixed step drifts from the truth immediately — and it
+     * drifts BEHIND, which is the direction that makes a long video look finished.
+     */
+    private fun advanceClaimedTime() {
+        val total = totalBytes
+        val duration = durationMs
+        val furthest = writeAt.values.maxOrNull() ?: 0
+        val canDerive = total != null && duration != null && total > 0
+        playerTimeMs = if (canDerive && duration!! > 0) {
+            (furthest * duration / total!!).coerceAtLeast(playerTimeMs + stepMs)
+        } else {
+            playerTimeMs + stepMs
+        }
+    }
+
+    private fun percentOf(served: Long, length: Long?): Long =
+        if (length == null || length <= 0) -1 else served * PERCENT / length
 
     /** What a response actually contained, for when it contained nothing we wanted. */
     private fun describe(response: ByteArray): String {
@@ -270,5 +336,14 @@ public class SabrStream(
         /** Enough held offsets to see the shape of a gap without printing a whole map. */
         const val HELD_TO_NAME = 4
         const val PERCENT = 100
+
+        /**
+         * Empty answers tolerated before the stream is called finished. A real end also looks
+         * like an empty answer, so this cannot be infinite — but one is far too few.
+         */
+        const val MAX_EMPTY_RESPONSES = 4
+
+        /** How far to jump when a time yields nothing; the same time yields the same nothing. */
+        const val EMPTY_SKIP_STEPS = 3
     }
 }

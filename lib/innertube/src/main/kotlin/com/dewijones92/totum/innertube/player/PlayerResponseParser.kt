@@ -128,6 +128,7 @@ public object PlayerResponseParser {
             lastModified = stringAt("lastModified")?.toLongOrNull(),
             xtags = stringAt("xtags"),
             fps = this["fps"]?.jsonPrimitive?.longOrNull?.toInt(),
+            contentLength = stringAt("contentLength")?.toLongOrNull(),
         )
     }
 

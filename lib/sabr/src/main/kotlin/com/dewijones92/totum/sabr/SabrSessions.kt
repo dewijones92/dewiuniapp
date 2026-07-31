@@ -9,6 +9,8 @@ public data class SabrSession(
     public val ustreamerConfig: ByteArray,
     public val audio: SabrFormat?,
     public val video: SabrFormat?,
+    /** The media's length, so a stream can report a truthful playback position. */
+    public val durationMs: Long? = null,
 ) {
     override fun equals(other: Any?): Boolean =
         this === other || (

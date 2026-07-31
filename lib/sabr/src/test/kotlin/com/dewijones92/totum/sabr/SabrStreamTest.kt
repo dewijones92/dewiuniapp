@@ -57,11 +57,16 @@ class SabrStreamTest {
         }
     }
 
-    private fun stream(transport: SabrTransport, format: SabrFormat = audio) = SabrStream(
+    private fun stream(
+        transport: SabrTransport,
+        format: SabrFormat = audio,
+        totalBytes: Long? = null,
+    ) = SabrStream(
         url = "https://example.test/videoplayback",
         ustreamerConfig = byteArrayOf(1, 2, 3),
         format = format,
         kind = if (format == audio) SabrTrackKind.AUDIO else SabrTrackKind.VIDEO,
+        totalBytes = totalBytes,
         transport = transport,
     )
 
@@ -92,14 +97,22 @@ class SabrStreamTest {
         assertArrayEquals(byteArrayOf(9, 9, 9, 9), stream(fake, video).read(from = 0))
     }
 
+    /**
+     * The total comes from the PLAYER RESPONSE, never from a `MEDIA_HEADER`.
+     *
+     * A header's `contentLength` is one RUN's length. Reading it as the total reported
+     * "432274B of 807B" on a real video — 807 being the init segment — and would have let the
+     * stream call itself complete on its first run, ending a video seconds in.
+     */
     @Test
-    fun `the content length is taken from the header of our own format`() = runTest {
+    fun `the content length is the format's total, not one run's`() = runTest {
+        // The response declares a 5-byte run; the format is really 5000 bytes.
         val fake = Fake(listOf(response(Triple(audio, 0L, ByteArray(5)))))
-        val stream = stream(fake)
+        val stream = stream(fake, totalBytes = 5_000)
 
         stream.read(from = 0)
 
-        assertEquals(5L, stream.contentLength)
+        assertEquals(5_000L, stream.contentLength)
     }
 
     /**
@@ -194,5 +207,38 @@ class SabrStreamTest {
 
         assertEquals(0, stream(fake).read(from = 0).size)
         assertTrue("must give up, not retry indefinitely", fake.bodies.size <= 6)
+    }
+
+    /**
+     * A video must not FINISH EARLY. One empty answer used to end the stream, and since the
+     * declared length says how long the format really is, stopping short of it is a stall — not
+     * an end. Ending it there makes the player believe the video is over and the queue advance,
+     * which is indistinguishable from the video simply being short.
+     */
+    @Test
+    fun `an empty response part-way through does not end the stream`() = runTest {
+        val fake = Fake(
+            listOf(
+                // Declares 10 bytes but sends 4, then nothing, then the remaining 6.
+                header(0, audio, 0, 10) + media(0, byteArrayOf(1, 2, 3, 4)),
+                ByteArray(0),
+                header(1, audio, 4, 6) + media(1, byteArrayOf(5, 6, 7, 8, 9, 10)),
+            ),
+        )
+        val stream = stream(fake, totalBytes = 10)
+
+        assertArrayEquals(byteArrayOf(1, 2, 3, 4), stream.read(from = 0))
+        // The empty answer in between must not have ended it: the rest still arrives.
+        assertArrayEquals(byteArrayOf(5, 6, 7, 8, 9, 10), stream.read(from = 4))
+    }
+
+    /** Once every declared byte is served, an empty answer IS the end and must be taken as one. */
+    @Test
+    fun `a complete stream ends without complaint`() = runTest {
+        val fake = Fake(listOf(header(0, audio, 0, 2) + media(0, byteArrayOf(1, 2))))
+        val stream = stream(fake, totalBytes = 2)
+
+        assertArrayEquals(byteArrayOf(1, 2), stream.read(from = 0))
+        assertEquals("nothing left, and that is correct", 0, stream.read(from = 2).size)
     }
 }

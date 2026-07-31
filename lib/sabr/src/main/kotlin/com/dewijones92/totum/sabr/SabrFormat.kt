@@ -17,6 +17,8 @@ public data class SabrFormat(
     public val lastModified: Long,
     /** The player response's `xtags`, base64 exactly as YouTube wrote it; null when absent. */
     public val xtags: String? = null,
+    /** The format's TOTAL length, which is what "the stream finished" means. */
+    public val contentLength: Long? = null,
 ) {
     internal fun encode(): ByteArray {
         var out = Protobuf.number(FIELD_ITAG, itag.toLong()) +
