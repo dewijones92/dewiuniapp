@@ -1,5 +1,6 @@
 package com.dewijones92.totum.ui.videos
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,6 +32,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -93,35 +95,46 @@ fun VideosScreen(
     val switchMode = rememberModeSwitch(actions)
     val settings by container.appPreferences.settings.collectAsStateWithLifecycle()
 
+    // The feed's own state — where it is scrolled, above all — is kept while an overlay is
+    // up. An overlay REPLACES the feed rather than covering it, so without this the feed is
+    // removed from composition and its LazyListState goes with it: "go to channel, press
+    // back" put Dewi at the top of a list he was 76 rows into. The trail said so plainly —
+    // left at scroll=76+70, came back at scroll=0+0 with all 83 items still there.
+    val feedState = rememberSaveableStateHolder()
+    // System back closes the overlay rather than the app. It was unhandled, so pressing back
+    // on a channel page quit Totum outright — verified on the emulator before the fix.
+    BackHandler(enabled = nav.overlayShowing) { nav.back() }
     when {
         nav.overlayShowing -> VideosOverlay(container, nav, notificationsViewModel, modifier)
-        else -> VideosContent(
-            state = state,
-            filter = settings.mediaFilter,
-            onSetFilter = container.appPreferences::setMediaFilter,
-            newUploadsCount = notificationsViewModel.count.collectAsStateWithLifecycle().value,
-            actions = actions,
-            onSubscribe = viewModel::subscribe,
-            onDialogClosed = viewModel::resetSubscribing,
-            onPlay = viewModel::play,
-            onDownload = viewModel::download,
-            onDeleteDownload = viewModel::deleteDownload,
-            onSelectFeed = viewModel::select,
-            onChannelClick = { nav.channel = it },
-            onSwitchMode = switchMode,
-            onGoToChannel = { item ->
-                actions.goToSource(item) { source ->
-                    (source as? MediaSource.VideoChannel)?.let { nav.channel = it }
-                }
-            },
-            onOpenPlaylists = { nav.showPlaylists = true },
-            onOpenShorts = { onOpenShorts(state.videos.filter { it.contentKind == MediaContentKind.SHORT }) },
-            onOpenNotifications = { nav.showNotifications = true },
-            onRefresh = viewModel::refresh,
-            onSetSort = viewModel::setSort,
-            onLoadMore = viewModel::loadMore,
-            modifier = modifier,
-        )
+        else -> feedState.SaveableStateProvider("feed") {
+            VideosContent(
+                state = state,
+                filter = settings.mediaFilter,
+                onSetFilter = container.appPreferences::setMediaFilter,
+                newUploadsCount = notificationsViewModel.count.collectAsStateWithLifecycle().value,
+                actions = actions,
+                onSubscribe = viewModel::subscribe,
+                onDialogClosed = viewModel::resetSubscribing,
+                onPlay = viewModel::play,
+                onDownload = viewModel::download,
+                onDeleteDownload = viewModel::deleteDownload,
+                onSelectFeed = viewModel::select,
+                onChannelClick = { nav.channel = it },
+                onSwitchMode = switchMode,
+                onGoToChannel = { item ->
+                    actions.goToSource(item) { source ->
+                        (source as? MediaSource.VideoChannel)?.let { nav.channel = it }
+                    }
+                },
+                onOpenPlaylists = { nav.showPlaylists = true },
+                onOpenShorts = { onOpenShorts(state.videos.filter { it.contentKind == MediaContentKind.SHORT }) },
+                onOpenNotifications = { nav.showNotifications = true },
+                onRefresh = viewModel::refresh,
+                onSetSort = viewModel::setSort,
+                onLoadMore = viewModel::loadMore,
+                modifier = modifier,
+            )
+        }
     }
 }
 

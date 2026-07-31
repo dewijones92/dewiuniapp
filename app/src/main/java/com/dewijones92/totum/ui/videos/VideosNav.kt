@@ -32,6 +32,22 @@ internal class VideosNav {
         get() = channel != null || playlist != null || showPlaylists || showNotifications
 
     /** For the place trail — which overlay was open, in one short string. */
+    /**
+     * Closes the innermost overlay, in the same precedence the screen renders them — so a
+     * playlist opened FROM the playlists list backs out to that list, not to the feed.
+     *
+     * Without this, system back was not handled at all and fell through to the activity:
+     * pressing it on a channel page quit the app rather than returning to the feed.
+     */
+    fun back() {
+        when {
+            playlist != null -> playlist = null
+            showPlaylists -> showPlaylists = false
+            showNotifications -> showNotifications = false
+            channel != null -> channel = null
+        }
+    }
+
     fun describe(): String = when {
         playlist != null -> "playlist=${playlist?.title}"
         channel != null -> "channel=${channel?.title}"

@@ -1,5 +1,6 @@
 package com.dewijones92.totum.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -130,6 +131,8 @@ fun AppShell(container: AppContainer, modifier: Modifier = Modifier) {
                 shortsReel?.let { shorts ->
                     ShortsReelScreen(container, shorts, onBack = { shortsReel = null })
                 }
+                // Same as the Videos tab's overlays: back should close the channel, not quit.
+                BackHandler(enabled = shellChannel != null) { shellChannel = null }
                 shellChannel?.let { channel ->
                     ChannelScreen(
                         container,
