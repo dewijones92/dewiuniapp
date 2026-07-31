@@ -26,6 +26,17 @@ public class FakeYtDlpEngine : YtDlpEngine {
     private val searchResults = mutableMapOf<String, List<VideoSearchEntry>>()
     private val channels = mutableMapOf<HttpUrl, ChannelResult.Success>()
 
+    /**
+     * How many times [extract] has been called.
+     *
+     * Counted because "did this happen at all" is the assertion that matters for some
+     * callers: a real extraction starts an embedded Python interpreter and a JS runtime, and
+     * a caller reaching for it when it had the answer already cost 12.5 seconds of Dewi's
+     * time per tap. A test can only defend that by checking the call never happened.
+     */
+    public var extractCalls: Int = 0
+        private set
+
     /** Makes [url] extractable, returning canned [metadata]. */
     public fun registerMedia(url: HttpUrl, metadata: MediaMetadata) {
         mediaByUrl[url] = metadata
@@ -44,7 +55,12 @@ public class FakeYtDlpEngine : YtDlpEngine {
     override suspend fun versions(): EngineVersions =
         EngineVersions(ytDlp = "fake", python = "fake")
 
-    override suspend fun extract(url: HttpUrl): ExtractionResult =
+    override suspend fun extract(url: HttpUrl): ExtractionResult {
+        extractCalls++
+        return doExtract(url)
+    }
+
+    private fun doExtract(url: HttpUrl): ExtractionResult =
         mediaByUrl[url]
             ?.let { ExtractionResult.Success(it) }
             ?: ExtractionResult.Failure.UnsupportedUrl(url)

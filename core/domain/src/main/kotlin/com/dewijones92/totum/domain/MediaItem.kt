@@ -53,6 +53,18 @@ public data class MediaItem(
     val contentKind: MediaContentKind = MediaContentKind.STANDARD,
     /** Named points along the media (video/podcast chapters), earliest first; empty if none. */
     val chapters: List<Chapter> = emptyList(),
+    /**
+     * Where this item's SOURCE lives — the uploader's channel page, or a podcast's feed —
+     * when the listing that produced the item said so. Null when it did not.
+     *
+     * Pillar-neutral on purpose: [sourceId] is the *listing* an item arrived in, which for a
+     * video from an account feed is `ytfeed:SUBSCRIPTIONS`, not the channel. So "go to
+     * channel" / "go to podcast" had nothing to navigate to and had to *discover* the source
+     * — for a video, by running a full yt-dlp extraction of it, which measured **12.5
+     * seconds** on Dewi's phone. Every YouTube feed tile carries its channel id already
+     * (45 of 45, verified 2026-07-31); it was simply thrown away.
+     */
+    val sourceUrl: HttpUrl? = null,
 ) {
     init {
         require(duration == null || duration.isPositive()) { "duration must be positive when present" }

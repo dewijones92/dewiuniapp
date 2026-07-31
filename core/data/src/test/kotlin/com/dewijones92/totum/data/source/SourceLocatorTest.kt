@@ -44,6 +44,29 @@ class SourceLocatorTest {
         uploaderUrl = uploaderUrl,
     )
 
+    /**
+     * The whole point of the change. "Go to channel" measured **12.5 seconds** on Dewi's
+     * phone — 8s starting the Python interpreter and the JS runtime, then a 4.4s extract —
+     * to read a channel id the feed tile had already supplied. Asserting the engine was
+     * never called is asserting the 12.5 seconds are gone.
+     */
+    @Test
+    fun `a video whose listing named its channel needs no extraction at all`() = runTest {
+        val item = video("ytfeed:SUBSCRIPTIONS").copy(
+            sourceUrl = HttpUrl.of("https://www.youtube.com/channel/UCaaaaaaaaaaaaaaaaaaaaaa"),
+        )
+
+        val located = locator.locate(item)
+
+        assertTrue(located is MediaSource.VideoChannel)
+        assertEquals(
+            "https://www.youtube.com/channel/UCaaaaaaaaaaaaaaaaaaaaaa",
+            (located as MediaSource.VideoChannel).channelUrl.value,
+        )
+        assertEquals("Some Channel", located.title)
+        assertEquals("the engine must not be touched", 0, engine.extractCalls)
+    }
+
     @Test
     fun `a subscribed podcast episode locates its feed without touching the engine`() = runTest {
         val feedUrl = HttpUrl.of("https://example.com/feed.xml")

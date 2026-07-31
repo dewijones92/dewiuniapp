@@ -28,6 +28,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.dewijones92.totum.busy.BusyBar
 import com.dewijones92.totum.common.Diag
 import com.dewijones92.totum.data.queue.QueueEntry
 import com.dewijones92.totum.di.AppContainer
@@ -149,6 +150,10 @@ fun AppShell(container: AppContainer, modifier: Modifier = Modifier) {
                         modifier = Modifier.safeDrawingPadding(),
                     )
                 }
+                // Last in the Box so it draws over everything, including the full player and
+                // any overlay: "is the app doing something" is a question worth answering
+                // from whatever screen the user is on.
+                BusyBar(Modifier.safeDrawingPadding())
             }
         }
     }

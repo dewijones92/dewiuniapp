@@ -6,6 +6,8 @@ import com.dewijones92.totum.BuildConfig
 import com.dewijones92.totum.account.SharedPrefsTokenStore
 import com.dewijones92.totum.backup.BackupService
 import com.dewijones92.totum.backup.asBackupSettings
+import com.dewijones92.totum.busy.BusyInterceptor
+import com.dewijones92.totum.busy.BusyYtDlpEngine
 import com.dewijones92.totum.common.Diag
 import com.dewijones92.totum.data.channel.ChannelRepository
 import com.dewijones92.totum.data.channel.DefaultChannelRepository
@@ -261,9 +263,25 @@ interface AppContainer {
 @Suppress("TooManyFunctions")
 class DefaultAppContainer(private val context: Context) : AppContainer {
 
-    private val httpClient: OkHttpClient = OkHttpClient.Builder()
+    /**
+     * The client for long transfers, WITHOUT the busy interceptor.
+     *
+     * A podcast download runs for minutes on this stack, and a global indicator lit for the
+     * whole of it would say nothing — the bar exists to tell working from idle. Downloads
+     * have their own progress row and notification instead.
+     */
+    private val transferClient: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(HTTP_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         .readTimeout(HTTP_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .build()
+
+    /**
+     * Everything interactive. One interceptor here is what makes the global loading bar
+     * work for InnerTube, podcast feeds, SponsorBlock and the iTunes directory at once,
+     * with no screen having to remember to report itself.
+     */
+    private val httpClient: OkHttpClient = transferClient.newBuilder()
+        .addInterceptor(BusyInterceptor())
         .build()
 
     private val database: TotumDatabase = TotumDatabase.build(context)
@@ -284,7 +302,10 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
     private val ytDlpUpdateDir = File(context.filesDir, "ytdlp-update")
 
     override val ytDlpEngine: YtDlpEngine by lazy {
-        ChaquopyYtDlpEngine(context, updateCacheDir = ytDlpUpdateDir)
+        // Wrapped so extraction reports itself to the global loading bar. This is the slowest
+        // thing the app does — an embedded Python interpreter plus a JS runtime, ~8s of
+        // startup on first use — so it is the work most worth telling the user about.
+        BusyYtDlpEngine(ChaquopyYtDlpEngine(context, updateCacheDir = ytDlpUpdateDir))
     }
 
     private val ytDlpUpdater by lazy { YtDlpUpdater(httpClient, ytDlpUpdateDir) }
@@ -371,7 +392,7 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
                         mutableSetOf()
                     ) { it.id },
                 ),
-                podcast = HttpDownloadStrategy(httpClient),
+                podcast = HttpDownloadStrategy(transferClient),
             ),
             scope = applicationScope,
         )

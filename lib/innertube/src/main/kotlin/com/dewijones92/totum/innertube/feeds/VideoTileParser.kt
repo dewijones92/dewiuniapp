@@ -2,6 +2,7 @@ package com.dewijones92.totum.innertube.feeds
 
 import com.dewijones92.totum.common.HttpUrl
 import com.dewijones92.totum.common.Page
+import com.dewijones92.totum.common.isYouTubeChannelId
 import com.dewijones92.totum.innertube.browse.Badges
 import com.dewijones92.totum.innertube.browse.Continuations
 import kotlinx.serialization.json.Json
@@ -18,6 +19,11 @@ import kotlinx.serialization.json.jsonPrimitive
  * dedupes by video id, first-seen order preserved. Shape verified against
  * real feeds (2026-07-13).
  */
+// One function per field a tile can yield, each a few lines of null-safe descent into
+// YouTube's JSON. Merging them to satisfy the counter would produce one long unreadable
+// walk and lose the per-field kdoc explaining why each is matched by shape, which is the
+// part that keeps this working when YouTube reshuffles a response.
+@Suppress("TooManyFunctions")
 internal object VideoTileParser {
 
     private const val VIDEO_CONTENT_TYPE = "TILE_CONTENT_TYPE_VIDEO"
@@ -68,7 +74,34 @@ internal object VideoTileParser {
             publishedText = metadata.metadataLine { it.looksLikePublished() },
             viewsText = metadata.metadataLine { it.looksLikeViews() },
             membersOnly = Badges.membersOnly(this),
+            channelId = channelId(),
         )
+    }
+
+    /**
+     * The uploader's `UC…` id, taken from the tile's own long-press menu — the "go to
+     * channel" entry YouTube itself renders.
+     *
+     * Found by **matching the shape, not the position**: the menu item's index varies by
+     * tile (it was [3] in the first one), and a channel browse is the only entry whose
+     * `browseId` is a `UC…`, so that is what identifies it. Reading a fixed index would work
+     * on the feed it was written against and silently pick up a playlist or a report action
+     * on another — the same trap that made the metadata lines shape-matched above.
+     */
+    private fun JsonObject.channelId(): String? {
+        val items = ((this["onLongPressCommand"] as? JsonObject)?.get("showMenuCommand") as? JsonObject)
+            ?.let { it["menu"] as? JsonObject }
+            ?.let { it["menuRenderer"] as? JsonObject }
+            ?.let { it["items"] as? JsonArray }
+            ?: return null
+        return items.asSequence()
+            .mapNotNull { item ->
+                ((item as? JsonObject)?.get("menuNavigationItemRenderer") as? JsonObject)
+                    ?.let { it["navigationEndpoint"] as? JsonObject }
+                    ?.let { it["browseEndpoint"] as? JsonObject }
+                    ?.stringAt("browseId")
+            }
+            .firstOrNull { it.isYouTubeChannelId() }
     }
 
     /**

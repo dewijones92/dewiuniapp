@@ -22,6 +22,17 @@ public data class FeedVideo(
     val viewsText: String? = null,
     /** Behind a channel membership — it will not play or download without one. */
     val membersOnly: Boolean = false,
+    /**
+     * The uploader's `UC…` channel id, when the tile carried it.
+     *
+     * Worth keeping because the alternative was catastrophic: with only [author] — a display
+     * name — "go to channel" had to discover the channel by running a **full yt-dlp
+     * extraction of the video**, which measured **12.5 seconds** on Dewi's phone (8s of
+     * Python and JS-runtime startup, then a 4.4s extract) for a string YouTube had already
+     * sent. Every tile in a live subscriptions feed carries it: 45 of 45, verified
+     * 2026-07-31.
+     */
+    val channelId: String? = null,
 ) {
     public enum class Kind { VIDEO, LIVE, SHORT }
 

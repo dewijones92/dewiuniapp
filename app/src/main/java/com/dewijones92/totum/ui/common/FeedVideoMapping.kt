@@ -1,5 +1,6 @@
 package com.dewijones92.totum.ui.common
 
+import com.dewijones92.totum.common.HttpUrl
 import com.dewijones92.totum.data.search.SearchHit
 import com.dewijones92.totum.domain.MediaContentKind
 import com.dewijones92.totum.domain.MediaItem
@@ -33,6 +34,7 @@ fun FeedVideo.toMediaItem(sourceId: SourceId): MediaItem = MediaItem(
         FeedVideo.Kind.LIVE -> MediaContentKind.LIVE
         FeedVideo.Kind.SHORT -> MediaContentKind.SHORT
     },
+    sourceUrl = channelId?.let { HttpUrl.parse("https://www.youtube.com/channel/$it") },
 )
 
 /**

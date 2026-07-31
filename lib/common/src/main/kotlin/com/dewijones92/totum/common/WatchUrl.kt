@@ -39,5 +39,21 @@ public fun HttpUrl.youTubeVideoId(): String? {
 public fun HttpUrl.canonicalWatchUrl(): HttpUrl =
     youTubeVideoId()?.let { HttpUrl.parse("https://www.youtube.com/watch?v=$it") } ?: this
 
+/**
+ * Whether [this] is a YouTube channel id — `UC` and 22 more id characters, exactly.
+ *
+ * Here, beside the video-id rule, because "what shape is a YouTube identifier" is one fact
+ * and it had started to drift: `:core:data`'s subscription import kept a private copy of the
+ * same regex. The predicate earns its place by being what *identifies* a channel browse among
+ * a tile's menu entries, where the alternative is reading a fixed array index that varies by
+ * tile.
+ */
+public fun String.isYouTubeChannelId(): Boolean = CHANNEL_ID.matches(this)
+
+/** The first channel id appearing anywhere in [this] — a bare id, a channel URL, or a feed URL. */
+public fun String.findYouTubeChannelId(): String? = CHANNEL_ID.find(this)?.value
+
+private val CHANNEL_ID = Regex("UC[A-Za-z0-9_-]{22}")
+
 /** YouTube video ids are always this long; anything else is a false match. */
 private const val ID_LENGTH = 11

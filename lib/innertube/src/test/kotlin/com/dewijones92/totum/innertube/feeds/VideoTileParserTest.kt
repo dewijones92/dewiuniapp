@@ -29,6 +29,27 @@ class VideoTileParserTest {
         assertEquals(listOf("An ordinary upload", "Behind the membership"), videos.map { it.title })
     }
 
+    /**
+     * The channel id, which the app used to discover by running a **full yt-dlp extraction of
+     * the video** — 12.5 seconds on Dewi's phone for a string YouTube sent with the tile.
+     *
+     * Matched by shape, not position: in the live response the "Go to channel" entry sat at
+     * index 3, behind two other `menuNavigationItemRenderer`s that carry no `browseEndpoint`
+     * at all. Reading a fixed index would have worked on that one feed and quietly broken on
+     * the next.
+     */
+    @Test
+    fun `reads the channel id out of the tile's own menu, wherever it sits`() {
+        val body = checkNotNull(javaClass.getResourceAsStream("/tile_channel_menu_tv_sample.json")) { "missing" }
+            .bufferedReader().readText()
+        val videos = (VideoTileParser.parse(body) as FeedResult.Success).page.items
+
+        assertEquals(
+            listOf("UCaaaaaaaaaaaaaaaaaaaaaa", "UCbbbbbbbbbbbbbbbbbbbbbb", null),
+            videos.map { it.channelId },
+        )
+    }
+
     @Test
     fun `collects videos in order, deduped, ignoring channel tiles`() {
         assertEquals(

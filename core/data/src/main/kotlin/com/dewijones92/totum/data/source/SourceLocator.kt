@@ -35,7 +35,24 @@ public class DefaultSourceLocator(
 ) : SourceLocator {
 
     override suspend fun locate(item: MediaItem): MediaSource? =
-        subscribedFeed(item) ?: uploaderChannel(item)
+        subscribedFeed(item) ?: statedSource(item) ?: uploaderChannel(item)
+
+    /**
+     * The source the listing already named — free, instant, and the answer almost every time.
+     *
+     * Tried before [uploaderChannel] because that one runs a **full yt-dlp extraction of the
+     * video** to read one string. Measured on Dewi's phone 2026-07-31: tapping "go to channel"
+     * took **12.5 seconds** — eight of them starting the Python interpreter and the JS runtime,
+     * then a 4.4s extract — for a channel id YouTube had already sent with the tile.
+     */
+    private fun statedSource(item: MediaItem): MediaSource? {
+        val url = item.sourceUrl ?: return null
+        return MediaSource.VideoChannel(
+            id = SourceId(url.value),
+            title = item.author.orEmpty().ifBlank { url.value },
+            channelUrl = url,
+        )
+    }
 
     private suspend fun subscribedFeed(item: MediaItem): MediaSource? =
         podcasts.observeSubscriptions().first()

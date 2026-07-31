@@ -1,6 +1,7 @@
 package com.dewijones92.totum.data.importexport
 
 import com.dewijones92.totum.common.HttpUrl
+import com.dewijones92.totum.common.findYouTubeChannelId
 import com.dewijones92.totum.data.xml.descendantsNamed
 import com.dewijones92.totum.data.xml.hardenedDocumentBuilderFactory
 import kotlinx.serialization.json.Json
@@ -116,7 +117,7 @@ public class SubscriptionImportParser {
 
 /** A `UC…` channel id found anywhere in [raw] (bare id, channel URL, or feed URL), normalised to a channel URL. */
 internal fun youTubeChannelUrl(raw: String): HttpUrl? {
-    val id = CHANNEL_ID.find(raw)?.value ?: return null
+    val id = raw.findYouTubeChannelId() ?: return null
     return HttpUrl.parse("https://www.youtube.com/channel/$id")
 }
 
@@ -145,5 +146,3 @@ internal fun csvFields(line: String): List<String> {
     fields += current.toString().trim()
     return fields
 }
-
-private val CHANNEL_ID = Regex("UC[A-Za-z0-9_-]{22}")

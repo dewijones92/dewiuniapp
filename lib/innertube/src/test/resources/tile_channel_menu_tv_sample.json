@@ -1,0 +1,100 @@
+{
+  "comment": "Real tileRenderer long-press menu shape, captured from a live TV subscriptions feed 2026-07-31; channel ids replaced with synthetic ones. Tile 1 puts the channel entry at index 3 behind two other menuNavigationItemRenderers that carry no browseEndpoint, which is exactly why the parser matches on shape and not position. Tile 2 puts it at index 0. Tile 3 has no channel entry at all.",
+  "contents": [
+    {
+      "tileRenderer": {
+        "contentType": "TILE_CONTENT_TYPE_VIDEO",
+        "onSelectCommand": { "watchEndpoint": { "videoId": "vid00000001" } },
+        "metadata": {
+          "tileMetadataRenderer": {
+            "title": { "simpleText": "Buried menu entry" },
+            "lines": [
+              { "lineRenderer": { "items": [ { "lineItemRenderer": { "text": { "simpleText": "Alpha Channel" } } } ] } }
+            ]
+          }
+        },
+        "onLongPressCommand": {
+          "showMenuCommand": {
+            "menu": {
+              "menuRenderer": {
+                "items": [
+                  { "menuNavigationItemRenderer": { "text": { "runs": [ { "text": "Save to Watch Later" } ] } } },
+                  { "menuServiceItemRenderer": { "text": { "runs": [ { "text": "Not interested" } ] } } },
+                  { "menuNavigationItemRenderer": { "text": { "runs": [ { "text": "Add to queue" } ] } } },
+                  {
+                    "menuNavigationItemRenderer": {
+                      "text": { "runs": [ { "text": "Go to channel" } ] },
+                      "navigationEndpoint": { "browseEndpoint": { "browseId": "UCaaaaaaaaaaaaaaaaaaaaaa" } }
+                    }
+                  },
+                  { "menuServiceItemRenderer": { "text": { "runs": [ { "text": "Report" } ] } } }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "tileRenderer": {
+        "contentType": "TILE_CONTENT_TYPE_VIDEO",
+        "onSelectCommand": { "watchEndpoint": { "videoId": "vid00000002" } },
+        "metadata": {
+          "tileMetadataRenderer": {
+            "title": { "simpleText": "First menu entry" },
+            "lines": [
+              { "lineRenderer": { "items": [ { "lineItemRenderer": { "text": { "simpleText": "Beta Channel" } } } ] } }
+            ]
+          }
+        },
+        "onLongPressCommand": {
+          "showMenuCommand": {
+            "menu": {
+              "menuRenderer": {
+                "items": [
+                  {
+                    "menuNavigationItemRenderer": {
+                      "text": { "runs": [ { "text": "Go to channel" } ] },
+                      "navigationEndpoint": { "browseEndpoint": { "browseId": "UCbbbbbbbbbbbbbbbbbbbbbb" } }
+                    }
+                  },
+                  { "menuServiceItemRenderer": { "text": { "runs": [ { "text": "Report" } ] } } }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "tileRenderer": {
+        "contentType": "TILE_CONTENT_TYPE_VIDEO",
+        "onSelectCommand": { "watchEndpoint": { "videoId": "vid00000003" } },
+        "metadata": {
+          "tileMetadataRenderer": {
+            "title": { "simpleText": "No channel entry" },
+            "lines": [
+              { "lineRenderer": { "items": [ { "lineItemRenderer": { "text": { "simpleText": "Gamma Channel" } } } ] } }
+            ]
+          }
+        },
+        "onLongPressCommand": {
+          "showMenuCommand": {
+            "menu": {
+              "menuRenderer": {
+                "items": [
+                  {
+                    "menuNavigationItemRenderer": {
+                      "text": { "runs": [ { "text": "Go to playlist" } ] },
+                      "navigationEndpoint": { "browseEndpoint": { "browseId": "VLPLsomethingelse" } }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
