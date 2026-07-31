@@ -150,8 +150,11 @@ real bytes are somebody's copyrighted video and prove nothing the framing does n
 
 ## What is left
 
-1. **Decode `MEDIA_HEADER`** — itag, byte offset, sequence number — to route bytes to the right
-   track. The header protobuf is read shallowly today.
+1. ~~**Decode `MEDIA_HEADER`**~~ — done. `MediaHeader` reads headerId, videoId, itag,
+   lastModified, byte offset, the init-segment flag and content length, verified against a real
+   52-byte header. The mapping is confirmed by container magic rather than by plausible
+   numbers: field 3 said itag 396 and the bytes that followed began `ftypdash`, while itag 249
+   was followed by `1a45dfa3`.
 2. **Select formats** in the request (`selected_format_ids`, `preferred_*_format_ids`) instead
    of taking the server's default, which currently answers with an `av01` `SABR_ERROR`.
 3. **A Media3 `DataSource`**, and this is the real design question: SABR interleaves audio and

@@ -18,6 +18,11 @@ internal object Protobuf {
 
     private const val WIRE_VARINT = 0
     private const val WIRE_LENGTH_DELIMITED = 2
+    private const val WIRE_FIXED64 = 1
+    private const val WIRE_FIXED32 = 5
+    private const val WIRE_TYPE_MASK = 0x07L
+    private const val BYTE_MASK = 0xFF
+    private const val MAX_SHIFT = 63
     private const val CONTINUATION = 0x80
     private const val SEVEN_BITS = 0x7F
     private const val SHIFT = 7
@@ -44,4 +49,93 @@ internal object Protobuf {
         tag(field, WIRE_LENGTH_DELIMITED) + varint(value.size.toLong()) + value
 
     fun number(field: Int, value: Long): ByteArray = tag(field, WIRE_VARINT) + varint(value)
+
+    /**
+     * A shallow read of [buffer] into field number → values.
+     *
+     * Shallow on purpose: nested messages come back as raw bytes for the caller to read again
+     * if it cares. Going deeper automatically would mean guessing which fields are messages,
+     * and in a schema this is largely unknown, a wrong guess produces plausible nonsense.
+     *
+     * A field that cannot be read stops the scan and keeps what came before, because a
+     * response is more useful partially understood than discarded — YouTube adds fields we
+     * have never seen, and one of them must not cost us the whole header.
+     */
+    fun read(buffer: ByteArray): Map<Int, List<Value>> {
+        val fields = mutableMapOf<Int, MutableList<Value>>()
+        var at = 0
+        while (at < buffer.size) {
+            at = readOneField(buffer, at, fields) ?: break
+        }
+        return fields
+    }
+
+    /** The offset past one field, having recorded it, or null when it cannot be read. */
+    private fun readOneField(
+        buffer: ByteArray,
+        at: Int,
+        into: MutableMap<Int, MutableList<Value>>,
+    ): Int? {
+        val key = readVarint(buffer, at) ?: return null
+        val field = (key.value shr WIRE_TYPE_BITS).toInt()
+        fun record(value: Value) = into.getOrPut(field) { mutableListOf() }.add(value)
+        return when ((key.value and WIRE_TYPE_MASK).toInt()) {
+            WIRE_VARINT -> readVarint(buffer, key.next)?.let {
+                record(Value.Number(it.value))
+                it.next
+            }
+            WIRE_LENGTH_DELIMITED -> readLengthDelimited(buffer, key.next)?.let { (value, after) ->
+                record(Value.Bytes(value))
+                after
+            }
+            // Skipped rather than recorded: nothing we read uses fixed-width fields, and
+            // stepping over one is what keeps an unknown field from ending the scan.
+            WIRE_FIXED64 -> (key.next + Long.SIZE_BYTES).takeIf { it <= buffer.size }
+            WIRE_FIXED32 -> (key.next + Int.SIZE_BYTES).takeIf { it <= buffer.size }
+            else -> null
+        }
+    }
+
+    /** A read field: a number, or length-delimited bytes (which may be a nested message). */
+    sealed interface Value {
+        data class Number(val value: Long) : Value
+        data class Bytes(val value: ByteArray) : Value {
+            override fun equals(other: Any?): Boolean =
+                this === other || (other is Bytes && value.contentEquals(other.value))
+
+            override fun hashCode(): Int = value.contentHashCode()
+        }
+    }
+
+    private data class Read(val value: Long, val next: Int)
+
+    private fun readVarint(buffer: ByteArray, at: Int): Read? {
+        var value = 0L
+        var shift = 0
+        var index = at
+        while (index < buffer.size) {
+            val byte = buffer[index].toInt() and BYTE_MASK
+            value = value or ((byte and SEVEN_BITS).toLong() shl shift)
+            index++
+            if (byte and CONTINUATION == 0) return Read(value, index)
+            shift += SHIFT
+            if (shift > MAX_SHIFT) return null
+        }
+        return null
+    }
+
+    private fun readLengthDelimited(buffer: ByteArray, at: Int): Pair<ByteArray, Int>? {
+        val length = readVarint(buffer, at) ?: return null
+        val end = length.next + length.value.toInt()
+        if (length.value < 0 || end > buffer.size) return null
+        return buffer.copyOfRange(length.next, end) to end
+    }
+
+    /** Convenience: the first number at [field], or null. */
+    fun Map<Int, List<Value>>.numberAt(field: Int): Long? =
+        (this[field]?.firstOrNull() as? Value.Number)?.value
+
+    /** Convenience: the first bytes at [field], or null. */
+    fun Map<Int, List<Value>>.bytesAt(field: Int): ByteArray? =
+        (this[field]?.firstOrNull() as? Value.Bytes)?.value
 }
