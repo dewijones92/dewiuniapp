@@ -3,13 +3,15 @@ package com.dewijones92.totum.playback
 import com.dewijones92.totum.common.Diag
 import com.dewijones92.totum.domain.MediaItemId
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 
 /**
- * Re-resolves a stream whose URL has expired and carries on from where it stopped.
+ * Gets playback going again after a stream stops for a reason the app can still act on, and
+ * carries on from where it stopped.
  *
- * A streaming URL is a lease. YouTube signs one for a few hours, and after that every
+ * **Expired** — a streaming URL is a lease. YouTube signs one for a few hours, and after that every
  * request is a 403 — so pausing overnight and pressing play in the morning cannot work, no
  * matter how many times the player retries. It retried seventeen times in a real report
  * (0.1.170: paused 23:50 at 35 minutes in, resumed 06:07) and would have retried forever,
@@ -17,18 +19,34 @@ import kotlinx.coroutines.launch
  * address is dead". The queue holds the stable watch URL, so a fresh one is always one
  * re-resolve away.
  *
+ * **Unreachable** — the connection failed, and here the right move is the opposite: not a
+ * fresh URL but *no request at all* until there is a network to make it on. The player lands
+ * in IDLE and stays there forever on its own. Measured 2026-07-31 by black-holing HTTPS
+ * mid-playback and then restoring it: the player sat at exactly 517805ms for over three
+ * minutes with full connectivity, and would never have resumed. Stopping when the network
+ * dies is right; staying stopped when it returns is not, and that is the tunnel case with the
+ * screen off — the same "the queue just stopped" complaint that produced [StallWatchdog],
+ * arriving by a different route.
+ *
+ * Both share the retry budget, because both need the same guard against an item that is
+ * simply broken.
+ *
  * Pillar-agnostic: it reacts to the failure signal and asks the queue to replay whatever is
  * current, which routes by pillar exactly as an ordinary play does.
  *
  * @param replay plays the current item from a position, returning whether it started.
  * @param moveOn starts the next queue entry, for when re-resolving has stopped helping.
+ * @param awaitNetwork suspends until there is a usable connection. Only consulted for an
+ *   [StreamFailure.Reason.Unreachable], so an expiry is never delayed by it.
  */
-internal class ExpiredStreamRecovery(
+internal class StreamRecovery(
     private val failures: Flow<StreamFailure>,
     private val replay: suspend (Long) -> Boolean,
     private val moveOn: suspend () -> Boolean,
+    private val awaitNetwork: suspend () -> Unit,
     private val scope: CoroutineScope,
     private val maxAttempts: Int = MAX_ATTEMPTS,
+    private val backoffMs: Long = BACKOFF_MS,
 ) {
     private var lastItem: MediaItemId? = null
     private var lastPositionMs = 0L
@@ -52,16 +70,34 @@ internal class ExpiredStreamRecovery(
             // genuinely gone would be the same infinite loop wearing a different hat. But
             // giving up on the whole queue is not: a real report had the player dead on one
             // item with 58 more behind it, going nowhere. So move on, and say so.
-            Diag.warn("playback", "stream still failing after $attempts re-resolves; skipping it")
+            Diag.warn("playback", "stream still failing after $attempts recoveries; skipping it")
             if (!moveOn()) {
                 Diag.warn("playback", "nothing left in the queue to move on to")
             }
             return
         }
         attempts++
-        Diag.log("playback", "re-resolving expired stream (attempt $attempts) from ${failure.positionMs}ms")
+        if (failure.reason == StreamFailure.Reason.Unreachable) {
+            // No request until there is something to make it on. Retrying into a dead
+            // network would burn the budget without ever having had a chance.
+            Diag.log("playback", "stream unreachable at ${failure.positionMs}ms — waiting for a network")
+            awaitNetwork()
+            Diag.log("playback", "network is back — resuming from ${failure.positionMs}ms")
+        } else {
+            Diag.log("playback", "re-resolving expired stream (attempt $attempts) from ${failure.positionMs}ms")
+        }
+        // A retry with no gap is not a retry. Measured on the emulator 2026-07-31 with
+        // packets dropped while Android still reported a validated network: the whole
+        // three-attempt budget was spent in 56 MILLISECONDS and the item skipped, because
+        // each replay failed the instant it was tried. Weak signal and captive portals look
+        // exactly like that, so the guard against a dead item was skipping live ones.
+        if (attempts > 1) {
+            val backoff = backoffMs * (attempts - 1)
+            Diag.log("playback", "waiting ${backoff}ms before attempt $attempts, so the retry is a real one")
+            delay(backoff)
+        }
         if (!replay(failure.positionMs)) {
-            Diag.warn("playback", "could not replay after expiry — nothing current, or it would not resolve")
+            Diag.warn("playback", "could not replay after ${failure.reason} — nothing current, or it would not resolve")
         }
     }
 
@@ -76,6 +112,9 @@ internal class ExpiredStreamRecovery(
 
     private companion object {
         const val MAX_ATTEMPTS = 3
+
+        /** Multiplied by the attempt number, so the second waits 2s and the third 4s. */
+        const val BACKOFF_MS = 2_000L
 
         /** Playback this much further on means the previous re-resolve worked. */
         const val PROGRESS_MS = 30_000L

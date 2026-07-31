@@ -83,7 +83,6 @@ import com.dewijones92.totum.notifications.DownloadNotifier
 import com.dewijones92.totum.notifications.SharedPrefsSeenItemsTracker
 import com.dewijones92.totum.notifications.YouTubeSubscriptionItemsSource
 import com.dewijones92.totum.playback.AutoAdvancer
-import com.dewijones92.totum.playback.ExpiredStreamRecovery
 import com.dewijones92.totum.playback.Media3PlaybackController
 import com.dewijones92.totum.playback.NextUpPrefetcher
 import com.dewijones92.totum.playback.PlaybackController
@@ -92,6 +91,7 @@ import com.dewijones92.totum.playback.SharedPrefsPlaybackSpeedStore
 import com.dewijones92.totum.playback.SharedPrefsVolumeBoostStore
 import com.dewijones92.totum.playback.SleepTimer
 import com.dewijones92.totum.playback.StallWatchdog
+import com.dewijones92.totum.playback.StreamRecovery
 import com.dewijones92.totum.queue.PlaybackQueue
 import com.dewijones92.totum.queue.QueueAutoDownloader
 import com.dewijones92.totum.search.SharedPrefsSearchHistoryStore
@@ -498,10 +498,11 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
             },
             scope = applicationScope,
         ).start()
-        ExpiredStreamRecovery(
+        StreamRecovery(
             failures = playbackController.streamFailures,
             replay = playbackQueue::replayCurrent,
             moveOn = { playbackQueue.playNextInQueue() },
+            awaitNetwork = networkStatus::awaitOnline,
             scope = applicationScope,
         ).start()
         DiagnosticsUploader(context, httpClient, applicationScope).uploadPending()

@@ -36,6 +36,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.File
+import java.io.IOException
 import kotlin.time.Duration.Companion.milliseconds
 import androidx.media3.common.MediaItem as Media3MediaItem
 
@@ -108,11 +109,17 @@ public class Media3PlaybackController(
 
                         @OptIn(markerClass = [UnstableApi::class])
                         override fun onPlayerError(error: PlaybackException) {
-                            if (!error.looksExpired()) return
+                            val reason = error.recoverableReason() ?: run {
+                                // Said out loud: an unrecoverable error used to leave no
+                                // trace here at all, so "playback stopped and nothing in
+                                // the trail explains it" was a real state.
+                                Diag.warn("playback", "player error with no recovery for it", error)
+                                return
+                            }
                             val id = connected.currentMediaItem?.mediaId ?: return
                             val at = connected.currentPosition
-                            Diag.log("playback", "stream looks expired at ${at}ms — asking for a fresh URL")
-                            _streamFailures.tryEmit(StreamFailure(MediaItemId(id), at))
+                            Diag.log("playback", "stream failed at ${at}ms — $reason")
+                            _streamFailures.tryEmit(StreamFailure(MediaItemId(id), at, reason))
                         }
 
                         override fun onEvents(player: Player, events: Player.Events) {
@@ -400,6 +407,41 @@ internal fun PlaybackException.looksExpired(): Boolean {
     while (cause != null) {
         val code = (cause as? HttpDataSource.InvalidResponseCodeException)?.responseCode
         if (code != null && isExpiredStatus(code)) return true
+        cause = cause.cause
+    }
+    return false
+}
+
+/**
+ * What, if anything, could still get this playing again — null when nothing could.
+ *
+ * Expiry is checked first because a 403 arrives as an [HttpDataSource] failure too, and
+ * "the lease ran out" deserves an immediate fresh URL rather than a wait for a network
+ * that is already there.
+ */
+@UnstableApi
+internal fun PlaybackException.recoverableReason(): StreamFailure.Reason? = when {
+    looksExpired() -> StreamFailure.Reason.Expired
+    isUnreachable() -> StreamFailure.Reason.Unreachable
+    else -> null
+}
+
+/**
+ * Whether the failure was the connection itself rather than the content.
+ *
+ * Matched on the cause chain for the same reason [looksExpired] is: the top-level code lies.
+ * An [IOException] under a playback error means the bytes did not arrive — no route, DNS,
+ * reset, timeout — and every one of those is fixed by the network coming back, so they get
+ * one shared answer rather than a list of exception types that would inevitably miss one.
+ * An [HttpDataSource.InvalidResponseCodeException] is excluded: the server answered, so this
+ * is the content's problem, not the connection's.
+ */
+@UnstableApi
+internal fun PlaybackException.isUnreachable(): Boolean {
+    var cause: Throwable? = this
+    while (cause != null) {
+        if (cause is HttpDataSource.InvalidResponseCodeException) return false
+        if (cause is IOException) return true
         cause = cause.cause
     }
     return false

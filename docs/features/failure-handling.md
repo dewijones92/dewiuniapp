@@ -104,6 +104,7 @@ That is a third state, distinct from the two the app already handled:
 | Item finished | `hasEnded` | `AutoAdvancer` |
 | Stream died | `StreamFailure` | `ExpiredStreamRecovery` |
 | Item froze | **nothing at all** | `StallWatchdog` |
+| Item unreachable | error, but not an expiry | `StreamRecovery` (2026-07-31) |
 
 `StallWatchdog` treats a position that has not moved for 20s while buffering, within 15s of
 the duration, as an end and advances. A stall earlier in an item is **logged only** — same
@@ -128,13 +129,40 @@ actually is — so the watchdog samples on a clock instead of collecting.
 Generalising: **when the signal you need is "nothing has changed", a conflating flow cannot
 carry it.** Sample, don't observe.
 
+## And a fourth: IDLE after a connection failure (2026-07-31)
+
+Found by testing on the emulator rather than reasoning: black-hole the network mid-playback,
+restore it, and **the player never comes back**. It sat at exactly 517805ms for over three
+minutes with full connectivity and would have sat there forever.
+
+`onPlayerError` only raised a `StreamFailure` when the error `looksExpired()` (403/410), and
+"Failed to connect" is not an expired lease — so nothing was raised and nothing retried.
+`StallWatchdog` requires `isBuffering` and so did not fire either, correctly: the player was
+in IDLE, not buffering.
+
+`ExpiredStreamRecovery` is now `StreamRecovery` (the old name was a lie once it handled more
+than expiry) and `StreamFailure` carries a `Reason`. The two reasons need **opposite**
+responses, which is the point of naming them: `Expired` wants a fresh URL immediately;
+`Unreachable` wants no request at all until `NetworkStatus.awaitOnline()` reports a validated
+connection. A callback, not a poll — coming out of a tunnel, resuming on the instant rather
+than up to an interval later is the whole experience.
+
+Also fixed while testing it: the three-attempt budget was being spent in **56 milliseconds**
+when the network failed fast, skipping the item. A retry with no gap is not a retry; attempts
+2 and 3 now wait 2s and 4s.
+
 ### Files
 
 - `app/…/playback/StallWatchdog.kt` — the sampler and the end-of-item decision
+- `app/…/playback/StreamRecovery.kt` — expiry vs unreachable, the wait, the backoff
+- `core/playback/…/StreamFailure.kt` — the reason the two are told apart
+- `app/…/settings/NetworkStatus.kt` — `awaitOnline()`, on a callback
 
 ### Tests
 
-`StallWatchdogTest` (11 cases, built on the report's real numbers): the reported stall
+`StreamRecoveryTest` (+4: an unreachable stream waits and then resumes from exactly where it
+stopped; an expiry is never made to wait; unreachable still respects the budget; retries are
+spaced out). `StallWatchdogTest` (11 cases, built on the report's real numbers): the reported stall
 advances; 19s does not; a long stall advances exactly once; a mid-item stall is left alone; a
 paused player is not a stall; buffering that keeps progressing is not a stall; a recovered
 stall does not bank its time towards a later one; auto-play-off reports but does not play;

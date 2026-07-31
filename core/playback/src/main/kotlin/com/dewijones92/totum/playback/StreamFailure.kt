@@ -3,13 +3,43 @@ package com.dewijones92.totum.playback
 import com.dewijones92.totum.domain.MediaItemId
 
 /**
- * A stream that failed for a reason re-resolving would fix, with the position to resume at.
+ * A stream that stopped for a reason something can still do about, with the position to
+ * resume at.
  *
  * Deliberately not the [androidx.media3.common.PlaybackException]: the listener's job is to
- * fetch a fresh URL and carry on, and everything it needs is here. Keeping Media3 out of the
+ * get playback going again, and everything it needs is here. Keeping Media3 out of the
  * signal is also what lets the fake controller raise one in a unit test.
  */
 public data class StreamFailure(
     public val itemId: MediaItemId,
     public val positionMs: Long,
-)
+    public val reason: Reason,
+) {
+    /**
+     * Why it stopped — and therefore what would help, which is not the same for both.
+     *
+     * A named pair rather than a boolean because the two need opposite responses: one wants
+     * a fresh URL immediately, the other wants no request at all until there is a network to
+     * make it on. Retrying an [Unreachable] straight away only spends the retry budget on a
+     * connection that cannot succeed.
+     */
+    public enum class Reason {
+        /**
+         * The URL's lease ran out (403/410). A freshly-resolved URL fixes it, and the
+         * network is fine, so retry at once.
+         */
+        Expired,
+
+        /**
+         * The connection failed — no route, DNS, reset, timeout. The player lands in IDLE
+         * and, on its own, stays there **forever**: measured 2026-07-31 by black-holing
+         * HTTPS mid-playback and then restoring it, the player sat at the same millisecond
+         * for over three minutes with full connectivity and would never have resumed.
+         *
+         * Nothing was watching for this. `AutoAdvancer` waits for an end, `StallWatchdog`
+         * for a frozen buffer, and the recovery only ever heard about expiry — so a tunnel
+         * with the screen off silently ended the queue.
+         */
+        Unreachable,
+    }
+}
