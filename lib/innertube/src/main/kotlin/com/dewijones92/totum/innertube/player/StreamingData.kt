@@ -1,6 +1,7 @@
 package com.dewijones92.totum.innertube.player
 
 import com.dewijones92.totum.common.HttpUrl
+import com.dewijones92.totum.common.SubtitleTrack
 
 /**
  * What YouTube says it can stream for a video.
@@ -54,7 +55,15 @@ public data class PlayableFormat(
 )
 
 public sealed interface PlayerResult {
-    public data class Success(val streaming: StreamingData) : PlayerResult
+    /**
+     * [details] and [subtitles] are what let this response resolve a video on its own rather
+     * than only supplement yt-dlp's answer. They arrive in the same request as the streams.
+     */
+    public data class Success(
+        val streaming: StreamingData,
+        val details: PlayerDetails? = null,
+        val subtitles: List<SubtitleTrack> = emptyList(),
+    ) : PlayerResult
 
     /** YouTube refused: age-gated, members-only, region-blocked, bot-checked. */
     public data class Unplayable(val reason: String) : PlayerResult
