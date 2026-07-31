@@ -468,3 +468,49 @@ ways. `VideoResolver` asks the progress store before taking the fast path:
 The trade is explicit: resuming costs the full 14-25s extraction again, which is the price of
 it working at all. Seeking on the SABR path is what would remove the trade, and is the next
 thing worth doing rather than a nice-to-have.
+
+## Why a SABR video stops around the one-minute mark — measured, not guessed
+
+The premature end survived the `playerTimeMs` fix, so the next step was to log what the empty
+response actually **contained** rather than only that it was empty. The line that mattered had
+been sitting after an early return, so the one case needing an explanation was the one case that
+never got one. Moved, it says this immediately:
+
+```
+fetch #7 itag 137 at 61559ms -> 658B response, 0B kept, 24ms, carried nothing
+itag 137 got no bytes at 61559ms from 658B:
+  parts=[REQUEST_CANCELLATION_POLICY, START_BW_SAMPLING_HINT, LAWNMOWER_POLICY,
+         STREAM_PROTECTION_STATUS] itags=[] reasons=[]
+PREMATURE END: itag 137 served 23686660B of 103890131B (23%)
+```
+
+**No media parts at all** — policy parts and `STREAM_PROTECTION_STATUS`. After roughly a minute
+of media the server stops serving and answers with a protection status instead. Reproduced on
+four different videos, always after the first ~10-25% and always with the same 658-688B answer.
+That is YouTube asking for proof of origin, which needs a PoToken this app does not mint, and it
+caps the SABR path at about a minute of playback regardless of anything on our side.
+
+`STREAM_PROTECTION_STATUS`'s fields are logged verbatim and NOT interpreted. Field 1 was assumed
+to be a status enum (1 ok / 2 pending / 3 required); on the wire it reads 9000 then 8000, which
+look like milliseconds, so the assumption was wrong and a log that had translated it would have
+stated a confident falsehood.
+
+### What this changes
+
+The waste figure was wrong too, and in an interesting way. Adding a per-itag tally of each
+response shows the audio the video request volunteers **is** the itag we chose:
+
+```
+fetch #1 itag 137 -> 4533473B response, 4375729B kept, carried 137=4375729B 251=155762B
+fetch #2 itag 137 -> 3352685B response, 1850620B kept, carried 137=3196129B 251=154829B
+```
+
+So a shared session between the two tracks would reclaim ~155KB against ~4.3MB — about 4%, not
+the 40-60% assumed. The real waste is **re-sent video**: fetch #2 carried 3.19MB of itag 137 and
+kept 1.85MB, the rest being bytes already served. Sharing the audio is therefore not worth
+building; asking from the right position is.
+
+And the honest summary of the whole path: without a PoToken minter, SABR gives a ~200ms resolve
+and about a minute of video. It stays behind the beta flag, and the next thing worth doing is
+either minting a PoToken or falling back to extraction mid-stream when the protection status
+appears — not more tuning of the request.

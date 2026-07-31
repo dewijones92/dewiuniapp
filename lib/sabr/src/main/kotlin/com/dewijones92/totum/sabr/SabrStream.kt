@@ -188,11 +188,22 @@ public class SabrStream(
         Diag.log(
             "sabr",
             "fetch #$fetches itag ${format.itag} at ${playerTimeMs}ms -> " +
-                "${response.size}B response, ${added}B kept, ${elapsed}ms" +
+                "${response.size}B response, ${added}B kept, ${elapsed}ms, " +
+                "carried $carried" +
                 if (elapsed > SLOW_FETCH_MS) " — SLOW" else "",
         )
         if (added == 0) {
             emptyResponses++
+            // WHAT the server actually said, logged before deciding what to do about it — this
+            // used to sit after the early return below, so the one case that needed explaining
+            // was the one case it never explained. A 688B answer is not media: measured
+            // 2026-07-31 a video stopped at 24% on exactly that, and without the part types
+            // there was no way to tell a refusal from an end of stream.
+            Diag.warn(
+                "sabr",
+                "itag ${format.itag} got no bytes at ${playerTimeMs}ms from ${response.size}B: " +
+                    ResponseSummary.of(response),
+            )
             // NOT the end just because nothing came back. We know how long the format is, so a
             // stream that stops short of contentLength has STALLED, and calling that "finished"
             // makes a video end early and the queue advance — which is indistinguishable from
@@ -223,11 +234,6 @@ public class SabrStream(
                 )
             }
             Vitals.add("sabr.emptyResponses")
-            Diag.warn(
-                "sabr",
-                "itag ${format.itag} got no bytes at ${playerTimeMs}ms from ${response.size}B: " +
-                    describe(response),
-            )
         }
         advanceClaimedTime()
     }
@@ -256,6 +262,7 @@ public class SabrStream(
      */
     private fun absorb(response: ByteArray): Int {
         var added = 0
+        carried.clear()
         UmpReader.read(response).parts.forEach { part ->
             when (part.type) {
                 UmpPart.MEDIA_HEADER -> remember(MediaHeader.parse(part.payload))
@@ -265,6 +272,9 @@ public class SabrStream(
         }
         return added
     }
+
+    /** What the last response carried, which is how the sharing question gets answered. */
+    private val carried = CarriedItags()
 
     private fun remember(header: MediaHeader?) {
         val known = header ?: return
@@ -277,9 +287,10 @@ public class SabrStream(
     private fun storeMedia(payload: ByteArray): Int {
         val id = UmpVarint.read(payload, 0) ?: return 0
         val header = headers[id.value] ?: return 0
-        if (header.itag != format.itag) return 0
         val bytes = payload.copyOfRange(id.next, payload.size)
         if (bytes.isEmpty()) return 0
+        carried.add(header.itag, bytes.size)
+        if (header.itag != format.itag) return 0
         val offset = writeAt[id.value] ?: header.startBytes
         writeAt[id.value] = offset + bytes.size
         // Already read past: a reader never goes backwards, so this is spent.
@@ -312,23 +323,11 @@ public class SabrStream(
         if (length == null || length <= 0) -1 else served * PERCENT / length
 
     /** What a response actually contained, for when it contained nothing we wanted. */
-    private fun describe(response: ByteArray): String {
-        val parts = UmpReader.read(response).parts
-        val itags = parts.filter { it.type == UmpPart.MEDIA_HEADER }
-            .mapNotNull { MediaHeader.parse(it.payload)?.itag }
-            .distinct()
-        val reasons = parts.filter { it.type == UmpPart.SABR_ERROR || it.type == UmpPart.RELOAD_PLAYER_RESPONSE }
-            .map { part -> part.payload.decodeToString().filter { it.code in PRINTABLE }.take(REASON_CHARS) }
-        return "parts=${parts.map { it.name }.distinct()} itags=$itags reasons=$reasons"
-    }
-
     private companion object {
         const val DEFAULT_STEP_MS = 10_000L
 
         /** A read that cannot be satisfied in this many fetches is a stuck stream, not a slow one. */
         const val MAX_FETCHES_PER_READ = 6
-        val PRINTABLE = 32..126
-        const val REASON_CHARS = 60
 
         /** A fetch slower than this is a candidate cause for a gap the listener heard. */
         const val SLOW_FETCH_MS = 3_000L
