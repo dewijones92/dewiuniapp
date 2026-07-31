@@ -5,7 +5,8 @@ import com.dewijones92.totum.innertube.history.YouTubeWatchHistory
 
 /** In-memory [YouTubeWatchHistory] for tests and previews; records each call. */
 public class FakeYouTubeWatchHistory(
-    private val result: WatchHistoryResult = WatchHistoryResult.Success,
+    /** Mutable so a test can change the outcome mid-run, which is the interesting case. */
+    public var result: WatchHistoryResult = WatchHistoryResult.Success,
 ) : YouTubeWatchHistory {
 
     public data class Report(

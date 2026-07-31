@@ -352,6 +352,7 @@ public class Media3PlaybackController(
                 ?.let { it.width * it.pixelWidthHeightRatio / it.height },
             hasEnded = playbackState == Player.STATE_ENDED,
             isBuffering = playbackState == Player.STATE_BUFFERING,
+            bufferedPositionMs = bufferedPosition.coerceAtLeast(currentPosition).coerceAtLeast(0),
             skipSegments = activeSkipSegments,
             subtitles = activeSubtitles,
             subtitleLanguage = subtitleLanguage,

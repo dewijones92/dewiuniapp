@@ -1,7 +1,9 @@
 package com.dewijones92.totum.video
 
+import com.dewijones92.totum.common.Breadcrumbs
 import com.dewijones92.totum.domain.MediaItemId
 import com.dewijones92.totum.domain.MediaKind
+import com.dewijones92.totum.innertube.history.WatchHistoryResult
 import com.dewijones92.totum.innertube.history.fake.FakeYouTubeWatchHistory
 import com.dewijones92.totum.playback.PlaybackState
 import com.dewijones92.totum.playback.fake.FakePlaybackController
@@ -96,6 +98,60 @@ class WatchHistorySyncTest {
 
         assertTrue(history.reports.isEmpty())
     }
+
+    /**
+     * The buffer is the scarce resource. Logging every ping made this **31% of a whole
+     * diagnostics report** — 125 of 400 entries, every one of them "Success" again — which is
+     * 125 entries of something else evicted. A run of identical outcomes says nothing after
+     * the first, so it is counted rather than repeated.
+     */
+    @Test
+    fun `an unchanging sync is counted, not repeated 30 times`() = runTest {
+        Breadcrumbs.clear()
+        sync()
+        runCurrent()
+
+        // Half an hour of a long video: 120 reports at one every fifteen seconds.
+        repeat(120) { reportAt(it) }
+
+        assertEquals("every report must still be SENT", 120, history.reports.size)
+        val logged = syncLines()
+        assertTrue("120 pings must not be 120 log lines, was $logged", logged < 20)
+        assertTrue("but the run must not go silent either", logged > 1)
+    }
+
+    /** A change of outcome is the interesting case, and must never be swallowed by the counter. */
+    @Test
+    fun `a change of outcome is always logged`() = runTest {
+        Breadcrumbs.clear()
+        sync()
+        runCurrent()
+
+        repeat(40) { reportAt(it) }
+        val quiet = syncLines()
+
+        history.result = WatchHistoryResult.SignedOut
+        reportAt(41)
+
+        assertEquals("the signed-out turn must be said out loud", quiet + 1, syncLines())
+    }
+
+    /** One report interval of a long video, so the run is unchanging apart from the position. */
+    private fun TestScope.reportAt(index: Int) {
+        clock += 15_000
+        playback.emitState(
+            state(
+                "v1",
+                kind = MediaKind.VIDEO,
+                hasVideo = false,
+                positionMs = index * 15_000L,
+                durationMs = 3_600_000,
+            ),
+        )
+        runCurrent()
+    }
+
+    private fun syncLines() = Breadcrumbs.snapshot().count { it.tag == "yt-sync" }
 
     private fun state(
         id: String,

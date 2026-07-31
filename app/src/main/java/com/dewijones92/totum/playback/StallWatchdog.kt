@@ -70,6 +70,15 @@ internal class StallWatchdog(
             return
         }
         if (state.itemId != stuckItem || state.positionMs != stuckPositionMs) {
+            // A stall that recovers is the only evidence there will ever be for how long a
+            // NORMAL re-buffer lasts, which is what the STALL_MS threshold is guessing at
+            // and what the deferred mid-item decision needs. It costs one line per stall.
+            if (stalledForMs >= NOTEWORTHY_MS && stuckItem != null) {
+                Diag.log(
+                    "advance",
+                    "${stuckItem?.value} recovered after ${stalledForMs}ms stuck at ${stuckPositionMs}ms",
+                )
+            }
             stuckItem = state.itemId
             stuckPositionMs = state.positionMs
             stalledForMs = 0
@@ -79,12 +88,18 @@ internal class StallWatchdog(
         if (stalledForMs < STALL_MS || handled == state.itemId) return
         handled = state.itemId
 
+        // "starved" vs "stuck" is the question a stall report has never been able to answer,
+        // and it decides whether the fix is a fresh URL or a nudge to the player.
+        val bufferedAheadMs = state.bufferedPositionMs - state.positionMs
+        val diagnosis =
+            if (bufferedAheadMs > 0) "STUCK (${bufferedAheadMs}ms buffered)" else "STARVED (nothing buffered)"
+
         val remainingMs = state.durationMs?.minus(state.positionMs)
         if (remainingMs == null || remainingMs > END_MS) {
             Diag.warn(
                 "advance",
-                "${state.itemId.value} stalled ${stalledForMs}ms at ${state.positionMs}ms " +
-                    "($remainingMs ms left) — not at the end, so leaving it to the player",
+                "${state.itemId.value} stalled ${stalledForMs}ms at ${state.positionMs}ms — $diagnosis, " +
+                    "${remainingMs}ms left — not at the end, so leaving it to the player",
             )
             return
         }
@@ -97,8 +112,8 @@ internal class StallWatchdog(
         }
         Diag.log(
             "advance",
-            "${state.itemId.value} stalled ${stalledForMs}ms with only ${remainingMs}ms left; " +
-                "treating it as ended",
+            "${state.itemId.value} stalled ${stalledForMs}ms with only ${remainingMs}ms left " +
+                "($diagnosis); treating it as ended",
         )
         Diag.log("advance", "${state.itemId.value} stall advance=${advance()}")
     }
@@ -106,6 +121,12 @@ internal class StallWatchdog(
     private companion object {
         /** Often enough to be responsive, rare enough to cost nothing when all is well. */
         const val CHECK_MS = 5_000L
+
+        /**
+         * A recovered pause worth one line. Below this it is an ordinary re-buffer and
+         * saying so would cost more report buffer than it is worth.
+         */
+        const val NOTEWORTHY_MS = 10_000L
 
         /**
          * Long enough that an ordinary re-buffer is never mistaken for a stall, short enough

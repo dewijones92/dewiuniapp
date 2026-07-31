@@ -125,6 +125,19 @@ public data class PlaybackState(
     val hasEnded: Boolean = false,
     /** True while the player is buffering (loading/re-buffering) — drives a spinner. */
     val isBuffering: Boolean = false,
+    /**
+     * How far media has been loaded ahead, in ms of playback. Defaults to [positionMs] —
+     * i.e. nothing buffered — so a source that cannot report it is never mistaken for one
+     * holding data.
+     *
+     * Here because it is the single number that separates the two reasons a player sits
+     * frozen: **starved** (nothing buffered — a network or URL problem) versus **stuck**
+     * (seconds of media in hand and still not playing — a decoder or player problem). A
+     * report on 2026-07-31 showed a video frozen at 2506062ms for 46 seconds and could not
+     * distinguish the two, which is the whole reason the mid-item stall response is still
+     * undecided. See `StallWatchdog`.
+     */
+    val bufferedPositionMs: Long = positionMs,
     /** Skip (e.g. SponsorBlock) segments for the current item — drawn on the seek bar. */
     val skipSegments: List<SkipSegment> = emptyList(),
     /** Whether silence-skipping (dead-air trimming) is currently on. */
