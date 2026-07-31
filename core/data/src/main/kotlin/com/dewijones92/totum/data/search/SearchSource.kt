@@ -63,5 +63,11 @@ public sealed interface SearchHit {
         val viewsText: String? = null,
         /** Behind a channel membership — it will not play or download without one. */
         val membersOnly: Boolean = false,
+        /**
+         * The uploader's channel page, when the source named it. Becomes
+         * [com.dewijones92.totum.domain.MediaItem.sourceUrl], so "go to channel" from a search
+         * result is instant instead of costing a full extraction to discover.
+         */
+        val channelUrl: HttpUrl? = null,
     ) : SearchHit
 }

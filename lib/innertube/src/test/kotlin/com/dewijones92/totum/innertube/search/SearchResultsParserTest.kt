@@ -33,6 +33,42 @@ class SearchResultsParserTest {
         )
     }
 
+    /**
+     * A hit that names its channel makes "go to channel" free; one that does not falls back to
+     * discovering it with a full yt-dlp extraction — 6 to 25 seconds with the JS runtime. The
+     * feed route was fixed first; this is the same bug arriving by the other door.
+     *
+     * Three byline fields can carry it and which are present varies by result shape, so all
+     * three are tried rather than trusting any one.
+     */
+    @Test
+    fun `hits name their channel, so navigating to one costs nothing`() {
+        val named = videos.filter { it.channelId != null }
+
+        assertEquals("12 of the 13 captured hits name a channel", 12, named.size)
+        assertTrue(
+            "and each is a real UC id",
+            named.all { it.channelId!!.startsWith("UC") && it.channelId!!.length == 24 },
+        )
+    }
+
+    /**
+     * The one exception in the captured response, and it is not a parsing miss: a
+     * COLLABORATION ("X and Y") has no `browseEndpoint` on its byline at all — YouTube puts a
+     * `showDialogCommand` there instead, because there are two channels and it has to ask
+     * which. So there is genuinely no single channel to name, and the engine fallback is the
+     * right answer for those rather than something to be parsed harder.
+     */
+    @Test
+    fun `a collaboration names no channel, because there is not one`() {
+        val collaboration = videos.single { it.channelId == null }
+
+        assertTrue(
+            "the byline names more than one uploader: ${collaboration.author}",
+            collaboration.author!!.contains(" and "),
+        )
+    }
+
     @Test
     fun `results are de-duplicated in relevance order`() {
         assertEquals(videos.map { it.videoId }.distinct(), videos.map { it.videoId })

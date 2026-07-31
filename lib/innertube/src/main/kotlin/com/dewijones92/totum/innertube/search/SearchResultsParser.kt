@@ -1,6 +1,7 @@
 package com.dewijones92.totum.innertube.search
 
 import com.dewijones92.totum.common.HttpUrl
+import com.dewijones92.totum.common.isYouTubeChannelId
 import com.dewijones92.totum.innertube.browse.Badges
 import com.dewijones92.totum.innertube.feeds.FeedVideo
 import com.dewijones92.totum.innertube.feeds.parseClockToSeconds
@@ -56,8 +57,27 @@ internal object SearchResultsParser {
             watchUrl = watchUrl,
             viewsText = textAt("shortViewCountText") ?: textAt("viewCountText"),
             membersOnly = Badges.membersOnly(this),
+            channelId = channelId(),
         )
     }
+
+    /**
+     * The uploader's `UC…` id from the result's byline.
+     *
+     * Three fields carry it — `ownerText`, `shortBylineText`, `longBylineText` — and which are
+     * present varies by result shape, so all three are tried and the first `UC…` wins rather
+     * than trusting any one of them to be there.
+     */
+    private fun JsonObject.channelId(): String? =
+        sequenceOf("ownerText", "shortBylineText", "longBylineText")
+            .mapNotNull { key -> (this[key] as? JsonObject)?.get("runs") as? JsonArray }
+            .flatMap { runs -> runs.asSequence() }
+            .mapNotNull { run ->
+                ((run as? JsonObject)?.get("navigationEndpoint") as? JsonObject)
+                    ?.let { it["browseEndpoint"] as? JsonObject }
+                    ?.stringAt("browseId")
+            }
+            .firstOrNull { it.isYouTubeChannelId() }
 
     /** A classic text field: either `simpleText` or the concatenation of `runs`. */
     private fun JsonObject.textAt(key: String): String? {

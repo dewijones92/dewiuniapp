@@ -61,4 +61,5 @@ fun SearchHit.Video.toMediaItem(sourceId: SourceId): MediaItem = MediaItem(
     mediaUrl = watchUrl,
     viewsText = viewsText,
     membersOnly = membersOnly,
+    sourceUrl = channelUrl,
 )

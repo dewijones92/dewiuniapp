@@ -55,8 +55,26 @@ Two details worth keeping:
   item arrived in — `ytfeed:SUBSCRIPTIONS`, not the channel — which is precisely why the app
   had to go and discover the source at all.
 
-The yt-dlp path stays as the fallback, for a channel reached by a pasted handle whose URL
-carries no id.
+### Search results were still slow, and are not now
+
+The feed was only one door in. A **search result** carried no channel id either, so "go to
+channel" from search still paid the full extraction. Every hit names its channel in
+`ownerText` (also `shortBylineText` / `longBylineText`, and which are present varies by result
+shape, so all three are tried), and `SearchedVideo.channelId` → `SearchHit.Video.channelUrl` →
+`MediaItem.sourceUrl` now carries it the same way the feed does.
+
+**12 of the 13 hits in the captured response name a channel.** The exception is not a parsing
+miss: a **collaboration** ("X and Y") has no `browseEndpoint` on its byline at all — YouTube
+puts a `showDialogCommand` there, because there are two channels and it has to ask which. So
+there is genuinely no single channel to name, and the engine fallback is the right answer for
+those.
+
+### What is left on the slow path
+
+- A channel reached by a **pasted handle** (`/@name`), whose URL carries no id.
+- A **collaboration** video, per above.
+
+Both still take the yt-dlp route, and both are rare.
 
 ## 2. A global loading bar
 
@@ -106,3 +124,7 @@ harmless; work is named). `VideoTileParserTest` (+1: the id is read wherever it 
 menu, and is null when absent). `SourceLocatorTest` (+1: a listing that named its channel
 needs **no extraction at all** — asserted via `FakeYtDlpEngine.extractCalls`, because
 asserting the engine was never called is asserting the 12.5 seconds are gone).
+`SearchResultsParserTest` (+2: hits name their channel; a collaboration names none, *because
+there is not one*). `InnerTubeVideoSearchSourceTest` (2, new: the id becomes a channel URL, and
+a hit without one carries no URL rather than a broken one — the link between the two tested
+ends, and exactly where the id was being dropped).
