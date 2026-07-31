@@ -57,8 +57,28 @@ The download was requested 111ms *before* that extraction finished and did not b
 nothing in flight the download would have started immediately anyway — worth recording,
 because it looked like a successful verification and was not.
 
-## Still open: the duplication itself
+## The duplication cannot be removed — measured, not assumed
 
-Both extractions still happen. Removing that means handing yt-dlp a pre-extracted info dict
-for the download (its `--load-info-json` equivalent), which is a real change to the Python
-bridge and wants its own pass. This change only orders them.
+Dewi approved trying it. It does not work, and the negative result is worth more than the
+attempt was.
+
+Handing the download the info dict the play already extracted — `process_ie_result(info,
+download=True)`, the same entry point `--load-info-json` uses — fails with **HTTP 403**, while
+a fresh `extract_info(download=True)` with identical options succeeds in 1.7s. Tested against
+this exact yt-dlp on 2026-07-31, on the desktop so the variables were controllable:
+
+| Attempt | Result |
+|---|---|
+| Fresh `extract_info(download=True)` (control) | **OK, 1.7s** |
+| Reuse **sanitized** info via `process_ie_result` | 403 Forbidden |
+| Reuse **raw** info via `process_ie_result` | 403 Forbidden |
+| …with a JS runtime configured, matching the app | 403 Forbidden |
+
+The first run of that test was itself misleading and nearly produced a wrong conclusion: it
+extracted in 1.5s with no JS runtime, so its URLs were undeciphered and the 403 was
+explainable that way. Re-running with the runtime configured — the app's actual setup — gave
+the same 403, which is what makes it a real finding.
+
+YouTube's format URLs do not survive being handed to a second `YoutubeDL`. That is precisely
+why yt-dlp re-extracts inside a download. **So the duplicate extraction per queued play is
+inherent**, and ordering the two — which is what this change does — is as far as it goes. This change only orders them.

@@ -67,17 +67,32 @@ def _js_runtimes():
     return {"quickjs": {"path": _JS_RUNTIME_PATH}}
 
 
-# DOWNLOADS ONLY, deliberately — measured on the emulator 2026-07-30.
+# ON FOR EXTRACTION TOO, deliberately — and this comment used to say the opposite, which is
+# why it is worth spelling out.
 #
-# Solving YouTube's JS challenge with QuickJS is not cheap: a normal video's extraction went
-# from ~1.5s to 7.9s, and a challenged one to 38s, EVERY time (yt-dlp does not cache the
-# result across runs). That is latency the user waits through before a video starts, and it
-# buys nothing they would notice: the resolver's InnerTube fallback already recovers the full
-# 1080p ladder for those videos in about 150ms.
+# It was once downloads-only, to save what QuickJS costs: a normal video's extraction goes from
+# ~1.7s to ~6s with the runtime, and a challenged one to 25s, every time (yt-dlp does not cache
+# the result across runs).
 #
-# A download is background work measured in minutes, so seconds there are free — and that is
-# where a JS runtime genuinely earns its place, deciphering the `n` parameter that otherwise
-# throttles the transfer. So extraction stays fast and downloads get the runtime.
+# That was wrong. WITHOUT the runtime yt-dlp hands back URLs that do not PLAY — the working
+# laptop URL says it plainly, `c=WEB_EMBEDDED_PLAYER … &n=…`, a stream with a deciphered `n`.
+# Turning the runtime off downgraded extraction to clients whose URLs 403, which is why a whole
+# InnerTube fallback got built around what was really a missing JS runtime (commit 5ca1789).
+#
+# So the cost is paid on purpose, and the prefetcher is what pays it back: it resolves the next
+# queue item 45 seconds ahead, so in normal listening the wait lands only on the first
+# deliberate tap.
+#
+# DO NOT "optimise" this away without checking that videos PLAY, not merely resolve.
+#
+# And do not try to make a download reuse the extraction a play already did. Measured
+# 2026-07-31 against this exact yt-dlp: passing an extracted info dict to
+# `process_ie_result(info, download=True)` — the same entry point `--load-info-json` uses —
+# fails with HTTP 403, both sanitized and raw, while a fresh `extract_info(download=True)` with
+# identical options succeeds in 1.7s. YouTube's format URLs do not survive being handed to a
+# second YoutubeDL, which is exactly why yt-dlp re-extracts inside a download. The duplicate
+# extraction per queued play is therefore inherent; InteractiveFirstEngine orders the two so
+# playback never waits behind one, and that is as far as it goes.
 
 
 def extract(url):
