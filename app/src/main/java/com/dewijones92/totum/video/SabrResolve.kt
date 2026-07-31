@@ -36,16 +36,10 @@ internal object SabrResolve {
         val known = details ?: return refuse(videoId, "no videoDetails")
 
         val audio = streaming.formats.bestAudio() ?: return refuse(videoId, "no identifiable audio format")
-        // AUDIO ONLY, deliberately, and this is the honest limit of the first version.
-        //
-        // Audio plays: proven on the emulator (PLAYED 1187ms of itag 140) and on the desktop,
-        // where 152623 fetched bytes decoded to 9.99s of 48kHz stereo. Video does NOT: itag 137
-        // is served and the bytes arrive, but ExoPlayer rejects them with "Invalid NAL length"
-        // and contentIsMalformed — it reads valid mp4 and then meets a gap, so the runs SABR
-        // returns for video are not byte-contiguous in the order they arrive and the stream
-        // needs to hold them until they are. Shipping a video path that decodes to corruption
-        // would be worse than not shipping one.
-        val video: PlayableFormat? = null
+        // Video works now. MEDIA parts are routed by the header id they CARRY rather than by
+        // the last header seen — runs interleave, so the old attribution spliced one format's
+        // bytes into another's and ExoPlayer reported "Invalid NAL length".
+        val video = streaming.formats.bestVideo()
 
         SabrSessions.register(
             videoId,
@@ -78,8 +72,7 @@ internal object SabrResolve {
             .maxByOrNull { it.bitrate ?: 0 }
 
     /**
-     * The best video SABR will actually serve. **Unused until video assembly is contiguous**,
-     * kept because the finding below cost a probe of every format and would otherwise be lost.
+     * The best video SABR will actually serve, which is a narrower set than the one listed.
      *
      * Probed every video format of a real video on 2026-07-31, and the pattern is total:
      *
@@ -95,9 +88,23 @@ internal object SabrResolve {
      * AV1, and a 240p AV1 oddity). 1080p is also plenty on a phone, so the cap costs nothing
      * and avoids a class of failure rather than guessing at its edges.
      */
-    @Suppress("unused")
     private fun List<PlayableFormat>.bestVideo(): PlayableFormat? =
         filter { it.mimeType?.contains("mp4") == true && it.height != null }
+            // Video-ONLY. A muxed format (itag 18 and friends, carrying `mp4a` in a video mime)
+            // is a legacy progressive stream, not one of SABR's adaptive tracks: asking for it
+            // got bytes ExoPlayer could not recognise as any container at all
+            // (ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED). The audio arrives as its own track.
+            .filterNot { it.mimeType?.contains("mp4a") == true }
+            // 30fps ONLY. On a 4K/60fps video, EVERY 60fps format is refused — 315, 337, 701,
+            // 308, 336, 700, 299, 303, 335, 699, 298, 302, 334, 698 and the rest — while
+            // 135/134/133/160 at 30fps serve. Declaring MediaCapabilities with a 2160p60 video
+            // capability did NOT unlock them, for any codec id 0-8, so this is a real server-side
+            // restriction and not a missing field on our side.
+            //
+            // The cost is honest: a 60fps upload plays at whatever 30fps rung it offers, which on
+            // one 4K video was 480p. That is worse quality but it PLAYS, where before the whole
+            // request came back empty.
+            .filterNot { (it.fps ?: 0) > MAX_SABR_FPS }
             .filter { it.lastModified != null && (it.height ?: 0) <= MAX_SABR_HEIGHT }
             .maxByOrNull { it.height ?: 0 }
 
@@ -113,4 +120,7 @@ internal object SabrResolve {
 
     /** Above this, mp4 formats started being refused too; and it is plenty on a phone. */
     private const val MAX_SABR_HEIGHT = 1080
+
+    /** SABR refuses every format above this, whatever its codec or resolution. */
+    private const val MAX_SABR_FPS = 30
 }

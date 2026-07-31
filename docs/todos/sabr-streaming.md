@@ -304,3 +304,58 @@ the URL ends up honest about where the bytes come from.
   empty on this path rather than offering switches that would not work.
 - Watch for whether a 403 seen once from the yt-dlp DOWNLOAD path during a SABR session is
   related; downloads use the watch URL and should be untouched, so it is more likely transient.
+
+## Video works. And a range of videos was actually tried. 2026-07-31.
+
+Dewi: *"make sure a range of videos work. live, 4k, ms rachael 1080p etc"*. Ten videos, and the
+answer is eight.
+
+| Video | Over SABR |
+|---|---|
+| **Ms Rachel (kids)** | **OK, 1080p** — on-device: `[format] video avc1.640028 1920x1080`, `playing at 119ms` |
+| Ms Rachel, second video | OK, 1080p |
+| Ordinary 1080p, music video, long podcast, old 240p | OK |
+| 4K ×2 | OK, but capped at **480p** |
+| **LIVE (24/7 stream)** | **UNPLAYABLE** — the ANDROID client returns no SABR endpoint at all, so it falls back to extraction |
+
+### The bug that broke video, and it was not what I said it was
+
+I had written that "the runs SABR returns for video are not byte-contiguous". Wrong. Measuring
+the layout showed offsets ARE contiguous per format (807 + 100949 = 101756 exactly). The fault
+was **attribution**: a `MEDIA` part's payload begins with **its own header id**, and runs
+interleave arbitrarily —
+
+```
+MEDIA_HEADER id=3 ; MEDIA(3) ; MEDIA(1) ; MEDIA(1) ; MEDIA_END(1)
+MEDIA_HEADER id=4 ; MEDIA(4) ; MEDIA(4) ; MEDIA(3) ; MEDIA_END(3) ; MEDIA(4)
+```
+
+— header 1's run resuming three parts after header 3 was declared. Binding each `MEDIA` to the
+most recent header spliced one format's bytes into another's at the wrong offset, which decodes
+as `Invalid NAL length` rather than failing cleanly. Audio-only hid it completely, because a
+single format's runs arrive in order. I had also called that leading byte "a prefix that is not
+media" — it is the routing information.
+
+`contiguousFrom` now coalesces adjacent runs too, so a run that resumes later in a response is
+not left stranded behind an offset key while the stream declares itself finished.
+
+### Three more selection rules, all measured
+
+- **Muxed formats are not SABR tracks.** Asking for itag 18 returned bytes ExoPlayer could not
+  identify as any container (`ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED`). Video picks must be
+  video-only.
+- **Every 60fps format is refused.** On a 4K/60fps video: 315, 337, 701, 308, 336, 700, 299, 303,
+  335, 699, 298, 302, 334, 698 — all refused; 135/134/133/160 at 30fps served. **Declaring
+  `MediaCapabilities` with a 2160p60 capability did NOT unlock them for any codec id 0-8**, so
+  this is a server-side restriction and not a missing field on our side. Recorded so nobody
+  repeats the experiment.
+- **A refused video pick loses the audio too.** `audio 251` alone served 151007 bytes;
+  `audio 251 + video 299` returned nothing at all. So one bad video selection costs the entire
+  response — which is why the rules above are conservative rather than optimistic.
+
+### Honest costs
+
+- A 60fps upload plays at its best **30fps** rung, which on one 4K video was 480p. Worse quality
+  than yt-dlp would give, but it plays, where before the request came back empty.
+- **Live does not work at all** on this path and falls back to extraction, which is correct.
+- Seeking still does not work, and the quality menu is still deliberately empty.

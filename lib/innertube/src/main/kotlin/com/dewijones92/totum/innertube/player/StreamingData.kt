@@ -64,6 +64,11 @@ public data class PlayableFormat(
     val lastModified: Long? = null,
     /** YouTube's `xtags`, verbatim. Without it SABR answers `sabr.no_audio_selected`. */
     val xtags: String? = null,
+    /**
+     * Frames per second, when stated. Needed because SABR refuses 60fps formats outright — see
+     * `SabrResolve.bestVideo`.
+     */
+    val fps: Int? = null,
 )
 
 public sealed interface PlayerResult {

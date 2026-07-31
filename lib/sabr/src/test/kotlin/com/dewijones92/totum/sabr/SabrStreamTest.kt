@@ -18,20 +18,27 @@ class SabrStreamTest {
     private val audio = SabrFormat(itag = 251, lastModified = 1L, xtags = "orig")
     private val video = SabrFormat(itag = 137, lastModified = 2L)
 
-    /** Builds a UMP response the way YouTube frames one. */
+    /** Builds a UMP response the way YouTube frames one, ids and all. */
     private fun response(vararg runs: Triple<SabrFormat, Long, ByteArray>): ByteArray {
         var out = ByteArray(0)
-        runs.forEach { (format, offset, payload) ->
-            val header = Protobuf.number(1, 0) +
-                Protobuf.number(3, format.itag.toLong()) +
-                Protobuf.number(6, offset) +
-                Protobuf.number(14, payload.size.toLong())
-            out += umpPart(UmpPart.MEDIA_HEADER, header)
-            // The one-byte prefix YouTube puts in front of media, which is not media.
-            out += umpPart(UmpPart.MEDIA, byteArrayOf(0) + payload)
+        runs.forEachIndexed { id, (format, offset, payload) ->
+            out += header(id, format, offset, payload.size)
+            out += media(id, payload)
         }
         return out
     }
+
+    private fun header(id: Int, format: SabrFormat, offset: Long, length: Int) = umpPart(
+        UmpPart.MEDIA_HEADER,
+        Protobuf.number(1, id.toLong()) +
+            Protobuf.number(3, format.itag.toLong()) +
+            Protobuf.number(6, offset) +
+            Protobuf.number(14, length.toLong()),
+    )
+
+    /** A MEDIA part names its own run: the payload begins with the header id. */
+    private fun media(id: Int, payload: ByteArray) =
+        umpPart(UmpPart.MEDIA, byteArrayOf(id.toByte()) + payload)
 
     private fun umpPart(type: Int, payload: ByteArray): ByteArray {
         fun varint(value: Int) = if (value < 0x80) {
@@ -145,6 +152,39 @@ class SabrStreamTest {
             0L,
             (Protobuf.read(state.value)[40]!!.first() as Protobuf.Value.Number).value
         )
+    }
+
+    /**
+     * The bug that made video decode to corruption, reproduced.
+     *
+     * Runs INTERLEAVE. Measured on itag 134 with audio alongside it, one real response went
+     * `MEDIA_HEADER(3), MEDIA(3), MEDIA(1), MEDIA(1), MEDIA_END(1), MEDIA_HEADER(4), MEDIA(4),
+     * MEDIA(3)` — header 1's run resuming three parts after header 3 was declared. Binding a
+     * MEDIA part to the most recent header therefore splices one format's bytes into another's
+     * at the wrong offset, and ExoPlayer reports `Invalid NAL length` rather than failing
+     * cleanly. Audio-only hid it, because one format's runs arrive in order.
+     */
+    @Test
+    fun `interleaved runs go to the format that owns them, not the last header seen`() = runTest {
+        // header 0 = our video at 0; header 1 = audio at 0; then MORE of header 0, out of order.
+        val body = header(0, video, 0, 4) + media(0, byteArrayOf(1, 2)) +
+            header(1, audio, 0, 2) + media(1, byteArrayOf(9, 9)) +
+            media(0, byteArrayOf(3, 4))
+        val fake = Fake(listOf(body))
+
+        val first = stream(fake, video).read(from = 0)
+
+        // Both of header 0's runs, contiguous, with the audio bytes nowhere among them.
+        assertArrayEquals(byteArrayOf(1, 2, 3, 4), first)
+    }
+
+    /** A MEDIA part naming a run we never saw declared must be dropped, not guessed at. */
+    @Test
+    fun `media for an unknown header id is ignored`() = runTest {
+        val body = header(0, video, 0, 2) + media(0, byteArrayOf(7, 7)) + media(42, byteArrayOf(1, 1))
+        val fake = Fake(listOf(body))
+
+        assertArrayEquals(byteArrayOf(7, 7), stream(fake, video).read(from = 0))
     }
 
     /** A server with nothing left to send must end the stream, not spin forever. */

@@ -127,6 +127,7 @@ public object PlayerResponseParser {
             url = stringAt("url")?.let(HttpUrl::parse),
             lastModified = stringAt("lastModified")?.toLongOrNull(),
             xtags = stringAt("xtags"),
+            fps = this["fps"]?.jsonPrimitive?.longOrNull?.toInt(),
         )
     }
 

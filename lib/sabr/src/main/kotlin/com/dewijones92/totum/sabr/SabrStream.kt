@@ -39,6 +39,12 @@ public class SabrStream(
     /** Bytes gathered for [format], keyed by their offset in the whole stream. */
     private val chunks = sortedMapOf<Long, ByteArray>()
 
+    /** Every run declared so far, by header id, because MEDIA parts name their own. */
+    private val headers = mutableMapOf<Long, MediaHeader>()
+
+    /** Where the next MEDIA part for each run belongs, since runs interleave. */
+    private val writeAt = mutableMapOf<Long, Long>()
+
     /** The next byte offset we have not yet served to a reader. */
     private var served = 0L
     private var playerTimeMs = 0L
@@ -68,11 +74,24 @@ public class SabrStream(
         return ByteArray(0)
     }
 
-    /** The run of bytes we hold starting exactly at [from], or null when we hold none. */
+    /**
+     * Everything we hold that runs on unbroken from [from], or null when we hold nothing there.
+     *
+     * Coalesces, rather than handing back one stored run at a time. A run that resumes later in
+     * the response lands under its own offset key, so without this a caller would be told
+     * "nothing" at the join and a fetch would be spent re-asking for bytes already in hand —
+     * and a stream can be declared finished while its next bytes are sitting in the map.
+     */
     private fun contiguousFrom(from: Long): ByteArray? {
-        val chunk = chunks[from] ?: return null
-        chunks.remove(from)
-        return chunk.takeIf { it.isNotEmpty() }
+        if (chunks[from] == null) return null
+        var at = from
+        var joined = ByteArray(0)
+        while (true) {
+            val next = chunks.remove(at) ?: break
+            joined += next
+            at += next.size
+        }
+        return joined.takeIf { it.isNotEmpty() }
     }
 
     private suspend fun fetch() {
@@ -101,28 +120,61 @@ public class SabrStream(
         playerTimeMs += stepMs
     }
 
-    /** Files away every MEDIA run belonging to [format]. Returns how many bytes were added. */
+    /**
+     * Files away every MEDIA run belonging to [format]. Returns how many bytes were added.
+     *
+     * **Routed by the header id INSIDE each MEDIA part, not by the last header seen** — this is
+     * the whole difficulty of the format and what made video decode to corruption. Runs
+     * interleave arbitrarily: measured 2026-07-31 on itag 134 with audio alongside it, a single
+     * response went
+     *
+     * ```
+     * MEDIA_HEADER id=3 ; MEDIA(3) ; MEDIA(1) ; MEDIA(1) ; MEDIA(1) ; MEDIA_END(1)
+     * MEDIA_HEADER id=4 ; MEDIA(4) ; MEDIA(4) ; MEDIA(3) ; MEDIA_END(3) ; MEDIA(4)
+     * ```
+     *
+     * — header 1's run resuming three parts after header 3 was declared, and header 3's
+     * resuming inside header 4's. Attributing bytes to the most recent header therefore splices
+     * one format's bytes into another's stream at the wrong offset, which decodes as
+     * `Invalid NAL length` rather than failing outright. Audio-only survived it because a single
+     * format's runs happen to arrive in order.
+     *
+     * The leading value is read as a UMP varint, so a header id above 127 works too — ids
+     * observed so far are single-digit, which would have hidden a wrong choice indefinitely.
+     */
     private fun absorb(response: ByteArray): Int {
-        var header: MediaHeader? = null
-        var offset = 0L
         var added = 0
         UmpReader.read(response).parts.forEach { part ->
             when (part.type) {
-                UmpPart.MEDIA_HEADER -> {
-                    val parsed = MediaHeader.parse(part.payload)
-                    header = parsed
-                    offset = parsed?.startBytes ?: 0
-                    if (parsed?.itag == format.itag) contentLength = parsed.contentLength
-                }
-                UmpPart.MEDIA -> {
-                    val bytes = mediaFor(header, part.payload)
-                    added += store(offset, bytes)
-                    offset += bytes.size
-                }
+                UmpPart.MEDIA_HEADER -> remember(MediaHeader.parse(part.payload))
+                UmpPart.MEDIA -> added += storeMedia(part.payload)
                 else -> Unit
             }
         }
         return added
+    }
+
+    private fun remember(header: MediaHeader?) {
+        val known = header ?: return
+        headers[known.headerId] = known
+        // Where this run starts in the whole format; every MEDIA part for it continues from here.
+        writeAt[known.headerId] = known.startBytes
+        if (known.itag == format.itag) contentLength = known.contentLength
+    }
+
+    /** Appends one MEDIA part to whichever run it names. Returns bytes kept. */
+    private fun storeMedia(payload: ByteArray): Int {
+        val id = UmpVarint.read(payload, 0) ?: return 0
+        val header = headers[id.value] ?: return 0
+        if (header.itag != format.itag) return 0
+        val bytes = payload.copyOfRange(id.next, payload.size)
+        if (bytes.isEmpty()) return 0
+        val offset = writeAt[id.value] ?: header.startBytes
+        writeAt[id.value] = offset + bytes.size
+        // Already read past: a reader never goes backwards, so this is spent.
+        if (offset < served) return 0
+        chunks[offset] = (chunks[offset] ?: ByteArray(0)) + bytes
+        return bytes.size
     }
 
     /** What a response actually contained, for when it contained nothing we wanted. */
@@ -134,22 +186,6 @@ public class SabrStream(
         val reasons = parts.filter { it.type == UmpPart.SABR_ERROR || it.type == UmpPart.RELOAD_PLAYER_RESPONSE }
             .map { part -> part.payload.decodeToString().filter { it.code in PRINTABLE }.take(REASON_CHARS) }
         return "parts=${parts.map { it.name }.distinct()} itags=$itags reasons=$reasons"
-    }
-
-    /** The media in [payload] when it belongs to our format, else nothing. */
-    private fun mediaFor(header: MediaHeader?, payload: ByteArray): ByteArray =
-        if (header?.itag != format.itag || payload.isEmpty()) {
-            ByteArray(0)
-        } else {
-            // MEDIA is prefixed with a single byte that is not media.
-            payload.copyOfRange(1, payload.size)
-        }
-
-    /** Files [bytes] at [offset] unless a reader has already moved past it. */
-    private fun store(offset: Long, bytes: ByteArray): Int {
-        if (bytes.isEmpty() || offset < served) return 0
-        chunks[offset] = (chunks[offset] ?: ByteArray(0)) + bytes
-        return bytes.size
     }
 
     private companion object {
