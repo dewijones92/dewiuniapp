@@ -42,6 +42,7 @@ to `shipped` and migrate it to `../features/` once it's a real feature on `main`
 | [notification-opens-app](notification-opens-app.md) | playback | high | shipped |
 | [listen-mode-exit-ux](listen-mode-exit-ux.md) | playback | high | shipped |
 | [library-downloads-podcast-only](library-downloads-podcast-only.md) | downloads | medium | done |
+| [playback-does-not-resume-after-network-loss](playback-does-not-resume-after-network-loss.md) | playback | high | open — player sits in IDLE forever once the network returns |
 
 All backlog items are Dewi requests. `refining` = spec written, decisions still open;
 `ready` = decisions made, implementation waits for Dewi's explicit go (his standing
