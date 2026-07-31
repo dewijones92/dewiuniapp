@@ -51,3 +51,6 @@ public enum class SabrTracks(internal val bitfield: Int) {
     /** Audio alone. Verified: one itag in the response, and a tenth of the bytes. */
     AUDIO_ONLY(1),
 }
+
+/** Which half of a playback a format is. Decides the request field and the track bitfield. */
+public enum class SabrTrackKind { AUDIO, VIDEO }

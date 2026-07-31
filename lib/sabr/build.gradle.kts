@@ -11,4 +11,5 @@ dependencies {
     api(project(":lib:common"))
 
     testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
 }

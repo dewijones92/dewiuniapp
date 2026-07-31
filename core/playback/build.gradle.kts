@@ -13,6 +13,7 @@ kotlin {
 
 dependencies {
     api(project(":core:domain"))
+    api(project(":lib:sabr"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.media3.exoplayer)

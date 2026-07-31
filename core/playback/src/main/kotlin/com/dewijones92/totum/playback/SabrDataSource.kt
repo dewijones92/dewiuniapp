@@ -1,0 +1,77 @@
+package com.dewijones92.totum.playback
+
+import android.net.Uri
+import androidx.media3.common.C
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.BaseDataSource
+import androidx.media3.datasource.DataSpec
+import com.dewijones92.totum.common.Diag
+import com.dewijones92.totum.sabr.SabrStream
+import kotlinx.coroutines.runBlocking
+
+/**
+ * Feeds ExoPlayer one track fetched over SABR.
+ *
+ * SABR is the protocol behind everything YouTube will not hand out as a plain URL — measured
+ * 2026-07-31, an ANDROID-client stream URL serves its first megabyte and then 403s forever, and
+ * the rest is only reachable this way. [SabrStream] already turns the conversation into bytes in
+ * order, so all that is left here is Media3's shape.
+ *
+ * **Blocking on purpose.** `DataSource` is a blocking interface and ExoPlayer calls it on its
+ * own loader thread, never the main one, so `runBlocking` here is correct rather than a
+ * shortcut — the alternative would be an extra thread hop to reach the same wait.
+ *
+ * **Not seekable to an arbitrary byte.** SABR is asked for a media TIME, not an offset, so a
+ * reader that opens at a position we have not reached gets nothing. That is fine for playing
+ * from the start and is the honest limit of this first version; seeking needs the position
+ * translated into `player_time_ms`, which is written up in docs/todos/sabr-streaming.md.
+ */
+@UnstableApi
+public class SabrDataSource(private val stream: SabrStream) : BaseDataSource(true) {
+
+    private var uri: Uri? = null
+    private var position = 0L
+    private var pending: ByteArray = ByteArray(0)
+    private var pendingAt = 0
+    private var opened = false
+
+    override fun open(dataSpec: DataSpec): Long {
+        uri = dataSpec.uri
+        position = dataSpec.position
+        pending = ByteArray(0)
+        pendingAt = 0
+        opened = true
+        transferInitializing(dataSpec)
+        transferStarted(dataSpec)
+        val length = stream.contentLength
+        Diag.log("sabr", "opened at $position of ${length ?: -1} bytes")
+        return length?.minus(position) ?: C.LENGTH_UNSET.toLong()
+    }
+
+    override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+        if (length == 0) return 0
+        if (pendingAt >= pending.size) {
+            pending = runBlocking { stream.read(position) }
+            pendingAt = 0
+            // Empty means the stream is finished; ExoPlayer reads until it is told so.
+            if (pending.isEmpty()) return C.RESULT_END_OF_INPUT
+        }
+        val taken = minOf(length, pending.size - pendingAt)
+        pending.copyInto(buffer, offset, pendingAt, pendingAt + taken)
+        pendingAt += taken
+        position += taken
+        bytesTransferred(taken)
+        return taken
+    }
+
+    override fun getUri(): Uri? = uri
+
+    override fun close() {
+        if (opened) {
+            opened = false
+            transferEnded()
+        }
+        pending = ByteArray(0)
+        pendingAt = 0
+    }
+}
