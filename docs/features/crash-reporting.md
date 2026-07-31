@@ -3,7 +3,7 @@ title: Crash and diagnostics reporting
 kind: feature
 status: shipped
 area: infrastructure
-updated: 2026-07-28
+updated: 2026-07-31
 ---
 
 # Crash reporting
@@ -157,3 +157,29 @@ feeds), and every settings change, routed through one logged path so a report ca
 *when* a setting changed rather than only its current value.
 
 Verified on device: `[snapshot] playing "…" at 29346ms (running); queue=5; downloading=0`.
+
+## Autoplay to the next item is traceable end to end (2026-07-31)
+
+Dewi asked whether the advance is properly tracked. It was, for the *decision* — every refusal
+already said why — but three things were missing, and each was a case where a report could not
+answer an obvious question. All three verified on the emulator with the screen off:
+
+```
+[playback] ended at 18940ms of 18933ms — jNQXAC9IVRw "Me at the zoo"
+[queue]    advanced from index 10 to 11 of 20 — "Learning C++ at 18 years old"
+[advance]  jNQXAC9IVRw ended -> queue advance=true
+[playback] playing at 608094ms — 3436ms of silence since the last item ended (SLOW handover)
+```
+
+- **The success now names where it went.** Only the refusals spoke, so an advance onto the wrong
+  item read as `advance=true` with no clue which of sixty entries it landed on.
+- **A skipped entry says which one and that it would not play.** `nothing playable after index 3`
+  with a full queue previously named none of the items it had refused.
+- **The handover is TIMED in wall clock.** The one number that says whether autoplay felt right,
+  and the one number nowhere in a report: `ended` and `playing` both carry media positions, so a
+  3-second handover and a 40-second one were indistinguishable. Now measured, flagged past 3s,
+  and counted in Vitals as `playback.handovers` / `playback.handoverMs`.
+
+The 3436ms above is itself the explanation working: that item was part-watched, so it took the
+extraction path rather than SABR, and extraction costs seconds. The log now says so instead of
+leaving a gap to wonder about.

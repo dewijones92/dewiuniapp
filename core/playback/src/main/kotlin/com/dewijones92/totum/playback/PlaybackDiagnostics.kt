@@ -26,6 +26,18 @@ internal class PlaybackDiagnostics(
 
     private var stalledSince: Long? = null
 
+    /**
+     * Wall clock at the last end of playback, so the GAP to the next item can be stated.
+     *
+     * The one number that says whether autoplay felt right, and it was the one number nowhere in
+     * a report: "ended" and "playing" both carry media positions, not wall clock, so a
+     * three-second handover and a forty-second one read identically unless both lines happen to
+     * survive the bounded buffer AND someone subtracts their timestamps by hand. Measured here
+     * instead, because a resolve on the SABR path costs ~200ms and an extraction 14-25s — the
+     * difference is entirely audible and nothing was reporting it.
+     */
+    private var endedAt: Long? = null
+
     override fun onPlayerError(error: PlaybackException) {
         Vitals.add("playback.errors")
         Vitals.set("playback.lastError", "${error.errorCodeName}: ${error.message}")
@@ -97,6 +109,7 @@ internal class PlaybackDiagnostics(
         } else {
             Diag.log("playback", "ended at ${at}ms of ${duration ?: -1}ms — ${describeItem()}")
         }
+        endedAt = now()
     }
 
     private fun percent(at: Long, duration: Long) = at * PERCENT / duration
@@ -119,7 +132,17 @@ internal class PlaybackDiagnostics(
             player()?.playWhenReady == true -> "not advancing (wants to play)"
             else -> "paused"
         }
-        Diag.log("playback", "$why at ${position()}")
+        // How long the silence lasted, said once and only after an end — a pause the user made
+        // is not a handover and must not be reported as one.
+        val handover = endedAt?.takeIf { isPlaying }?.let { ended ->
+            endedAt = null
+            val gap = now() - ended
+            Vitals.add("playback.handovers")
+            Vitals.add("playback.handoverMs", gap)
+            " — ${gap}ms of silence since the last item ended" +
+                if (gap > SLOW_HANDOVER_MS) " (SLOW handover)" else ""
+        }
+        Diag.log("playback", "$why at ${position()}${handover ?: ""}")
     }
 
     override fun onPositionDiscontinuity(
@@ -155,6 +178,15 @@ internal class PlaybackDiagnostics(
          * "early" on every ordinary ending would make the warning worthless.
          */
         const val EARLY_END_TOLERANCE_MS = 5_000L
+
+        /**
+         * A handover longer than this is worth flagging in the line itself.
+         *
+         * Three seconds because that is roughly where a gap stops reading as a pause between
+         * tracks and starts reading as something being broken. It is a label, not a threshold
+         * anything acts on — every handover is timed either way.
+         */
+        const val SLOW_HANDOVER_MS = 3_000L
         const val PERCENT = 100
     }
 }

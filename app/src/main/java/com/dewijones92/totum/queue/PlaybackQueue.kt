@@ -279,9 +279,25 @@ class PlaybackQueue(
         }
         while (index <= _state.value.entries.lastIndex) {
             val entry = _state.value.entries[index]
+            val title = entry.item.item.title.take(TITLE_CHARS)
             // Never advance onto the thing already playing. Belt and braces alongside the index
             // fix above: it also covers a duplicate that predates the de-duplication work.
-            if (entry.item.item.id != playingId && playAt(index)) return true
+            if (entry.item.item.id == playingId) {
+                Diag.log("queue", "skipping index $index \"$title\" — it is what just played")
+            } else if (playAt(index)) {
+                // The SUCCESS says what it advanced to, not just that it did. Only the refusals
+                // said anything, so a report of a queue advancing wrongly showed "advance=true"
+                // and nothing about which of sixty items it had landed on.
+                Diag.log(
+                    "queue",
+                    "advanced from index $from to $index of ${_state.value.entries.size} — \"$title\"",
+                )
+                return true
+            } else {
+                // An item the player would not start. Silent before, so "nothing playable after
+                // index 3" with a full queue gave no clue WHICH items were refused.
+                Diag.warn("queue", "index $index \"$title\" would not play; trying the next one")
+            }
             index++
         }
         Diag.log("queue", "nothing playable after index $from")
