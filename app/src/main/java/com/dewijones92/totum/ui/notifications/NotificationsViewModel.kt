@@ -36,15 +36,26 @@ class NotificationsViewModel(
     private val queue: PlaybackQueue,
 ) : ViewModel() {
 
-    private var lastFeed: List<MediaItem> = emptyList()
-    private val newUploads = MutableStateFlow<List<MediaItem>>(emptyList())
+    /** One row of the inbox: an upload, and whether it is still unread. */
+    data class Upload(val item: MediaItem, val unread: Boolean)
 
-    val count: StateFlow<Int> = newUploads
-        .map { it.size }
+    private var lastFeed: List<MediaItem> = emptyList()
+
+    /**
+     * The whole recent feed, unread first — an inbox rather than a queue of alerts.
+     *
+     * It used to hold ONLY the unseen uploads and empty itself the moment you opened it,
+     * so the bell could never answer "what did I already look at". Dewi asked for the
+     * history to stay and the unread to float to the top, which is what an inbox is.
+     */
+    private val inbox = MutableStateFlow<List<Upload>>(emptyList())
+
+    val count: StateFlow<Int> = inbox
+        .map { uploads -> uploads.count { it.unread } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), 0)
 
-    /** The current new uploads as media items — read on demand (always current). */
-    fun snapshotUploads(): List<MediaItem> = newUploads.value
+    /** The inbox as it stands — read on demand (always current). */
+    fun snapshotUploads(): List<Upload> = inbox.value
 
     init {
         refresh()
@@ -54,14 +65,25 @@ class NotificationsViewModel(
         viewModelScope.launch {
             val feed = (feeds.subscriptionsFeed() as? FeedResult.Success)?.page?.items ?: return@launch
             lastFeed = feed.map { it.toMediaItem(SUBSCRIPTIONS_SOURCE.id) }
-            newUploads.value = tracker.newItems(SUBSCRIPTIONS_SOURCE.id, lastFeed)
+            val unread = tracker.newItems(SUBSCRIPTIONS_SOURCE.id, lastFeed).map { it.id }.toSet()
+            // Feed order is preserved within each group rather than sorted by date: the
+            // subscriptions feed arrives newest-first already, and its items carry YouTube's
+            // relative text ("2 days ago") rather than a timestamp to sort on.
+            inbox.value = lastFeed
+                .map { Upload(it, unread = it.id in unread) }
+                .sortedByDescending { it.unread }
         }
     }
 
-    /** Called when the user opens the list — everything current becomes "seen". */
+    /**
+     * Called when the user opens the list — everything current becomes "seen".
+     *
+     * The rows STAY, and keep the unread flag they had when the screen opened: clearing the
+     * badge is the point, but re-sorting the list under the reader's finger the instant they
+     * arrive would move the very things they came to look at.
+     */
     fun markAllSeen() {
         tracker.markSeen(SUBSCRIPTIONS_SOURCE.id, lastFeed)
-        newUploads.value = emptyList()
     }
 
     fun play(video: MediaItem) {

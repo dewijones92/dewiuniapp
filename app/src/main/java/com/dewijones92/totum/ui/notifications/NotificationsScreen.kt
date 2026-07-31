@@ -1,11 +1,12 @@
 package com.dewijones92.totum.ui.notifications
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.HorizontalDivider
@@ -63,14 +64,20 @@ fun NotificationsScreen(
                 )
             } else {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    items(uploads, key = { it.id.value }) { video ->
+                    itemsIndexed(uploads, key = { _, upload -> upload.item.id.value }) { index, upload ->
+                        // One divider between the unread run and the rest, so the boundary is
+                        // visible without a header shouting at you.
+                        if (index > 0 && !upload.unread && uploads[index - 1].unread) {
+                            SeenSince()
+                        }
                         MediaItemRow(
-                            item = video,
-                            subtitle = mediaItemSubtitle(video),
+                            item = upload.item,
+                            subtitle = mediaItemSubtitle(upload.item),
                             pillar = MediaKind.VIDEO,
-                            onPlay = { viewModel.play(video) },
+                            onPlay = { viewModel.play(upload.item) },
                             onDownload = {},
                             onDeleteDownload = {},
+                            modifier = if (upload.unread) Modifier.background(unreadTint()) else Modifier,
                         )
                         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                     }
@@ -79,3 +86,20 @@ fun NotificationsScreen(
         }
     }
 }
+
+/** A faint wash behind the rows that arrived since you last looked. */
+@Composable
+private fun unreadTint() = MaterialTheme.colorScheme.primaryContainer.copy(alpha = UNREAD_TINT_ALPHA)
+
+/** Marks where the new ones end and the ones you have already seen begin. */
+@Composable
+private fun SeenSince() {
+    Text(
+        text = stringResource(R.string.notifications_seen_already),
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = 16.dp, top = 20.dp, bottom = 4.dp),
+    )
+}
+
+private const val UNREAD_TINT_ALPHA = 0.35f

@@ -37,6 +37,7 @@
     <string name="tag_live">LIVE</string>
     <string name="tag_short">SHORT</string>
     <string name="tag_members_only">MEMBERS</string>
+    <string name="notifications_seen_already">Already seen</string>
     <string name="done">Done</string>
     <string name="groups_title">Groups</string>
     <string name="groups_none_yet">No groups yet. Name one below to start.</string>
