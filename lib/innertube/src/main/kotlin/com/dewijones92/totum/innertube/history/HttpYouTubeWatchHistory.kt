@@ -1,8 +1,14 @@
 package com.dewijones92.totum.innertube.history
 
+import com.dewijones92.totum.common.Diag
 import com.dewijones92.totum.innertube.auth.AccessToken
 import com.dewijones92.totum.innertube.auth.AccessTokenResult
 import com.dewijones92.totum.innertube.auth.YouTubeAccount
+import com.dewijones92.totum.innertube.browse.InnerTubeClient
+import com.dewijones92.totum.innertube.browse.InnerTubeResponse
+import com.dewijones92.totum.innertube.player.PlaybackTracking
+import com.dewijones92.totum.innertube.player.PlaybackTrackingParser
+import com.dewijones92.totum.innertube.player.SignatureTimestampSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -11,34 +17,55 @@ import java.io.IOException
 import kotlin.random.Random
 
 /**
- * Pings YouTube's `stats/playback` + `stats/watchtime` (the mechanism SmartTube
- * uses) to sync watch-progress to the account. The tracking base URLs — which
- * already carry `docid`, `ei`, `of`, `vm`, `len` — come from the extractor's
- * player response via [beginSession]; here we add a per-video client playback
- * nonce (`cpn`) and the position, and authenticate the ping with the account's
- * TV-OAuth token so progress attributes to the account.
+ * Pings YouTube's `stats/playback` + `stats/watchtime` (the mechanism SmartTube uses) to
+ * sync watch-progress to the account.
+ *
+ * The pings themselves were never the problem — it was **where they were sent**. The
+ * tracking URLs used to come from the extractor's player response, and the extractor runs
+ * unauthenticated, so they addressed an anonymous session: pinging them returned 204 and
+ * changed nothing. Proven on 2026-07-31 by reading `FEhistory` back around a full playback,
+ * finding it byte-identical, then repeating the same pings against a URL from an
+ * authenticated `/player` call and watching the video appear at the top within twenty
+ * seconds.
+ *
+ * So [beginSession] fetches its own URLs, as the signed-in TV client. That request needs
+ * YouTube's current [SignatureTimestampSource] value or it is refused outright — see
+ * [InnerTubeClient.playerTracking].
  */
 public class HttpYouTubeWatchHistory(
     private val account: YouTubeAccount,
     private val client: OkHttpClient,
+    private val innerTube: InnerTubeClient,
+    private val signatureTimestamps: SignatureTimestampSource,
     private val newNonce: () -> String = ::randomClientPlaybackNonce,
 ) : YouTubeWatchHistory {
 
     private class Session(
-        val playbackUrl: String?,
-        val watchtimeUrl: String,
+        val tracking: PlaybackTracking,
         val cpn: String,
         var recordCreated: Boolean = false,
     )
 
     private val sessions = mutableMapOf<String, Session>()
 
-    override fun beginSession(videoId: String, playbackUrl: String?, watchtimeUrl: String?) {
-        if (watchtimeUrl == null) return
+    override suspend fun beginSession(videoId: String) {
         // Keep an existing session (and its cpn) if we already have one for this video.
-        if (sessions[videoId] == null) {
-            sessions[videoId] = Session(playbackUrl, watchtimeUrl, newNonce())
+        if (sessions[videoId] != null) return
+        val token = (account.accessToken() as? AccessTokenResult.Available)?.token ?: run {
+            Diag.log("yt-sync", "$videoId not tracked: signed out")
+            return
         }
+        val timestamp = signatureTimestamps.current() ?: run {
+            Diag.log("yt-sync", "$videoId not tracked: no player signature timestamp")
+            return
+        }
+        val tracking = when (val response = innerTube.playerTracking(videoId, timestamp, token)) {
+            is InnerTubeResponse.Success -> PlaybackTrackingParser.parse(response.body)
+                ?: null.also { Diag.warn("yt-sync", "$videoId carried no playback tracking; progress won't sync") }
+            else -> null.also { Diag.warn("yt-sync", "$videoId tracking request failed: $response") }
+        } ?: return
+        sessions[videoId] = Session(tracking, newNonce())
+        Diag.log("yt-sync", "$videoId tracking acquired for the account")
     }
 
     override suspend fun reportProgress(
@@ -66,12 +93,13 @@ public class HttpYouTubeWatchHistory(
         val common = "&ver=2&cpn=${session.cpn}&cmt=$position" + if (finished) "&final=1" else ""
 
         // Open the record before watch-time updates land (SmartTube does the same).
-        if (!session.recordCreated && session.playbackUrl != null) {
-            val opened = ping(session.playbackUrl + common, token)
+        val playbackUrl = session.tracking.playbackUrl
+        if (!session.recordCreated && playbackUrl != null) {
+            val opened = ping(playbackUrl + common, token)
             if (opened != WatchHistoryResult.Success) return opened
             session.recordCreated = true
         }
-        return ping(session.watchtimeUrl + common + "&st=$position&et=$position", token)
+        return ping(session.tracking.watchtimeUrl + common + "&st=$position&et=$position", token)
     }
 
     private suspend fun ping(url: String, token: AccessToken): WatchHistoryResult =

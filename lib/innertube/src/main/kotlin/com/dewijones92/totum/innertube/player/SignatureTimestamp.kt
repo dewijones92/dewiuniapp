@@ -1,0 +1,89 @@
+package com.dewijones92.totum.innertube.player
+
+import com.dewijones92.totum.common.Diag
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import java.io.IOException
+
+/**
+ * YouTube's current signature timestamp — the version number of the player JavaScript that
+ * a client claims to be running.
+ *
+ * This one integer is the difference between a `/player` call that works and one that does
+ * not. An authenticated TV request without it is refused with "The page needs to be
+ * reloaded", and so is one carrying a *stale* value: measured 2026-07-31, a timestamp four
+ * releases old was rejected exactly like none at all, while the current one returned OK and
+ * an account-bearing tracking URL. It was the missing piece behind the whole "watch history
+ * never reaches the account" bug — not the bearer token, which was correct all along.
+ */
+public fun interface SignatureTimestampSource {
+    /** Null when it cannot be determined; the caller then skips the request that needs it. */
+    public suspend fun current(): Int?
+}
+
+/**
+ * Reads the timestamp out of YouTube's own player JavaScript.
+ *
+ * Two fetches — `iframe_api` names the current player build, and the build's script carries
+ * the number — then cached for the process's lifetime. YouTube ships a new player perhaps
+ * weekly, so refetching per video would be thousands of pointless requests; a value that
+ * goes stale mid-session costs one failed sync and is corrected at next launch.
+ */
+public class HttpSignatureTimestampSource(
+    private val client: OkHttpClient,
+    private val iframeApiUrl: String = IFRAME_API_URL,
+    private val playerScriptUrl: (build: String) -> String = ::tvPlayerScriptUrl,
+) : SignatureTimestampSource {
+
+    private val lock = Mutex()
+    private var cached: Int? = null
+
+    override suspend fun current(): Int? = lock.withLock {
+        cached ?: fetch()?.also {
+            cached = it
+            Diag.log("yt-sync", "player signature timestamp is $it")
+        }
+    }
+
+    private suspend fun fetch(): Int? {
+        val iframe = get(iframeApiUrl) ?: return null
+        val build = PLAYER_BUILD.find(iframe)?.groupValues?.get(1) ?: run {
+            Diag.warn("yt-sync", "iframe_api named no player build; watch history cannot sync")
+            return null
+        }
+        val script = get(playerScriptUrl(build)) ?: return null
+        return TIMESTAMP.find(script)?.groupValues?.get(1)?.toIntOrNull()
+            ?: null.also { Diag.warn("yt-sync", "player $build carried no signatureTimestamp") }
+    }
+
+    private suspend fun get(url: String): String? = withContext(Dispatchers.IO) {
+        try {
+            client.newCall(Request.Builder().url(url).get().build()).execute().use { response ->
+                if (response.isSuccessful) {
+                    response.body.string()
+                } else {
+                    Diag.warn("yt-sync", "$url -> HTTP ${response.code}")
+                    null
+                }
+            }
+        } catch (e: IOException) {
+            Diag.warn("yt-sync", "$url could not be fetched", e)
+            null
+        }
+    }
+
+    public companion object {
+        public const val IFRAME_API_URL: String = "https://www.youtube.com/iframe_api"
+
+        /** The TV player, to match the client the tracking request impersonates. */
+        public fun tvPlayerScriptUrl(build: String): String =
+            "https://www.youtube.com/s/player/$build/tv-player-ias.vflset/tv-player-ias.js"
+
+        private val PLAYER_BUILD = Regex("""player\\?/([0-9a-fA-F]{8})\\?/""")
+        private val TIMESTAMP = Regex("""signatureTimestamp[=:](\d+)""")
+    }
+}

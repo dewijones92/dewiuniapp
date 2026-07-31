@@ -75,8 +75,6 @@ class VideoResolver(
         /** Best audio-only stream, for "Listen" mode; null if none is available. */
         val audioOnlyUrl: HttpUrl? = null,
         /** YouTube watch-progress stats URLs (from yt-dlp's player response), null for non-YouTube. */
-        val playbackTrackingUrl: String? = null,
-        val watchtimeTrackingUrl: String? = null,
         /** Renderable caption tracks; empty when the video has none we can use. */
         val subtitles: List<SubtitleTrack> = emptyList(),
     )
@@ -180,8 +178,6 @@ class VideoResolver(
             skipSegments = skipSegments.segmentsFor(metadata.id),
             qualities = qualities,
             audioOnlyUrl = metadata.bestAudioUrl(),
-            playbackTrackingUrl = metadata.playbackTrackingUrl,
-            watchtimeTrackingUrl = metadata.watchtimeTrackingUrl,
             subtitles = metadata.subtitles,
         )
         // Remembered on EVERY resolve, not only when prefetched: a replay, a seek that

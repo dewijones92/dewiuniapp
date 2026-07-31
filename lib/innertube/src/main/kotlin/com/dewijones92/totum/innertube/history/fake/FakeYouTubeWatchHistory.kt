@@ -18,7 +18,7 @@ public class FakeYouTubeWatchHistory(
     public val sessions: MutableList<String> = mutableListOf()
     public val reports: MutableList<Report> = mutableListOf()
 
-    override fun beginSession(videoId: String, playbackUrl: String?, watchtimeUrl: String?) {
+    override suspend fun beginSession(videoId: String) {
         sessions += videoId
     }
 

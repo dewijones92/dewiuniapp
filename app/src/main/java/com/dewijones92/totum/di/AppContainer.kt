@@ -71,6 +71,7 @@ import com.dewijones92.totum.innertube.feeds.HttpYouTubeFeeds
 import com.dewijones92.totum.innertube.feeds.YouTubeFeeds
 import com.dewijones92.totum.innertube.history.HttpYouTubeWatchHistory
 import com.dewijones92.totum.innertube.history.YouTubeWatchHistory
+import com.dewijones92.totum.innertube.player.HttpSignatureTimestampSource
 import com.dewijones92.totum.innertube.playlists.HttpYouTubePlaylists
 import com.dewijones92.totum.innertube.playlists.YouTubePlaylists
 import com.dewijones92.totum.innertube.related.HttpYouTubeRelated
@@ -593,7 +594,12 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
     }
 
     private val youTubeWatchHistory: YouTubeWatchHistory by lazy {
-        HttpYouTubeWatchHistory(youTubeAccount, httpClient)
+        HttpYouTubeWatchHistory(
+            youTubeAccount,
+            httpClient,
+            innerTubeClient,
+            HttpSignatureTimestampSource(httpClient),
+        )
     }
 
     override val appPreferences: AppPreferences by lazy { SharedPrefsAppPreferences(context) }

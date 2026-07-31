@@ -55,6 +55,33 @@ public class InnerTubeClient(
     public suspend fun player(videoId: String): InnerTubeResponse =
         execute(playerUrl, androidContext(videoId), bearer = null)
 
+    /**
+     * A video's **playback-tracking** URLs, as the signed-in TV client.
+     *
+     * A separate call from [player] on purpose: this one is authenticated and returns no
+     * fetchable stream URLs at all (the TV client is SABR-only — 27 formats, none with a
+     * url, measured 2026-07-31), while [player] is anonymous and exists purely for streams.
+     * One request cannot be both, and the app needs both.
+     *
+     * [signatureTimestamp] is not optional in practice. Without it — or with a stale value —
+     * YouTube answers UNPLAYABLE "The page needs to be reloaded" even with a valid token,
+     * which is why the app's watch-history sync silently credited nobody for so long.
+     */
+    public suspend fun playerTracking(
+        videoId: String,
+        signatureTimestamp: Int,
+        accessToken: AccessToken,
+    ): InnerTubeResponse =
+        execute(
+            playerUrl,
+            tvContext(
+                """ "videoId":"$videoId","contentCheckOk":true,"racyCheckOk":true,""" +
+                    """"playbackContext":{"contentPlaybackContext":""" +
+                    """{"html5Preference":"HTML5_PREF_WANTS","signatureTimestamp":$signatureTimestamp}} """,
+            ),
+            accessToken,
+        )
+
     /** Watch-page data for a video (WEB client, no auth). */
     public suspend fun next(videoId: String): InnerTubeResponse =
         execute(nextUrl, webContext(""" "videoId":"$videoId" """), bearer = null)

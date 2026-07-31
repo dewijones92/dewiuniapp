@@ -37,14 +37,6 @@ public data class MediaMetadata(
      * without the caller having to know the channel up front.
      */
     val uploaderUrl: String? = null,
-    /**
-     * YouTube watch-progress stats URLs from the player response, when present.
-     * [watchtimeTrackingUrl] is pinged (with a client nonce + position) to sync
-     * how far the video was watched to the account; [playbackTrackingUrl] opens
-     * the record first. Null for non-YouTube media.
-     */
-    val playbackTrackingUrl: String? = null,
-    val watchtimeTrackingUrl: String? = null,
     /** Chapters yt-dlp parsed from the description/metadata, earliest first; empty if none. */
     val chapters: List<ChapterInfo> = emptyList(),
     /**

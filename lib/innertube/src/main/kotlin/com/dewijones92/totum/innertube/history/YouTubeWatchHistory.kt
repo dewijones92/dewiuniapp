@@ -3,17 +3,22 @@ package com.dewijones92.totum.innertube.history
 /**
  * Reports video watch-progress to YouTube's servers (History + cross-device
  * resume) using YouTube's own stats pings — the account-side counterpart to the
- * app's local resume. The tracking URLs come from the extractor's player
- * response (supplied via [beginSession]); this seam only handles the pings.
+ * app's local resume.
+ *
+ * This seam **owns where the pings go**, which it did not use to. The tracking URLs were
+ * previously handed in by the caller from the extractor's player response; because the
+ * extractor runs unauthenticated, those URLs belonged to an anonymous session and every
+ * ping credited nobody while still returning HTTP 204. Fetching them here, authenticated,
+ * is the fix — and it means a caller cannot supply the wrong ones by mistake.
  */
 public interface YouTubeWatchHistory {
 
     /**
-     * Registers the stats tracking URLs for [videoId] (from the player
-     * response) before any progress is reported. A missing [watchtimeUrl]
-     * means the video simply won't sync. Called once per played video.
+     * Prepares [videoId] for reporting, fetching its account-bearing tracking URLs. Called
+     * once per played video, before any progress is reported; a video whose URLs cannot be
+     * fetched simply won't sync.
      */
-    public fun beginSession(videoId: String, playbackUrl: String?, watchtimeUrl: String?)
+    public suspend fun beginSession(videoId: String)
 
     /**
      * Reports that [videoId] has been watched to [positionSec] of [lengthSec];

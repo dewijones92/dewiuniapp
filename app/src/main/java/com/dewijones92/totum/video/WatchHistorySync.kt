@@ -8,33 +8,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 /**
- * DOES NOT CURRENTLY REACH THE ACCOUNT — measured, not assumed.
- *
- * Verified end to end on 2026-07-31: played a video not present in the account's history,
- * watched five pings report Success at 0s/14s/30s/45s/60s, then read `FEhistory` back with
- * the account's own token. The video was absent, and the history was byte-identical before
- * and after — same fifteen entries, same order, still absent 75 seconds later.
- *
- * The cause is in the URL these pings go to. It comes from yt-dlp's player response, and
- * yt-dlp extracts UNAUTHENTICATED, so the tracking URL belongs to an anonymous session: its
- * parameters are cl, docid, ei, el, fexp, len, ns, of, plid, vm — not one of them an account
- * identity. Pinging it credits nobody. Every "Success" only ever meant the HTTP request did
- * not fail.
- *
- * Watch Later, by contrast, genuinely works: it goes through InnerTube's authenticated
- * action endpoint with the bearer token, and was verified by reading the playlist back.
- *
- * Fixing this needs the tracking URL to come from an AUTHENTICATED player request. A bearer
- * token alone is not enough for that — the TV client answers "The page needs to be
- * reloaded" without a full session — so it is the same blocker as the SABR work, and is
- * written up in docs/todos/watch-history-not-recorded.md.
- *
  * Mirrors video watch-progress up to YouTube's servers (History + cross-device
  * resume, and the recommendations that follow from them) as playback advances —
  * the account-side counterpart to the app's local resume. Reports on a new
  * video, on finishing, and roughly every [REPORT_INTERVAL_MS]; a finished video
- * is reported once. The tracking URLs are registered separately by
- * [VideoPlaybackLauncher] via [YouTubeWatchHistory.beginSession].
+ * is reported once. [VideoPlaybackLauncher] opens the session via
+ * [YouTubeWatchHistory.beginSession], which fetches the account-bearing tracking URLs.
  *
  * **Gated on the PILLAR, not on whether a video track is present.** It used to test
  * `hasVideo`, which excluded every YouTube video played in audio-only mode — "Listen",
@@ -75,9 +54,7 @@ class WatchHistorySync(
                 // Fire-and-forget so the 500ms state stream is never blocked on the network.
                 scope.launch {
                     val r = history.reportProgress(videoId, positionSec, lengthSec, finished)
-                    // "sent" and NOT "recorded": measured 2026-07-31, these pings do not
-                    // reach the account at all. See the class note.
-                    Diag.log("yt-sync", "$videoId pos=$positionSec fin=$finished -> sent ($r)")
+                    Diag.log("yt-sync", "$videoId pos=$positionSec fin=$finished -> $r")
                 }
             }
         }

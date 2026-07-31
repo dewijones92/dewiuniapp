@@ -37,14 +37,7 @@ internal fun parseVersions(text: String): EngineVersions {
 internal fun parseExtraction(url: HttpUrl, text: String): ExtractionResult {
     val obj = json.parseToJsonElement(text).jsonObject
     return if (obj.isOk()) {
-        val tracking = obj["tracking"]?.jsonObject
-        ExtractionResult.Success(
-            obj.getValue("info").jsonObject.toMediaMetadata(
-                url = url,
-                playbackTrackingUrl = tracking?.stringOrNull("playback"),
-                watchtimeTrackingUrl = tracking?.stringOrNull("watchtime"),
-            ),
-        )
+        ExtractionResult.Success(obj.getValue("info").jsonObject.toMediaMetadata(url))
     } else {
         obj.toFailure(url)
     }
@@ -69,11 +62,7 @@ private fun JsonObject.toFailure(url: HttpUrl): ExtractionResult.Failure {
     }
 }
 
-private fun JsonObject.toMediaMetadata(
-    url: HttpUrl,
-    playbackTrackingUrl: String?,
-    watchtimeTrackingUrl: String?,
-): MediaMetadata = MediaMetadata(
+private fun JsonObject.toMediaMetadata(url: HttpUrl): MediaMetadata = MediaMetadata(
     id = stringOrNull("id") ?: url.value,
     title = stringOrNull("title") ?: "Untitled",
     uploader = stringOrNull("uploader") ?: stringOrNull("channel"),
@@ -84,8 +73,6 @@ private fun JsonObject.toMediaMetadata(
     // channel_url is YouTube's canonical /channel/UC… form; uploader_url may be a
     // handle (/@name), which the channel screen can still resolve.
     uploaderUrl = stringOrNull("channel_url") ?: stringOrNull("uploader_url"),
-    playbackTrackingUrl = playbackTrackingUrl,
-    watchtimeTrackingUrl = watchtimeTrackingUrl,
     chapters = arrayAt("chapters").mapNotNull { it.jsonObject.toChapterOrNull() },
     subtitles = subtitleTracks(),
 )

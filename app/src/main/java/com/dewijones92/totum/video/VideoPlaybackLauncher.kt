@@ -80,12 +80,10 @@ class VideoPlaybackLauncher(
         playHistory.record(
             PlayableItem(resolved.item.copy(mediaUrl = watchUrl), PlayHandle.Video(watchUrl)),
         )
-        // Register this video's tracking URLs so its progress can sync to YouTube.
-        watchHistory.beginSession(
-            resolved.item.id.value,
-            resolved.playbackTrackingUrl,
-            resolved.watchtimeTrackingUrl,
-        )
+        // Fetches this video's account-bearing tracking URLs so progress can sync to
+        // YouTube. Deliberately NOT the ones the extractor returned: those come from an
+        // unauthenticated session and credit nobody (see HttpYouTubeWatchHistory).
+        watchHistory.beginSession(resolved.item.id.value)
         // One place decides audio vs video, so the mode holds no matter which screen
         // started playback. A one-off "watch this" is expressed by [watch].
         if (audioPreferred() && resolved.audioOnlyUrl != null) listen() else playVideoQuality(resolved, startPositionMs)

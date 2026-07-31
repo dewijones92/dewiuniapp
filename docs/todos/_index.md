@@ -34,7 +34,7 @@ to `shipped` and migrate it to `../features/` once it's a real feature on `main`
 | [high-quality-playback-fix](high-quality-playback-fix.md) | video | high | shipped |
 | [feature-gap-review](feature-gap-review.md) | planning | — | triage of the AI review |
 | [channel-groups](channel-groups.md) | video | high | shipped |
-| [watch-history-not-recorded](watch-history-not-recorded.md) | video | high | open — pings never reach the account |
+| [watch-history-not-recorded](watch-history-not-recorded.md) | video | high | done — fixed by an authenticated player call carrying a current signatureTimestamp |
 | [sabr-streaming](sabr-streaming.md) | video | medium | fallback shipped; QuickJS runtime open |
 | [feed-pagination](feed-pagination.md) | video | high | feeds + channel tabs shipped; search pending |
 | [testing-depth](testing-depth.md) | tests | medium | refining |
