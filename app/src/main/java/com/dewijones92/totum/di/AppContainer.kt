@@ -423,6 +423,7 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
             // path's source and NOT as a fallback for extraction.
             playerStreams = InnerTubePlayerStreams(innerTubeClient),
             sabrEnabled = { appPreferences.settings.value.sabrPlayback },
+            resumePositionMs = playbackProgressStore::resumePositionMs,
         )
     }
 

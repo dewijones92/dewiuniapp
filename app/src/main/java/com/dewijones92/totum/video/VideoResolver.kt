@@ -40,6 +40,16 @@ class VideoResolver(
      * ~150ms against 2-4s, but it cannot seek yet. See `SabrResolve`.
      */
     private val sabrEnabled: () -> Boolean = { false },
+    /**
+     * Where this video would resume, so SABR can decline a video that is part-watched.
+     *
+     * Resuming IS a seek, and SABR cannot seek: measured 2026-07-31, a video resumed at
+     * 367799ms opened its video track ~41MB in, SABR answered with bytes from the start
+     * of the file, all of them were discarded as already-passed, and the video track died
+     * at 16% while the audio carried on — a video playing with no picture. Extraction can
+     * seek, so a part-watched video takes the slow path and keeps working.
+     */
+    private val resumePositionMs: suspend (MediaItemId) -> Long? = { null },
     private val now: () -> Long = System::currentTimeMillis,
 ) {
     /**
@@ -255,6 +265,15 @@ class VideoResolver(
         if (!sabrEnabled()) return null
         val fast = playerStreams ?: return null
         val id = watchUrl.youTubeVideoId() ?: return null
+        val resumeAt = resumePositionMs(MediaItemId(id)) ?: 0
+        if (resumeAt > 0) {
+            Diag.log(
+                "resolve",
+                "$id resumes at ${resumeAt}ms, so extracting rather than using SABR — " +
+                    "a resume is a seek, and the SABR path cannot seek yet",
+            )
+            return null
+        }
         val response = fast.playerFor(id) ?: return null
         val prepared = SabrResolve.prepare(id, response.streaming, response.details) ?: return null
         val qualities = response.streaming.videoQualities()

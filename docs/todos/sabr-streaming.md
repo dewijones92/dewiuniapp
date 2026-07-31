@@ -4,7 +4,7 @@ kind: todo
 area: video
 priority: medium
 status: partly shipped
-updated: 2026-07-30
+updated: 2026-07-31
 ---
 
 # The 360p problem, and what it actually was
@@ -446,7 +446,25 @@ SABR is addressed by media TIME, so the bytes it returns start at zero and are d
 already-passed, and the video track dies while audio carries on. The video *played* — it just
 had no picture.
 
-**So SABR must not be used when there is a resume position.** Falling back to extraction for a
-part-watched video keeps resume working, which is not negotiable, and leaves SABR to fresh
-plays where it is a 200ms win. That is the next change, and until it lands the beta switch is
-only honest for videos started from the beginning.
+**So SABR is not used when there is a resume position** — fixed, and verified on-device both
+ways. `VideoResolver` asks the progress store before taking the fast path:
+
+```
+[resolve] qyPCVqFUyDo resumes at 1166815ms, so extracting rather than using SABR
+          — a resume is a seek, and the SABR path cannot seek yet
+[resolve] qyPCVqFUyDo in 13973ms for describe — 8 qualities, 8 subtitle tracks
+[format]  video video/x-vnd.on2.vp9 1920x1080
+```
+
+...and an unwatched video still gets the fast path, with bytes kept and a picture:
+
+```
+[sabr]    prepared 9bZkp7q19f0 — audio itag 251 @132kbps, video itag 137 1080p24
+[resolve] 9bZkp7q19f0 in 496ms for describe OVER SABR
+[sabr]    fetch #3 itag 137 at 20000ms -> 7086017B response, 6761290B kept, 1711ms
+[format]  video avc1.640028 1920x1080
+```
+
+The trade is explicit: resuming costs the full 14-25s extraction again, which is the price of
+it working at all. Seeking on the SABR path is what would remove the trade, and is the next
+thing worth doing rather than a nice-to-have.
