@@ -101,3 +101,18 @@ It runs inside the emulator action's `script`, because that action kills the emu
 the script returns — and as a file, because it rewrites backslash line-continuations inside
 `script:` (its own log shows `sh -c \yes | sdkmanager`), which turned a wrapped gradle command
 into a task named backslash.
+
+## Test the wiring, not just the part (2026-08-01)
+
+The recovery fix shipped with two tests of `VideoResolver.forget` — and neither covered the bug.
+Removing the one line in `PlaybackQueue.replayCurrent` that calls it leaves both green while the
+defect returns in full. Demonstrated, not argued: with the fix reverted, 39 tests ran and exactly
+one failed, and it was the new one.
+
+This is the same shape that let three autoplay bugs ship in a week. A component tested against a
+fake proves the component; it says nothing about whether anything calls it, and "nothing calls
+it" is the more common defect. **When a fix is one line of wiring, the test belongs where the two
+pieces meet** — here, `PlaybackQueueTest`, counting real extractions through a real resolver.
+
+The habit that catches it: after writing a regression test, delete the fix and watch the test go
+red. If it stays green it is testing something else, however true that something is.

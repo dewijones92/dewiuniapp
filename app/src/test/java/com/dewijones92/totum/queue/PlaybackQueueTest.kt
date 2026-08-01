@@ -17,6 +17,10 @@ import com.dewijones92.totum.innertube.history.fake.FakeYouTubeWatchHistory
 import com.dewijones92.totum.playback.fake.FakePlaybackController
 import com.dewijones92.totum.video.VideoPlaybackLauncher
 import com.dewijones92.totum.video.VideoResolver
+import com.dewijones92.totum.ytdlp.ExtractionResult
+import com.dewijones92.totum.ytdlp.MediaFormat
+import com.dewijones92.totum.ytdlp.MediaMetadata
+import com.dewijones92.totum.ytdlp.YtDlpEngine
 import com.dewijones92.totum.ytdlp.fake.FakeYtDlpEngine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -27,6 +31,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.util.concurrent.atomic.AtomicInteger
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class PlaybackQueueTest {
@@ -540,5 +545,73 @@ class PlaybackQueueTest {
         testScheduler.advanceUntilIdle()
 
         assertEquals(2, controller.played.size)
+    }
+
+    /**
+     * Recovery must get a FRESH stream, so replaying has to drop the cached resolution first.
+     *
+     * This is the wiring, and the wiring is what broke. Report 0.1.277: a video died nine
+     * minutes in, recovery replayed it three times over twenty seconds, and every attempt logged
+     * "cache hit … skipped extraction" against the same dead URL before the video was skipped as
+     * unplayable.
+     *
+     * Testing `VideoResolver.forget` alone does NOT cover this — it proves the method works, not
+     * that anything calls it, and deleting the one line in `replayCurrent` would leave those
+     * tests green while the bug returned. That is the same component-correct/composition-wrong
+     * shape that let three autoplay bugs ship, so it is asserted here where the two meet.
+     */
+    @Test
+    fun `replaying after a failure re-resolves instead of reusing the cached URL`() = runTest(dispatcher) {
+        val extractions = AtomicInteger()
+        val counting = VideoResolver(CountingEngine(extractions), SkipSegmentSource { emptyList() })
+        val queue = PlaybackQueue(
+            controller,
+            VideoPlaybackLauncher(counting, controller, FakeYouTubeWatchHistory(), InMemoryPlayHistoryStore()),
+            backgroundScope,
+            store,
+        )
+        queue.playNow(video("a"))
+        advanceUntilIdle()
+        assertEquals("the first play extracts once", 1, extractions.get())
+
+        queue.replayCurrent(positionMs = 5_000)
+        advanceUntilIdle()
+
+        assertEquals(
+            "recovery must re-extract, not serve the URL that just died",
+            2,
+            extractions.get(),
+        )
+    }
+
+    /** A video item, since only those resolve — a podcast plays its enclosure directly. */
+    private fun video(id: String) = PlayableItem(
+        item = MediaItem(
+            id = MediaItemId(id),
+            sourceId = SourceId("s"),
+            title = id,
+            publishedAt = null,
+            duration = null,
+        ),
+        handle = PlayHandle.Video(HttpUrl.of("https://www.youtube.com/watch?v=dQw4w9WgXcQ")),
+    )
+
+    /** Counts extractions so "did it really re-resolve?" is answerable. */
+    private class CountingEngine(private val calls: AtomicInteger) : YtDlpEngine by FakeYtDlpEngine() {
+        override suspend fun extract(url: HttpUrl): ExtractionResult {
+            calls.incrementAndGet()
+            return ExtractionResult.Success(
+                MediaMetadata(
+                    id = "dQw4w9WgXcQ",
+                    title = "A video",
+                    uploader = null,
+                    durationSeconds = 10,
+                    thumbnailUrl = null,
+                    formats = listOf(
+                        MediaFormat("18", "mp4", 640, 360, true, true, null, "https://x.test/v", "avc1", "mp4a"),
+                    ),
+                ),
+            )
+        }
     }
 }
