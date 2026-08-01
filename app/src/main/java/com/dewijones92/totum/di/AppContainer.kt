@@ -67,7 +67,6 @@ import com.dewijones92.totum.domain.toPlayableOrNull
 import com.dewijones92.totum.importexport.SubscriptionImporter
 import com.dewijones92.totum.innertube.actions.HttpYouTubeActions
 import com.dewijones92.totum.innertube.actions.YouTubeActions
-import com.dewijones92.totum.innertube.auth.AccessToken
 import com.dewijones92.totum.innertube.auth.AccessTokenResult
 import com.dewijones92.totum.innertube.auth.HttpYouTubeAuth
 import com.dewijones92.totum.innertube.auth.YouTubeAccount
@@ -714,56 +713,55 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
                     as? AccessTokenResult.Available
                 )?.token ?: return@AccountPlayer null
             val stamp = runCatching { signatureTimestamps.current() }.getOrNull() ?: return@AccountPlayer null
-            val signedIn = runCatching { innerTubeClient.playerAsAccount(videoId, stamp, token) }.getOrNull()
-            val parsed = (signedIn as? InnerTubeResponse.Success)?.body?.let(PlayerResponseParser::parse)
-            if (parsed is PlayerResult.Success) return@AccountPlayer parsed
-            // WHAT it said, not just that it failed. Concluding "refused" from a null was the
-            // mistake that made age restriction look impossible for two rounds; the current TV
-            // client answers UNPLAYABLE for a rated video and says "requires payment" for a paid
-            // one, and those are different problems with different answers.
-            Diag.log("resolve", "$videoId as TV client -> ${parsed ?: signedIn}")
-            ageRestrictedPlayer(videoId, stamp, token)
+            // DOWNGRADED first, and that ordering is measured. Both clients answer OK for the
+            // same rated video, but the current one withholds all but ONE stream (SABR) while
+            // the downgraded one returns seven — so preferring the current client here means
+            // reaching an age-restricted video and then watching it at 360p. This path only runs
+            // when the anonymous attempt already failed, so there is no ordinary video to lose.
+            withPlayableStreams(videoId, "downgraded TV") {
+                innerTubeClient.playerDowngradedTv(videoId, stamp, token)
+            } ?: withPlayableStreams(videoId, "TV") { innerTubeClient.playerAsAccount(videoId, stamp, token) }
         }
     }
 
     /**
-     * The age-restricted path: the DOWNGRADED TV client, then the `n` parameters solved.
+     * A player response ONLY if something in it can actually be fetched, with `n` solved.
      *
-     * Both halves are required and neither is sufficient. The downgraded client is what returns
-     * plain URLs at all — the current one answers SABR-only, one fetchable URL out of seven —
-     * and those URLs 403 until `n` is deobfuscated. Proven end to end 2026-08-01 by fetching
-     * 204,800 bytes of a rated video this way; see docs/todos/age-restricted-videos.md.
+     * The distinction this draws is the one that matters, and getting it wrong shipped a feature
+     * that did nothing (caught on an emulator 2026-08-01, not by any test). YouTube answers
+     * `status=OK` for an age-restricted video on the CURRENT TV client — while withholding the
+     * streams, one SABR-degraded URL out of seven. Treating that OK as success short-circuited
+     * the downgraded client that would have worked, so the video "resolved" and then refused to
+     * play, which reads to a user exactly like the feature not existing.
      *
-     * Four speculative client identities used to live here (embedded, ANDROID_VR, web embedded).
-     * All were measured refusing the CONTROL video too, so they were never age-gate failures at
-     * all, and they are gone.
+     * So success is defined as **a format we can fetch**, never as a status. Both attempts run
+     * through here for that reason: the same trap catches the first one too, since its lone URL
+     * carries an unsolved `n` and would 403 on playback.
      */
-    private suspend fun ageRestrictedPlayer(
+    private suspend fun withPlayableStreams(
         videoId: String,
-        signatureTimestamp: Int,
-        token: AccessToken,
-    ): PlayerResult? {
-        val response = runCatching {
-            innerTubeClient.playerDowngradedTv(videoId, signatureTimestamp, token)
-        }.getOrNull()
+        client: String,
+        request: suspend () -> InnerTubeResponse,
+    ): PlayerResult.Success? {
+        val response = runCatching { request() }.getOrNull()
         val parsed = (response as? InnerTubeResponse.Success)?.body?.let(PlayerResponseParser::parse)
         if (parsed !is PlayerResult.Success) {
-            Diag.log("resolve", "$videoId as downgraded TV -> ${parsed ?: response}")
-            return parsed
+            // WHAT it said, not just that it failed. Concluding "refused" from a null was the
+            // mistake that made age restriction look impossible for two rounds.
+            Diag.log("resolve", "$videoId as $client -> ${parsed ?: response}")
+            return null
         }
         val playerUrl = runCatching { signatureTimestamps.playerScriptUrl() }.getOrNull() ?: run {
-            // Named rather than silent: without the player script nothing can be solved, and the
-            // video would otherwise fail identically to one YouTube had refused outright.
             Diag.warn("resolve", "$videoId resolved but no player script to solve its n parameters")
             return null
         }
         val playable = parsed.streaming.withSolvedN(nSolver, playerUrl)
-        return if (playable.formats.isEmpty()) {
-            Diag.warn("resolve", "$videoId resolved but no format survived n solving")
-            null
-        } else {
-            parsed.copy(streaming = playable)
+        if (playable.directlyPlayable.isEmpty()) {
+            Diag.log("resolve", "$videoId as $client -> OK but nothing fetchable; trying the next client")
+            return null
         }
+        Diag.log("resolve", "$videoId as $client -> ${playable.directlyPlayable.size} fetchable format(s)")
+        return parsed.copy(streaming = playable)
     }
 
     /**
