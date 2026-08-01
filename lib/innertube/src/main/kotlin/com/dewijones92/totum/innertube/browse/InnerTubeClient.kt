@@ -91,6 +91,30 @@ public class InnerTubeClient(
      * If YouTube refuses this too, the answer is that the app cannot play age-restricted videos
      * and the honest thing is to say so in the UI rather than keep adding client identities.
      */
+    /**
+     * The player response as the **ANDROID_VR** client.
+     *
+     * This is the identity that actually gets past the age gate, and it does so WITHOUT
+     * credentials — which is why PipePipe and SmartTube can play rated videos and two rounds of
+     * signed-in TV/embedded calls could not. The headset client is not age-gated the way the
+     * phone and TV clients are.
+     *
+     * Authenticated, and that was measured rather than assumed. Sent WITHOUT a token first,
+     * YouTube answered `LOGIN_REQUIRED: Sign in to confirm your age` — which is the request
+     * being accepted and asked to identify itself, quite different from the TV client's flat
+     * `UNPLAYABLE` and the embedded client's "no longer supported". The gate wants a signed-in
+     * adult, and this client is the one willing to ask.
+     */
+    public suspend fun playerAndroidVr(videoId: String, accessToken: AccessToken?): InnerTubeResponse =
+        execute(
+            playerUrl,
+            """{"context":{"client":{"clientName":"ANDROID_VR","clientVersion":"1.60.19",""" +
+                """"deviceMake":"Oculus","deviceModel":"Quest 3","androidSdkVersion":32,""" +
+                """"osName":"Android","osVersion":"12L","hl":"en"}},""" +
+                """"videoId":"$videoId","contentCheckOk":true,"racyCheckOk":true}""",
+            accessToken,
+        )
+
     public suspend fun playerEmbedded(videoId: String, accessToken: AccessToken?): InnerTubeResponse =
         execute(
             playerUrl,

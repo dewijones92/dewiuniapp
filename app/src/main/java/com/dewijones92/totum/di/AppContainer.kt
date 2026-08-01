@@ -717,9 +717,23 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
             // The TV client is refused for age-restricted videos even signed in — measured
             // 2026-08-01. The embedded player is the identity historically allowed to fetch
             // rated material, so it gets one try before the video is called unavailable.
-            Diag.log("resolve", "$videoId refused as the TV client; trying the embedded player")
-            val embedded = runCatching { innerTubeClient.playerEmbedded(videoId, token) }.getOrNull()
-            (embedded as? InnerTubeResponse.Success)?.body?.let(PlayerResponseParser::parse)
+            // WHAT it said, not just that it failed. Concluding "refused" from a null twice
+            // over was the mistake that made age restriction look impossible.
+            Diag.log("resolve", "$videoId as TV client -> ${parsed ?: signedIn}")
+            val embedded = runCatching { innerTubeClient.playerEmbedded(videoId, accessToken = null) }.getOrNull()
+            val fromEmbedded = (embedded as? InnerTubeResponse.Success)?.body?.let(PlayerResponseParser::parse)
+            if (fromEmbedded is PlayerResult.Success) return@AccountPlayer fromEmbedded
+            Diag.log("resolve", "$videoId as embedded -> ${fromEmbedded ?: embedded}")
+            // The headset client, unauthenticated. This is the one that is not age-gated, and
+            // the reason other clients can play rated videos when signed-in calls cannot.
+            val vr = runCatching { innerTubeClient.playerAndroidVr(videoId, accessToken = null) }.getOrNull()
+            val fromVr = (vr as? InnerTubeResponse.Success)?.body?.let(PlayerResponseParser::parse)
+            Diag.log(
+                "resolve",
+                "$videoId as ANDROID_VR -> " +
+                    ((fromVr as? PlayerResult.Success)?.let { "OK" } ?: "${fromVr ?: vr}"),
+            )
+            fromVr
         }
     }
 
