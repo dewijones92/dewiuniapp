@@ -129,6 +129,28 @@ that in the app; the answer is to pick a different release, which is why the sea
 matters. If it turns out to annoy in practice, Jellyfin is already on the Pi and can be added as
 a fallback path later.
 
+### Everything Totum fetches lives in its own qBittorrent category
+
+`totum`, created 2026-08-01 with its own save path (`/downloads/totum`). Every magnet the app
+adds goes into it. Dewi asked whether this could be scoped to Totum rather than applied to his
+whole client, and the question caught a real mistake — the global upload cap set an hour earlier
+was throttling his existing torrents too.
+
+Category rather than tag, because a tag is a label and a category is a label AND a destination.
+Three things follow from the save path, and all of them matter:
+
+- **The size budget is a property of a folder**, not a query across a mixed download list.
+- **"Delete the oldest watched thing" is safe**, because nothing of his can be in that folder.
+- **The upload cap is per torrent** (`/api/v2/torrents/setUploadLimit`, applied by the app on
+  add), so it lands only on what Totum fetched. Anything he adds by hand is untouched.
+
+### Retention: a size budget, oldest watched first
+
+Decided by Dewi: keep the `totum` folder under a cap and delete the oldest **watched** items when
+it is exceeded — not everything on completion, so recent things stay re-watchable. The Pi has
+226 GB free at 88% used (2026-08-01), which is the number this exists to protect: torrenting has
+no stream-without-store mode, so every byte watched is a byte kept until something removes it.
+
 ### Seeding competes with streaming — cap it
 
 Both leave by the same 65 Mbps upstream. Uncapped, qBittorrent will take most of it and starve
