@@ -75,10 +75,14 @@ jobs:
           target: google_apis
           arch: x86_64
           # The loop test needs audio focus, which the platform refuses to a background app or a
-          # locked screen — so the device is unlocked before anything runs, and animations are
-          # off so Compose's idling resource is not waiting on them.
+          # locked screen — and a suppressed player never ends, so the test would measure nothing
+          # while appearing to run. `stayon true` matters as much as the unlock: the build takes
+          # minutes, and a screen that slept in the meantime puts the device right back in the
+          # state the unlock was there to avoid. Animations off so Compose's idling resource is
+          # not waiting on them.
           script: |
             adb shell input keyevent 82
+            adb shell svc power stayon true
             adb shell settings put global window_animation_scale 0
             adb shell settings put global transition_animation_scale 0
             adb shell settings put global animator_duration_scale 0

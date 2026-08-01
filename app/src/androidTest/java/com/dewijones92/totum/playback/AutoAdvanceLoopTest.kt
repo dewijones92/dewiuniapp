@@ -79,6 +79,7 @@ class AutoAdvanceLoopTest {
     @Before
     fun emptyTheQueue() {
         runBlocking(Dispatchers.Main) {
+            awaitControllerConnected()
             container.appPreferences.setAutoPlayNext(true)
             queue.clear()
             controller.player?.stop()
@@ -143,6 +144,23 @@ class AutoAdvanceLoopTest {
             "the second end of the same item must advance too, not cite the first",
             awaitCurrent("third"),
         )
+    }
+
+    /**
+     * Waits for the `MediaController` to finish connecting to [PlaybackService].
+     *
+     * The connection is asynchronous and commands issued before it lands are queued, so on a
+     * cold CI emulator a `play` can sit unexecuted and the state stays null — which surfaced as
+     * "first must become the current item … but was:<null>" and reads like a broken advance
+     * rather than a player that was never there. Named separately so those two never look alike
+     * again.
+     */
+    private suspend fun awaitControllerConnected() {
+        val connected = withTimeoutOrNull(TIMEOUT_MS) {
+            while (controller.player == null) delay(POLL_MS)
+            true
+        }
+        assertEquals("the media controller never connected to the playback service", true, connected)
     }
 
     /**
