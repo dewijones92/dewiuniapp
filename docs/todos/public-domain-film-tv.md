@@ -65,7 +65,61 @@ of pulling in material that is not what was asked for.
 
 Not recommended as a first move, and pointless if A covers the actual want.
 
-## Decided (Dewi, 2026-08-01): route C, plus the Archive
+## Decided (Dewi, 2026-08-01, after two reversals worth keeping)
+
+**The Pi torrents; the phone is a remote control and a screen.** Search, add, progress and
+playback all happen over plain HTTP to the Pi, gated by the existing Google login and restricted
+to `dewijones92@gmail.com`. Nothing on the phone ever speaks to a peer.
+
+Two earlier decisions were reversed on the way here, and the reasons matter more than the
+conclusions:
+
+**A torrent client in the app, proxied through SOCKS5, was wrong — because torrenting is
+substantially UDP.** Dewi asked "is this a TCP thing??? surely udp is what we want???" and that
+question killed the design. Modern BitTorrent runs mostly over µTP (BitTorrent's own protocol on
+UDP), plus UDP for DHT and UDP trackers. A SOCKS5 proxy handles UDP badly: libtorrent ends up
+TCP-only with DHT disabled, which means far fewer peers and magnet links that struggle to
+resolve at all. The WebSocket-tunnel idea was worse still — WebSockets are TCP by definition.
+Both were elaborate ways of avoiding a device VPN, and cost more than the thing they avoided.
+
+**"The Google gate cannot protect this" was true, and then stopped being true.** It genuinely
+cannot wrap SOCKS5, which is binary TCP with no place to carry a cookie. But once the Pi does
+the torrenting, the phone↔Pi channel is entirely HTTP — which is exactly what nginx
+`auth_request` + oauth2-proxy gates. The obstacle was the design, not the requirement.
+
+### What gets built
+
+**Pi** — all behind the existing oauth2-proxy, whose `--authenticated-emails-file` is already an
+exact-address allowlist:
+
+- Jackett or Prowlarr for search, so indexer breakage is upstream's problem rather than a
+  parser treadmill here.
+- qBittorrent is already installed, already inside gluetun, already gated at `qbit.<domain>` —
+  full DHT and µTP behind PureVPN's kill-switch, which is precisely what a proxy could not give.
+  **Sequential download must be on**, or the file has holes and range requests land in gaps.
+- A file endpoint serving the in-progress file with HTTP range requests.
+
+**App**:
+
+- A one-time Google sign-in to the Pi via a Custom Tab, keeping the `_oauth2_proxy` cookie in
+  an OkHttp `CookieJar`. No Pi auth changes needed. (Native sign-in with a Bearer ID token and
+  `--skip-jwt-bearer-tokens` is neater and needs an extra client ID — a later refinement.)
+- A `SearchSource` over the Pi's search endpoint, sitting alongside iTunes, InnerTube and the
+  Internet Archive.
+- Add-magnet and progress, through qBittorrent's API.
+- **No new playback code at all.** A file served over HTTP from the Pi is exactly what the
+  podcast pillar already plays: `MediaItem.mediaUrl`, the existing `PlaybackController`, the
+  existing download strategy. The torrent-ness stops at the Pi's edge, which is the strongest
+  argument for this shape.
+
+### Consequences to accept
+
+- **Home upload is the streaming ceiling** when away — the video comes off the broadband's
+  upstream, not PureVPN's downstream.
+- **The Pi must be up.** It already hosts the crash sink, so this is not a new dependency.
+- No VPN profile on the phone, ever, which is what Dewi asked for.
+
+## Superseded: the original route-C plan (kept for its reasoning)
 
 A torrent engine in the app, streaming while it downloads, with **every byte of torrent traffic
 leaving via PureVPN** so peers never see the home IP. Search covers both torrent indexers and
