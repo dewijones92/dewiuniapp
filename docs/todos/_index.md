@@ -39,7 +39,8 @@ to `shipped` and migrate it to `../features/` once it's a real feature on `main`
 | [feed-pagination](feed-pagination.md) | video | high | feeds + channel tabs shipped; search pending |
 | [queue-drag-reorder](queue-drag-reorder.md) | queue | high | requested |
 | [public-domain-film-tv](public-domain-film-tv.md) | search | medium | ready — decisions made, not started |
-| [age-restricted-videos](age-restricted-videos.md) | video | high | evidenced, unsolved |
+| [age-restricted-videos](age-restricted-videos.md) | video | high | recipe proven e2e; n-solver left to build |
+| [torrent-zero-config](torrent-zero-config.md) | torrent | high | requested |
 | [testing-depth](testing-depth.md) | tests | medium | refining |
 | [audio-video-switching](audio-video-switching.md) | playback | high | shipped (local-audio merge outstanding) |
 | [notification-opens-app](notification-opens-app.md) | playback | high | shipped |
