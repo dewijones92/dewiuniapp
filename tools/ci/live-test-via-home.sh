@@ -58,4 +58,7 @@ for TARGET in 192.168.0.1 192.168.0.19; do
 done
 echo "[live-test] LAN unreachable from the CI peer, as intended"
 
-./gradlew connectedDebugAndroidTest --no-daemon -Pandroid.testInstrumentationRunnerArguments.class=com.dewijones92.totum.sabr.SabrPlaybackTest
+# :app only. A bare `connectedDebugAndroidTest` runs every module, and :core:database has no
+# class by this name, so the filter matches nothing there and the runner reports
+# `initializationError` — a real red build caused entirely by asking the wrong module.
+./gradlew :app:connectedDebugAndroidTest --no-daemon -Pandroid.testInstrumentationRunnerArguments.class=com.dewijones92.totum.sabr.SabrPlaybackTest
