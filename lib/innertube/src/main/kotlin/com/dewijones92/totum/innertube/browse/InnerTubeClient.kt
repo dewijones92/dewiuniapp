@@ -80,6 +80,28 @@ public class InnerTubeClient(
     ): InnerTubeResponse = playerTracking(videoId, signatureTimestamp, accessToken)
 
     /**
+     * The player response as the EMBEDDED player client.
+     *
+     * A second attempt at age-restricted videos, and an honest experiment rather than a known
+     * fix. Tested 2026-08-01 against a rated video with a valid signed-in token: the TVHTML5
+     * client was refused outright, so signing in is evidently not sufficient on its own. The
+     * embedded client is the identity that has historically been allowed to fetch rated
+     * material, which is why it is worth one try.
+     *
+     * If YouTube refuses this too, the answer is that the app cannot play age-restricted videos
+     * and the honest thing is to say so in the UI rather than keep adding client identities.
+     */
+    public suspend fun playerEmbedded(videoId: String, accessToken: AccessToken?): InnerTubeResponse =
+        execute(
+            playerUrl,
+            """{"context":{"client":{"clientName":"TVHTML5_SIMPLY_EMBEDDED_PLAYER",""" +
+                """"clientVersion":"2.0","clientScreen":"EMBED"},""" +
+                """"thirdParty":{"embedUrl":"https://www.youtube.com/"}},""" +
+                """"videoId":"$videoId","contentCheckOk":true,"racyCheckOk":true}""",
+            accessToken,
+        )
+
+    /**
      * A video's **playback-tracking** URLs, as the signed-in TV client.
      *
      * A separate call from [player] on purpose: this one is authenticated and returns no

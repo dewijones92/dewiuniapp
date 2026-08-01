@@ -82,6 +82,7 @@ import com.dewijones92.totum.innertube.history.HttpYouTubeWatchHistory
 import com.dewijones92.totum.innertube.history.YouTubeWatchHistory
 import com.dewijones92.totum.innertube.player.HttpSignatureTimestampSource
 import com.dewijones92.totum.innertube.player.PlayerResponseParser
+import com.dewijones92.totum.innertube.player.PlayerResult
 import com.dewijones92.totum.innertube.playlists.HttpYouTubePlaylists
 import com.dewijones92.totum.innertube.playlists.YouTubePlaylists
 import com.dewijones92.totum.innertube.related.HttpYouTubeRelated
@@ -710,8 +711,15 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
                     as? AccessTokenResult.Available
                 )?.token ?: return@AccountPlayer null
             val stamp = runCatching { signatureTimestamps.current() }.getOrNull() ?: return@AccountPlayer null
-            val response = runCatching { innerTubeClient.playerAsAccount(videoId, stamp, token) }.getOrNull()
-            (response as? InnerTubeResponse.Success)?.body?.let(PlayerResponseParser::parse)
+            val signedIn = runCatching { innerTubeClient.playerAsAccount(videoId, stamp, token) }.getOrNull()
+            val parsed = (signedIn as? InnerTubeResponse.Success)?.body?.let(PlayerResponseParser::parse)
+            if (parsed is PlayerResult.Success) return@AccountPlayer parsed
+            // The TV client is refused for age-restricted videos even signed in — measured
+            // 2026-08-01. The embedded player is the identity historically allowed to fetch
+            // rated material, so it gets one try before the video is called unavailable.
+            Diag.log("resolve", "$videoId refused as the TV client; trying the embedded player")
+            val embedded = runCatching { innerTubeClient.playerEmbedded(videoId, token) }.getOrNull()
+            (embedded as? InnerTubeResponse.Success)?.body?.let(PlayerResponseParser::parse)
         }
     }
 

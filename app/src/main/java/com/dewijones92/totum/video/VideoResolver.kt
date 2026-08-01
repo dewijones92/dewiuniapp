@@ -184,7 +184,15 @@ class VideoResolver(
             // by matching the message, because parsing yt-dlp's prose to decide would break the
             // day it is reworded — and a pointless retry costs one request on a video that was
             // not going to play anyway.
-            return fromPlayerResponse(watchUrl, sourceId, asked, startedAt)
+            return fromPlayerResponse(
+                watchUrl,
+                sourceId,
+                asked,
+                startedAt,
+                // yt-dlp's own words, used only to LABEL the failure — never to decide whether
+                // to retry, which happens regardless so a reworded message cannot break it.
+                extractionSaidAgeRestricted = extraction.toString().contains("confirm your age", true),
+            )
         }
         // Default stream stays the best muxed format (one stream, reliable, data-friendly);
         // the quality menu offers higher, merged qualities on demand.
@@ -285,11 +293,22 @@ class VideoResolver(
         sourceId: SourceId,
         asked: String,
         startedAt: Long,
+        extractionSaidAgeRestricted: Boolean,
     ): Resolved? {
         val id = watchUrl.youTubeVideoId() ?: return null
         val fast = playerStreams ?: return null
         val response = fast.playerFor(id) ?: run {
-            Diag.warn("resolve", "$id could not be resolved by the player either — genuinely unavailable")
+            // Name the cause. Two client identities were tried against a rated video with a
+            // valid signed-in token on 2026-08-01 — TVHTML5 and the embedded player — and both
+            // were refused, so age restriction is a wall rather than a missing credential.
+            // Saying "unavailable" for something YouTube plays perfectly well in a browser
+            // invites another day of chasing it.
+            val why = if (extractionSaidAgeRestricted) {
+                "age-restricted — YouTube refuses it to this app even signed in"
+            } else {
+                "genuinely unavailable (private, removed, geo-blocked or members-only)"
+            }
+            Diag.warn("resolve", "$id could not be resolved by the player either — $why")
             return null
         }
         Diag.log("resolve", "$id recovered by the player response after extraction failed ($asked)")
