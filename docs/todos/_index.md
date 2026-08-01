@@ -38,7 +38,7 @@ to `shipped` and migrate it to `../features/` once it's a real feature on `main`
 | [sabr-streaming](sabr-streaming.md) | video | medium | fallback shipped; QuickJS runtime open |
 | [feed-pagination](feed-pagination.md) | video | high | feeds + channel tabs shipped; search pending |
 | [queue-drag-reorder](queue-drag-reorder.md) | queue | high | requested |
-| [public-domain-film-tv](public-domain-film-tv.md) | search | medium | refining — needs a routing decision |
+| [public-domain-film-tv](public-domain-film-tv.md) | search | medium | ready — decisions made, not started |
 | [testing-depth](testing-depth.md) | tests | medium | refining |
 | [audio-video-switching](audio-video-switching.md) | playback | high | shipped (local-audio merge outstanding) |
 | [notification-opens-app](notification-opens-app.md) | playback | high | shipped |
