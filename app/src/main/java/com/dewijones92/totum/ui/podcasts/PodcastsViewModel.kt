@@ -6,6 +6,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.dewijones92.totum.common.HttpUrl
 import com.dewijones92.totum.data.download.DownloadManager
+import com.dewijones92.totum.data.podcast.FeedRefreshFailure
 import com.dewijones92.totum.data.podcast.PodcastRepository
 import com.dewijones92.totum.data.podcast.SubscribeResult
 import com.dewijones92.totum.di.AppContainer
@@ -46,6 +47,14 @@ class PodcastsViewModel(
         val downloadStates: Map<MediaItemId, DownloadState> = emptyMap(),
         val refreshing: Boolean = false,
         val sort: MediaSort = MediaSort.DEFAULT,
+        /**
+         * Feeds that did not update on the last refresh, newest refresh only.
+         *
+         * On screen because skipping a broken feed is silent by design — the episodes already
+         * downloaded stay put, which is right, and means a feed that has moved or started
+         * serving malformed XML looks exactly like one with no new episodes. Indefinitely.
+         */
+        val refreshFailures: List<FeedRefreshFailure> = emptyList(),
     )
 
     /** State of the current subscribe attempt; the dialog renders from this. */
@@ -64,8 +73,9 @@ class PodcastsViewModel(
 
     private val subscribing = MutableStateFlow<Subscribing>(Subscribing.Idle)
     private val refreshing = MutableStateFlow(false)
+    private val refreshFailures = MutableStateFlow<List<FeedRefreshFailure>>(emptyList())
     private val sort = MutableStateFlow(MediaSort.DEFAULT)
-    private val refreshAndSort = combine(refreshing, sort) { r, s -> r to s }
+    private val refreshAndSort = combine(refreshing, sort, refreshFailures, ::Triple)
 
     val uiState: StateFlow<UiState> = combine(
         repository.observeSubscriptions(),
@@ -73,8 +83,8 @@ class PodcastsViewModel(
         subscribing,
         downloads.observeDownloads(),
         refreshAndSort,
-    ) { subs, episodes, subscribing, downloadStates, (refreshing, sort) ->
-        UiState(subs, sort.apply(episodes), subscribing, downloadStates, refreshing, sort)
+    ) { subs, episodes, subscribing, downloadStates, (refreshing, sort, failures) ->
+        UiState(subs, sort.apply(episodes), subscribing, downloadStates, refreshing, sort, failures)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), UiState())
 
     fun setSort(order: MediaSort) {
@@ -86,9 +96,16 @@ class PodcastsViewModel(
         if (refreshing.value) return
         viewModelScope.launch {
             refreshing.value = true
-            repository.refresh()
+            // The outcome was thrown away here, which is why a feed could stop updating forever
+            // without the app ever mentioning it.
+            refreshFailures.value = repository.refresh().failures
             refreshing.value = false
         }
+    }
+
+    /** Dismisses the failure notice; the next refresh recomputes it anyway. */
+    fun clearRefreshFailures() {
+        refreshFailures.value = emptyList()
     }
 
     /**

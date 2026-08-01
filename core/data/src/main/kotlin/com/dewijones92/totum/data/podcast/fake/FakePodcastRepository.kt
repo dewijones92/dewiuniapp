@@ -2,6 +2,7 @@ package com.dewijones92.totum.data.podcast.fake
 
 import com.dewijones92.totum.common.HttpUrl
 import com.dewijones92.totum.data.podcast.PodcastRepository
+import com.dewijones92.totum.data.podcast.RefreshReport
 import com.dewijones92.totum.data.podcast.SubscribeResult
 import com.dewijones92.totum.domain.MediaItem
 import com.dewijones92.totum.domain.MediaItemId
@@ -45,9 +46,15 @@ public class FakePodcastRepository(
         episodes.update { list -> list.filterNot { it.sourceId == id } }
     }
 
-    override suspend fun refresh() {
-        // No network in the fake; the in-memory episodes are already "fresh".
-    }
+    /**
+     * No network in the fake, so the in-memory episodes are already "fresh".
+     *
+     * [refreshReport] is settable so a test can drive the failure path — a screen that says
+     * "2 feeds didn't update" needs a way to be shown two failures without a broken feed.
+     */
+    public var refreshReport: RefreshReport = RefreshReport()
+
+    override suspend fun refresh(): RefreshReport = refreshReport
 
     public companion object {
         /** A ready-made episode for previews and tests. */

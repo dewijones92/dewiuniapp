@@ -2,6 +2,7 @@ package com.dewijones92.totum.data.podcast
 
 import com.dewijones92.totum.common.Diag
 import com.dewijones92.totum.common.HttpUrl
+import com.dewijones92.totum.common.Vitals
 import com.dewijones92.totum.data.net.FetchResult
 import com.dewijones92.totum.data.net.HttpTextFetcher
 import com.dewijones92.totum.data.rss.ParsedEpisode
@@ -67,15 +68,65 @@ public class DefaultPodcastRepository(
         store.removeSource(id)
     }
 
-    override suspend fun refresh() {
-        store.observeSubscriptions().first().forEach { refreshFeed(it) }
+    override suspend fun refresh(): RefreshReport {
+        val subs = store.observeSubscriptions().first()
+        val updated = mutableListOf<SourceId>()
+        val failures = mutableListOf<FeedRefreshFailure>()
+        subs.forEach { sub ->
+            when (val outcome = refreshFeed(sub)) {
+                null -> updated += sub.source.id
+                else -> failures += outcome
+            }
+        }
+        // One line per refresh, not per feed: a summary is what a report can afford, and the
+        // failures are named individually below only when there are any.
+        Vitals.add("podcast.refreshes")
+        Vitals.add("podcast.feedFailures", failures.size.toLong())
+        Diag.log(
+            "podcast",
+            "refreshed ${subs.size} feed(s): ${updated.size} updated, ${failures.size} failed",
+        )
+        failures.forEach { failure ->
+            // WHY, per feed, because the fix differs: a moved feed needs re-subscribing, a
+            // malformed one is the publisher's problem, and everything failing at once is the
+            // network. Warn, so it survives a filtered report.
+            Diag.warn("podcast", "did not update \"${failure.title}\" — ${failure.describe()}")
+        }
+        if (failures.isNotEmpty() && updated.isEmpty()) {
+            Diag.warn(
+                "podcast",
+                "EVERY feed failed (${failures.size}) — nearly always the network, not the feeds",
+            )
+        }
+        return RefreshReport(updated, failures)
     }
 
-    /** Re-fetches one feed's episodes; a fetch/parse failure leaves the stored episodes intact. */
-    private suspend fun refreshFeed(sub: Subscription) {
-        val source = sub.source as? MediaSource.PodcastFeed ?: return
-        val body = (fetcher.fetch(source.feedUrl) as? FetchResult.Success)?.body ?: return
-        val parsed = (parser.parse(body) as? RssParseResult.Success)?.feed ?: return
+    /**
+     * Re-fetches one feed's episodes, returning null on success or WHY it did not update.
+     *
+     * A fetch/parse failure still leaves the stored episodes intact — a 404 must never wipe
+     * episodes already on the device — but it is no longer silent. These were three bare
+     * `return`s, so a feed that moved or started serving malformed XML just stopped updating
+     * with nothing anywhere to say so.
+     */
+    private suspend fun refreshFeed(sub: Subscription): FeedRefreshFailure? {
+        val title = sub.source.title
+        val source = sub.source as? MediaSource.PodcastFeed
+            ?: return FeedRefreshFailure.NotAFeed(sub.source.id, title)
+        val fetched = fetcher.fetch(source.feedUrl)
+        val body = (fetched as? FetchResult.Success)?.body
+            ?: return FeedRefreshFailure.Unreachable(
+                source.id,
+                title,
+                (fetched as? FetchResult.Failure)?.detail ?: "no body",
+            )
+        val parsedResult = parser.parse(body)
+        val parsed = (parsedResult as? RssParseResult.Success)?.feed
+            ?: return FeedRefreshFailure.Unparseable(
+                source.id,
+                title,
+                (parsedResult as? RssParseResult.Failure)?.detail ?: "no feed",
+            )
         store.saveSource(
             // Keep the original subscribedAt so refreshing doesn't reorder feeds.
             subscription = Subscription(source = source, subscribedAt = sub.subscribedAt),
@@ -83,6 +134,7 @@ public class DefaultPodcastRepository(
                 episode.toMediaItem(source.id, source.feedUrl, index, parsed.title, resolveChapters(episode, index))
             },
         )
+        return null
     }
 
     private fun ParsedFeed.toMediaSource(id: SourceId, feedUrl: HttpUrl) = MediaSource.PodcastFeed(

@@ -175,7 +175,11 @@ Nothing here blocks work; these are the places where a decision would change wha
 2. **How much is a resume worth waiting for?** I4 currently pays 14–25s of extraction to resume
    a part-watched video correctly. The alternative is starting from the beginning instantly.
 3. **Is the podcast pillar getting equal attention?** The last several weeks have been almost
-   entirely video and YouTube. Nothing has regressed, but nothing has advanced either.
+   entirely video and YouTube. Asking the question found one real gap, now closed: refreshing
+   swallowed every failure in three bare `return`s, so a feed that moved or began serving
+   malformed XML looked exactly like one with no new episodes, indefinitely — I5 violated for a
+   whole pillar. It now reports per feed, on screen and in the log. Worth repeating the exercise
+   for downloads and notifications rather than assuming they are fine.
 
 ## What this document is not
 

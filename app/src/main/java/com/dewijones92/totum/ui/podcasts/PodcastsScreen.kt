@@ -2,8 +2,10 @@ package com.dewijones92.totum.ui.podcasts
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -12,10 +14,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.Podcasts
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -24,6 +30,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -31,6 +38,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dewijones92.totum.R
 import com.dewijones92.totum.common.HttpUrl
+import com.dewijones92.totum.data.podcast.FeedRefreshFailure
+import com.dewijones92.totum.data.podcast.describe
 import com.dewijones92.totum.di.AppContainer
 import com.dewijones92.totum.domain.DownloadState
 import com.dewijones92.totum.domain.MediaItem
@@ -87,6 +96,7 @@ fun PodcastsScreen(container: AppContainer, modifier: Modifier = Modifier) {
                 (source as? MediaSource.PodcastFeed)?.let { openFeed = it }
             }
         },
+        onDismissRefreshFailures = viewModel::clearRefreshFailures,
         modifier = modifier,
     )
 }
@@ -108,6 +118,7 @@ internal fun PodcastsContent(
     onPeek: (MediaItem) -> Unit,
     onOpenFeed: (MediaSource.PodcastFeed) -> Unit,
     onGoToPodcast: (MediaItem) -> Unit,
+    onDismissRefreshFailures: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
@@ -137,6 +148,7 @@ internal fun PodcastsContent(
                     onPeek,
                     onOpenFeed,
                     onGoToPodcast,
+                    onDismissRefreshFailures,
                 )
             }
         }
@@ -176,9 +188,13 @@ private fun SubscriptionsAndEpisodes(
     onPeek: (MediaItem) -> Unit,
     onOpenFeed: (MediaSource.PodcastFeed) -> Unit,
     onGoToPodcast: (MediaItem) -> Unit,
+    onDismissRefreshFailures: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(modifier = modifier.fillMaxSize()) {
+        if (state.refreshFailures.isNotEmpty()) {
+            item { RefreshFailureNotice(state.refreshFailures, onDismissRefreshFailures) }
+        }
         item {
             LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -254,6 +270,7 @@ private fun PodcastsContentPreview() {
             onPeek = {},
             onOpenFeed = {},
             onGoToPodcast = {},
+            onDismissRefreshFailures = {},
         )
     }
 }
@@ -277,6 +294,68 @@ private fun PodcastsEmptyPreview() {
             onPeek = {},
             onOpenFeed = {},
             onGoToPodcast = {},
+            onDismissRefreshFailures = {},
         )
     }
 }
+
+/**
+ * Names the feeds that did not update, and why.
+ *
+ * Skipping a broken feed keeps the episodes already on the device, which is right — but it also
+ * makes a feed that has moved, or started serving malformed XML, look identical to one with no
+ * new episodes, forever. This is the difference between "nothing new this week" and "this has
+ * been broken since March". Dismissible, because it is information rather than an error to
+ * resolve, and the next refresh recomputes it anyway.
+ */
+@Composable
+private fun RefreshFailureNotice(
+    failures: List<FeedRefreshFailure>,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.errorContainer,
+            contentColor = MaterialTheme.colorScheme.onErrorContainer,
+        ),
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Text(
+                text = pluralStringResource(
+                    R.plurals.podcast_refresh_failed,
+                    failures.size,
+                    failures.size,
+                ),
+                style = MaterialTheme.typography.titleSmall,
+            )
+            failures.take(MAX_NAMED_FAILURES).forEach { failure ->
+                Text(
+                    text = "${failure.title} — ${failure.describe()}",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
+            if (failures.size > MAX_NAMED_FAILURES) {
+                Text(
+                    text = pluralStringResource(
+                        R.plurals.podcast_refresh_failed_more,
+                        failures.size - MAX_NAMED_FAILURES,
+                        failures.size - MAX_NAMED_FAILURES,
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
+            TextButton(onClick = onDismiss, modifier = Modifier.padding(top = 4.dp)) {
+                Text(stringResource(R.string.podcast_refresh_failed_dismiss))
+            }
+        }
+    }
+}
+
+/** Enough to act on; a wall of feed names is not more useful than a count plus a few. */
+private const val MAX_NAMED_FAILURES = 3

@@ -302,4 +302,16 @@
     <string name="status_offline_video">Video saved offline</string>
     <string name="queue_move_to_top">Move to top</string>
     <string name="queue_move_to_bottom">Move to bottom</string>
+    <!-- Named rather than a bare count: the fix differs per cause, so "could not be reached"
+         (network or a moved feed) and "would not parse" (the publisher's problem) must not
+         collapse into one message. -->
+    <plurals name="podcast_refresh_failed">
+        <item quantity="one">%1$d podcast didn\'t update</item>
+        <item quantity="other">%1$d podcasts didn\'t update</item>
+    </plurals>
+    <plurals name="podcast_refresh_failed_more">
+        <item quantity="one">…and %1$d more</item>
+        <item quantity="other">…and %1$d more</item>
+    </plurals>
+    <string name="podcast_refresh_failed_dismiss">Dismiss</string>
 </resources>
