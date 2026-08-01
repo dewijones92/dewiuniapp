@@ -33,6 +33,15 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="text/plain" />
             </intent-filter>
+            <!-- How the home server hands this app its access token. The user signs in with
+                 Google in a real browser (the only place Google accepts a sign-in), and the page
+                 behind that gate redirects to totum://auth?token=… -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="totum" android:host="auth" />
+            </intent-filter>
             <!-- Offered as an option when opening a YouTube link (not an auto-verified
                  app link — we deliberately want the chooser, not to hijack the domain). -->
             <intent-filter android:autoVerify="false">

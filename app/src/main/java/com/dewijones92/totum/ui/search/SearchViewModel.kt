@@ -8,11 +8,14 @@ import com.dewijones92.totum.common.Diag
 import com.dewijones92.totum.common.Page
 import com.dewijones92.totum.common.append
 import com.dewijones92.totum.data.podcast.PodcastRepository
+import com.dewijones92.totum.data.queue.QueueGroup
 import com.dewijones92.totum.data.search.SearchHistoryStore
 import com.dewijones92.totum.data.search.SearchHit
 import com.dewijones92.totum.data.search.SearchOutcome
 import com.dewijones92.totum.data.search.SearchQuery
 import com.dewijones92.totum.data.search.SearchSource
+import com.dewijones92.totum.data.torrent.HomeTorrentServer
+import com.dewijones92.totum.data.torrent.TorrentPlayables
 import com.dewijones92.totum.di.AppContainer
 import com.dewijones92.totum.domain.MediaSource
 import com.dewijones92.totum.domain.PlayHandle
@@ -37,9 +40,28 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.launch
 
+/**
+ * The two halves of the home-server feature, together because neither is useful alone: search
+ * with no server cannot play what it finds, and a server with no search has nothing to play.
+ * Grouping them also keeps the view model's dependencies down to the things it actually has.
+ */
+class TorrentServices(val search: SearchSource, val server: HomeTorrentServer) {
+    companion object {
+        /** Null unless BOTH are configured, so a half-set-up server is absent rather than odd. */
+        fun from(container: AppContainer): TorrentServices? {
+            val search = container.torrentSearchSource ?: return null
+            val server = container.homeTorrentServer ?: return null
+            return TorrentServices(search, server)
+        }
+    }
+}
+
+@Suppress("TooManyFunctions") // One method per user action on a screen with several sections.
 class SearchViewModel(
     private val podcastSearch: SearchSource,
     private val videoSearch: SearchSource,
+    /** Null when no home server is configured — the section is then absent, not broken. */
+    private val torrents: TorrentServices?,
     private val podcastRepository: PodcastRepository,
     private val queue: PlaybackQueue,
     private val history: SearchHistoryStore,
@@ -65,8 +87,12 @@ class SearchViewModel(
             val podcasts: List<SearchHit.Podcast>,
             /** Carries its own continuation, so the section knows whether more exists. */
             val videos: Page<SearchHit.Video>,
+            /** Empty when no home server is set up, which is not a failure. */
+            val torrents: List<SearchHit.Torrent>,
             val podcastsFailed: Boolean,
             val videosFailed: Boolean,
+            /** Distinct from empty: the Pi is only reachable at home or on wg-home. */
+            val torrentsFailed: Boolean,
             val loadingMore: Boolean = false,
         ) : Results {
             val canLoadMore: Boolean get() = videos.hasMore
@@ -156,11 +182,15 @@ class SearchViewModel(
     private suspend fun runSearch(query: SearchQuery): Results = coroutineScope {
         val podcasts = async { podcastSearch.search(query, RESULTS_PER_SECTION, after = null) }
         val videos = async { videoSearch.search(query, RESULTS_PER_SECTION, after = null) }
-        toLoaded(podcasts.await(), videos.await()).also {
+        // Independent of the others, like every section: the home server being unreachable must
+        // not hide YouTube results, and a YouTube failure must not hide torrents.
+        val torrents = async { this@SearchViewModel.torrents?.search?.search(query, RESULTS_PER_SECTION, null) }
+        toLoaded(podcasts.await(), videos.await(), torrents.await()).also {
             Diag.log(
                 "search",
                 "\"${query.value}\" -> ${it.podcasts.size} podcasts, " +
-                    "${it.videos.items.size} videos (more=${it.canLoadMore})",
+                    "${it.videos.items.size} videos, ${it.torrents.size} torrents " +
+                    "(more=${it.canLoadMore})",
             )
         }
     }
@@ -183,13 +213,47 @@ class SearchViewModel(
         }
     }
 
-    private fun toLoaded(podcasts: SearchOutcome, videos: SearchOutcome) = Results.Loaded(
+    private fun toLoaded(
+        podcasts: SearchOutcome,
+        videos: SearchOutcome,
+        torrents: SearchOutcome?,
+    ) = Results.Loaded(
         podcasts = (podcasts as? SearchOutcome.Success)
             ?.page?.items?.filterIsInstance<SearchHit.Podcast>().orEmpty(),
         videos = (videos as? SearchOutcome.Success)?.page?.videosOnly() ?: Page.empty(),
+        torrents = (torrents as? SearchOutcome.Success)
+            ?.page?.items?.filterIsInstance<SearchHit.Torrent>().orEmpty(),
         podcastsFailed = podcasts is SearchOutcome.Failure,
         videosFailed = videos is SearchOutcome.Failure,
+        torrentsFailed = torrents is SearchOutcome.Failure,
     )
+
+    /**
+     * Adds a torrent to the home server and queues everything playable in it.
+     *
+     * A season pack becomes one queue item per episode, which is why this is `playAll` with a
+     * group rather than `playNow` with one thing — the queue then shows a header for the release
+     * and can remove the whole season as a unit, exactly as it already does for a playlist.
+     *
+     * Preparing is the slow part (the server has to reach the swarm and read the metadata), so
+     * the UI is told it is working rather than left silent for several seconds.
+     */
+    fun playTorrent(hit: SearchHit.Torrent) {
+        val server = torrents?.server ?: return
+        viewModelScope.launch {
+            playAttempt.value = PlayAttempt(resolving = hit.title)
+            val prepared = server.prepare(hit.magnet)
+            val items = prepared?.let { TorrentPlayables.queueItems(server, it) }.orEmpty()
+            if (items.isEmpty()) {
+                Diag.warn("search", "\"${hit.title}\" had nothing playable in it")
+                playAttempt.value = PlayAttempt(failed = true)
+                return@launch
+            }
+            Diag.log("search", "queueing ${items.size} item(s) from \"${hit.title}\"")
+            queue.playAll(items, QueueGroup(id = prepared!!.hash, title = prepared.name))
+            playAttempt.value = PlayAttempt()
+        }
+    }
 
     /**
      * Fetches the next page of video results and appends it.
@@ -245,6 +309,7 @@ class SearchViewModel(
                 SearchViewModel(
                     podcastSearch = container.podcastSearchSource,
                     videoSearch = container.videoSearchSource,
+                    torrents = TorrentServices.from(container),
                     podcastRepository = container.podcastRepository,
                     queue = container.playbackQueue,
                     history = container.searchHistoryStore,

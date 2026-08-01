@@ -61,6 +61,8 @@ class SearchViewModelTest {
     ) = SearchViewModel(
         podcastSearch = podcastSearch,
         videoSearch = videoSearch,
+        // No home server in these tests: the section is simply absent, which is the common case.
+        torrents = null,
         podcastRepository = repository,
         // Search plays through the queue like every other screen now, so the test wires the
         // real queue (over a fake controller) instead of reaching for the launcher directly.

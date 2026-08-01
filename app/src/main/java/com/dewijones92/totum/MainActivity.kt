@@ -46,7 +46,27 @@ class MainActivity : FragmentActivity() {
         handleShareIntent(intent)
     }
 
+    /**
+     * Stores the token the home server's sign-in page handed back.
+     *
+     * Returns true when the intent was that and nothing else should look at it. Checked before
+     * the share handler because a `totum://auth` URL is a VIEW intent too, and the share path
+     * would otherwise try to resolve it as a video.
+     */
+    private fun handleAuthIntent(intent: Intent): Boolean {
+        val data = intent.data?.takeIf { it.scheme == "totum" && it.host == "auth" } ?: return false
+        val token = data.getQueryParameter("token").orEmpty()
+        // The VALUE is never logged. Whether one arrived is, because "did sign-in work?" is the
+        // first question when the home server section is empty.
+        Diag.log("torrent", "home server sign-in returned a token: ${token.isNotBlank()}")
+        if (token.isNotBlank()) container.appPreferences.setHomeServerToken(token)
+        // Consumed, so a rotation or process restart cannot re-apply it.
+        setIntent(Intent())
+        return true
+    }
+
     private fun handleShareIntent(intent: Intent) {
+        if (handleAuthIntent(intent)) return
         val url = intent.sharedWatchUrl() ?: return
         // Logged because this path was completely silent: a shared link that misbehaved left
         // nothing in a report tying the playback to the share (0.1.228).

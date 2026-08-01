@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -18,11 +19,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.Movie
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -91,6 +94,7 @@ fun SearchScreen(container: AppContainer, modifier: Modifier = Modifier) {
         onQueryChange = viewModel::onQueryChange,
         onSubscribe = viewModel::subscribe,
         onPlayVideo = viewModel::playVideo,
+        onPlayTorrent = viewModel::playTorrent,
         onRemoveHistory = viewModel::removeHistory,
         onClearHistory = viewModel::clearHistory,
         actions = actions,
@@ -111,6 +115,7 @@ internal fun SearchContent(
     onQueryChange: (String) -> Unit,
     onSubscribe: (SearchHit.Podcast) -> Unit,
     onPlayVideo: (SearchHit.Video) -> Unit,
+    onPlayTorrent: (SearchHit.Torrent) -> Unit,
     onRemoveHistory: (String) -> Unit,
     onClearHistory: () -> Unit,
     actions: MediaItemActions,
@@ -153,6 +158,7 @@ internal fun SearchContent(
                 state,
                 onSubscribe,
                 onPlayVideo,
+                onPlayTorrent,
                 actions,
                 onGoToChannel,
                 onLoadMoreVideos,
@@ -241,6 +247,7 @@ private fun ResultsList(
     state: UiState,
     onSubscribe: (SearchHit.Podcast) -> Unit,
     onPlayVideo: (SearchHit.Video) -> Unit,
+    onPlayTorrent: (SearchHit.Torrent) -> Unit,
     actions: MediaItemActions,
     onGoToChannel: (MediaItem) -> Unit,
     onLoadMoreVideos: () -> Unit,
@@ -255,6 +262,7 @@ private fun ResultsList(
         loadMore = onLoadMoreVideos,
     )
     LazyColumn(state = listState, modifier = modifier.fillMaxSize()) {
+        torrentSection(results, onPlayTorrent)
         if (results.podcasts.isNotEmpty() || results.podcastsFailed) {
             item { SectionHeader(stringResource(R.string.destination_podcasts)) }
         }
@@ -420,4 +428,65 @@ private val HIT_THUMBNAIL_SIZE = 56.dp
 @Composable
 private fun SearchScreenPreview() {
     TotumTheme { SearchScreen(FakeAppContainer()) }
+}
+
+/**
+ * One torrent result.
+ *
+ * The subtitle is seeders and size, because with twenty copies of one film that IS the decision —
+ * a result with no seeders never plays however good its name looks. Tapping queues everything
+ * playable inside it, which for a season pack is the whole season.
+ */
+@Composable
+private fun TorrentHitRow(
+    hit: SearchHit.Torrent,
+    onPlay: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    ListItem(
+        headlineContent = { Text(hit.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+        supportingContent = { hit.subtitle?.let { Text(it) } },
+        leadingContent = {
+            Icon(
+                imageVector = Icons.Outlined.Movie,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+            )
+        },
+        modifier = modifier.clickable(onClick = onPlay),
+    )
+}
+
+/** A plain explanatory line for a section that could not load, in the section's own words. */
+@Composable
+private fun SectionMessage(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+    )
+}
+
+/**
+ * The home-server section, first in the list.
+ *
+ * First because it is the section a torrent search was FOR — putting it below podcasts and
+ * videos would mean scrolling past both to reach the thing being looked for.
+ */
+private fun LazyListScope.torrentSection(
+    results: Results.Loaded,
+    onPlayTorrent: (SearchHit.Torrent) -> Unit,
+) {
+    if (results.torrents.isEmpty() && !results.torrentsFailed) return
+    item { SectionHeader(stringResource(R.string.search_section_torrents)) }
+    if (results.torrentsFailed) {
+        // Named rather than a generic error: the home server is only reachable at home or on
+        // wg-home, so "cannot reach it" is usually a fact about where you are, not a fault.
+        item { SectionMessage(stringResource(R.string.search_torrents_unreachable)) }
+    }
+    items(results.torrents.size) { index ->
+        val hit = results.torrents[index]
+        TorrentHitRow(hit = hit, onPlay = { onPlayTorrent(hit) })
+    }
 }

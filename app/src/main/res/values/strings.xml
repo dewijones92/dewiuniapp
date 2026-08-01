@@ -330,4 +330,13 @@
         <item quantity="other">…and %1$d more</item>
     </plurals>
     <string name="podcast_refresh_failed_dismiss">Dismiss</string>
+    <string name="search_section_torrents">From your home server</string>
+    <string name="search_torrents_unreachable">Can\'t reach your home server — connect to your home Wi-Fi or VPN.</string>
+    <string name="settings_home_server">Home server</string>
+    <string name="settings_home_server_none">Not set up — tap to add yours.</string>
+    <string name="settings_home_server_signed_out">%1$s · not signed in</string>
+    <string name="settings_home_server_ready">%1$s · signed in</string>
+    <string name="settings_home_server_domain">Domain (e.g. example.com)</string>
+    <string name="settings_home_server_key">Prowlarr API key</string>
+    <string name="settings_home_server_sign_in">Save and sign in</string>
 </resources>
