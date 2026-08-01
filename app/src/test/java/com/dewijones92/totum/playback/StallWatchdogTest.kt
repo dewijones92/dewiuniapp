@@ -176,4 +176,26 @@ class StallWatchdogTest {
         const val REPORTED_POSITION = 2_506_062L
         const val REPORTED_DURATION = 2_512_000L
     }
+
+    /**
+     * The same defect that broke [AutoAdvancer] on 2026-08-01, checked here before it was ever
+     * reported: an item rescued once could never be rescued again, so replaying it and stalling
+     * again left the queue stopped with nothing in the log to explain it.
+     */
+    @Test
+    fun `an item that stalls, recovers, then stalls again is rescued twice`() = runTest {
+        watchdog()
+        states.value = state(REPORTED_POSITION, buffering = true)
+        advanceTimeBy(46_000)
+        assertEquals(1, advanced)
+
+        // Progress on the SAME item, which is what makes the first rescue spent.
+        states.value = state(REPORTED_POSITION + 5_000, buffering = true)
+        advanceTimeBy(6_000)
+
+        // ...and then it freezes again at the new position.
+        advanceTimeBy(46_000)
+
+        assertEquals("a second stall on the same item must be rescued too", 2, advanced)
+    }
 }

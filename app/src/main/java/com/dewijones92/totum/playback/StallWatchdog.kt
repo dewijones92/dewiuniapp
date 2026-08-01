@@ -49,7 +49,15 @@ internal class StallWatchdog(
     private var stuckPositionMs = -1L
     private var stalledForMs = 0L
 
-    /** One stall per item, so a frozen player cannot advance the queue over and over. */
+    /**
+     * The stall already rescued, so a frozen player cannot advance the queue over and over.
+     *
+     * Cleared the moment that item makes progress again. It used to be set once per item and
+     * kept forever, which is the same defect that broke [AutoAdvancer]: an item rescued once
+     * could never be rescued again, so replaying it and stalling again left the queue stopped
+     * with nothing in the log to say why. Fixed here before it was ever reported, because the
+     * two were the same three lines written twice.
+     */
     private var handled: MediaItemId? = null
 
     fun start() {
@@ -82,6 +90,12 @@ internal class StallWatchdog(
             stuckItem = state.itemId
             stuckPositionMs = state.positionMs
             stalledForMs = 0
+            // Progress means any earlier rescue of this item is spent, not a reason to refuse
+            // the next one.
+            if (handled == state.itemId) {
+                Diag.log("advance", "${state.itemId.value} is moving again; its earlier stall no longer counts")
+                handled = null
+            }
             return
         }
         stalledForMs += checkEveryMs
