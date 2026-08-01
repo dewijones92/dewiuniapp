@@ -93,8 +93,10 @@ jobs:
             tools/ci/live-test-via-home.sh
 
 
-      - name: Upload instrumented reports on failure
-        if: failure()
+      # Always, not just on failure: a PASS that was really a skip looks identical otherwise,
+      # and this suite's whole value is being believed about what it did.
+      - name: Upload instrumented reports
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: instrumented-reports

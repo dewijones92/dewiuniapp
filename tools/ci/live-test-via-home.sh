@@ -62,3 +62,15 @@ echo "[live-test] LAN unreachable from the CI peer, as intended"
 # class by this name, so the filter matches nothing there and the runner reports
 # `initializationError` — a real red build caused entirely by asking the wrong module.
 ./gradlew :app:connectedDebugAndroidTest --no-daemon -Pandroid.testInstrumentationRunnerArguments.class=com.dewijones92.totum.sabr.SabrPlaybackTest
+
+# Say whether it actually RAN or merely skipped. Without this the log shows "Finished 1 tests"
+# and "BUILD SUCCESSFUL" either way, so the one question this whole tunnel exists to answer —
+# did YouTube serve us? — could not be answered from the log at all.
+RESULTS=$(find app/build/outputs/androidTest-results -name '*SabrPlaybackTest*.xml' 2>/dev/null | head -1)
+if [ -z "$RESULTS" ]; then
+  echo "[live-test] no result file found — cannot say whether the test ran"
+elif grep -q '<skipped' "$RESULTS"; then
+  echo "[live-test] test SKIPPED — YouTube refused us even from the residential IP"
+else
+  echo "[live-test] test RAN for real against live YouTube over the home connection"
+fi
