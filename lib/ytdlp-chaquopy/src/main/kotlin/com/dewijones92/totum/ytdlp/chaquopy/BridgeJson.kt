@@ -124,6 +124,8 @@ private fun JsonObject.toMediaFormatOrNull(): MediaFormat? {
         url = stringOrNull("url"),
         videoCodec = stringOrNull("vcodec")?.takeIf { it != "none" },
         audioCodec = stringOrNull("acodec")?.takeIf { it != "none" },
+        language = stringOrNull("language"),
+        languagePreference = this["language_preference"]?.jsonPrimitive?.longOrNull?.toInt(),
     )
 }
 

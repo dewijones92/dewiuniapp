@@ -1,6 +1,7 @@
 package com.dewijones92.totum.video
 
 import com.dewijones92.totum.common.HttpUrl
+import com.dewijones92.totum.ytdlp.MediaFormat
 import com.dewijones92.totum.ytdlp.MediaMetadata
 
 /**
@@ -26,11 +27,41 @@ public data class VideoQuality(
  * is paired with the best audio-only track for merging. Heights with no usable
  * stream are dropped.
  */
-/** The best audio-only stream URL, for merging or for "Listen" (audio-only) playback. */
-public fun MediaMetadata.bestAudioUrl(): HttpUrl? = formats
+/**
+ * The best audio-only stream URL, for merging or for "Listen" (audio-only) playback.
+ *
+ * **Language first, then size.** YouTube publishes dubbed tracks alongside the original, and
+ * this used to pick purely by file size — so on any video whose dub is encoded larger, the app
+ * played a language nobody asked for. `languagePreference` is the extractor's own answer to
+ * "which of these is the real one": YouTube's original scores 10 and a dub scores less.
+ *
+ * Falls back to size alone when nothing declares a preference, which is every single-track
+ * video and therefore the overwhelmingly common case.
+ */
+public fun MediaMetadata.bestAudioUrl(): HttpUrl? = bestAudioFormat()?.url?.let(HttpUrl::parse)
+
+/**
+ * What was chosen and what else was on offer, for the resolve log.
+ *
+ * "The video was in the wrong language" was unanswerable from a diagnostics report, because
+ * nothing recorded which track won or whether there had even been a choice — the format line
+ * said `audio mp4a.40.2` and stopped there. Empty when the video offers no audio at all, so a
+ * single-track video's log stays as short as it was.
+ */
+public fun MediaMetadata.audioChoice(): String {
+    val chosen = bestAudioFormat() ?: return ""
+    val offered = formats.filter { it.isAudioOnly }.mapNotNull { it.language }.distinct()
+    return ", audio ${chosen.language ?: "unknown"} (preference ${chosen.languagePreference ?: "none"}" +
+        ", offered ${offered.ifEmpty { listOf("unknown") }.joinToString("/")})"
+}
+
+/** The chosen track itself, so callers can say WHICH language they picked. */
+public fun MediaMetadata.bestAudioFormat(): MediaFormat? = formats
     .filter { it.isAudioOnly && it.url != null }
-    .maxByOrNull { it.fileSizeBytes ?: 0 }
-    ?.url?.let(HttpUrl::parse)
+    .maxWithOrNull(
+        compareBy<MediaFormat> { it.languagePreference ?: Int.MIN_VALUE }
+            .thenBy { it.fileSizeBytes ?: 0 },
+    )
 
 /**
  * The selectable qualities, **filtered to what this device can actually decode**.

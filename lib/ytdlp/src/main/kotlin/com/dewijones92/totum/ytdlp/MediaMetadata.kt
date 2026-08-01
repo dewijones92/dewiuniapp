@@ -75,6 +75,21 @@ public data class MediaFormat(
      */
     val videoCodec: String? = null,
     val audioCodec: String? = null,
+    /**
+     * BCP-47 language of this track (`en`, `en-US`, `hi`), or null when the extractor says
+     * nothing. Only meaningful for audio: YouTube publishes dubbed tracks alongside the
+     * original, and without this a track is just a bitrate.
+     */
+    val language: String? = null,
+    /**
+     * The extractor's preference for this track's language, higher being better; YouTube's
+     * ORIGINAL track scores 10 and a dub scores less.
+     *
+     * Carried because bitrate alone picks the wrong one. Audio used to be chosen purely by file
+     * size, so on any video whose dub is encoded larger than the original, the app played the
+     * dub — a video in a language nobody asked for, with nothing in the logs to say why.
+     */
+    val languagePreference: Int? = null,
 ) {
     init {
         require(formatId.isNotBlank()) { "formatId must not be blank" }

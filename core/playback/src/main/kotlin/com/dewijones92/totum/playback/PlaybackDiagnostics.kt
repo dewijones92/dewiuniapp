@@ -1,5 +1,6 @@
 package com.dewijones92.totum.playback
 
+import android.os.SystemClock
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import com.dewijones92.totum.common.Diag
@@ -67,7 +68,7 @@ internal class PlaybackDiagnostics(
                     "playback",
                     "buffering at ${position()}" + (kbps?.let { " (was ~${it}kbps" } ?: " (") +
                         ", $outstanding load(s) in flight" +
-                        ", oldest ${vitals["playback.oldestLoadMs"] ?: "?"}ms" +
+                        ", oldest ${oldestLoadAge(vitals["playback.oldestLoadStartedAt"])}" +
                         ", ~${vitals["playback.avgChunkKb"] ?: "?"}KB chunks)",
                 )
             }
@@ -195,4 +196,19 @@ internal class PlaybackDiagnostics(
         const val SLOW_HANDOVER_MS = 3_000L
         const val PERCENT = 100
     }
+}
+
+/**
+ * How long the oldest in-flight load has been running, computed HERE rather than stored.
+ *
+ * It used to be written as a pre-computed age on each load event and read back at stall
+ * time — which meant it froze exactly when it mattered, since a stalled player issues no
+ * load events. Report 0.1.306 printed "oldest 22206ms" twice, six and a half minutes apart,
+ * with the identical value both times. A start timestamp read against the clock cannot lie
+ * that way.
+ */
+private fun oldestLoadAge(startedAt: String?): String {
+    val at = startedAt?.toLongOrNull() ?: return "?"
+    if (at < 0) return "none"
+    return "${(SystemClock.elapsedRealtime() - at).coerceAtLeast(0)}ms"
 }

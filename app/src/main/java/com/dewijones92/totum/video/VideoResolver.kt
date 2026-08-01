@@ -210,7 +210,7 @@ class VideoResolver(
             "resolve",
             "${metadata.id} in ${now() - startedAt}ms for $asked — " +
                 "${qualities.size} qualities, ${metadata.subtitles.size} subtitle tracks, " +
-                "audioOnly=${metadata.bestAudioUrl() != null}",
+                "audioOnly=${metadata.bestAudioUrl() != null}" + metadata.audioChoice(),
         )
         val resolved = Resolved(
             item = MediaItem(

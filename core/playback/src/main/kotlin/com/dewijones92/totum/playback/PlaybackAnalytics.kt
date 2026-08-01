@@ -1,6 +1,5 @@
 package com.dewijones92.totum.playback
 
-import android.os.SystemClock
 import androidx.media3.common.C
 import androidx.media3.common.Format
 import androidx.media3.common.util.UnstableApi
@@ -96,7 +95,7 @@ internal class PlaybackAnalytics : AnalyticsListener {
         outstanding = (outstanding - 1).coerceAtLeast(0)
         Vitals.set("playback.loadsOutstanding", outstanding.toString())
         startedAtMs.remove(loadEventInfo.loadTaskId)
-        Vitals.set("playback.oldestLoadMs", oldestOutstandingMs().toString())
+        Vitals.set("playback.oldestLoadStartedAt", (startedAtMs.values.minOrNull() ?: -1L).toString())
         loads++
         bytes += loadEventInfo.bytesLoaded
         // Kilobytes, not megabytes: 0.1.295 reported "loadedMb 0" through five minutes of
@@ -161,19 +160,27 @@ internal class PlaybackAnalytics : AnalyticsListener {
         outstanding++
         Vitals.set("playback.loadsOutstanding", outstanding.toString())
         startedAtMs[loadEventInfo.loadTaskId] = eventTime.realtimeMs
-        Vitals.set("playback.oldestLoadMs", oldestOutstandingMs().toString())
+        Vitals.set("playback.oldestLoadStartedAt", (startedAtMs.values.minOrNull() ?: -1L).toString())
     }
 
     /**
-     * How long the longest-running unfinished load has been going, in ms; 0 when none are.
+     * A load the player abandoned — on a seek, a format switch, or a track change.
      *
-     * Read at report time, so a load that is hanging *right now* — the thing a stall actually
-     * consists of — shows up. A finished-loads average never can: 0.1.295's one visible load
-     * ran 145,750ms and then failed, and it only became visible by failing.
+     * Media3 fires this INSTEAD of `onLoadCompleted`, and not handling it leaked: the outstanding
+     * count only ever went up. Report 0.1.306 showed "11 load(s) in flight" and an oldest load of
+     * 527 seconds on a connection running at 136Mbps, which read as a hung player and was
+     * entirely an artefact of this. Numbers that only climb are worse than no numbers, because
+     * they invite a diagnosis.
      */
-    private fun oldestOutstandingMs(): Long {
-        val oldest = startedAtMs.values.minOrNull() ?: return 0
-        return (SystemClock.elapsedRealtime() - oldest).coerceAtLeast(0)
+    override fun onLoadCanceled(
+        eventTime: AnalyticsListener.EventTime,
+        loadEventInfo: LoadEventInfo,
+        mediaLoadData: MediaLoadData,
+    ) {
+        outstanding = (outstanding - 1).coerceAtLeast(0)
+        startedAtMs.remove(loadEventInfo.loadTaskId)
+        Vitals.set("playback.loadsOutstanding", outstanding.toString())
+        Vitals.add("playback.loadsCanceled")
     }
 
     override fun onLoadError(
@@ -185,7 +192,7 @@ internal class PlaybackAnalytics : AnalyticsListener {
     ) {
         outstanding = (outstanding - 1).coerceAtLeast(0)
         startedAtMs.remove(loadEventInfo.loadTaskId)
-        Vitals.set("playback.oldestLoadMs", oldestOutstandingMs().toString())
+        Vitals.set("playback.oldestLoadStartedAt", (startedAtMs.values.minOrNull() ?: -1L).toString())
         Vitals.add("playback.loadErrors")
         Vitals.set("playback.lastLoadError", "${mediaLoadData.trackName()}: ${error.javaClass.simpleName}")
         Diag.warn(
