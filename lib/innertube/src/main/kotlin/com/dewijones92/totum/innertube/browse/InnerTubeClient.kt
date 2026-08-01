@@ -115,6 +115,24 @@ public class InnerTubeClient(
             accessToken,
         )
 
+    /**
+     * The player response as the **WEB_EMBEDDED_PLAYER** client.
+     *
+     * A fourth identity, tried because the third told us something useful: the TVHTML5 embedded
+     * client is refused as "no longer supported", which is a version complaint rather than a
+     * refusal to serve. The web embedded player carries a dated version string that can be kept
+     * current, so it does not go stale the same way.
+     */
+    public suspend fun playerWebEmbedded(videoId: String, accessToken: AccessToken?): InnerTubeResponse =
+        execute(
+            playerUrl,
+            """{"context":{"client":{"clientName":"WEB_EMBEDDED_PLAYER",""" +
+                """"clientVersion":"1.20250101.00.00","clientScreen":"EMBED","hl":"en"},""" +
+                """"thirdParty":{"embedUrl":"https://www.youtube.com/"}},""" +
+                """"videoId":"$videoId","contentCheckOk":true,"racyCheckOk":true}""",
+            accessToken,
+        )
+
     public suspend fun playerEmbedded(videoId: String, accessToken: AccessToken?): InnerTubeResponse =
         execute(
             playerUrl,

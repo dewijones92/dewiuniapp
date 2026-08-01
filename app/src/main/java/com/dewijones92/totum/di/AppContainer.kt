@@ -733,7 +733,18 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
                 "$videoId as ANDROID_VR -> " +
                     ((fromVr as? PlayerResult.Success)?.let { "OK" } ?: "${fromVr ?: vr}"),
             )
-            fromVr
+            if (fromVr is PlayerResult.Success) return@AccountPlayer fromVr
+            // Fourth identity. The TVHTML5 embedded client complained about its VERSION rather
+            // than refusing to serve, so the web embedded player — whose version string can be
+            // kept current — is the natural next thing to ask.
+            val web = runCatching { innerTubeClient.playerWebEmbedded(videoId, accessToken = null) }.getOrNull()
+            val fromWeb = (web as? InnerTubeResponse.Success)?.body?.let(PlayerResponseParser::parse)
+            Diag.log(
+                "resolve",
+                "$videoId as WEB_EMBEDDED -> " +
+                    ((fromWeb as? PlayerResult.Success)?.let { "OK" } ?: "${fromWeb ?: web}"),
+            )
+            fromWeb
         }
     }
 
