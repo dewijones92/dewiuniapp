@@ -42,6 +42,25 @@ public sealed interface SearchHit {
     public val subtitle: String?
     public val artworkUrl: HttpUrl?
 
+    /**
+     * A torrent, played by asking the home server to stream it.
+     *
+     * The third pillar-ish thing search can return, and deliberately NOT a fourth pillar: it
+     * resolves to an ordinary HTTP media URL, so once playing it is indistinguishable from a
+     * podcast episode. [seeders] and [sizeBytes] are carried because with torrents they are the
+     * whole basis for choosing between twenty results of the same film.
+     */
+    public data class Torrent(
+        override val title: String,
+        override val subtitle: String?,
+        override val artworkUrl: HttpUrl?,
+        /** Magnet link, handed to the server to add. Not fetched by the app itself. */
+        public val magnet: String,
+        public val seeders: Int,
+        public val sizeBytes: Long,
+        public val indexer: String?,
+    ) : SearchHit
+
     /** A subscribable podcast feed. */
     public data class Podcast(
         override val title: String,

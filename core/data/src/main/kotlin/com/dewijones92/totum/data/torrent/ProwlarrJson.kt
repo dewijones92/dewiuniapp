@@ -1,0 +1,55 @@
+package com.dewijones92.totum.data.torrent
+
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.longOrNull
+
+/**
+ * Reads Prowlarr's search response.
+ *
+ * Split from the HTTP client for the same reason `BridgeJson` is split from the yt-dlp engine:
+ * parsing is where the surprises are, and it can be tested against a captured real response with
+ * no network, no Pi and no swarm.
+ */
+public fun parseProwlarr(body: String): List<TorrentResult> =
+    (LENIENT.parseToJsonElement(body) as? JsonArray)
+        ?.mapNotNull { it.jsonObject.toResult() }
+        .orEmpty()
+
+/**
+ * Picks the field that IS a magnet, rather than the one named like one.
+ *
+ * Verified against the live service 2026-08-01, and it is a trap worth naming: `magnetUrl` is NOT
+ * a magnet — it is a Prowlarr download-proxy URL carrying the API key
+ * (`http://prowlarr/1/download?apikey=…`) — while `guid` holds the actual `magnet:?xt=urn:btih:…`.
+ * Preferring the obvious-sounding field hands the streaming server an HTTP address instead of a
+ * magnet, and the failure looks like a broken server rather than a parsing mistake.
+ *
+ * So candidates are judged by their VALUE. A result with no magnet anywhere is dropped: a
+ * `.torrent` behind an authenticated URL is not something the streaming server can fetch, so half
+ * a result is worse than none.
+ */
+private fun JsonObject.toResult(): TorrentResult? {
+    val magnet = MAGNET_FIELDS
+        .mapNotNull { field -> this[field]?.jsonPrimitive?.contentOrNull }
+        .firstOrNull { it.startsWith("magnet:", ignoreCase = true) }
+        ?: return null
+    val title = this["title"]?.jsonPrimitive?.contentOrNull ?: return null
+    return TorrentResult(
+        title = title,
+        magnet = magnet,
+        seeders = this["seeders"]?.jsonPrimitive?.intOrNull ?: 0,
+        sizeBytes = this["size"]?.jsonPrimitive?.longOrNull ?: 0,
+        indexer = this["indexer"]?.jsonPrimitive?.contentOrNull,
+    )
+}
+
+/** Checked in order, but only a value starting `magnet:` is ever accepted. */
+private val MAGNET_FIELDS = listOf("guid", "magnetUrl", "downloadUrl")
+
+private val LENIENT = Json { ignoreUnknownKeys = true }
