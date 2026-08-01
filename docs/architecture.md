@@ -66,3 +66,21 @@ Events are derived in exactly ONE place, `Media3PlaybackController`, from the pl
 callbacks — which are already edges. No replay is deliberate: an end that happened before a
 consumer subscribed is not news, which is what makes the "already ended when we connected after a
 process restart" case disappear instead of needing a branch.
+
+### Why not move everything to events
+
+Three other things watch playback, and they stay on `state` for reasons worth stating, because
+"why isn't this an event too?" is the obvious next question:
+
+- **`StallWatchdog`** — a stall is the ABSENCE of change. No player callback can deliver it,
+  which is exactly why the watchdog samples on a clock rather than collecting: an earlier version
+  DID collect the state flow and never fired, because a stall is a run of identical states and a
+  `StateFlow` conflates them. Deriving a `Stalled` event in the controller would relocate that
+  sampling, not remove it, and would move a threshold that is app policy into core. Its remaining
+  memory is minimal and reset on progress, with a test for the reset.
+- **`NextUpPrefetcher`** — triggers on *time remaining*, which is a question about how things
+  ARE, not about something that happened.
+- **The UI** — renders the current state, which is what a level signal is for.
+
+The rule is therefore not "events everywhere" but: **if you are asking "has X changed?", you are
+on the wrong flow.** Only `AutoAdvancer` was asking that, and only its guard was deleted.
