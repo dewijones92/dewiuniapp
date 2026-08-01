@@ -3,7 +3,7 @@ title: Age-restricted videos
 kind: todo
 area: video
 priority: high
-status: SOLVED in principle — full recipe proven end-to-end; one component (an n-solver) left to build
+status: auth recipe proven e2e; no n-solver runs on Android — WebView route identified, not built
 updated: 2026-08-01
 ---
 
@@ -54,27 +54,38 @@ that 403s too.
 `n` is solved by running a function extracted from YouTube's `base.js`, so it needs a JavaScript
 engine:
 
-- **yt-dlp cannot do this on Android.** Its n-solving now lives behind a provider architecture
-  (`extractor/youtube/jsc/`) whose four providers are `deno`, `bun`, `node` and `quickjs` — all
-  external binaries. The pure-Python interpreter is gone. On this laptop `deno` is the default and
-  is absent, which is why yt-dlp needed `js_runtimes={'node': {}}` to solve it here.
-- **NewPipe/PipePipe use Mozilla Rhino** (`extractor/build.gradle.kts` → `mozilla.rhino.core` +
-  `rhino.engine`), a pure-Java JS engine that runs on Android. This is the route with a working
-  precedent.
+**Neither reference implementation can do this on Android today.** Both were measured, not
+assumed:
 
-Rhino is a pure-Java jar, so a solver can live in `:lib:innertube` without breaking that module's
-pure-JVM rule, and stays unit-testable off-device. Suggested shape: an `NSolver` port plus a
-`RhinoNSolver`, alongside the existing `SignatureTimestamp` code.
+- **yt-dlp's n-solving now requires an external binary.** It lives behind a provider architecture
+  (`extractor/youtube/jsc/`) whose only four providers are `deno`, `bun`, `node` and `quickjs`.
+  The pure-Python interpreter is gone. None of these can ship in an Android app.
+- **NewPipe's Rhino solver silently no-ops.** Its age-restricted test being `@Disabled` was the
+  hint; the measurement is worse. Running NewPipe's own
+  `YoutubeJavaScriptPlayerManager.getUrlWithThrottlingParameterDeobfuscated` against today's
+  player returned the URL **completely unchanged** — `0LWViwGcLwfTJ6Q` in, `0LWViwGcLwfTJ6Q` out,
+  and the resulting URL 403s. node's solver on the same input returns `7CPc-qh0yq_Jdg`, which
+  fetches. Its regexes no longer match the current `base.js`, and the failure is silent because
+  the method returns the original URL rather than raising.
 
-The open question is **where the solver's JavaScript comes from**, and it is a real trade-off:
+An earlier version of this document called Rhino "the route with a working precedent". That was
+wrong, and only running it proved so.
 
-- Port NewPipe's `YoutubeThrottlingParameterUtils` regexes, which locate the n-function inside
-  `base.js`. Proven on Android; ~13KB of regexes that break whenever YouTube ships a new player.
-- Vendor yt-dlp's self-contained `yt.solver.core.js` (from the `yt_dlp_ejs` package, already
-  present alongside the embedded yt-dlp) and run *that* in Rhino. It is continuously maintained
-  and would update with the yt-dlp wheel the app already self-updates — but it targets
-  deno/bun/node, so **whether Rhino can execute it at all is unverified** and is the first thing
-  to test.
+### The credible route: a WebView
+
+The app is an Android app, and a `WebView` *is* a current JS engine. The reason that matters is
+not raw execution — it is that it can run **yt-dlp's `yt.solver.core.js`**, which does not pattern
+-match the player at all: it parses it (`meriyah`) and regenerates code (`astring`), which is why
+it still works when NewPipe's regexes have stopped. Those are ordinary npm packages with browser
+builds, so the bundle is WebView-compatible in a way it is explicitly not Rhino-compatible.
+
+That also inherits yt-dlp's maintenance: the solver ships in the `yt_dlp_ejs` package alongside
+the yt-dlp wheel the app already self-updates on every launch, so a YouTube player change is
+somebody else's problem rather than a Totum release.
+
+Cost to weigh before building: a headless `WebView` for JS execution is a new capability in the
+app, it must run off the main thread with a real timeout, and it breaks the current rule that
+extraction logic stays testable off-device. Worth confirming with Dewi before it is built.
 
 ## What was ruled out, with evidence
 
