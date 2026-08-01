@@ -90,7 +90,6 @@ class ReorderState internal constructor(
         this@ReorderState.itemCount = itemCount
         var handleTop = 0f
         return this
-            .onSizeChanged { if (it.height > 0) rowHeight = it.height }
             .onGloballyPositioned { handleTop = it.positionInWindow().y }
             .pointerInput(index, itemCount) {
                 detectDragGesturesAfterLongPress(
@@ -214,14 +213,25 @@ fun rememberReorderState(
     return remember(onMove, listState, scope) { ReorderState(onMove, listState, scope) }
 }
 
-/** Lifts the dragged row above its neighbours and follows the finger. */
-fun Modifier.reorderable(state: ReorderState, index: Int): Modifier = this.graphicsLayer {
-    translationY = state.offsetFor(index)
-    // A little lift so it's obvious which row you picked up.
-    shadowElevation = if (state.isDragging(index)) DRAG_ELEVATION else 0f
-    scaleX = if (state.isDragging(index)) DRAG_SCALE else 1f
-    scaleY = scaleX
-}
+/**
+ * Lifts the dragged row above its neighbours, follows the finger, and measures the ROW.
+ *
+ * The measurement belongs here and nowhere else. It used to live on the drag handle, which in
+ * the real queue is a 24dp icon inside a ~95dp row — so the step a swap is measured against was
+ * the handle's height rather than the row's, and items reordered roughly four times faster than
+ * the finger moved. The synthetic test missed it entirely because it made the handle the whole
+ * row; the real screen does not.
+ */
+fun Modifier.reorderable(state: ReorderState, index: Int): Modifier =
+    this
+        .onSizeChanged { if (it.height > 0) state.rowHeight = it.height }
+        .graphicsLayer {
+            translationY = state.offsetFor(index)
+            // A little lift so it's obvious which row you picked up.
+            shadowElevation = if (state.isDragging(index)) DRAG_ELEVATION else 0f
+            scaleX = if (state.isDragging(index)) DRAG_SCALE else 1f
+            scaleY = scaleX
+        }
 
 private const val DRAG_ELEVATION = 12f
 private const val DRAG_SCALE = 1.02f

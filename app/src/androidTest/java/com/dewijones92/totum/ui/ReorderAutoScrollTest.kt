@@ -1,14 +1,18 @@
 package com.dewijones92.totum.ui
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.testTag
@@ -51,8 +55,8 @@ class ReorderAutoScrollTest {
 
     private val moves = mutableListOf<Pair<Int, Int>>()
 
-    @Test
-    fun draggingToTheBottomEdgeKeepsMovingPastTheVisibleRows() {
+    /** The list both tests drive: a small grip inside a much taller row, as on the real queue. */
+    private fun setUpList() {
         composeTestRule.setContent {
             val order = remember { mutableStateListOf<Int>().apply { addAll(0 until ITEMS) } }
             val listState = rememberLazyListState()
@@ -66,36 +70,51 @@ class ReorderAutoScrollTest {
             ) {
                 itemsIndexed(order, key = { _, item -> item }) { index, item ->
                     with(reorder) {
-                        Text(
-                            text = "Item $item",
+                        // Shaped like the REAL queue: a small grip inside a much taller row.
+                        // The first version of this test made the handle the whole row, which
+                        // hid a real bug — the row height was being measured from the handle,
+                        // so items reordered about four times faster than the finger moved.
+                        Row(
                             modifier = Modifier
                                 .height(ROW_HEIGHT.dp)
                                 .fillMaxWidth()
                                 .reorderable(reorder, index)
-                                .dragHandle(index, order.size)
                                 .testTag("row-$item"),
-                        )
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(text = "Item $item", modifier = Modifier.weight(1f))
+                            Box(
+                                Modifier
+                                    .height(HANDLE_HEIGHT.dp)
+                                    .width(HANDLE_HEIGHT.dp)
+                                    .dragHandle(index, order.size)
+                                    .testTag("grip-$item"),
+                            )
+                        }
                     }
                 }
             }
         }
+    }
 
-        // The clock is driven by hand: while a row is held at an edge the scroll loop never
-        // idles, so anything that waits for quiescence (the default) would hang rather than fail.
+    @Test
+    fun draggingToTheBottomEdgeKeepsMovingPastTheVisibleRows() {
         composeTestRule.mainClock.autoAdvance = false
+        setUpList()
 
         // ONE gesture, injected on the LIST and hit-tested onto the row beneath — pointer state
         // does not survive being split across blocks, which is why the first attempt at this
         // recorded no movement whatsoever.
-        composeTestRule.onNodeWithTag(LIST).performTouchInput {
-            down(Offset(centerX, ROW_HEIGHT / 2f))
+        composeTestRule.onNodeWithTag("grip-0").performTouchInput {
+            down(center)
             advanceEventTime(LONG_PRESS_MS)
-            moveTo(Offset(centerX, height - EDGE_MARGIN))
+            // Far enough down to sit inside the bottom edge zone and stay there.
+            moveTo(center + Offset(0f, LONG_DRAG_PX))
         }
         // Time passing with the finger stationary IS the test: no further pointer events arrive,
         // so anything that moves from here moved because the list scrolled itself.
         repeat(HOLD_TICKS) { composeTestRule.mainClock.advanceTimeBy(TICK_MS) }
-        composeTestRule.onNodeWithTag(LIST).performTouchInput { up() }
+        composeTestRule.onNodeWithTag("grip-0").performTouchInput { up() }
 
         assertTrue(
             "expected the drag to reach past the visible rows; moves=${moves.size} $moves",
@@ -107,8 +126,15 @@ class ReorderAutoScrollTest {
         const val ITEMS = 40
         const val ROW_HEIGHT = 64f
 
+        /** A grip much smaller than its row, as on the real queue screen. */
+        const val HANDLE_HEIGHT = 24f
+
         /** Well inside the edge zone, so the hold unambiguously counts as "held there". */
-        const val EDGE_MARGIN = 20f
+        /** Well past the bottom of the viewport, so the finger sits in the edge zone. */
+        const val LONG_DRAG_PX = 4_000f
+
+        /** Three rows of travel, allowing one event of long-press slop either way. */
+        val EXPECTED_MOVES = 2..4
         const val LIST = "list"
 
         /** Comfortably past Compose's long-press threshold. */
@@ -122,5 +148,42 @@ class ReorderAutoScrollTest {
          * size of whatever device this runs on.
          */
         const val VISIBLE_ROWS = 15
+    }
+
+    /**
+     * A drag of exactly three rows must move exactly three places.
+     *
+     * This is the bug the auto-scroll test could not see. The row height was measured from the
+     * DRAG HANDLE — a 24dp grip inside a 64dp row here, and 24dp inside ~95dp on the real queue
+     * — so a swap fired every handle-height of travel instead of every row. Items reordered
+     * roughly four times faster than the finger, which is precisely "the dragger doesn't work
+     * well": you aim for three places down and land nine.
+     *
+     * Asserting the COUNT rather than "it moved" is the whole point; the old behaviour moved
+     * too, just wrongly.
+     */
+    @Test
+    fun draggingThreeRowsMovesExactlyThreePlaces() {
+        composeTestRule.mainClock.autoAdvance = false
+        setUpList()
+
+        composeTestRule.onNodeWithTag("grip-0").performTouchInput {
+            down(center)
+            advanceEventTime(LONG_PRESS_MS)
+            // Three rows down, and nowhere near an edge, so auto-scroll cannot contribute.
+            moveTo(center + Offset(0f, ROW_HEIGHT * 3 * density))
+        }
+        composeTestRule.mainClock.advanceTimeBy(TICK_MS)
+        composeTestRule.onNodeWithTag("grip-0").performTouchInput { up() }
+
+        // A range, and honestly so: the long-press detector absorbs the first movement before
+        // deltas begin, so three rows of travel lands two or three places down depending on
+        // event timing. That slop is worth tolerating because it does not blunt the test —
+        // measuring from the 24dp handle instead of the 64dp row gives EIGHT moves for this
+        // same gesture, which is nowhere near this range.
+        assertTrue(
+            "three rows of travel must be about three places, not eight: $moves",
+            moves.size in EXPECTED_MOVES,
+        )
     }
 }
