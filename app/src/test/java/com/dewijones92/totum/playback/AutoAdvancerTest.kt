@@ -199,4 +199,38 @@ class AutoAdvancerTest {
         speed = 1f,
         hasEnded = ended,
     )
+
+    /**
+     * Replaying an item the queue has already advanced past must advance again.
+     *
+     * The exact sequence from report 0.1.258, which is what Dewi hit: `40pRi5wMBwA` ended at
+     * 05:04:44 and advanced correctly; he played it again at 08:22; it ended at 08:22:58 and the
+     * advancer refused with "already handled this item's end" — about an end from three hours
+     * and one other item earlier. Autoplay just stopped.
+     */
+    @Test
+    fun `an item played again advances again when it ends`() = runTest {
+        advancer()
+        runCurrent()
+        playThenEnd("a")
+        // The queue moves on, exactly as it did in the report.
+        states.value = state("b", ended = false)
+        runCurrent()
+
+        playThenEnd("a")
+
+        assertEquals("the second end of the same item must advance too", 2, advanced)
+    }
+
+    /** The same replay without an item in between — going straight back to what just ended. */
+    @Test
+    fun `an item replayed immediately advances again`() = runTest {
+        advancer()
+        runCurrent()
+        playThenEnd("a")
+
+        playThenEnd("a")
+
+        assertEquals(2, advanced)
+    }
 }

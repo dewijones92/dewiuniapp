@@ -35,7 +35,19 @@ internal class AutoAdvancer(
     private val isEnabled: () -> Boolean,
     private val scope: CoroutineScope,
 ) {
-    /** Ends are per item, so finishing the same item twice is not a reason to skip. */
+    /**
+     * The end already acted on, so one end cannot fire the advance twice.
+     *
+     * Cleared as soon as anything is playing again — which is the whole point and what it did
+     * NOT do. It held one id indefinitely, so replaying an item the queue had already advanced
+     * past was refused forever. A real report (0.1.258) caught it three hours after the fact:
+     * `40pRi5wMBwA` ended at 05:04:44 and advanced correctly, Dewi played it again at 08:22, it
+     * ended at 08:22:58, and the advancer said "already handled this item's end" — about an end
+     * from a different sitting. Autoplay simply stopped, which is exactly the complaint.
+     *
+     * The guard only ever needed to cover repeated `hasEnded` emissions for ONE end. Anything
+     * not-ended arriving means that end is finished with, so the id has no further job.
+     */
     private var handled: MediaItemId? = null
 
     fun start() {
@@ -65,12 +77,31 @@ internal class AutoAdvancer(
                         }
                         return@collect
                     }
-                    if (state.hasEnded) advancePast(state.itemId)
+                    if (state.hasEnded) {
+                        advancePast(state.itemId)
+                    } else {
+                        forgetHandledEnd(state.itemId)
+                    }
                 }
         }
     }
 
     private fun onOrOff(): String = if (isEnabled()) "on" else "off"
+
+    /**
+     * Something is playing, so the end we acted on is done with.
+     *
+     * Logged only when it clears the id now playing, because that is the replay this exists to
+     * fix — every other clear is the ordinary business of moving to the next item and would be
+     * one line per item for no information.
+     */
+    private fun forgetHandledEnd(nowPlaying: MediaItemId) {
+        val previous = handled ?: return
+        handled = null
+        if (previous == nowPlaying) {
+            Diag.log("advance", "${nowPlaying.value} is playing again; its earlier end no longer counts")
+        }
+    }
 
     private suspend fun advancePast(itemId: MediaItemId) {
         // Every branch says why. The failure mode is silence — an item ends, nothing happens,
