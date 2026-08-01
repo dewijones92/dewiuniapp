@@ -25,6 +25,9 @@ import kotlin.time.Duration.Companion.seconds
  * SponsorBlock segments, resolving the stream through the engine. Shared by
  * search and channel playback so the resolve-then-play logic lives once.
  */
+// One method per resolve strategy plus their small helpers; the count tracks how many ways
+// there are to get a stream, which is the domain rather than any complexity.
+@Suppress("TooManyFunctions")
 class VideoResolver(
     private val engine: YtDlpEngine,
     private val skipSegments: SkipSegmentSource,
@@ -83,6 +86,15 @@ class VideoResolver(
      */
     private var inFlight: Pair<HttpUrl, CompletableDeferred<Resolved?>>? = null
     private val inFlightMutex = Mutex()
+
+    /** One resolve's inputs, together because they travel together through both player paths. */
+    private data class PlayerRequest(
+        val id: String,
+        val sourceId: SourceId,
+        val watchUrl: HttpUrl,
+        val asked: String,
+        val startedAt: Long,
+    )
 
     data class Resolved(
         val item: MediaItem,
@@ -166,7 +178,13 @@ class VideoResolver(
         val metadata = (extraction as? ExtractionResult.Success)?.metadata ?: run {
             Vitals.add("resolve.extractFailures")
             Diag.warn("resolve", "extract failed for ${watchUrl.value} ($asked): $extraction")
-            return null
+            // Age restriction is the case worth retrying: yt-dlp has no credentials and says so
+            // ("Sign in to confirm your age"), while this app holds a YouTube account that
+            // YouTube will serve a rated video to. Tried for ANY extraction failure rather than
+            // by matching the message, because parsing yt-dlp's prose to decide would break the
+            // day it is reworded — and a pointless retry costs one request on a video that was
+            // not going to play anyway.
+            return fromPlayerResponse(watchUrl, sourceId, asked, startedAt)
         }
         // Default stream stays the best muxed format (one stream, reliable, data-friendly);
         // the quality menu offers higher, merged qualities on demand.
@@ -256,6 +274,28 @@ class VideoResolver(
      * extraction path is reached exactly as before. Every refusal is logged by [SabrResolve]:
      * "SABR did not happen" with no reason would be the hardest kind of bug to chase.
      */
+    /**
+     * Resolves entirely from a `/player` response, for videos extraction could not touch.
+     *
+     * Reuses the SABR path's preparation because that is exactly what this is: streams YouTube
+     * will only serve over its own protocol, plus the details needed to describe the video.
+     */
+    private suspend fun fromPlayerResponse(
+        watchUrl: HttpUrl,
+        sourceId: SourceId,
+        asked: String,
+        startedAt: Long,
+    ): Resolved? {
+        val id = watchUrl.youTubeVideoId() ?: return null
+        val fast = playerStreams ?: return null
+        val response = fast.playerFor(id) ?: run {
+            Diag.warn("resolve", "$id could not be resolved by the player either — genuinely unavailable")
+            return null
+        }
+        Diag.log("resolve", "$id recovered by the player response after extraction failed ($asked)")
+        return overSabrFrom(PlayerRequest(id, sourceId, watchUrl, asked, startedAt), response)
+    }
+
     private suspend fun overSabr(
         watchUrl: HttpUrl,
         sourceId: SourceId,
@@ -275,6 +315,25 @@ class VideoResolver(
             return null
         }
         val response = fast.playerFor(id) ?: return null
+        return overSabrFrom(PlayerRequest(id, sourceId, watchUrl, asked, startedAt), response)
+    }
+
+    /**
+     * Builds a playable result from a `/player` response.
+     *
+     * Shared by the SABR fast path and by the extraction-failure fallback, because they want the
+     * same thing from the same response — one is chosen for speed, the other because nothing
+     * else will play the video at all.
+     */
+    private suspend fun overSabrFrom(
+        request: PlayerRequest,
+        response: com.dewijones92.totum.innertube.player.PlayerResult.Success,
+    ): Resolved? {
+        val id = request.id
+        val sourceId = request.sourceId
+        val watchUrl = request.watchUrl
+        val asked = request.asked
+        val startedAt = request.startedAt
         val prepared = SabrResolve.prepare(id, response.streaming, response.details) ?: return null
         val qualities = response.streaming.videoQualities()
         Vitals.add("resolve.sabrSuccesses")
