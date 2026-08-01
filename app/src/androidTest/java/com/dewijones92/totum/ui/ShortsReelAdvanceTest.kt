@@ -60,7 +60,7 @@ class ShortsReelAdvanceTest {
         // The real advancer, wired as AppContainer wires it — the point is that THIS is what
         // moves the reel on, not anything inside the screen.
         AutoAdvancer(
-            states = playback.state,
+            events = playback.events,
             advance = { container.playbackQueue.playNextInQueue() },
             whenQueueEmpty = {},
             isEnabled = { true },

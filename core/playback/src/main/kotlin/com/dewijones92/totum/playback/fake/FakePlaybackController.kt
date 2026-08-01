@@ -7,6 +7,7 @@ import com.dewijones92.totum.domain.MediaItem
 import com.dewijones92.totum.domain.MediaKind
 import com.dewijones92.totum.domain.SkipSegment
 import com.dewijones92.totum.playback.PlaybackController
+import com.dewijones92.totum.playback.PlaybackEvent
 import com.dewijones92.totum.playback.PlaybackState
 import com.dewijones92.totum.playback.StreamFailure
 import com.dewijones92.totum.playback.VolumeBoost
@@ -32,6 +33,9 @@ public class FakePlaybackController : PlaybackController {
     private val _streamFailures = MutableSharedFlow<StreamFailure>(extraBufferCapacity = 1)
     override val streamFailures: Flow<StreamFailure> = _streamFailures.asSharedFlow()
 
+    private val _events = MutableSharedFlow<PlaybackEvent>(extraBufferCapacity = EVENT_BUFFER)
+    override val events: Flow<PlaybackEvent> = _events.asSharedFlow()
+
     /** Lets a test drive the expired-stream path without a player or a network. */
     /**
      * Ends whatever is playing, so a test can exercise end-of-item behaviour.
@@ -52,6 +56,13 @@ public class FakePlaybackController : PlaybackController {
     }
 
     public fun endCurrent() {
+        // Both, because the real controller does both: the state is how things ARE, the event is
+        // what happened. A fake that emitted only one would let a consumer of the other pass.
+        _state.value?.let { current ->
+            _events.tryEmit(
+                PlaybackEvent.Ended(current.itemId, current.positionMs, current.durationMs),
+            )
+        }
         _state.update { it?.copy(hasEnded = true, isPlaying = false) }
     }
 
@@ -143,5 +154,6 @@ public class FakePlaybackController : PlaybackController {
     private companion object {
         const val SEEK_BACK_MS = 10_000L
         const val SEEK_FORWARD_MS = 30_000L
+        const val EVENT_BUFFER = 8
     }
 }

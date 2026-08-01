@@ -1,9 +1,8 @@
 package com.dewijones92.totum.playback
 
 import com.dewijones92.totum.domain.MediaItemId
-import com.dewijones92.totum.domain.MediaKind
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -13,20 +12,27 @@ import org.junit.Test
 /**
  * End-of-item advance. This moved off the UI's lifecycle because a composable effect fed by
  * `collectAsStateWithLifecycle` stops being fed when the activity stops — so a phone in a
- * pocket never advanced. These tests drive the state flow directly, which is the whole point:
- * no composition involved.
+ * pocket never advanced.
+ *
+ * These now drive [PlaybackEvent]s rather than states, which is the point of the change: the
+ * advancer has no memory, so the cases that used to need testing — a repeated state while
+ * ended, a first state treated as a baseline, an end already past when we connect — are not
+ * behaviours it can get wrong any more. What remains is behaviour, not the absence of a
+ * reconstruction that no longer exists.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class AutoAdvancerTest {
 
-    private val states = MutableStateFlow<PlaybackState?>(null)
+    // extraBufferCapacity so a test can emit without suspending, which is the same shape as the
+    // real controller — it emits from the player's callback thread and must never block it.
+    private val events = MutableSharedFlow<PlaybackEvent>(extraBufferCapacity = EVENTS)
     private var advanced = 0
     private var fellBackToRelated = 0
     private var enabled = true
     private var queueHasNext = true
 
     private fun TestScope.advancer() = AutoAdvancer(
-        states = states,
+        events = events,
         advance = {
             advanced++
             queueHasNext
@@ -40,35 +46,8 @@ class AutoAdvancerTest {
     fun `an ended item advances the queue`() = runTest {
         advancer()
         runCurrent()
-        playThenEnd("a")
 
-        assertEquals(1, advanced)
-    }
-
-    @Test
-    fun `an item still playing does not advance`() = runTest {
-        advancer()
-        runCurrent()
-        states.value = state("a", ended = false)
-        runCurrent()
-
-        assertEquals(0, advanced)
-    }
-
-    /**
-     * The player re-emits state on every position tick, so without deduping the transition
-     * this would fire the advance dozens of times per item.
-     */
-    @Test
-    fun `repeated state while ended advances only once`() = runTest {
-        advancer()
-        runCurrent()
-        states.value = state("a", ended = false)
-        runCurrent()
-        repeat(5) {
-            states.value = state("a", ended = true, positionMs = it.toLong())
-            runCurrent()
-        }
+        end("a")
 
         assertEquals(1, advanced)
     }
@@ -78,7 +57,8 @@ class AutoAdvancerTest {
         enabled = false
         advancer()
         runCurrent()
-        playThenEnd("a")
+
+        end("a")
 
         assertEquals(0, advanced)
     }
@@ -93,7 +73,8 @@ class AutoAdvancerTest {
     fun `a short is advanced past like any other item`() = runTest {
         advancer()
         runCurrent()
-        playThenEnd("a-short")
+
+        end("a-short")
 
         assertEquals(1, advanced)
     }
@@ -103,7 +84,8 @@ class AutoAdvancerTest {
         queueHasNext = false
         advancer()
         runCurrent()
-        playThenEnd("a")
+
+        end("a")
 
         assertEquals(1, advanced)
         assertEquals(1, fellBackToRelated)
@@ -113,22 +95,43 @@ class AutoAdvancerTest {
     fun `each item gets its own end`() = runTest {
         advancer()
         runCurrent()
-        playThenEnd("a")
-        playThenEnd("b")
+
+        end("a")
+        end("b")
 
         assertEquals(2, advanced)
     }
 
     /**
-     * Re-enabling the setting must not retroactively advance an item that already ended while
-     * it was off — the state is unchanged, so nothing should fire until the next end.
+     * The regression that broke autoplay on 2026-08-01, and the reason for this whole change.
+     *
+     * `handled` kept one item id for the life of the process, so the second end of an item was
+     * refused citing the first — in Dewi's case an end three hours earlier, after which the
+     * queue simply stopped. With events there is nothing to remember and so nothing to get
+     * wrong, but the behaviour is pinned all the same.
+     */
+    @Test
+    fun `the same item ending twice advances twice`() = runTest {
+        advancer()
+        runCurrent()
+
+        end("a")
+        end("b")
+        end("a")
+
+        assertEquals(3, advanced)
+    }
+
+    /**
+     * Re-enabling the setting must not retroactively advance an item that ended while it was
+     * off. Nothing new has happened, so nothing should fire until the next end.
      */
     @Test
     fun `enabling auto-play does not advance an already-ended item`() = runTest {
         enabled = false
         advancer()
         runCurrent()
-        playThenEnd("a")
+        end("a")
 
         enabled = true
         runCurrent()
@@ -137,100 +140,30 @@ class AutoAdvancerTest {
     }
 
     /**
-     * Connecting to the playback session reports whatever it currently holds. After a process
-     * restart that can be an item which ended long ago, and acting on it would skip an item
-     * the instant the app launched. The reel screen guards the same thing.
+     * An end that happened before anyone was listening is not news.
+     *
+     * Connecting to a playback session after a process restart can find an item that ended long
+     * ago, and acting on it would skip an item the instant the app launched. The old code needed
+     * a "the first state is only a baseline" branch to avoid that; a `SharedFlow` with no replay
+     * gives it for nothing, and this holds the guarantee rather than the branch.
      */
     @Test
-    fun `an item already ended when we start is not advanced past`() = runTest {
-        states.value = state("a", ended = true)
+    fun `an end from before we were listening is not acted on`() = runTest {
+        end("a")
+
         advancer()
         runCurrent()
 
         assertEquals(0, advanced)
     }
 
-    @Test
-    fun `but a genuine end after starting still advances`() = runTest {
-        states.value = state("a", ended = true)
-        advancer()
-        runCurrent()
-        states.value = state("b", ended = false)
-        runCurrent()
-        states.value = state("b", ended = true)
-        runCurrent()
-
-        assertEquals(1, advanced)
-    }
-
-    /** A first state that is mid-playback must not consume the item's real end. */
-    @Test
-    fun `a first state that is still playing does not swallow its end`() = runTest {
-        states.value = state("a", ended = false)
-        advancer()
-        runCurrent()
-        states.value = state("a", ended = true)
-        runCurrent()
-
-        assertEquals(1, advanced)
-    }
-
-    /**
-     * Plays [id] and then ends it — the real sequence. Tests that jumped straight to an ended
-     * state were exercising the already-ended-on-connect path by accident, which is now
-     * deliberately ignored, so they have to start from playing like the player does.
-     */
-    private fun TestScope.playThenEnd(id: String) {
-        states.value = state(id, ended = false)
-        runCurrent()
-        states.value = state(id, ended = true)
+    private fun TestScope.end(id: String) {
+        events.tryEmit(PlaybackEvent.Ended(MediaItemId(id), atMs = AT_MS, durationMs = AT_MS))
         runCurrent()
     }
 
-    private fun state(id: String, ended: Boolean, positionMs: Long = 0) = PlaybackState(
-        itemId = MediaItemId(id),
-        title = id,
-        artist = null,
-        artworkUrl = null,
-        kind = MediaKind.VIDEO,
-        isPlaying = false,
-        positionMs = positionMs,
-        durationMs = 1_000,
-        speed = 1f,
-        hasEnded = ended,
-    )
-
-    /**
-     * Replaying an item the queue has already advanced past must advance again.
-     *
-     * The exact sequence from report 0.1.258, which is what Dewi hit: `40pRi5wMBwA` ended at
-     * 05:04:44 and advanced correctly; he played it again at 08:22; it ended at 08:22:58 and the
-     * advancer refused with "already handled this item's end" — about an end from three hours
-     * and one other item earlier. Autoplay just stopped.
-     */
-    @Test
-    fun `an item played again advances again when it ends`() = runTest {
-        advancer()
-        runCurrent()
-        playThenEnd("a")
-        // The queue moves on, exactly as it did in the report.
-        states.value = state("b", ended = false)
-        runCurrent()
-
-        playThenEnd("a")
-
-        assertEquals("the second end of the same item must advance too", 2, advanced)
-    }
-
-    /** The same replay without an item in between — going straight back to what just ended. */
-    @Test
-    fun `an item replayed immediately advances again`() = runTest {
-        advancer()
-        runCurrent()
-        playThenEnd("a")
-
-        playThenEnd("a")
-
-        assertEquals(2, advanced)
+    private companion object {
+        const val EVENTS = 8
+        const val AT_MS = 1_000L
     }
 }

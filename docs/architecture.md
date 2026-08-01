@@ -1,7 +1,7 @@
 ---
 title: Architecture — unified seams & modules
 kind: reference
-updated: 2026-07-24
+updated: 2026-08-01
 ---
 
 # Architecture
@@ -46,3 +46,23 @@ for a genuinely strong technical reason, which must be surfaced to Dewi.
 Manual: `AppContainer` interface + `DefaultAppContainer` (real) + `FakeAppContainer`
 (previews/tests). Construction is code; errors are compile-time. Pillar routing
 lives in exactly one place (`AppContainer`, e.g. `RoutedDownloadStrategy`).
+
+## Playback: state and events are different things (2026-08-01)
+
+`PlaybackController` exposes both, and the split is not decoration:
+
+- **`state: StateFlow<PlaybackState?>`** — how things ARE. What the UI binds to. Re-emits on
+  every position tick and drops values equal to the last, which is right for rendering.
+- **`events: Flow<PlaybackEvent>`** — what HAPPENED, delivered once each, no replay. What
+  anything reacting to a change binds to.
+
+The rule: **if you are asking "has X changed?", you are on the wrong flow.** Reconstructing an
+edge from a level signal means keeping private memory of what you saw and what you acted on, and
+that memory is what goes stale. Two watchers wrote the same guard and both got it wrong within
+one week — `AutoAdvancer` refused an item's second end citing one three hours old, and
+`StallWatchdog` could not rescue an item it had rescued before.
+
+Events are derived in exactly ONE place, `Media3PlaybackController`, from the player's own
+callbacks — which are already edges. No replay is deliberate: an end that happened before a
+consumer subscribed is not news, which is what makes the "already ended when we connected after a
+process restart" case disappear instead of needing a branch.

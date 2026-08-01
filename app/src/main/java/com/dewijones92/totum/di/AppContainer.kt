@@ -505,7 +505,7 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
         // phone in a pocket never advanced (proven: a 7-minute gap between an item ending
         // and the decision being reached).
         AutoAdvancer(
-            states = playbackController.state,
+            events = playbackController.events,
             advance = { playbackQueue.playNextInQueue() },
             whenQueueEmpty = ::playRelatedNext,
             isEnabled = { appPreferences.settings.value.autoPlayNext },

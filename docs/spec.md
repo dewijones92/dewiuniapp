@@ -59,6 +59,14 @@ or whether that item has been played before.
 A fourth, the same shape, was found by inspection rather than by report: `StallWatchdog` kept
 its own never-cleared `handled`, so an item rescued from one stall could never be rescued again.
 
+**The cause behind all three was addressed on 2026-08-01**, rather than the three bugs
+individually. `PlaybackState` is a level signal — it re-emits on every position tick and, being a
+`StateFlow`, drops values equal to the last — so anything needing to know about a *change* had to
+reconstruct the edge itself and remember what it had already acted on. `PlaybackEvent.Ended` is
+now derived once, in `Media3PlaybackController`, from the player callback that already IS the
+edge. `AutoAdvancer` consumes it and has no fields at all: no `handled`, no baseline-on-connect
+branch, no transition dedupe. There is nothing left to keep past its meaning.
+
 **Proven by:** unit tests per watcher, including the exact reported sequences, **and since
 2026-08-01 end to end on a device** — `AutoAdvanceLoopTest` plays real media to its real end
 through the real graph and asserts the next item starts. It fails on the code as it was before

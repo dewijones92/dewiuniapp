@@ -37,6 +37,12 @@ public interface PlaybackController {
     public val streamFailures: Flow<StreamFailure>
 
     /**
+     * Things that HAPPENED, delivered once each — see [PlaybackEvent] for why this exists
+     * alongside [state] rather than being derived from it by every consumer.
+     */
+    public val events: Flow<PlaybackEvent>
+
+    /**
      * The underlying player, for binding a video surface (the one place the UI
      * renders video). Null until connected, or for backends with no video
      * output (e.g. the fake). Audio-only items simply produce no video frames.

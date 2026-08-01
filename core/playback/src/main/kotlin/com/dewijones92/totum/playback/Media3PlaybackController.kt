@@ -62,9 +62,17 @@ public class Media3PlaybackController(
 
     // extraBufferCapacity so an emit from the player's main-thread callback never suspends.
     private val _streamFailures = MutableSharedFlow<StreamFailure>(extraBufferCapacity = 1)
+
+    // Buffered, because an end is emitted from the player's main-thread callback and must never
+    // suspend it — and REPLAY of zero, because an event is news: a consumer subscribing later
+    // must not be told about an end that happened before it was listening, which is precisely
+    // the "already ended on connect" case the old state-watching code had to special-case.
+    private val _events = MutableSharedFlow<PlaybackEvent>(extraBufferCapacity = EVENT_BUFFER)
     override val state: StateFlow<PlaybackState?> = _state
 
     override val streamFailures: Flow<StreamFailure> = _streamFailures.asSharedFlow()
+
+    override val events: Flow<PlaybackEvent> = _events.asSharedFlow()
 
     private var controller: MediaController? = null
     override val player: Player? get() = controller
@@ -105,6 +113,17 @@ public class Media3PlaybackController(
                             if (playbackState != Player.STATE_ENDED) return
                             val id = connected.currentMediaItem?.mediaId ?: return
                             scope.launch { progressStore.setPlayed(MediaItemId(id), played = true) }
+                            // The one place an end is turned into a fact. This callback fires on
+                            // the TRANSITION into ENDED, so it is already the edge every watcher
+                            // used to reconstruct for itself — including the second end of an
+                            // item that has ended before, which is the case they got wrong.
+                            _events.tryEmit(
+                                PlaybackEvent.Ended(
+                                    itemId = MediaItemId(id),
+                                    atMs = connected.currentPosition,
+                                    durationMs = connected.duration.takeIf { it > 0 },
+                                ),
+                            )
                         }
 
                         @OptIn(markerClass = [UnstableApi::class])
@@ -391,6 +410,9 @@ public class Media3PlaybackController(
 
         /** Persist progress every ~5s of playback (10 ticks of 500ms). */
         const val TICKS_PER_SAVE = 10
+
+        /** Room for a burst of ends without ever suspending the player's callback thread. */
+        const val EVENT_BUFFER = 8
     }
 }
 
