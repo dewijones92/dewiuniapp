@@ -108,7 +108,7 @@ public class InnerTubeClient(
     public suspend fun playerAndroidVr(videoId: String, accessToken: AccessToken?): InnerTubeResponse =
         execute(
             playerUrl,
-            """{"context":{"client":{"clientName":"ANDROID_VR","clientVersion":"1.60.19",""" +
+            """{"context":{"client":{"clientName":"ANDROID_VR","clientVersion":"$VR_CLIENT_VERSION",""" +
                 """"deviceMake":"Oculus","deviceModel":"Quest 3","androidSdkVersion":32,""" +
                 """"osName":"Android","osVersion":"12L","hl":"en"}},""" +
                 """"videoId":"$videoId","contentCheckOk":true,"racyCheckOk":true}""",
@@ -131,6 +131,14 @@ public class InnerTubeClient(
                 """"thirdParty":{"embedUrl":"https://www.youtube.com/"}},""" +
                 """"videoId":"$videoId","contentCheckOk":true,"racyCheckOk":true}""",
             accessToken,
+            clientHeaders = mapOf(
+                // 28 is ANDROID_VR's client id; the user agent must match the declared client
+                // or an authenticated request is rejected outright.
+                "X-YouTube-Client-Name" to "28",
+                "X-YouTube-Client-Version" to VR_CLIENT_VERSION,
+                "User-Agent" to "com.google.android.apps.youtube.vr.oculus/$VR_CLIENT_VERSION " +
+                    "(Linux; U; Android 12L; GB) gzip",
+            ),
         )
 
     public suspend fun playerEmbedded(videoId: String, accessToken: AccessToken?): InnerTubeResponse =
@@ -212,12 +220,27 @@ public class InnerTubeClient(
     private fun clientContext(client: String, fields: String): String =
         """{"context":{"client":{$client}},$fields}"""
 
-    private suspend fun execute(url: String, jsonBody: String, bearer: AccessToken?): InnerTubeResponse =
+    private suspend fun execute(
+        url: String,
+        jsonBody: String,
+        bearer: AccessToken?,
+        /**
+         * Client identity as HEADERS, not just in the body.
+         *
+         * Measured 2026-08-01: `ANDROID_VR` answers `LOGIN_REQUIRED` anonymously — the one
+         * client that asks to be identified rather than refusing outright — but a plain
+         * `Authorization: Bearer` gets HTTP 400. InnerTube cross-checks the declared client
+         * against `X-YouTube-Client-Name`/`-Version` and the user agent, and rejects an
+         * authenticated request whose headers do not agree with its body.
+         */
+        clientHeaders: Map<String, String> = emptyMap(),
+    ): InnerTubeResponse =
         withContext(Dispatchers.IO) {
             val builder = Request.Builder()
                 .url(url)
                 .addHeader("Content-Type", "application/json")
                 .post(jsonBody.toRequestBody(JSON))
+            clientHeaders.forEach { (name, value) -> builder.addHeader(name, value) }
             if (bearer != null) builder.addHeader("Authorization", "Bearer ${bearer.value}")
             try {
                 client.newCall(builder.build()).execute().use { response ->
@@ -240,6 +263,9 @@ public class InnerTubeClient(
         public const val NEXT_URL: String = "$BASE/next?prettyPrint=false"
         public const val SEARCH_URL: String = "$BASE/search?prettyPrint=false"
         public const val PLAYER_URL: String = "$BASE/player?prettyPrint=false"
+
+        /** The headset client, whose version must match the user agent sent alongside it. */
+        public const val VR_CLIENT_VERSION: String = "1.60.19"
 
         /** Matches yt-dlp's android client; YouTube rejects a stale one. */
         public const val ANDROID_CLIENT_VERSION: String = "20.10.38"
