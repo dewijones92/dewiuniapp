@@ -56,6 +56,30 @@ public class InnerTubeClient(
         execute(playerUrl, androidContext(videoId), bearer = null)
 
     /**
+     * The player response as the SIGNED-IN account, which is the only way to reach an
+     * age-restricted video.
+     *
+     * Measured from report 0.1.289: three items failed with *"Sign in to confirm your age… rated
+     * 15… use --cookies"*. yt-dlp has no credentials and cannot be given any here, but the app
+     * already holds a YouTube account for the TV device-code flow, and YouTube will serve a
+     * rated video to a signed-in adult.
+     *
+     * It does NOT help with members-only videos, which failed in the same report with "join this
+     * channel to get access". That is a genuine paywall rather than a missing credential, and no
+     * token this app can hold will open it.
+     *
+     * Identical on the wire to [playerTracking] — same endpoint, same TV context, same
+     * `racyCheckOk` — so this is a second NAME rather than a second request. Kept separate
+     * because the two callers want different halves of one response, and a method called
+     * "tracking" being used to fetch streams would mislead every reader after this one.
+     */
+    public suspend fun playerAsAccount(
+        videoId: String,
+        signatureTimestamp: Int,
+        accessToken: AccessToken,
+    ): InnerTubeResponse = playerTracking(videoId, signatureTimestamp, accessToken)
+
+    /**
      * A video's **playback-tracking** URLs, as the signed-in TV client.
      *
      * A separate call from [player] on purpose: this one is authenticated and returns no

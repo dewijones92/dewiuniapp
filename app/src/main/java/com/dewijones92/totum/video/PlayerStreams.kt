@@ -33,9 +33,36 @@ fun interface PlayerStreams {
 }
 
 /** [PlayerStreams] over our own InnerTube client. */
-class InnerTubePlayerStreams(private val innerTube: InnerTubeClient) : PlayerStreams {
+class InnerTubePlayerStreams(
+    private val innerTube: InnerTubeClient,
+    /**
+     * The signed-in account, asked only when the anonymous call is refused.
+     *
+     * Age-restricted videos are the case: report 0.1.289 had three failing with "Sign in to
+     * confirm your age… rated 15". yt-dlp has no credentials, but this app holds a YouTube
+     * account already, and YouTube serves a rated video to a signed-in adult.
+     *
+     * Null disables the fallback, which is what tests and a signed-out app want.
+     */
+    private val account: AccountPlayer? = null,
+) : PlayerStreams {
+
+    /** What the signed-in retry needs: a token, and the timestamp streams are signed against. */
+    fun interface AccountPlayer {
+        suspend fun playerFor(videoId: String): PlayerResult?
+    }
 
     override suspend fun playerFor(videoId: String): PlayerResult.Success? {
+        val anonymous = anonymousPlayer(videoId)
+        if (anonymous != null) return anonymous
+        // Only now, because the signed-in call costs a token refresh and a second round trip, and
+        // the overwhelming majority of videos never need it.
+        val signedIn = account?.playerFor(videoId) as? PlayerResult.Success ?: return null
+        Diag.log("resolve", "$videoId needed the signed-in account — age-restricted, most likely")
+        return signedIn
+    }
+
+    private suspend fun anonymousPlayer(videoId: String): PlayerResult.Success? {
         val response = runCatching { innerTube.player(videoId) }.getOrElse { failure ->
             Diag.warn("resolve", "second opinion for $videoId could not be fetched", failure)
             return null

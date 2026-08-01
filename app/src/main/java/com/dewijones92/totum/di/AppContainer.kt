@@ -67,9 +67,11 @@ import com.dewijones92.totum.domain.toPlayableOrNull
 import com.dewijones92.totum.importexport.SubscriptionImporter
 import com.dewijones92.totum.innertube.actions.HttpYouTubeActions
 import com.dewijones92.totum.innertube.actions.YouTubeActions
+import com.dewijones92.totum.innertube.auth.AccessTokenResult
 import com.dewijones92.totum.innertube.auth.HttpYouTubeAuth
 import com.dewijones92.totum.innertube.auth.YouTubeAccount
 import com.dewijones92.totum.innertube.browse.InnerTubeClient
+import com.dewijones92.totum.innertube.browse.InnerTubeResponse
 import com.dewijones92.totum.innertube.channel.HttpYouTubeChannel
 import com.dewijones92.totum.innertube.channel.YouTubeChannel
 import com.dewijones92.totum.innertube.comments.HttpYouTubeComments
@@ -79,6 +81,7 @@ import com.dewijones92.totum.innertube.feeds.YouTubeFeeds
 import com.dewijones92.totum.innertube.history.HttpYouTubeWatchHistory
 import com.dewijones92.totum.innertube.history.YouTubeWatchHistory
 import com.dewijones92.totum.innertube.player.HttpSignatureTimestampSource
+import com.dewijones92.totum.innertube.player.PlayerResponseParser
 import com.dewijones92.totum.innertube.playlists.HttpYouTubePlaylists
 import com.dewijones92.totum.innertube.playlists.YouTubePlaylists
 import com.dewijones92.totum.innertube.related.HttpYouTubeRelated
@@ -458,7 +461,7 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
             // and then 403s at every offset beyond it, whatever the range size or User-Agent.
             // Everything past that is behind SABR, which is why this is wired as the SABR
             // path's source and NOT as a fallback for extraction.
-            playerStreams = InnerTubePlayerStreams(innerTubeClient),
+            playerStreams = InnerTubePlayerStreams(innerTubeClient, accountPlayer),
             sabrEnabled = { appPreferences.settings.value.sabrPlayback },
             resumePositionMs = playbackProgressStore::resumePositionMs,
         )
@@ -688,9 +691,31 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
             youTubeAccount,
             httpClient,
             innerTubeClient,
-            HttpSignatureTimestampSource(httpClient),
+            signatureTimestamps,
         )
     }
+
+    /**
+     * Asks YouTube for a video as the signed-in account, for the ones it refuses anonymously.
+     *
+     * Returns null when signed out rather than throwing, so the anonymous path's failure stands
+     * as the reason — "you are not signed in" is a different, better message than a token error.
+     */
+    private val accountPlayer: InnerTubePlayerStreams.AccountPlayer by lazy {
+        InnerTubePlayerStreams.AccountPlayer { videoId ->
+            // Signed out is the ordinary case, not an error: the anonymous failure already said
+            // why the video would not play, and that message is the better one to keep.
+            val token = (
+                runCatching { youTubeAccount.accessToken() }.getOrNull()
+                    as? AccessTokenResult.Available
+                )?.token ?: return@AccountPlayer null
+            val stamp = runCatching { signatureTimestamps.current() }.getOrNull() ?: return@AccountPlayer null
+            val response = runCatching { innerTubeClient.playerAsAccount(videoId, stamp, token) }.getOrNull()
+            (response as? InnerTubeResponse.Success)?.body?.let(PlayerResponseParser::parse)
+        }
+    }
+
+    private val signatureTimestamps by lazy { HttpSignatureTimestampSource(httpClient) }
 
     override val appPreferences: AppPreferences by lazy { SharedPrefsAppPreferences(context) }
 

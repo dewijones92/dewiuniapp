@@ -13,6 +13,7 @@ import androidx.media3.common.Tracks
 import androidx.media3.common.audio.SonicAudioProcessor
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.audio.AudioSink
@@ -118,6 +119,28 @@ public class PlaybackService : MediaSessionService() {
         val player = ExoPlayer.Builder(this)
             .setRenderersFactory(renderersFactory)
             .setBandwidthMeter(bandwidth)
+            // Buffer MINUTES ahead, not the default ~50 seconds. Report 0.1.289 measured 4.5s
+            // of stalling across 16 minutes while the connection was delivering 57-184 Mbps at
+            // the very moments it recovered — you cannot stall for bandwidth at 184 Mbps. The
+            // default simply stops fetching once it is ~50s ahead, so a hiccup empties a buffer
+            // that had no business being that small.
+            //
+            // Bounded at four minutes rather than "the whole video": filling a queue of long
+            // items to the end would be a download, and there is a button for that. The PLAYBACK
+            // thresholds are left alone — they decide how fast playback starts, and raising them
+            // would trade these stalls for a slower start, which is more noticeable.
+            .setLoadControl(
+                DefaultLoadControl.Builder()
+                    .setBufferDurationsMs(
+                        MIN_BUFFER_MS,
+                        MAX_BUFFER_MS,
+                        DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_MS,
+                        DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS,
+                    )
+                    // A little behind too, so a small scrub back does not refetch.
+                    .setBackBuffer(BACK_BUFFER_MS, true)
+                    .build(),
+            )
             // Ranged fetches, not one open-ended GET: see ChunkedDataSource for the
             // measurements. This is what stops the every-seven-seconds stalling.
             .setMediaSourceFactory(
@@ -322,6 +345,18 @@ public class PlaybackService : MediaSessionService() {
     }
 
     private companion object {
+        /** Enough to ride out a hiccup without a long wait before playback begins. */
+        const val MIN_BUFFER_MS = 30_000
+
+        /**
+         * Four minutes. Bounded on purpose: buffering to the END of a queue of long items would
+         * be a download, and the app already has a button for that.
+         */
+        const val MAX_BUFFER_MS = 240_000
+
+        /** A short scrub backwards should not have to refetch what was just played. */
+        const val BACK_BUFFER_MS = 30_000
+
         // Podcast-style transport: small hop back to re-hear, bigger hop forward.
         const val SEEK_BACK_MS = 10_000L
         const val SEEK_FORWARD_MS = 30_000L
