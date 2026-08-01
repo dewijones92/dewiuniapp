@@ -3,7 +3,7 @@ title: Age-restricted videos
 kind: todo
 area: video
 priority: high
-status: auth recipe proven e2e; solve n via the QuickJS already bundled — bridge function is the remaining work
+status: streams reached on-device (7/7 playable); playback blocked on a direct-stream path + a title source
 updated: 2026-08-01
 ---
 
@@ -107,6 +107,29 @@ somebody else's problem rather than a Totum release.
 Cost to weigh before building: a headless `WebView` for JS execution is a new capability in the
 app, it must run off the main thread with a real timeout, and it breaks the current rule that
 extraction logic stays testable off-device. Worth confirming with Dewi before it is built.
+
+## What is left, precisely (2026-08-01, from the emulator)
+
+The streams are now reached: QuickJS solved the challenge on-device in 16.6s and turned **7 of 7
+formats playable**. The video still does not play, and the reason is no longer about YouTube.
+
+**1. The recovery path only feeds SABR.** `VideoResolver.fromPlayerResponse` recovers the player
+response after an extraction failure and then hands it to `overSabrFrom`, which refuses (SABR is
+off by default, and rightly). The plain URLs we now hold are discarded. It needs a **direct**
+sibling that builds a `Resolved` straight from `streaming.directlyPlayable`.
+
+**2. The TV player response carries no metadata.** Measured: `videoDetails` holds only
+`videoId, channelId, lengthSeconds, thumbnail, isLiveContent, isPrivate, allowRatings,
+isCrawlable, isOwnerViewing, isTvfilmVideo, isUnpluggedCorpus` — **no title, no author, no
+description** — and `microformat` is empty. So `PlayerDetails` parses to null, which is also why
+the log says "no videoDetails". Any direct path needs a title from elsewhere; the public `next`
+endpoint (`InnerTubeClient.next`, WEB client, unauthenticated) already returns watch-page
+metadata and is the obvious source, since only the STREAMS are gated, not the title.
+
+**3. Solving is slow — 16.6s on the emulator**, because the solver parses a 2.9MB player script
+every time. yt-dlp's solver returns a `preprocessed_player` precisely so it can be reused; the
+bridge currently throws it away. Cache it per player build (it changes about weekly, like the
+signature timestamp) and only the first solve of a session should cost anything.
 
 ## What was ruled out, with evidence
 
