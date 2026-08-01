@@ -81,7 +81,7 @@ change coverage → update `docs/tests/`. Bump each doc's `updated`.
 
 ```bash
 ./gradlew assembleDebug          # build debug APK
-./gradlew detekt lint test koverVerify   # the full local gate (matches CI)
+./gradlew detekt lint test koverVerify assembleDebugAndroidTest   # the full local gate (matches CI)
 ./gradlew connectedDebugAndroidTest  # instrumented tests (device/emulator needed)
 ```
 

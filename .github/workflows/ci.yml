@@ -64,6 +64,13 @@ jobs:
       - name: Coverage gate (logic modules)
         run: ./gradlew koverVerify --no-daemon
 
+      # Instrumented tests need a device to RUN, but they compile without one — and until
+      # 2026-08-01 nothing compiled them at all, so AppShellTest sat red for an unknown time
+      # asserting a string the app had stopped showing. A test that cannot compile is worse
+      # than absent: it looks like coverage.
+      - name: Compile instrumented tests
+        run: ./gradlew assembleDebugAndroidTest --no-daemon
+
       - name: Assemble debug APK
         run: ./gradlew assembleDebug --no-daemon
 
