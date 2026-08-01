@@ -90,7 +90,16 @@ public sealed interface PlayerResult {
         val subtitles: List<SubtitleTrack> = emptyList(),
     ) : PlayerResult
 
-    /** YouTube refused: age-gated, members-only, region-blocked, bot-checked. */
-    public data class Unplayable(val reason: String) : PlayerResult
+    /**
+     * YouTube refused: age-gated, members-only, region-blocked, bot-checked.
+     *
+     * [details] survives the refusal on purpose. Only the STREAMS are gated — a refused response
+     * still names the video — and that is the only place the app can learn a title for one it
+     * then plays with a signed-in TV response, which supplies streams and no metadata at all.
+     */
+    public data class Unplayable(
+        val reason: String,
+        val details: PlayerDetails? = null,
+    ) : PlayerResult
     public data class Failure(val detail: String) : PlayerResult
 }

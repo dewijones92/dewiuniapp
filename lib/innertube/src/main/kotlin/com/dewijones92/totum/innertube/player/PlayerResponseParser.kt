@@ -37,8 +37,15 @@ public object PlayerResponseParser {
         val status = (root["playabilityStatus"] as? JsonObject)
         when (val state = status?.stringAt("status")) {
             null, "OK" -> Unit
+            // The details are kept even though the streams are refused, and that is the point.
+            // A refusal still describes the video perfectly — title, author, length — while the
+            // signed-in TV response that CAN supply streams carries none of that (measured
+            // 2026-08-01: its videoDetails holds ids, length and a thumbnail, nothing readable).
+            // Between them there is a whole video; discarding this half left the other one
+            // unusable.
             else -> return PlayerResult.Unplayable(
                 listOfNotNull(state, status.stringAt("reason")).joinToString(": "),
+                details = (root["videoDetails"] as? JsonObject)?.toDetails(),
             )
         }
 

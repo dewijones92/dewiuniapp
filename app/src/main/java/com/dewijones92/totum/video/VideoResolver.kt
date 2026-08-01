@@ -312,7 +312,67 @@ class VideoResolver(
             return null
         }
         Diag.log("resolve", "$id recovered by the player response after extraction failed ($asked)")
-        return overSabrFrom(PlayerRequest(id, sourceId, watchUrl, asked, startedAt), response)
+        val request = PlayerRequest(id, sourceId, watchUrl, asked, startedAt)
+        // SABR first when it is enabled and usable, then the plain URLs. Falling through matters:
+        // recovery used to hand the response to SABR alone, so with SABR off — the default —
+        // every recovered response was discarded and the video failed anyway. That is precisely
+        // how the age-restricted work came to reach the streams and still not play.
+        return overSabrFrom(request, response) ?: fromDirectStreams(request, response)
+    }
+
+    /**
+     * A result built straight from the response's own URLs — the ordinary way to play.
+     *
+     * Only reached when yt-dlp could not extract, which today means an age-restricted video that
+     * the signed-in TV client served instead. Those URLs are directly fetchable once their `n`
+     * has been solved (done before this, in the account player), so nothing here is special —
+     * it is the same shape [byExtraction] produces, from a different source.
+     */
+    private suspend fun fromDirectStreams(
+        request: PlayerRequest,
+        response: com.dewijones92.totum.innertube.player.PlayerResult.Success,
+    ): Resolved? {
+        val streamUrl = response.streaming.bestMuxedUrl() ?: response.streaming.bestAudioUrl() ?: run {
+            Diag.warn(
+                "resolve",
+                "${request.id} recovered but has no fetchable stream " +
+                    "(${response.streaming.formats.size} format(s), " +
+                    "${response.streaming.directlyPlayable.size} with a URL)",
+            )
+            return null
+        }
+        val details = response.details
+        val qualities = betterQualities(request.id, response.streaming.videoQualities())
+        Vitals.add("resolve.successes")
+        Diag.log(
+            "resolve",
+            "${request.id} in ${now() - request.startedAt}ms for ${request.asked} from the player " +
+                "response — ${qualities.size} qualities, ${response.subtitles.size} subtitle tracks",
+        )
+        val resolved = Resolved(
+            item = MediaItem(
+                id = MediaItemId(request.id),
+                sourceId = request.sourceId,
+                // The id is a poor title and a deliberate one: it is recognisable, and it makes a
+                // missing description obvious rather than inventing a plausible name for it.
+                title = details?.title ?: request.id,
+                publishedAt = null,
+                duration = details?.lengthSeconds?.seconds,
+                author = details?.author,
+                description = details?.description,
+                thumbnailUrl = details?.thumbnailUrl,
+                mediaUrl = streamUrl,
+                chapters = chaptersFromDescription(details?.description)
+                    .map { (at, title) -> Chapter(at.seconds, title) },
+                sourceUrl = details?.channelId?.let { HttpUrl.parse("https://www.youtube.com/channel/$it") },
+            ),
+            skipSegments = skipSegments.segmentsFor(request.id),
+            qualities = qualities,
+            audioOnlyUrl = response.streaming.bestAudioUrl(),
+            subtitles = response.subtitles,
+        )
+        remember(request.watchUrl, resolved)
+        return resolved
     }
 
     private suspend fun overSabr(

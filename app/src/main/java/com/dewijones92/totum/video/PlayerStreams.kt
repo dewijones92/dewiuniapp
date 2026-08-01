@@ -54,15 +54,25 @@ class InnerTubePlayerStreams(
 
     override suspend fun playerFor(videoId: String): PlayerResult.Success? {
         val anonymous = anonymousPlayer(videoId)
-        if (anonymous != null) return anonymous
+        (anonymous as? PlayerResult.Success)?.let { return it }
         // Only now, because the signed-in call costs a token refresh and a second round trip, and
         // the overwhelming majority of videos never need it.
         val signedIn = account?.playerFor(videoId) as? PlayerResult.Success ?: return null
         Diag.log("resolve", "$videoId needed the signed-in account — age-restricted, most likely")
+        // The two responses hold different halves of one video and neither is enough alone: the
+        // signed-in TV client supplies streams and NO readable metadata, while the anonymous
+        // refusal we just got supplies the title, author and length and no streams. Joining them
+        // is what makes an age-restricted video showable as well as playable.
+        val describedBy = (anonymous as? PlayerResult.Unplayable)?.details
+        if (signedIn.details == null && describedBy != null) {
+            Diag.log("resolve", "$videoId described by the refused anonymous response: \"${describedBy.title}\"")
+            return signedIn.copy(details = describedBy)
+        }
         return signedIn
     }
 
-    private suspend fun anonymousPlayer(videoId: String): PlayerResult.Success? {
+    /** The parsed anonymous response, refusals included — see [playerFor] for why they matter. */
+    private suspend fun anonymousPlayer(videoId: String): PlayerResult? {
         val response = runCatching { innerTube.player(videoId) }.getOrElse { failure ->
             Diag.warn("resolve", "second opinion for $videoId could not be fetched", failure)
             return null
@@ -75,7 +85,7 @@ class InnerTubePlayerStreams(
             is PlayerResult.Success -> parsed
             is PlayerResult.Unplayable -> {
                 Diag.log("resolve", "second opinion for $videoId refused: ${parsed.reason}")
-                null
+                parsed
             }
             is PlayerResult.Failure -> {
                 Diag.warn("resolve", "second opinion for $videoId unreadable: ${parsed.detail}")
