@@ -59,8 +59,11 @@ or whether that item has been played before.
 A fourth, the same shape, was found by inspection rather than by report: `StallWatchdog` kept
 its own never-cleared `handled`, so an item rescued from one stall could never be rescued again.
 
-**Proven by:** unit tests per watcher, including the exact reported sequences. **Not proven
-end to end** — see [The weakness](#the-weakness-the-loop-is-tested-in-pieces) below.
+**Proven by:** unit tests per watcher, including the exact reported sequences, **and since
+2026-08-01 end to end on a device** — `AutoAdvanceLoopTest` plays real media to its real end
+through the real graph and asserts the next item starts. It fails on the code as it was before
+each of the fixes above, which is what makes it a guard rather than a description. See
+[The weakness](#the-weakness-the-loop-is-tested-in-pieces).
 
 ### I2 — An item that "finishes" has actually finished
 
