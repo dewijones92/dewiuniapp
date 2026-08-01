@@ -3,7 +3,7 @@ title: Finding public-domain films and TV
 kind: todo
 area: search
 priority: medium
-status: ready — decisions made 2026-08-01, not yet started
+status: Pi side BUILT and proven end to end 2026-08-01; app side not started
 updated: 2026-08-01
 ---
 
@@ -64,6 +64,61 @@ and a peer-exposed IP on mobile data unless it is tunnelled. It also carries the
 of pulling in material that is not what was asked for.
 
 Not recommended as a first move, and pointless if A covers the actual want.
+
+## Pi side: built and proven end to end (2026-08-01)
+
+Two services, both gated by the existing oauth2-proxy against the exact-address allowlist, both
+listed on the private-area tiles.
+
+| Service | URL | Runs | Job |
+|---|---|---|---|
+| Prowlarr | `prowlarr.<domain>` | own compose project, `bin_private` | indexer search |
+| TorrServer | `torrserver.<domain>` | **inside gluetun's netns** | streaming with real seeking |
+
+### What was actually verified, not assumed
+
+- **Search works.** "Night of the Living Dead 1968" (unambiguously public domain) returned 49
+  results, best seeded at 24 peers. The Pirate Bay and YTS are configured; **1337x is blocked by
+  Cloudflare** and would need FlareSolverr to work.
+- **Seeking works, and it is the whole point.** A range request for bytes 870,000,000-870,500,000
+  — roughly halfway into a 1.74GB film — returned `206 Partial Content` in **3.3 seconds**,
+  against 3.6s for the same request at the start of the file. TorrServer fetches the pieces you
+  ask for on demand, so an arbitrary seek costs about as much as opening the file.
+- **Torrent traffic does NOT use the home IP.** Asserted rather than inferred from the netns:
+  TorrServer sees itself as PureVPN's address, and the home connection reports a different one.
+- **The gate holds.** Unauthenticated requests to both hosts return "Sign in with Google",
+  checked by CONTENT rather than status code, as this estate's notes insist.
+
+### Nothing is written to disk
+
+`UseDisk: false` — TorrServer caches in RAM. On a Pi at 88% full that is the difference between
+this being sustainable and not, and it dissolves the retention problem that the qBittorrent plan
+needed a size budget to solve. Cache raised from the default 64MB (about 50 seconds of 1080p) to
+**256MB**, roughly 3.5 minutes, against 4.7GB free RAM — a bigger window means a seek re-buffers
+less often and playback survives a swarm hiccup.
+
+### Preloading — Dewi asked, and the answer is yes
+
+`PreloadCache` (percentage of the cache filled before serving) and `ReaderReadAHead` are already
+there, so playback can start with a buffer rather than at the first byte. Beyond that, the app
+can preload at a higher level using a pattern it ALREADY has: `NextUpPrefetcher` resolves the
+next queue item before it is needed, and the same idea applies here — add the torrent to
+TorrServer when a result is opened rather than when play is pressed, so pieces are already
+arriving by the time there is something to play. Worth tuning together once the app side exists,
+since the two interact.
+
+### What the app needs to talk to
+
+- Search: `GET /api/v1/search?query=…&type=search` with `X-Api-Key`, returns `magnetUrl`,
+  `seeders`, `size`, `title`.
+- Add: `POST /torrents` `{"action":"add","link":"<magnet>","title":"…","save_to_db":false}`,
+  returns the infohash.
+- List/inspect: `POST /torrents` `{"action":"list"}` — carries `file_stats` with per-file paths
+  and lengths, which is how a season pack gets an episode picker.
+- Stream: `GET /stream/<name>?link=<hash>&index=<n>&play` — plain HTTP with range support, so
+  `MediaItem.mediaUrl` takes it unchanged and **no new playback code is needed**.
+- Auth: every one of these is behind oauth2-proxy, so the app needs the `_oauth2_proxy` cookie
+  from a one-time Custom Tab sign-in.
 
 ## Decided (Dewi, 2026-08-01, after two reversals worth keeping)
 
