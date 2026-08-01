@@ -178,8 +178,16 @@ Nothing here blocks work; these are the places where a decision would change wha
    entirely video and YouTube. Asking the question found one real gap, now closed: refreshing
    swallowed every failure in three bare `return`s, so a feed that moved or began serving
    malformed XML looked exactly like one with no new episodes, indefinitely — I5 violated for a
-   whole pillar. It now reports per feed, on screen and in the log. Worth repeating the exercise
-   for downloads and notifications rather than assuming they are fine.
+   whole pillar. It now reports per feed, on screen and in the log.
+
+   Repeating the exercise for downloads and notifications found the answer was not "podcasts
+   lag video" at all. **Downloads are fine** — `DefaultDownloadManager` logs start, failure with
+   its reason, and completion in one place, which is the correct DRY shape (the strategies emit
+   state, the manager logs it). **The notification path was silent for BOTH pillars**:
+   `ContentRefresher` swallowed a throwing source into an empty list, and `NewContentWorker`
+   swallowed any exception into a bare `Result.retry()`. A background job retrying every six
+   hours for weeks with no trace of why is the hardest thing here to diagnose, and it applied to
+   video and podcasts equally. Both now say what happened and carry the throwable.
 
 ## What this document is not
 

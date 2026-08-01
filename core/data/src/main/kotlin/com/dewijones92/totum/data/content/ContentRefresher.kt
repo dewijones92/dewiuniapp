@@ -1,5 +1,8 @@
 package com.dewijones92.totum.data.content
 
+import com.dewijones92.totum.common.Diag
+import com.dewijones92.totum.common.Vitals
+
 /**
  * The one seam that finds new content across both pillars. It asks every
  * [SubscriptionItemsSource] for its current items and diffs each source against
@@ -16,6 +19,12 @@ package com.dewijones92.totum.data.content
  * A source that fails to fetch is skipped, not fatal: one broken feed never
  * hides new content from the others, and — because it never reaches
  * [markDelivered][NewContentBatch.markDelivered] — its items are retried next run.
+ *
+ * Skipped, but no longer SILENTLY. This ran every six hours in the background and swallowed
+ * whatever a source threw into an empty list, so a pillar that had stopped working — expired
+ * YouTube auth, say — simply never contributed new content again, with nothing anywhere to say
+ * so. "Why did I not get told about that episode?" was unanswerable, which for a background job
+ * nobody watches is the worst place for it to be true.
  */
 public class ContentRefresher(
     private val sources: List<SubscriptionItemsSource>,
@@ -23,14 +32,31 @@ public class ContentRefresher(
 ) {
     /** New items grouped by source, plus a handle to commit them once delivered. */
     public suspend fun findNewContent(): NewContentBatch {
+        var failed = 0
         val current = sources.flatMap { source ->
-            runCatching { source.currentItems() }.getOrDefault(emptyList())
+            runCatching { source.currentItems() }
+                .onFailure { error ->
+                    failed++
+                    Vitals.add("content.sourceFailures")
+                    // WITH the throwable: "a source failed" is not actionable, and the cause of
+                    // a background failure is never guessable after the fact.
+                    Diag.warn("content", "a subscription source could not be read", error)
+                }
+                .getOrDefault(emptyList())
         }
         val fresh = current.mapNotNull { update ->
             tracker.newItems(update.source.id, update.items)
                 .takeIf { it.isNotEmpty() }
                 ?.let { SourceUpdate(update.source, it) }
         }
+        // One line per run, and it runs every six hours — so this is four lines a day and the
+        // only evidence that the thing ran at all.
+        Vitals.add("content.refreshes")
+        Diag.log(
+            "content",
+            "checked ${sources.size} source(s) ($failed failed): ${current.size} with items, " +
+                "${fresh.sumOf { it.items.size }} new across ${fresh.size} source(s)",
+        )
         return NewContentBatch(fresh, current, tracker)
     }
 }

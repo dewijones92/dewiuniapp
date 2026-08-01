@@ -1,5 +1,6 @@
 package com.dewijones92.totum.data.content
 
+import com.dewijones92.totum.common.Breadcrumbs
 import com.dewijones92.totum.common.HttpUrl
 import com.dewijones92.totum.data.content.fake.InMemorySeenItemsTracker
 import com.dewijones92.totum.domain.MediaItem
@@ -99,5 +100,46 @@ class ContentRefresherTest {
 
         assertEquals(1, new.size)
         assertEquals(b, new.single().source)
+    }
+
+    /**
+     * A source that throws must say WHY, with its exception.
+     *
+     * This runs every six hours in the background where nobody is watching, and it used to
+     * swallow whatever a source threw into an empty list. A pillar that had stopped working —
+     * expired YouTube auth being the obvious one — simply never contributed new content again,
+     * and "why was I not told about that episode?" had no answer anywhere. Skipping is right;
+     * skipping quietly is not, so the reporting is pinned rather than left to good intentions.
+     */
+    @Test
+    fun `a failing source is reported, with its cause`() = runTest {
+        Breadcrumbs.clear()
+        val broken = SubscriptionItemsSource { error("auth expired") }
+        val working = source(SourceUpdate(feed("a"), listOf(item("1", "a"))))
+
+        ContentRefresher(listOf(broken, working), tracker).findNewContent()
+
+        val logged = Breadcrumbs.snapshot().filter { it.tag == "content" }
+        assertTrue(
+            "the failure must be named: $logged",
+            logged.any { "could not be read" in it.message },
+        )
+        assertTrue(
+            "and the run must summarise what it checked: $logged",
+            logged.any { "1 failed" in it.message },
+        )
+    }
+
+    /** A clean run still says it happened — an absent log must not mean "it never ran". */
+    @Test
+    fun `a run with no failures still reports what it checked`() = runTest {
+        Breadcrumbs.clear()
+
+        findNew(SourceUpdate(feed("a"), listOf(item("1", "a"))))
+
+        assertTrue(
+            "a healthy run must still leave a trace",
+            Breadcrumbs.snapshot().any { it.tag == "content" && "0 failed" in it.message },
+        )
     }
 }
