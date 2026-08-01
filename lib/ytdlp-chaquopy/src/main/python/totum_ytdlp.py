@@ -116,6 +116,57 @@ def extract(url):
         return json.dumps({"ok": False, "kind": _classify(e), "detail": str(e)})
 
 
+def solve_n(challenges, player_url):
+    """Deobfuscate YouTube `n` throttling parameters using the bundled QuickJS.
+
+    Exists so the app can play AGE-RESTRICTED videos, which yt-dlp cannot reach at all: it
+    has no credentials and its own advice is "use --cookies". The app does have an account,
+    and a signed-in InnerTube call as the downgraded TV client returns those videos with
+    plain URLs (see docs/todos/age-restricted-videos.md). Those URLs carry a raw `n` and 403
+    until it is transformed, and transforming it needs a JavaScript engine — which this
+    module already configures for yt-dlp's own use.
+
+    So this borrows the engine rather than adding one. yt-dlp's solver parses the player and
+    regenerates code rather than pattern-matching it, which is why it still works where
+    NewPipe's regexes have stopped (measured 2026-08-01: NewPipe returns the parameter
+    unchanged and the URL 403s).
+
+    Returns a JSON map of obfuscated -> deobfuscated. Unsolved parameters are simply absent,
+    so the caller can leave those formats alone rather than play a URL that will 403.
+
+    This reaches into yt-dlp's `jsc` internals, which are not a public API, and yt-dlp
+    self-updates on every launch. Hence the broad except and the explicit `ok` flag: a wheel
+    that moves this machinery must degrade to "age-restricted videos stopped working" and
+    say so, never to a crash on the playback path.
+    """
+    if not _JS_RUNTIME_PATH:
+        return json.dumps({"ok": False, "detail": "no JavaScript runtime bundled"})
+    try:
+        from yt_dlp.extractor.youtube import YoutubeIE
+        from yt_dlp.extractor.youtube.jsc.provider import (
+            JsChallengeRequest,
+            JsChallengeType,
+            NChallengeInput,
+        )
+
+        with yt_dlp.YoutubeDL(
+            {"quiet": True, "no_warnings": True, "js_runtimes": _js_runtimes()}
+        ) as ydl:
+            extractor = YoutubeIE()
+            extractor.set_downloader(ydl)
+            extractor.initialize()
+            request = JsChallengeRequest(
+                type=JsChallengeType.N,
+                input=NChallengeInput(challenges=list(challenges), player_url=player_url),
+            )
+            solved = {}
+            for _request, response in extractor._jsc_director.bulk_solve([request]):
+                solved.update(response.output.results)
+            return json.dumps({"ok": True, "solved": solved})
+    except Exception as e:  # noqa: BLE001 - see docstring: never crash playback
+        return json.dumps({"ok": False, "detail": "{}: {}".format(type(e).__name__, e)})
+
+
 def search(query, max_results):
     options = {
         "quiet": True,

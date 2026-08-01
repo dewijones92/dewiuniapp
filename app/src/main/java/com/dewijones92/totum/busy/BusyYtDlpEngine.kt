@@ -42,6 +42,13 @@ class BusyYtDlpEngine(private val delegate: YtDlpEngine) : YtDlpEngine {
     override suspend fun fetchChannel(url: HttpUrl, maxVideos: Int): ChannelResult =
         Busy.during("loading channel") { delegate.fetchChannel(url, maxVideos) }
 
+    /**
+     * Shown as busy: solving takes seconds of JavaScript, and it happens while somebody is
+     * waiting for a video to start. Silence there reads as the app having ignored the tap.
+     */
+    override suspend fun solveN(challenges: List<String>, playerUrl: String): Map<String, String> =
+        Busy.during("preparing video") { delegate.solveN(challenges, playerUrl) }
+
     override fun download(request: DownloadRequest): Flow<DownloadEvent> = delegate.download(request)
 
     private companion object {

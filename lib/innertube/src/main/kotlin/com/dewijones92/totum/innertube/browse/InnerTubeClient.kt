@@ -80,76 +80,39 @@ public class InnerTubeClient(
     ): InnerTubeResponse = playerTracking(videoId, signatureTimestamp, accessToken)
 
     /**
-     * The player response as the EMBEDDED player client.
+     * The player response as the **DOWNGRADED** TV client, signed in — the age-restricted path.
      *
-     * A second attempt at age-restricted videos, and an honest experiment rather than a known
-     * fix. Tested 2026-08-01 against a rated video with a valid signed-in token: the TVHTML5
-     * client was refused outright, so signing in is evidently not sufficient on its own. The
-     * embedded client is the identity that has historically been allowed to fetch rated
-     * material, which is why it is worth one try.
+     * The client VERSION is the whole trick, and it was measured rather than guessed
+     * (2026-08-01, against a rated video with a control alongside it). The same request at the
+     * current [tvClientVersion] comes back SABR-only — one fetchable URL out of seven. At
+     * [TV_DOWNGRADED_VERSION] it comes back with **all seven carrying plain URLs and no SABR**.
+     * SmartTube keeps exactly this client and tries it BEFORE the current one; this is why.
      *
-     * If YouTube refuses this too, the answer is that the app cannot play age-restricted videos
-     * and the honest thing is to say so in the UI rather than keep adding client identities.
+     * Authenticated, and only a TV client may be: SmartTube's own `isAuthSupported` is the five
+     * TV identities and nothing else, which is what the `HTTP 400` from every bearer-plus-
+     * ANDROID/VR/embedded attempt was telling us.
+     *
+     * The URLs still carry an obfuscated `n` and 403 until it is solved — see
+     * [com.dewijones92.totum.innertube.player.withSolvedN]. Resolving is not enough on its own.
      */
-    /**
-     * The player response as the **ANDROID_VR** client.
-     *
-     * This is the identity that actually gets past the age gate, and it does so WITHOUT
-     * credentials — which is why PipePipe and SmartTube can play rated videos and two rounds of
-     * signed-in TV/embedded calls could not. The headset client is not age-gated the way the
-     * phone and TV clients are.
-     *
-     * Authenticated, and that was measured rather than assumed. Sent WITHOUT a token first,
-     * YouTube answered `LOGIN_REQUIRED: Sign in to confirm your age` — which is the request
-     * being accepted and asked to identify itself, quite different from the TV client's flat
-     * `UNPLAYABLE` and the embedded client's "no longer supported". The gate wants a signed-in
-     * adult, and this client is the one willing to ask.
-     */
-    public suspend fun playerAndroidVr(videoId: String, accessToken: AccessToken?): InnerTubeResponse =
-        execute(
-            playerUrl,
-            """{"context":{"client":{"clientName":"ANDROID_VR","clientVersion":"$VR_CLIENT_VERSION",""" +
-                """"deviceMake":"Oculus","deviceModel":"Quest 3","androidSdkVersion":32,""" +
-                """"osName":"Android","osVersion":"12L","hl":"en"}},""" +
-                """"videoId":"$videoId","contentCheckOk":true,"racyCheckOk":true}""",
-            accessToken,
-        )
-
-    /**
-     * The player response as the **WEB_EMBEDDED_PLAYER** client.
-     *
-     * A fourth identity, tried because the third told us something useful: the TVHTML5 embedded
-     * client is refused as "no longer supported", which is a version complaint rather than a
-     * refusal to serve. The web embedded player carries a dated version string that can be kept
-     * current, so it does not go stale the same way.
-     */
-    public suspend fun playerWebEmbedded(videoId: String, accessToken: AccessToken?): InnerTubeResponse =
-        execute(
-            playerUrl,
-            """{"context":{"client":{"clientName":"WEB_EMBEDDED_PLAYER",""" +
-                """"clientVersion":"1.20250101.00.00","clientScreen":"EMBED","hl":"en"},""" +
-                """"thirdParty":{"embedUrl":"https://www.youtube.com/"}},""" +
-                """"videoId":"$videoId","contentCheckOk":true,"racyCheckOk":true}""",
-            accessToken,
-            clientHeaders = mapOf(
-                // 28 is ANDROID_VR's client id; the user agent must match the declared client
-                // or an authenticated request is rejected outright.
-                "X-YouTube-Client-Name" to "28",
-                "X-YouTube-Client-Version" to VR_CLIENT_VERSION,
-                "User-Agent" to "com.google.android.apps.youtube.vr.oculus/$VR_CLIENT_VERSION " +
-                    "(Linux; U; Android 12L; GB) gzip",
-            ),
-        )
-
-    public suspend fun playerEmbedded(videoId: String, accessToken: AccessToken?): InnerTubeResponse =
-        execute(
-            playerUrl,
-            """{"context":{"client":{"clientName":"TVHTML5_SIMPLY_EMBEDDED_PLAYER",""" +
-                """"clientVersion":"2.0","clientScreen":"EMBED"},""" +
-                """"thirdParty":{"embedUrl":"https://www.youtube.com/"}},""" +
-                """"videoId":"$videoId","contentCheckOk":true,"racyCheckOk":true}""",
-            accessToken,
-        )
+    public suspend fun playerDowngradedTv(
+        videoId: String,
+        signatureTimestamp: Int,
+        accessToken: AccessToken,
+    ): InnerTubeResponse = execute(
+        playerUrl,
+        """{"context":{"client":{"clientName":"TVHTML5",""" +
+            """"clientVersion":"$TV_DOWNGRADED_VERSION","hl":"en","gl":"GB"}},""" +
+            """"videoId":"$videoId","contentCheckOk":true,"racyCheckOk":true,""" +
+            """"playbackContext":{"contentPlaybackContext":""" +
+            """{"html5Preference":"HTML5_PREF_WANTS","signatureTimestamp":$signatureTimestamp}}}""",
+        accessToken,
+        clientHeaders = mapOf(
+            "X-Youtube-Client-Name" to TV_CLIENT_ID,
+            "X-Youtube-Client-Version" to TV_DOWNGRADED_VERSION,
+            "User-Agent" to TV_DOWNGRADED_USER_AGENT,
+        ),
+    )
 
     /**
      * A video's **playback-tracking** URLs, as the signed-in TV client.
@@ -264,9 +227,6 @@ public class InnerTubeClient(
         public const val SEARCH_URL: String = "$BASE/search?prettyPrint=false"
         public const val PLAYER_URL: String = "$BASE/player?prettyPrint=false"
 
-        /** The headset client, whose version must match the user agent sent alongside it. */
-        public const val VR_CLIENT_VERSION: String = "1.60.19"
-
         /** Matches yt-dlp's android client; YouTube rejects a stale one. */
         public const val ANDROID_CLIENT_VERSION: String = "20.10.38"
         public const val LIKE_URL: String = "$BASE/like/like?prettyPrint=false"
@@ -277,6 +237,22 @@ public class InnerTubeClient(
         public const val CREATE_COMMENT_URL: String = "$BASE/comment/create_comment?prettyPrint=false"
         public const val EDIT_PLAYLIST_URL: String = "$BASE/browse/edit_playlist?prettyPrint=false"
         public const val TV_CLIENT_VERSION: String = "7.20240401.10.00"
+
+        /** InnerTube's numeric id for TVHTML5, which must agree with the declared client. */
+        public const val TV_CLIENT_ID: String = "7"
+
+        /**
+         * The TV client version that still hands out plain URLs instead of SABR.
+         *
+         * Not a stale constant left behind — the OLD version is the point, and raising it to
+         * something current would silently reintroduce the SABR-only response this exists to
+         * avoid. SmartTube pins the same idea as its `TV_DOWNGRADED` client.
+         */
+        public const val TV_DOWNGRADED_VERSION: String = "5.20260707"
+
+        /** The stripped Cobalt agent that goes with [TV_DOWNGRADED_VERSION]. */
+        public const val TV_DOWNGRADED_USER_AGENT: String =
+            "Mozilla/5.0 (ChromiumStylePlatform) Cobalt/Version"
         public const val WEB_CLIENT_VERSION: String = "2.20240726.00.00"
         private const val HTTP_UNAUTHORIZED = 401
         private const val HTTP_FORBIDDEN = 403

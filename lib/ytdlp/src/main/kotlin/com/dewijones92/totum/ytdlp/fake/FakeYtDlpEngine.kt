@@ -72,6 +72,15 @@ public class FakeYtDlpEngine : YtDlpEngine {
         channels[url]?.let { it.copy(videos = it.videos.take(maxVideos)) }
             ?: ChannelResult.Failure.NotAChannel(url)
 
+    /**
+     * Solved `n` parameters tests want handed back; anything absent is treated as unsolvable,
+     * which is how a test drives the drop-the-format path.
+     */
+    public var solvedN: Map<String, String> = emptyMap()
+
+    override suspend fun solveN(challenges: List<String>, playerUrl: String): Map<String, String> =
+        solvedN.filterKeys { it in challenges }
+
     /** The last download asked for — lets tests assert the format selector used. */
     public var lastRequest: DownloadRequest? = null
         private set

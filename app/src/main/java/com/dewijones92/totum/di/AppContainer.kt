@@ -67,6 +67,7 @@ import com.dewijones92.totum.domain.toPlayableOrNull
 import com.dewijones92.totum.importexport.SubscriptionImporter
 import com.dewijones92.totum.innertube.actions.HttpYouTubeActions
 import com.dewijones92.totum.innertube.actions.YouTubeActions
+import com.dewijones92.totum.innertube.auth.AccessToken
 import com.dewijones92.totum.innertube.auth.AccessTokenResult
 import com.dewijones92.totum.innertube.auth.HttpYouTubeAuth
 import com.dewijones92.totum.innertube.auth.YouTubeAccount
@@ -81,8 +82,10 @@ import com.dewijones92.totum.innertube.feeds.YouTubeFeeds
 import com.dewijones92.totum.innertube.history.HttpYouTubeWatchHistory
 import com.dewijones92.totum.innertube.history.YouTubeWatchHistory
 import com.dewijones92.totum.innertube.player.HttpSignatureTimestampSource
+import com.dewijones92.totum.innertube.player.NSolver
 import com.dewijones92.totum.innertube.player.PlayerResponseParser
 import com.dewijones92.totum.innertube.player.PlayerResult
+import com.dewijones92.totum.innertube.player.withSolvedN
 import com.dewijones92.totum.innertube.playlists.HttpYouTubePlaylists
 import com.dewijones92.totum.innertube.playlists.YouTubePlaylists
 import com.dewijones92.totum.innertube.related.HttpYouTubeRelated
@@ -714,38 +717,64 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
             val signedIn = runCatching { innerTubeClient.playerAsAccount(videoId, stamp, token) }.getOrNull()
             val parsed = (signedIn as? InnerTubeResponse.Success)?.body?.let(PlayerResponseParser::parse)
             if (parsed is PlayerResult.Success) return@AccountPlayer parsed
-            // The TV client is refused for age-restricted videos even signed in — measured
-            // 2026-08-01. The embedded player is the identity historically allowed to fetch
-            // rated material, so it gets one try before the video is called unavailable.
-            // WHAT it said, not just that it failed. Concluding "refused" from a null twice
-            // over was the mistake that made age restriction look impossible.
+            // WHAT it said, not just that it failed. Concluding "refused" from a null was the
+            // mistake that made age restriction look impossible for two rounds; the current TV
+            // client answers UNPLAYABLE for a rated video and says "requires payment" for a paid
+            // one, and those are different problems with different answers.
             Diag.log("resolve", "$videoId as TV client -> ${parsed ?: signedIn}")
-            val embedded = runCatching { innerTubeClient.playerEmbedded(videoId, accessToken = null) }.getOrNull()
-            val fromEmbedded = (embedded as? InnerTubeResponse.Success)?.body?.let(PlayerResponseParser::parse)
-            if (fromEmbedded is PlayerResult.Success) return@AccountPlayer fromEmbedded
-            Diag.log("resolve", "$videoId as embedded -> ${fromEmbedded ?: embedded}")
-            // The headset client, unauthenticated. This is the one that is not age-gated, and
-            // the reason other clients can play rated videos when signed-in calls cannot.
-            val vr = runCatching { innerTubeClient.playerAndroidVr(videoId, accessToken = null) }.getOrNull()
-            val fromVr = (vr as? InnerTubeResponse.Success)?.body?.let(PlayerResponseParser::parse)
-            Diag.log(
-                "resolve",
-                "$videoId as ANDROID_VR -> " +
-                    ((fromVr as? PlayerResult.Success)?.let { "OK" } ?: "${fromVr ?: vr}"),
-            )
-            if (fromVr is PlayerResult.Success) return@AccountPlayer fromVr
-            // Fourth identity. The TVHTML5 embedded client complained about its VERSION rather
-            // than refusing to serve, so the web embedded player — whose version string can be
-            // kept current — is the natural next thing to ask.
-            val web = runCatching { innerTubeClient.playerWebEmbedded(videoId, accessToken = null) }.getOrNull()
-            val fromWeb = (web as? InnerTubeResponse.Success)?.body?.let(PlayerResponseParser::parse)
-            Diag.log(
-                "resolve",
-                "$videoId as WEB_EMBEDDED -> " +
-                    ((fromWeb as? PlayerResult.Success)?.let { "OK" } ?: "${fromWeb ?: web}"),
-            )
-            fromWeb
+            ageRestrictedPlayer(videoId, stamp, token)
         }
+    }
+
+    /**
+     * The age-restricted path: the DOWNGRADED TV client, then the `n` parameters solved.
+     *
+     * Both halves are required and neither is sufficient. The downgraded client is what returns
+     * plain URLs at all — the current one answers SABR-only, one fetchable URL out of seven —
+     * and those URLs 403 until `n` is deobfuscated. Proven end to end 2026-08-01 by fetching
+     * 204,800 bytes of a rated video this way; see docs/todos/age-restricted-videos.md.
+     *
+     * Four speculative client identities used to live here (embedded, ANDROID_VR, web embedded).
+     * All were measured refusing the CONTROL video too, so they were never age-gate failures at
+     * all, and they are gone.
+     */
+    private suspend fun ageRestrictedPlayer(
+        videoId: String,
+        signatureTimestamp: Int,
+        token: AccessToken,
+    ): PlayerResult? {
+        val response = runCatching {
+            innerTubeClient.playerDowngradedTv(videoId, signatureTimestamp, token)
+        }.getOrNull()
+        val parsed = (response as? InnerTubeResponse.Success)?.body?.let(PlayerResponseParser::parse)
+        if (parsed !is PlayerResult.Success) {
+            Diag.log("resolve", "$videoId as downgraded TV -> ${parsed ?: response}")
+            return parsed
+        }
+        val playerUrl = runCatching { signatureTimestamps.playerScriptUrl() }.getOrNull() ?: run {
+            // Named rather than silent: without the player script nothing can be solved, and the
+            // video would otherwise fail identically to one YouTube had refused outright.
+            Diag.warn("resolve", "$videoId resolved but no player script to solve its n parameters")
+            return null
+        }
+        val playable = parsed.streaming.withSolvedN(nSolver, playerUrl)
+        return if (playable.formats.isEmpty()) {
+            Diag.warn("resolve", "$videoId resolved but no format survived n solving")
+            null
+        } else {
+            parsed.copy(streaming = playable)
+        }
+    }
+
+    /**
+     * Solves `n` with the QuickJS the app already bundles for yt-dlp.
+     *
+     * Wired here because this is the only place allowed to know both libraries: `:lib:innertube`
+     * declares the port and `:lib:ytdlp` owns the JavaScript runtime, and the two stay
+     * independent of each other so both remain separately publishable.
+     */
+    private val nSolver: NSolver by lazy {
+        NSolver { challenges, playerUrl -> ytDlpEngine.solveN(challenges, playerUrl) }
     }
 
     private val signatureTimestamps by lazy { HttpSignatureTimestampSource(httpClient) }

@@ -45,6 +45,10 @@ public class InteractiveFirstEngine(
     override suspend fun fetchChannel(url: HttpUrl, maxVideos: Int): ChannelResult =
         asInteractive { delegate.fetchChannel(url, maxVideos) }
 
+    /** Interactive: somebody is waiting on a video that will not start until this returns. */
+    override suspend fun solveN(challenges: List<String>, playerUrl: String): Map<String, String> =
+        asInteractive { delegate.solveN(challenges, playerUrl) }
+
     /**
      * Waits for interactive work to finish, then downloads.
      *

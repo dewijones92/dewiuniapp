@@ -29,6 +29,18 @@ public interface YtDlpEngine {
     public suspend fun fetchChannel(url: HttpUrl, maxVideos: Int): ChannelResult
 
     /**
+     * Deobfuscates YouTube `n` throttling parameters using the engine's JavaScript runtime.
+     *
+     * Here rather than in a YouTube-specific library because the JS runtime is the engine's —
+     * this exposes a capability the engine already has, and keeps `:lib:innertube` independent
+     * of `:lib:ytdlp` as both are meant to be separately publishable. The app owns the wiring.
+     *
+     * Unsolvable challenges are ABSENT from the result rather than echoed back: a passed-through
+     * value produces a URL that 403s at playback time, which is strictly worse than knowing now.
+     */
+    public suspend fun solveN(challenges: List<String>, playerUrl: String): Map<String, String>
+
+    /**
      * Downloads media described by [request]. The returned flow is cold:
      * collecting starts the download, cancelling the collection cancels it.
      * Terminal events are [DownloadEvent.Completed] and [DownloadEvent.Failed].

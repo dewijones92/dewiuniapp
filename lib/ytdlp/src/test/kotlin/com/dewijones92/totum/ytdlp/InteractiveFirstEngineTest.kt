@@ -34,6 +34,8 @@ class InteractiveFirstEngineTest {
 
         override suspend fun versions() = EngineVersions("test", "test")
 
+        override suspend fun solveN(challenges: List<String>, playerUrl: String) = emptyMap<String, String>()
+
         override suspend fun extract(url: HttpUrl): ExtractionResult {
             extractStarted.complete(Unit)
             finishExtract.await()
@@ -116,6 +118,7 @@ class InteractiveFirstEngineTest {
         val throwing = object : YtDlpEngine {
             var downloadsStarted = 0
             override suspend fun versions() = EngineVersions("test", "test")
+            override suspend fun solveN(challenges: List<String>, playerUrl: String) = emptyMap<String, String>()
             override suspend fun extract(url: HttpUrl): ExtractionResult = error("boom")
             override suspend fun searchVideos(query: String, maxResults: Int) =
                 VideoSearchResult.Success(emptyList())

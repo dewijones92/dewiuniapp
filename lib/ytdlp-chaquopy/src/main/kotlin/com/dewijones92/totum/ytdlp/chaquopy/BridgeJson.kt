@@ -1,5 +1,6 @@
 package com.dewijones92.totum.ytdlp.chaquopy
 
+import com.dewijones92.totum.common.Diag
 import com.dewijones92.totum.common.HttpUrl
 import com.dewijones92.totum.ytdlp.ChannelResult
 import com.dewijones92.totum.ytdlp.ChapterInfo
@@ -32,6 +33,28 @@ internal fun parseVersions(text: String): EngineVersions {
         ytDlp = obj.stringOrNull("yt_dlp") ?: "unknown",
         python = obj.stringOrNull("python") ?: "unknown",
     )
+}
+
+/**
+ * Solved `n` parameters, or an empty map with the reason logged.
+ *
+ * Empty rather than an exception on failure: the caller drops the formats it could not solve
+ * and reports "nothing playable", which is a better outcome than taking the playback path down.
+ * The bridge reaches into yt-dlp internals and yt-dlp self-updates on every launch, so a wheel
+ * that moves them must degrade to "age-restricted videos stopped working" — loudly, but only
+ * for those videos.
+ */
+internal fun parseSolvedN(text: String): Map<String, String> {
+    val obj = runCatching { json.parseToJsonElement(text).jsonObject }.getOrElse {
+        Diag.warn("resolve", "n solver returned unreadable JSON")
+        return emptyMap()
+    }
+    if (!obj.isOk()) {
+        Diag.warn("resolve", "n solver failed: ${obj.stringOrNull("detail")}")
+        return emptyMap()
+    }
+    val solved = obj["solved"] as? JsonObject ?: return emptyMap()
+    return solved.mapNotNull { (key, value) -> value.jsonPrimitive.contentOrNull?.let { key to it } }.toMap()
 }
 
 internal fun parseExtraction(url: HttpUrl, text: String): ExtractionResult {

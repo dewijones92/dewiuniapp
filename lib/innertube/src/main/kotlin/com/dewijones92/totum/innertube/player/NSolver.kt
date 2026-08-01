@@ -1,0 +1,72 @@
+package com.dewijones92.totum.innertube.player
+
+import com.dewijones92.totum.common.Diag
+import com.dewijones92.totum.common.HttpUrl
+
+/**
+ * Deobfuscates YouTube's `n` throttling parameter.
+ *
+ * Every stream URL from a signed-in TV player response carries one, and the URL returns 403
+ * until it is transformed — measured 2026-08-01, including with the parameter stripped
+ * entirely, which fails the same way. Solving it means running a function out of YouTube's
+ * player JavaScript, so this is a port rather than an implementation: the JS engine is a
+ * platform concern and does not belong in a pure-JVM library.
+ *
+ * The app satisfies it with the QuickJS it already bundles for yt-dlp. See
+ * docs/todos/age-restricted-videos.md.
+ */
+public fun interface NSolver {
+    /**
+     * Maps each obfuscated parameter to its solved form.
+     *
+     * Unsolvable ones are ABSENT rather than passed through unchanged. That distinction is
+     * the whole reason this returns a map: NewPipe's solver returns the input on failure,
+     * which is indistinguishable from success and yields a URL that 403s at playback time
+     * instead of an error at resolve time.
+     */
+    public suspend fun solve(challenges: List<String>, playerUrl: String): Map<String, String>
+}
+
+/**
+ * The same streams with playable URLs, or fewer streams.
+ *
+ * A format whose `n` could not be solved is DROPPED, because keeping it would offer the
+ * player a URL that is certain to 403 — and a missing quality is a far better failure than a
+ * stall part-way through. Formats carrying no `n` at all pass through untouched.
+ */
+public suspend fun StreamingData.withSolvedN(solver: NSolver, playerUrl: String): StreamingData {
+    val challenges = formats.mapNotNull { it.url?.nParameter() }.distinct()
+    if (challenges.isEmpty()) return this
+
+    val solved = runCatching { solver.solve(challenges, playerUrl) }.getOrElse { failure ->
+        Diag.warn("resolve", "could not solve ${challenges.size} n parameter(s)", failure)
+        emptyMap()
+    }
+
+    val playable = formats.mapNotNull { format ->
+        val obfuscated = format.url?.nParameter() ?: return@mapNotNull format
+        val answer = solved[obfuscated] ?: return@mapNotNull null
+        format.copy(url = format.url?.withN(answer))
+    }
+    // Said out loud with both numbers: "8 formats" and "8 formats, 3 playable" are different
+    // situations that otherwise produce an identical-looking resolve.
+    Diag.log(
+        "resolve",
+        "solved ${solved.size}/${challenges.size} n parameter(s) — " +
+            "${playable.size} of ${formats.size} format(s) playable",
+    )
+    return copy(formats = playable)
+}
+
+/** The value of the `n` query parameter, or null when the URL carries none. */
+internal fun HttpUrl.nParameter(): String? = N_PARAMETER.find(value)?.groupValues?.get(2)
+
+/** The same URL with its `n` parameter replaced. */
+internal fun HttpUrl.withN(solved: String): HttpUrl? =
+    HttpUrl.parse(N_PARAMETER.replace(value) { match -> match.groupValues[1] + "n=" + solved })
+
+/**
+ * Matched rather than parsed: these URLs are long, already percent-encoded, and round-tripping
+ * them through a URI builder risks re-encoding something the signature covers.
+ */
+private val N_PARAMETER = Regex("""([?&])n=([^&]*)""")
