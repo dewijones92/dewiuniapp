@@ -15,6 +15,7 @@ import com.dewijones92.totum.innertube.browse.InnerTubeClient
 import com.dewijones92.totum.innertube.browse.InnerTubeResponse
 import com.dewijones92.totum.innertube.player.PlayerResponseParser
 import com.dewijones92.totum.innertube.player.PlayerResult
+import com.dewijones92.totum.innertube.player.StreamingData
 import com.dewijones92.totum.playback.SabrDataSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -26,6 +27,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.util.concurrent.CountDownLatch
@@ -63,13 +65,31 @@ class SabrPlaybackTest {
         }
     }
 
+    /**
+     * SKIPPED, not failed, when YouTube will not serve this machine.
+     *
+     * This talks to the live service, and a GitHub runner is a datacentre IP that gets
+     * bot-checked — the first CI run of 2026-08-01 came back `Unplayable`, and the hard cast
+     * that was here turned an environment condition into a red build. A test that cannot run
+     * where it is running should say so: claiming a defect it has no evidence for is how a
+     * suite teaches everyone to ignore it.
+     */
+    private fun servedStreams(): StreamingData {
+        val player = runBlocking {
+            val response = InnerTubeClient(http).player(VIDEO_ID)
+            (response as? InnerTubeResponse.Success)?.body?.let(PlayerResponseParser::parse)
+        }
+        assumeTrue(
+            "YouTube did not serve this machine a player response ($player) — commonly a " +
+                "datacentre IP being bot-checked, which is not a defect in the SABR path",
+            player is PlayerResult.Success,
+        )
+        return (player as PlayerResult.Success).streaming
+    }
+
     @Test
     fun playsRealAudioOverSabr() {
-        val streaming = runBlocking {
-            val response = InnerTubeClient(http).player(VIDEO_ID)
-            val body = (response as InnerTubeResponse.Success).body
-            (PlayerResponseParser.parse(body) as PlayerResult.Success).streaming
-        }
+        val streaming = servedStreams()
         val endpoint = streaming.serverAbrStreamingUrl
         val config = streaming.ustreamerConfig
         assertNotNull("no SABR endpoint in the player response", endpoint)
