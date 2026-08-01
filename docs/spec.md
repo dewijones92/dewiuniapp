@@ -187,7 +187,10 @@ Nothing here blocks work; these are the places where a decision would change wha
    `ContentRefresher` swallowed a throwing source into an empty list, and `NewContentWorker`
    swallowed any exception into a bare `Result.retry()`. A background job retrying every six
    hours for weeks with no trace of why is the hardest thing here to diagnose, and it applied to
-   video and podcasts equally. Both now say what happened and carry the throwable.
+   video and podcasts equally. Both now say what happened and carry the throwable, and **Settings → Check for new content
+   now** runs that same path by hand — the job was previously unobservable without waiting six
+   hours per attempt. Worker and button share one `NewContentCheck`, because a button running
+   merely similar code would prove the wrong thing.
 
 ## What this document is not
 

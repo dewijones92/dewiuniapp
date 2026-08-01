@@ -137,6 +137,22 @@
     <string name="boost_high">High</string>
     <string name="settings_downloads_section">Downloads</string>
     <string name="settings_diagnostics_section">Diagnostics</string>
+    <string name="settings_check_content">Check for new content now</string>
+    <!-- Says what it does AND that it is the same work: the point of the button is to make the
+         six-hourly job observable by hand, and a button that ran something merely similar would
+         prove the wrong thing. -->
+    <string name="settings_check_content_summary">Runs the same check the app does every 6 hours, and says what it found.</string>
+    <string name="settings_check_content_running">Checking…</string>
+    <string name="settings_check_content_nothing">Nothing new since the last check.</string>
+    <plurals name="settings_check_content_found">
+        <item quantity="one">Notified you about %1$d new item.</item>
+        <item quantity="other">Notified you about %1$d new items.</item>
+    </plurals>
+    <plurals name="settings_check_content_undelivered">
+        <item quantity="one">Found %1$d new item but couldn\'t notify you — check notification permission.</item>
+        <item quantity="other">Found %1$d new items but couldn\'t notify you — check notification permission.</item>
+    </plurals>
+    <string name="settings_check_content_failed">The check failed: %1$s</string>
     <string name="settings_diagnostics_send">Send diagnostics</string>
     <string name="settings_diagnostics_sent">Diagnostics sent</string>
     <string name="settings_diagnostics_summary">Sends the recent event log and app state so a problem can be diagnosed.</string>

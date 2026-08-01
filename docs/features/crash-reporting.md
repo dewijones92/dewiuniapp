@@ -3,7 +3,7 @@ title: Crash and diagnostics reporting
 kind: feature
 status: shipped
 area: infrastructure
-updated: 2026-07-31
+updated: 2026-08-01
 ---
 
 # Crash reporting
@@ -183,3 +183,29 @@ answer an obvious question. All three verified on the emulator with the screen o
 The 3436ms above is itself the explanation working: that item was part-watched, so it took the
 extraction path rather than SABR, and extraction costs seconds. The log now says so instead of
 leaving a gap to wonder about.
+
+## Checking for new content on demand (2026-08-01)
+
+The six-hourly `NewContentWorker` was the least observable thing in the app: it runs in the
+background, said nothing at all, and swallowed any exception into a bare `Result.retry()`. "I
+never get notified about new episodes" could not be investigated without waiting a quarter of a
+day per attempt.
+
+**Settings → Check for new content now** runs it by hand and says what it found. Worker and
+button call the same `NewContentCheck` — a button running *nearly* the same code is worse than
+no button, because it would prove the wrong thing.
+
+Its four outcomes exist because they mean different things to a person: nothing new is success,
+undelivered almost always means notification permission was never granted (something you can
+just fix once told), and a throw is a bug. They were a boolean and a discarded exception, which
+is precisely how "I never get notified" and "there was nothing new" became indistinguishable.
+
+Verified on device:
+
+```
+[podcast] refreshed 1 feed(s): 1 updated, 0 failed
+[content] checked 2 source(s) (0 failed): 1 with items, 0 new across 0 source(s)
+[content] nothing new; seen-state advanced
+```
+
+with "Nothing new since the last check." shown on the row itself.

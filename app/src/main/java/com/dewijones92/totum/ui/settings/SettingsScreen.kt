@@ -108,6 +108,7 @@ fun SettingsScreen(container: AppContainer, onBack: () -> Unit, modifier: Modifi
             SkipCategorySection(settings.skipCategories, prefs::setSkipCategories)
 
             ViewDiagnosticsRow(onOpen = { showDiagnostics = true })
+            CheckForContentRow(container)
             DiagnosticsRow(container)
         }
     }
