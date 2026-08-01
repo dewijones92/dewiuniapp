@@ -287,3 +287,32 @@ falling back to a direct connection — falling back is precisely the failure th
   33MB release APK.
 - **Streaming**: sequential piece priority plus a local HTTP server feeding ExoPlayer, which is
   how Stremio does it. The largest single piece of work here.
+
+## Queueing a whole series (Dewi, 2026-08-01) — unified, and mostly already built
+
+The ask: queue a season, not one episode at a time. The good news is that this needs almost no
+new concepts, because the queue already does exactly this for other things.
+
+A season-pack torrent is a folder of episodes, and `PreparedTorrent.files` already exposes them
+with paths and lengths. Each playable file becomes a `MediaItem` whose `mediaUrl` is that file's
+stream URL — so a pack becomes a list of ordinary items, and the existing
+`PlaybackQueue.playAll(items, group)` puts them in with a `QueueGroup`. The queue screen already
+renders group headers and supports `removeGroup`, both shipped for playlists and channels.
+
+So "queue this season" is the SAME operation as "play all of this playlist". Nothing pillar-
+specific, no torrent concepts above the data layer, and the group header names the release. That
+is the first law paying off rather than being recited.
+
+### Three things that genuinely need deciding
+
+- **Ordering and labelling.** Files arrive as `Show.S01E03.1080p.mkv`. Parsing `SxxEyy` gives
+  correct order and clean episode labels; not parsing gives raw filenames in torrent order,
+  which is usually right but not always. Parsing is a small fragile thing — worth it, but it
+  will occasionally mislabel and should fall back to the filename rather than guess.
+- **What "a series" means on an indexer.** Sometimes one season-pack torrent, sometimes one
+  torrent per episode, sometimes a complete-series pack of 60 files. Queueing from a single
+  result is easy; assembling a series from several results is a different, larger feature.
+- **How many to prepare on the server.** The cache is 256MB of RAM. Preparing 24 episodes at
+  once would thrash it, so only the current and next item should be prepared — which is exactly
+  what `NextUpPrefetcher` already does for videos, pointed at a different resolve step. This is
+  where Dewi's preloading question and this one meet.
