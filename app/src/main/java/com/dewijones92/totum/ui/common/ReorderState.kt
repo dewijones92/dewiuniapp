@@ -1,38 +1,68 @@
 package com.dewijones92.totum.ui.common
 
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInWindow
+import com.dewijones92.totum.common.Diag
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlin.math.abs
 
 /**
- * Long-press-and-drag reordering for a list.
+ * Long-press-and-drag reordering for a list, including dragging past what is on screen.
  *
- * Hand-rolled rather than pulling in a dependency, and deliberately simple: instead of
- * mapping pointer positions onto item bounds, it accumulates the drag and swaps one
- * position each time the accumulated distance passes a row's height. That reads
- * identically to the user, survives lists whose lazy indices don't line up with the
- * data (this one interleaves group headers), and has no measurement edge cases.
+ * Hand-rolled rather than pulling in a dependency, and deliberately simple: instead of mapping
+ * pointer positions onto item bounds, it accumulates the drag and swaps one position each time
+ * the accumulated distance passes a row's height. That reads identically to the user, survives
+ * lists whose lazy indices don't line up with the data (the queue interleaves group headers),
+ * and has no measurement edge cases.
  *
- * [onMove] is called as the drag crosses each boundary, so the list reorders live and
- * the underlying store stays the single source of truth — nothing to commit on release.
+ * **It auto-scrolls at the edges**, which is the difference between a toy and something usable.
+ * Without it a drag could only move an item as far as the viewport, and Dewi's queue is 74 items
+ * long — so "move this to the end" was impossible by dragging, however long you were willing to
+ * spend. Hold a row near the top or bottom and the list now scrolls under it for as long as you
+ * hold it there.
+ *
+ * The mechanism is the neat part: scrolling the list by N pixels moves the content under a
+ * stationary finger by exactly N pixels, so auto-scroll feeds those pixels into the SAME
+ * accumulator a real drag uses. Swapping therefore continues while scrolling, through one code
+ * path, rather than needing a second rule for "moved because the list moved underneath".
+ *
+ * [onMove] is called as the drag crosses each boundary, so the list reorders live and the
+ * underlying store stays the single source of truth — nothing to commit on release.
  */
 class ReorderState internal constructor(
     private val onMove: (from: Int, to: Int) -> Unit,
+    private val listState: LazyListState,
+    private val scope: CoroutineScope,
 ) {
     internal var draggingIndex by mutableIntStateOf(NONE)
-        private set
     private var accumulated by mutableFloatStateOf(0f)
-    private var rowHeight by mutableStateOf(0)
+    internal var rowHeight by mutableStateOf(0)
+    internal var itemCount = 0
+
+    /** The list's own top and bottom in window coordinates, so "near the edge" is answerable. */
+    private var listTop = 0f
+    private var listBottom = 0f
+
+    /** Runs for as long as the finger stays in an edge zone. */
+    private var autoScroll: Job? = null
 
     /** True while [index] is the row being dragged. */
     fun isDragging(index: Int): Boolean = draggingIndex == index
@@ -41,53 +71,148 @@ class ReorderState internal constructor(
     fun offsetFor(index: Int): Float = if (isDragging(index)) accumulated else 0f
 
     /**
-     * Attach to a row's grip to make it draggable. [index] is the row's index **in the
-     * data**, which is what [onMove] receives.
+     * Attach to the scrolling container, so the edge zones are known.
+     *
+     * Without it the state cannot tell where the list ends, and it fails SAFE rather than
+     * silently wrong: [listBottom] stays zero, no zone is ever entered, and dragging behaves
+     * exactly as it did before auto-scroll existed.
      */
-    fun Modifier.dragHandle(index: Int, itemCount: Int): Modifier = this
-        .onSizeChanged { if (it.height > 0) rowHeight = it.height }
-        .pointerInput(index, itemCount) {
-            detectDragGesturesAfterLongPress(
-                onDragStart = {
-                    draggingIndex = index
-                    accumulated = 0f
-                },
-                onDragEnd = { reset() },
-                onDragCancel = { reset() },
-                onDrag = { _, delta ->
-                    accumulated += delta.y
-                    val step = rowHeight.takeIf { it > 0 } ?: return@detectDragGesturesAfterLongPress
-                    while (abs(accumulated) >= step) {
-                        val direction = if (accumulated > 0) 1 else -1
-                        val from = draggingIndex
-                        val to = from + direction
-                        if (to !in 0 until itemCount) {
-                            // At an end: stop accumulating so the row doesn't drift away.
-                            accumulated = 0f
-                            break
-                        }
-                        onMove(from, to)
-                        draggingIndex = to
-                        accumulated -= direction * step
-                    }
-                },
-            )
+    fun Modifier.reorderContainer(): Modifier = onGloballyPositioned { coordinates ->
+        listTop = coordinates.positionInWindow().y
+        listBottom = listTop + coordinates.size.height
+    }
+
+    /**
+     * Attach to a row's grip to make it draggable. [index] is the row's index **in the data**,
+     * which is what [onMove] receives.
+     */
+    fun Modifier.dragHandle(index: Int, itemCount: Int): Modifier {
+        this@ReorderState.itemCount = itemCount
+        var handleTop = 0f
+        return this
+            .onSizeChanged { if (it.height > 0) rowHeight = it.height }
+            .onGloballyPositioned { handleTop = it.positionInWindow().y }
+            .pointerInput(index, itemCount) {
+                detectDragGesturesAfterLongPress(
+                    onDragStart = {
+                        draggingIndex = index
+                        accumulated = 0f
+                    },
+                    onDragEnd = { reset() },
+                    onDragCancel = { reset() },
+                    onDrag = { change, delta ->
+                        applyDrag(delta.y)
+                        // The finger in window space: where the grip is, plus where the touch
+                        // sits within it. Edge detection only needs to be right to within a row.
+                        updateAutoScroll(handleTop + change.position.y)
+                    },
+                )
+            }
+    }
+
+    /**
+     * Moves the dragged row by [dy] pixels of travel, swapping as it crosses each boundary.
+     *
+     * Shared by the finger and the auto-scroll because they are the same event: content moving
+     * relative to the row. A separate path for scrolling would be a second definition of "when
+     * does this become a swap", and two definitions of one rule drift.
+     */
+    internal fun applyDrag(dy: Float) {
+        accumulated += dy
+        val step = rowHeight.takeIf { it > 0 } ?: return
+        while (abs(accumulated) >= step) {
+            val direction = if (accumulated > 0) 1 else -1
+            val from = draggingIndex
+            val to = from + direction
+            if (to !in 0 until itemCount) {
+                // At an end: stop accumulating so the row doesn't drift away.
+                accumulated = 0f
+                return
+            }
+            onMove(from, to)
+            draggingIndex = to
+            accumulated -= direction * step
         }
+    }
+
+    /**
+     * Starts, stops, or leaves running the scroll that happens while a row is held at an edge.
+     *
+     * One job for as long as the finger stays in a zone, rather than a scroll per drag event: a
+     * finger held perfectly still emits NO pointer events, and that is precisely the gesture
+     * this exists to serve — put the row at the bottom of the screen and wait.
+     */
+    private fun updateAutoScroll(fingerY: Float) {
+        val direction = when {
+            listBottom <= listTop -> 0 // container never measured; behave as before
+            fingerY < listTop + EDGE_ZONE_PX -> -1
+            fingerY > listBottom - EDGE_ZONE_PX -> 1
+            else -> 0
+        }
+        if (direction == 0) {
+            if (autoScroll != null) Diag.log("queue", "drag left the edge; auto-scroll stopped")
+            stopAutoScroll()
+            return
+        }
+        if (autoScroll?.isActive == true) return
+        // Logged because a drag that will not travel is otherwise unanswerable from a report:
+        // "it did not scroll" could equally mean the zone was never entered, the container was
+        // never measured, or the list was already at its end.
+        Diag.log(
+            "queue",
+            "drag held at the ${if (direction < 0) "top" else "bottom"} edge; scrolling " +
+                "(finger=${fingerY.toInt()} list=${listTop.toInt()}..${listBottom.toInt()})",
+        )
+        autoScroll = scope.launch {
+            while (isActive && draggingIndex != NONE) {
+                val moved = listState.scrollBy(direction * SCROLL_STEP_PX)
+                // The list can run out: at the very top or bottom nothing moves, and feeding
+                // zero into the accumulator forever would just spin.
+                if (moved == 0f) {
+                    Diag.log("queue", "auto-scroll stopped: the list is already at its end")
+                    break
+                }
+                applyDrag(moved)
+            }
+        }
+    }
+
+    private fun stopAutoScroll() {
+        autoScroll?.cancel()
+        autoScroll = null
+    }
 
     private fun reset() {
+        stopAutoScroll()
         draggingIndex = NONE
         accumulated = 0f
     }
 
     private companion object {
         const val NONE = -1
+
+        /**
+         * How close to an edge counts as "held there".
+         *
+         * About a finger's width, so it can be reached deliberately without being entered by
+         * accident while dragging between two rows that happen to be near the end of the list.
+         */
+        const val EDGE_ZONE_PX = 140f
+
+        /** Per tick — roughly a frame's travel, so scrolling reads as continuous, not steppy. */
+        const val SCROLL_STEP_PX = 12f
     }
 }
 
-/** Remembers a [ReorderState] that reports moves to [onMove]. */
+/** Remembers a [ReorderState] that reports moves to [onMove] and can scroll [listState]. */
 @Composable
-fun rememberReorderState(onMove: (from: Int, to: Int) -> Unit): ReorderState =
-    remember(onMove) { ReorderState(onMove) }
+fun rememberReorderState(
+    listState: LazyListState,
+    onMove: (from: Int, to: Int) -> Unit,
+): ReorderState {
+    val scope = rememberCoroutineScope()
+    return remember(onMove, listState, scope) { ReorderState(onMove, listState, scope) }
+}
 
 /** Lifts the dragged row above its neighbours and follows the finger. */
 fun Modifier.reorderable(state: ReorderState, index: Int): Modifier = this.graphicsLayer {

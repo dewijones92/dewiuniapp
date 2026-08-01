@@ -77,8 +77,13 @@ fun QueueScreen(container: AppContainer, modifier: Modifier = Modifier) {
                 supportingText = stringResource(R.string.queue_empty),
             )
         } else {
-            val reorder = rememberReorderState(onMove = queue::move)
-            LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+            val reorder = rememberReorderState(listState = listState, onMove = queue::move)
+            LazyColumn(
+                state = listState,
+                // The container has to be known for a drag held at an edge to scroll the list;
+                // without it dragging still works, it just cannot reach past the screen.
+                modifier = with(reorder) { Modifier.fillMaxSize().reorderContainer() },
+            ) {
                 itemsWithGroupHeaders(
                     entries = entries,
                     nowPlaying = NowPlaying(snapshot.currentIndex, playing?.progress, playing?.isPlaying == true),
