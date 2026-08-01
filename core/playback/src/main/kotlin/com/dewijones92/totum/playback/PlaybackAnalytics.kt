@@ -1,5 +1,6 @@
 package com.dewijones92.totum.playback
 
+import android.os.SystemClock
 import androidx.media3.common.C
 import androidx.media3.common.Format
 import androidx.media3.common.util.UnstableApi
@@ -34,6 +35,18 @@ internal class PlaybackAnalytics : AnalyticsListener {
     private var outstanding = 0
     private var loads = 0L
     private var bytes = 0L
+
+    /**
+     * When each in-flight load began, so a HUNG one is visible while it is still hanging.
+     *
+     * Report 0.1.295 could not be diagnosed without this. It showed six loads outstanding and
+     * a sustained ~844kbps against a network the recovery probe had just clocked at 158Mbps —
+     * but nothing said whether those six were small chunks arriving slowly (YouTube throttling
+     * the stream) or one enormous request the player was sat waiting on (asking for too much at
+     * once). Those have opposite fixes, and a completed-load average cannot tell them apart
+     * because a load that never completes contributes to it not at all.
+     */
+    private val startedAtMs = HashMap<Long, Long>()
 
     /**
      * The last few completed loads, for a throughput figure that describes NOW.
@@ -82,9 +95,14 @@ internal class PlaybackAnalytics : AnalyticsListener {
     ) {
         outstanding = (outstanding - 1).coerceAtLeast(0)
         Vitals.set("playback.loadsOutstanding", outstanding.toString())
+        startedAtMs.remove(loadEventInfo.loadTaskId)
+        Vitals.set("playback.oldestLoadMs", oldestOutstandingMs().toString())
         loads++
         bytes += loadEventInfo.bytesLoaded
-        Vitals.set("playback.loadedMb", (bytes / BYTES_PER_MB).toString())
+        // Kilobytes, not megabytes: 0.1.295 reported "loadedMb 0" through five minutes of
+        // 1080p playback, which reads as "nothing loaded" and is really integer division.
+        Vitals.set("playback.loadedKb", (bytes / BYTES_PER_KB).toString())
+        Vitals.set("playback.loads", loads.toString())
 
         if (loadEventInfo.loadDurationMs > SUSPENDED_LOAD_MS) {
             // Not a slow network — a load the player sat on while paused. Said out loud,
@@ -100,6 +118,21 @@ internal class PlaybackAnalytics : AnalyticsListener {
         recent.addLast(Sample(loadEventInfo.bytesLoaded, loadEventInfo.loadDurationMs))
         while (recent.size > RECENT_LOADS) recent.removeFirst()
         Vitals.set("playback.avgLoadKbps", averageKbps().toString())
+        // Chunk SIZE is the number that separates the two explanations for a slow stream:
+        // many small chunks arriving slowly means the stream is being throttled, while a few
+        // huge ones means we asked for too much in one request. The rate alone reads the same.
+        Vitals.set("playback.avgChunkKb", averageChunkKb().toString())
+
+        // Periodic rather than per-load: a video issues one every few seconds, and the report
+        // buffer is bounded, so this follows the counted-never-silent rule the rest of the
+        // trail uses. Every LOAD_SUMMARY_EVERY loads is enough to see a trend.
+        if (loads % LOAD_SUMMARY_EVERY == 0L) {
+            Diag.log(
+                "load",
+                "$loads loads, ${bytes / BYTES_PER_KB}KB total, recent " +
+                    "~${averageKbps()}kbps in ~${averageChunkKb()}KB chunks, $outstanding in flight",
+            )
+        }
 
         // One line only when a single chunk was slow enough to be the problem, so the
         // trail keeps the loads worth seeing and drops the dozens that were fine.
@@ -127,6 +160,20 @@ internal class PlaybackAnalytics : AnalyticsListener {
     ) {
         outstanding++
         Vitals.set("playback.loadsOutstanding", outstanding.toString())
+        startedAtMs[loadEventInfo.loadTaskId] = eventTime.realtimeMs
+        Vitals.set("playback.oldestLoadMs", oldestOutstandingMs().toString())
+    }
+
+    /**
+     * How long the longest-running unfinished load has been going, in ms; 0 when none are.
+     *
+     * Read at report time, so a load that is hanging *right now* — the thing a stall actually
+     * consists of — shows up. A finished-loads average never can: 0.1.295's one visible load
+     * ran 145,750ms and then failed, and it only became visible by failing.
+     */
+    private fun oldestOutstandingMs(): Long {
+        val oldest = startedAtMs.values.minOrNull() ?: return 0
+        return (SystemClock.elapsedRealtime() - oldest).coerceAtLeast(0)
     }
 
     override fun onLoadError(
@@ -137,6 +184,8 @@ internal class PlaybackAnalytics : AnalyticsListener {
         wasCanceled: Boolean,
     ) {
         outstanding = (outstanding - 1).coerceAtLeast(0)
+        startedAtMs.remove(loadEventInfo.loadTaskId)
+        Vitals.set("playback.oldestLoadMs", oldestOutstandingMs().toString())
         Vitals.add("playback.loadErrors")
         Vitals.set("playback.lastLoadError", "${mediaLoadData.trackName()}: ${error.javaClass.simpleName}")
         Diag.warn(
@@ -174,6 +223,10 @@ internal class PlaybackAnalytics : AnalyticsListener {
         else -> "track-$trackType"
     }
 
+    /** Mean size of the recent completed loads, in KB — 0 when none have completed yet. */
+    private fun averageChunkKb(): Long =
+        if (recent.isEmpty()) 0 else recent.sumOf { it.bytes } / recent.size / BYTES_PER_KB
+
     private fun averageKbps(): Long {
         val totalMs = recent.sumOf { it.durationMs }
         return if (totalMs <= 0) 0 else recent.sumOf { it.bytes } * BITS_PER_BYTE / totalMs
@@ -193,7 +246,9 @@ internal class PlaybackAnalytics : AnalyticsListener {
         const val BITS_PER_BYTE = 8L
         const val BITS_PER_KILOBIT = 1_000L
         const val BYTES_PER_KB = 1024L
-        const val BYTES_PER_MB = 1024L * 1024L
+
+        /** Often enough to show a trend across a stall, rare enough not to crowd the buffer. */
+        const val LOAD_SUMMARY_EVERY = 25L
 
         /** Below this, for long enough to matter, a chunk is worth naming individually. */
         const val SLOW_LOAD_KBPS = 800L

@@ -58,11 +58,17 @@ internal class PlaybackDiagnostics(
                 stalledSince = now()
                 Vitals.add("playback.stalls")
                 val kbps = PlaybackVitals.kbps()
-                val outstanding = Vitals.snapshot()["playback.loadsOutstanding"]
+                val vitals = Vitals.snapshot()
+                val outstanding = vitals["playback.loadsOutstanding"]
+                // Chunk size and the oldest in-flight load turn "it buffered" into a diagnosis:
+                // small chunks arriving slowly is a throttled stream, one load sat there for
+                // minutes is the player waiting on a request that will never land.
                 Diag.log(
                     "playback",
                     "buffering at ${position()}" + (kbps?.let { " (was ~${it}kbps" } ?: " (") +
-                        ", $outstanding load(s) in flight)",
+                        ", $outstanding load(s) in flight" +
+                        ", oldest ${vitals["playback.oldestLoadMs"] ?: "?"}ms" +
+                        ", ~${vitals["playback.avgChunkKb"] ?: "?"}KB chunks)",
                 )
             }
             Player.STATE_READY -> {
