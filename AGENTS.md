@@ -14,6 +14,8 @@ what's relevant.
    Read it first.
 2. **`docs/`** — a maintained hierarchy of living documentation. See
    [`docs/README.md`](docs/README.md) for the map. In short:
+   - [`docs/spec.md`](docs/spec.md) — what Totum IS and which behaviours must never
+     break. Read this before deciding what to work on.
    - [`docs/architecture.md`](docs/architecture.md) — the unified seams + module map.
    - [`docs/features/`](docs/features/_index.md) — one doc per feature (status, seam, files, tests).
    - [`docs/todos/`](docs/todos/_index.md) — the live backlog, one file per item.

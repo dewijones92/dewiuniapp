@@ -1,7 +1,7 @@
 ---
 title: Totum docs
 kind: index
-updated: 2026-07-25
+updated: 2026-08-01
 ---
 
 # Totum documentation
@@ -15,6 +15,7 @@ detail and keep it current.
 
 | Dir | What | Convention |
 |---|---|---|
+| [`spec.md`](spec.md) | What Totum IS, and the invariants of its core loop | one file |
 | [`architecture.md`](architecture.md) | The unified seams + module map | one file |
 | [`features/`](features/_index.md) | One doc per feature — status, seam, files, tests | `<feature>.md` + `_index.md` |
 | [`todos/`](todos/_index.md) | The live backlog — one file per item | `<slug>.md` + `_index.md` |
@@ -27,7 +28,7 @@ Every doc starts with YAML frontmatter. Common fields:
 ```yaml
 ---
 title: Search history
-kind: feature | todo | index | reference
+kind: feature | todo | index | reference | spec
 status: shipped | in-progress | planned | dropped   # features & todos
 priority: high | medium | low                        # todos
 area: search | playback | channel | downloads | …
