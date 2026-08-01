@@ -106,4 +106,44 @@ class VideoResolverSharingTest {
 
         assertEquals("the first video should still be cached", 1 + others.size, calls.get())
     }
+
+    /**
+     * A stream that died must be re-resolved, not served from cache.
+     *
+     * Report 0.1.277, and it is the reason `forget` exists. A video failed nine minutes in with
+     * a source error; recovery retried three times over twenty seconds; every attempt logged
+     * "cache hit … skipped extraction" and asked the SAME dead URL, failing identically each
+     * time; the video was then skipped as unplayable. Recovery's entire purpose is to obtain a
+     * NEW address, and the cache silently defeated it.
+     *
+     * The class comment had predicted this exact loop — "a stale URL 403s, and recovery only
+     * re-resolves, so serving one from here would loop" — and a ten-minute TTL was no defence,
+     * because a stream dies long before ten minutes are up.
+     */
+    @Test
+    fun `forgetting a resolution makes the next resolve real again`() = runTest {
+        val calls = AtomicInteger()
+        val resolver = resolver(calls)
+
+        resolver.resolve(url, source, asked = "play")
+        resolver.resolve(url, source, asked = "play")
+        assertEquals("the second play should be a cache hit", 1, calls.get())
+
+        resolver.forget(url)
+        resolver.resolve(url, source, asked = "play")
+
+        assertEquals("after forgetting, it must extract again", 2, calls.get())
+    }
+
+    /** Forgetting something never resolved is harmless — recovery cannot know either way. */
+    @Test
+    fun `forgetting an unknown url does nothing`() = runTest {
+        val calls = AtomicInteger()
+        val resolver = resolver(calls)
+
+        resolver.forget(url)
+        resolver.resolve(url, source, asked = "play")
+
+        assertEquals(1, calls.get())
+    }
 }

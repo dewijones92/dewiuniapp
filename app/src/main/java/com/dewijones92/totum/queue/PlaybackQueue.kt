@@ -370,6 +370,12 @@ class PlaybackQueue(
      */
     suspend fun replayCurrent(positionMs: Long): Boolean {
         val entry = _state.value.current ?: return false
+        // Recovery is the only caller, and it exists to get a FRESH stream — so the cached
+        // resolution has to go first. Without this the replay hits the resolver cache and asks
+        // the same dead URL again: a real report (0.1.277) shows three "recoveries" eight
+        // seconds apart, each logging "cache hit … skipped extraction", after which a perfectly
+        // playable video was skipped as broken.
+        (entry.item.handle as? PlayHandle.Video)?.let { launcher.forgetResolved(it.watchUrl) }
         return play(entry.item, positionMs)
     }
 

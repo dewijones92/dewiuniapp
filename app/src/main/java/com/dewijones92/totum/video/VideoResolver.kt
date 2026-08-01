@@ -313,6 +313,26 @@ class VideoResolver(
         return resolved
     }
 
+    /**
+     * Forgets any cached resolution for [watchUrl], so the next resolve genuinely re-resolves.
+     *
+     * Recovery is the only caller and it is the reason this exists. A stream that dies mid-play
+     * is usually a URL that has expired, and re-playing it means asking for a NEW one — but the
+     * replay went back through [resolve], hit this cache, and got the same dead address. A real
+     * report (0.1.277) shows all three recovery attempts logging "cache hit … skipped
+     * extraction" against one URL, failing identically eight seconds apart, and the video then
+     * being skipped as unplayable when a fresh URL would have played it.
+     *
+     * The class comment predicted exactly this — "a stale URL 403s, and recovery only
+     * re-resolves, so serving one from here would loop" — and the TTL alone was not enough,
+     * because ten minutes is far longer than a stream takes to die.
+     */
+    fun forget(watchUrl: HttpUrl) {
+        if (cache.remove(watchUrl) != null) {
+            Diag.log("resolve", "forgot the cached URL for ${watchUrl.value.takeLast(ID_CHARS)}; it will re-resolve")
+        }
+    }
+
     /** A cached entry still inside its TTL, or null. */
     private fun fresh(watchUrl: HttpUrl): Resolved? =
         cache[watchUrl]?.takeIf { now() - it.at < CACHE_TTL_MS }?.resolved

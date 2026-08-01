@@ -51,6 +51,11 @@ class VideoPlaybackLauncher(
     private var current: VideoResolver.Resolved? = null
 
     /** Plays an already-downloaded file — no re-resolution, and no quality choice (it's one merged file). */
+    /** Drops any cached resolution for [watchUrl] — see [VideoResolver.forget]. */
+    fun forgetResolved(watchUrl: HttpUrl) {
+        resolver.forget(watchUrl)
+    }
+
     fun playLocal(item: MediaItem, localPath: String) {
         current = null
         _quality.value = QualityState()
