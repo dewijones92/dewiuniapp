@@ -35,6 +35,10 @@ enum class PlaybackMode {
     VIDEO,
 }
 
+// One method per preference, so the count tracks how many settings exist rather than any
+// complexity. Splitting a settings interface to satisfy a counter would scatter one concept
+// across several types for no reader's benefit.
+@Suppress("TooManyFunctions")
 interface AppPreferences {
     val settings: StateFlow<Settings>
     fun setWifiMaxHeight(height: Int)
@@ -44,6 +48,9 @@ interface AppPreferences {
     /** Experimental: resolve and stream over SABR instead of extracting. Off by default. */
     fun setSabrPlayback(enabled: Boolean)
     fun setHomeServer(base: String, prowlarrApiKey: String)
+
+    /** Stores the token a sign-in returned. Never logged. */
+    fun setHomeServerToken(token: String)
     fun setAutoDownloadQueue(enabled: Boolean)
     fun setAutoDownloadWifiOnly(enabled: Boolean)
     fun setPlaybackMode(mode: PlaybackMode)
@@ -77,8 +84,16 @@ interface AppPreferences {
          * worse than the thing simply not being there.
          */
         val homeServerBase: String = "",
-        /** Prowlarr's API key. The Google gate protects the endpoint; this identifies the caller. */
+        /** Prowlarr's API key. The gate protects the endpoint; this identifies the caller. */
         val prowlarrApiKey: String = "",
+        /**
+         * The token the home server issued after a Google sign-in, replayed on every request.
+         *
+         * Obtained by opening the server's sign-in page in a browser, which deep-links back into
+         * the app carrying it — the app cannot hold an oauth2-proxy cookie, because Google
+         * refuses sign-in in a WebView and a Custom Tab's cookies live in Chrome.
+         */
+        val homeServerToken: String = "",
         /** Whether queued items have their audio fetched for offline listening. */
         val autoDownloadQueue: Boolean = true,
         /** Restricts automatic downloads to Wi-Fi, so a long queue can't eat data. */
@@ -119,6 +134,7 @@ class SharedPrefsAppPreferences(context: Context) : AppPreferences {
             sabrPlayback = prefs.getBoolean(KEY_SABR, false),
             homeServerBase = prefs.getString(KEY_HOME_SERVER, "").orEmpty(),
             prowlarrApiKey = prefs.getString(KEY_PROWLARR_KEY, "").orEmpty(),
+            homeServerToken = prefs.getString(KEY_HOME_TOKEN, "").orEmpty(),
             autoDownloadQueue = prefs.getBoolean(KEY_AUTO_DOWNLOAD, true),
             autoDownloadWifiOnly = prefs.getBoolean(KEY_AUTO_DOWNLOAD_WIFI, true),
             playbackMode = prefs.getString(KEY_PLAYBACK_MODE, null)
@@ -162,6 +178,14 @@ class SharedPrefsAppPreferences(context: Context) : AppPreferences {
             putString(KEY_PROWLARR_KEY, prowlarrApiKey.trim())
         },
     ) { it.copy(homeServerBase = base.trim(), prowlarrApiKey = prowlarrApiKey.trim()) }
+
+    override fun setHomeServerToken(token: String): Unit = change(
+        // The VALUE is never logged; whether one exists is, because "signed in?" is the first
+        // question when nothing works.
+        "homeServerToken",
+        if (token.isBlank()) "(cleared)" else "(set)",
+        { putString(KEY_HOME_TOKEN, token.trim()) },
+    ) { it.copy(homeServerToken = token.trim()) }
 
     override fun setAutoDownloadQueue(enabled: Boolean): Unit =
         change("autoDownloadQueue", enabled, { putBoolean(KEY_AUTO_DOWNLOAD, enabled) }) {
@@ -211,6 +235,7 @@ class SharedPrefsAppPreferences(context: Context) : AppPreferences {
         const val KEY_SABR = "sabr_playback"
         const val KEY_HOME_SERVER = "home_server_base"
         const val KEY_PROWLARR_KEY = "prowlarr_api_key"
+        const val KEY_HOME_TOKEN = "home_server_token"
         const val KEY_AUTO_DOWNLOAD = "auto_download_queue"
         const val KEY_AUTO_DOWNLOAD_WIFI = "auto_download_wifi_only"
         const val KEY_PLAYBACK_MODE = "playback_mode"
@@ -220,6 +245,7 @@ class SharedPrefsAppPreferences(context: Context) : AppPreferences {
 }
 
 /** In-memory [AppPreferences] for previews and tests. */
+@Suppress("TooManyFunctions")
 class InMemoryAppPreferences : AppPreferences {
     private val _settings = MutableStateFlow(AppPreferences.Settings())
     override val settings: StateFlow<AppPreferences.Settings> = _settings.asStateFlow()
@@ -230,6 +256,7 @@ class InMemoryAppPreferences : AppPreferences {
     override fun setSabrPlayback(enabled: Boolean) = _settings.update { it.copy(sabrPlayback = enabled) }
     override fun setHomeServer(base: String, prowlarrApiKey: String) =
         _settings.update { it.copy(homeServerBase = base, prowlarrApiKey = prowlarrApiKey) }
+    override fun setHomeServerToken(token: String) = _settings.update { it.copy(homeServerToken = token) }
     override fun setAutoDownloadQueue(enabled: Boolean) = _settings.update { it.copy(autoDownloadQueue = enabled) }
     override fun setAutoDownloadWifiOnly(enabled: Boolean) =
         _settings.update { it.copy(autoDownloadWifiOnly = enabled) }

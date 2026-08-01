@@ -379,9 +379,10 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
         val base = settings.homeServerBase.takeIf { it.isNotBlank() } ?: return@lazy null
         HttpHomeTorrentServer(
             client = httpClient,
-            prowlarrBase = "https://prowlarr.$base",
-            torrServerBase = "https://torrserver.$base",
+            base = "https://totum.$base",
             prowlarrApiKey = settings.prowlarrApiKey,
+            // Read per call, so signing in takes effect immediately rather than after a restart.
+            token = { appPreferences.settings.value.homeServerToken },
         )
     }
 

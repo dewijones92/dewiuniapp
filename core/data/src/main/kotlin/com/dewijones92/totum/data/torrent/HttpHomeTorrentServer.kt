@@ -30,11 +30,21 @@ import java.io.IOException
  */
 public class HttpHomeTorrentServer(
     private val client: OkHttpClient,
-    private val prowlarrBase: String,
-    private val torrServerBase: String,
-    /** Prowlarr requires its own key even behind the gate; the gate protects, it does not identify. */
+    /** One host, e.g. `https://totum.example.com` — Prowlarr under `/prowlarr/`, TorrServer `/ts/`. */
+    private val base: String,
+    /** Prowlarr requires its own key behind the proxy; the gate protects, it does not identify. */
     private val prowlarrApiKey: String,
+    /**
+     * The token obtained by signing in with Google, replayed on every request.
+     *
+     * Read per call rather than captured, so a fresh sign-in takes effect immediately instead of
+     * after a restart — and so a blank one produces an honest 401 rather than a silent failure.
+     */
+    private val token: () -> String,
 ) : HomeTorrentServer {
+
+    private val prowlarrBase get() = "$base/prowlarr"
+    private val torrServerBase get() = "$base/ts"
 
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -43,6 +53,7 @@ public class HttpHomeTorrentServer(
         val request = Request.Builder()
             .url("$prowlarrBase/api/v1/search?query=$encoded&type=search")
             .header("X-Api-Key", prowlarrApiKey)
+            .header(TOKEN_HEADER, token())
             .build()
         try {
             client.newCall(request).execute().use { response ->
@@ -94,11 +105,24 @@ public class HttpHomeTorrentServer(
         }
     }
 
-    override fun stream(torrent: PreparedTorrent, file: TorrentFile): HttpUrl =
-        HttpUrl.of("$torrServerBase/stream/${file.name.urlPath()}?link=${torrent.hash}&index=${file.index}&play")
+    /**
+     * The token rides in the QUERY here, not a header, and that is deliberate.
+     *
+     * This URL is handed to ExoPlayer, which fetches it with its own HTTP stack and knows
+     * nothing about the app's headers. A header-only scheme would authenticate every call the
+     * app makes and then fail on the one that actually plays the video.
+     */
+    override fun stream(torrent: PreparedTorrent, file: TorrentFile): HttpUrl = HttpUrl.of(
+        "$torrServerBase/stream/${file.name.urlPath()}" +
+            "?link=${torrent.hash}&index=${file.index}&play&totumToken=${token()}",
+    )
 
     private fun post(url: String, body: String): JsonObject? = try {
-        val request = Request.Builder().url(url).post(body.toRequestBody(JSON_TYPE)).build()
+        val request = Request.Builder()
+            .url(url)
+            .header(TOKEN_HEADER, token())
+            .post(body.toRequestBody(JSON_TYPE))
+            .build()
         client.newCall(request).execute().use { response ->
             val text = response.body.string()
             when {
@@ -124,6 +148,9 @@ public class HttpHomeTorrentServer(
 
     private companion object {
         val JSON_TYPE = "application/json".toMediaType()
+
+        /** Checked by nginx before anything is proxied; a wrong or missing one is a 401. */
+        const val TOKEN_HEADER = "X-Totum-Token"
 
         const val HASH_CHARS = 12
     }
