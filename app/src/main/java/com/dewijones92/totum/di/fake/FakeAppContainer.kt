@@ -33,6 +33,7 @@ import com.dewijones92.totum.data.source.DefaultSourceLocator
 import com.dewijones92.totum.data.source.SourceLocator
 import com.dewijones92.totum.data.sponsorblock.SkipSegmentSource
 import com.dewijones92.totum.data.subscription.fake.InMemorySubscriptionStore
+import com.dewijones92.totum.data.torrent.HomeTorrentServer
 import com.dewijones92.totum.di.AppContainer
 import com.dewijones92.totum.importexport.SubscriptionImporter
 import com.dewijones92.totum.innertube.actions.YouTubeActions
@@ -79,6 +80,9 @@ class FakeAppContainer(
     override val podcastSearchSource: SearchSource = SearchSource { _, _, _ ->
         SearchOutcome.Success(Page.empty())
     },
+    /** Null by default: previews and most tests have no home server, which is the common case. */
+    override val torrentSearchSource: SearchSource? = null,
+    override val homeTorrentServer: HomeTorrentServer? = null,
     override val videoSearchSource: SearchSource = YtDlpVideoSearchSource(ytDlpEngine),
     override val searchHistoryStore: SearchHistoryStore = InMemorySearchHistoryStore(),
     override val playHistoryStore: PlayHistoryStore = InMemoryPlayHistoryStore(),

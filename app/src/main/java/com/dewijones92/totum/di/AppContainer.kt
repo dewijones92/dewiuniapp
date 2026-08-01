@@ -38,11 +38,14 @@ import com.dewijones92.totum.data.search.InnerTubeVideoSearchSource
 import com.dewijones92.totum.data.search.ItunesPodcastSearchSource
 import com.dewijones92.totum.data.search.SearchHistoryStore
 import com.dewijones92.totum.data.search.SearchSource
+import com.dewijones92.totum.data.search.TorrentSearchSource
 import com.dewijones92.totum.data.search.YtDlpVideoSearchSource
 import com.dewijones92.totum.data.source.DefaultSourceLocator
 import com.dewijones92.totum.data.source.SourceLocator
 import com.dewijones92.totum.data.sponsorblock.SkipSegmentSource
 import com.dewijones92.totum.data.sponsorblock.SponsorBlockSegmentSource
+import com.dewijones92.totum.data.torrent.HomeTorrentServer
+import com.dewijones92.totum.data.torrent.HttpHomeTorrentServer
 import com.dewijones92.totum.database.RoomDownloadStore
 import com.dewijones92.totum.database.RoomFeedCache
 import com.dewijones92.totum.database.RoomLocalPlaylistStore
@@ -140,6 +143,17 @@ interface AppContainer {
     val playbackController: PlaybackController
     val podcastSearchSource: SearchSource
     val videoSearchSource: SearchSource
+
+    /**
+     * Torrents from the home server, or null when it has not been configured.
+     *
+     * Null rather than a source that always fails, so the UI can leave the whole thing out
+     * instead of showing an error for a feature nobody has set up.
+     */
+    val torrentSearchSource: SearchSource?
+
+    /** Adds a torrent to the home server and turns it into queue items; null when unconfigured. */
+    val homeTorrentServer: HomeTorrentServer?
 
     /** Recent search queries, offered again in the search screen's idle state. */
     val searchHistoryStore: SearchHistoryStore
@@ -351,6 +365,28 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
 
     override val podcastSearchSource: SearchSource by lazy {
         ItunesPodcastSearchSource(textFetcher)
+    }
+
+    /**
+     * Configured only when a home server address is set, which is what makes the feature opt-in.
+     *
+     * The client carries no auth of its own: every request goes through the same OkHttp stack,
+     * whose cookie jar holds the oauth2-proxy session obtained at sign-in. Authentication is
+     * therefore a property of the HTTP client rather than something this class knows about.
+     */
+    override val homeTorrentServer: HomeTorrentServer? by lazy {
+        val settings = appPreferences.settings.value
+        val base = settings.homeServerBase.takeIf { it.isNotBlank() } ?: return@lazy null
+        HttpHomeTorrentServer(
+            client = httpClient,
+            prowlarrBase = "https://prowlarr.$base",
+            torrServerBase = "https://torrserver.$base",
+            prowlarrApiKey = settings.prowlarrApiKey,
+        )
+    }
+
+    override val torrentSearchSource: SearchSource? by lazy {
+        homeTorrentServer?.let(::TorrentSearchSource)
     }
 
     override val videoSearchSource: SearchSource by lazy {

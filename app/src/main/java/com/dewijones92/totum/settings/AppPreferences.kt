@@ -43,6 +43,7 @@ interface AppPreferences {
 
     /** Experimental: resolve and stream over SABR instead of extracting. Off by default. */
     fun setSabrPlayback(enabled: Boolean)
+    fun setHomeServer(base: String, prowlarrApiKey: String)
     fun setAutoDownloadQueue(enabled: Boolean)
     fun setAutoDownloadWifiOnly(enabled: Boolean)
     fun setPlaybackMode(mode: PlaybackMode)
@@ -67,6 +68,17 @@ interface AppPreferences {
          * use it.
          */
         val sabrPlayback: Boolean = false,
+        /**
+         * The home server's domain, e.g. `333133333.xyz`, from which `prowlarr.` and
+         * `torrserver.` are derived.
+         *
+         * Blank disables torrent search entirely rather than showing a broken feature: with no
+         * server there is nothing to search, and an error message for something never set up is
+         * worse than the thing simply not being there.
+         */
+        val homeServerBase: String = "",
+        /** Prowlarr's API key. The Google gate protects the endpoint; this identifies the caller. */
+        val prowlarrApiKey: String = "",
         /** Whether queued items have their audio fetched for offline listening. */
         val autoDownloadQueue: Boolean = true,
         /** Restricts automatic downloads to Wi-Fi, so a long queue can't eat data. */
@@ -91,6 +103,10 @@ interface AppPreferences {
 }
 
 /** SharedPreferences-backed [AppPreferences]; settings are tiny, so reads are synchronous. */
+// One setter per preference, so the count tracks the number of settings rather than any
+// complexity — and the home-server pair is deliberately ONE method because an address without a
+// key cannot search and a key without an address has nothing to search.
+@Suppress("TooManyFunctions")
 class SharedPrefsAppPreferences(context: Context) : AppPreferences {
 
     private val prefs = context.getSharedPreferences("totum_settings", Context.MODE_PRIVATE)
@@ -101,6 +117,8 @@ class SharedPrefsAppPreferences(context: Context) : AppPreferences {
             cellularMaxHeight = prefs.getInt(KEY_CELLULAR, AppPreferences.DEFAULT_CELLULAR_MAX_HEIGHT),
             autoPlayNext = prefs.getBoolean(KEY_AUTOPLAY, true),
             sabrPlayback = prefs.getBoolean(KEY_SABR, false),
+            homeServerBase = prefs.getString(KEY_HOME_SERVER, "").orEmpty(),
+            prowlarrApiKey = prefs.getString(KEY_PROWLARR_KEY, "").orEmpty(),
             autoDownloadQueue = prefs.getBoolean(KEY_AUTO_DOWNLOAD, true),
             autoDownloadWifiOnly = prefs.getBoolean(KEY_AUTO_DOWNLOAD_WIFI, true),
             playbackMode = prefs.getString(KEY_PLAYBACK_MODE, null)
@@ -131,6 +149,19 @@ class SharedPrefsAppPreferences(context: Context) : AppPreferences {
 
     override fun setSabrPlayback(enabled: Boolean): Unit =
         change("sabrPlayback", enabled, { putBoolean(KEY_SABR, enabled) }) { it.copy(sabrPlayback = enabled) }
+
+    /**
+     * Set together, because half of it is useless: an address without a key cannot search, and a
+     * key without an address has nothing to search. The key is NOT logged.
+     */
+    override fun setHomeServer(base: String, prowlarrApiKey: String): Unit = change(
+        "homeServer",
+        base.ifBlank { "(none)" },
+        {
+            putString(KEY_HOME_SERVER, base.trim())
+            putString(KEY_PROWLARR_KEY, prowlarrApiKey.trim())
+        },
+    ) { it.copy(homeServerBase = base.trim(), prowlarrApiKey = prowlarrApiKey.trim()) }
 
     override fun setAutoDownloadQueue(enabled: Boolean): Unit =
         change("autoDownloadQueue", enabled, { putBoolean(KEY_AUTO_DOWNLOAD, enabled) }) {
@@ -178,6 +209,8 @@ class SharedPrefsAppPreferences(context: Context) : AppPreferences {
         const val KEY_CELLULAR = "cellular_max_height"
         const val KEY_AUTOPLAY = "auto_play_next"
         const val KEY_SABR = "sabr_playback"
+        const val KEY_HOME_SERVER = "home_server_base"
+        const val KEY_PROWLARR_KEY = "prowlarr_api_key"
         const val KEY_AUTO_DOWNLOAD = "auto_download_queue"
         const val KEY_AUTO_DOWNLOAD_WIFI = "auto_download_wifi_only"
         const val KEY_PLAYBACK_MODE = "playback_mode"
@@ -195,6 +228,8 @@ class InMemoryAppPreferences : AppPreferences {
     override fun setAutoPlayNext(enabled: Boolean) = _settings.update { it.copy(autoPlayNext = enabled) }
 
     override fun setSabrPlayback(enabled: Boolean) = _settings.update { it.copy(sabrPlayback = enabled) }
+    override fun setHomeServer(base: String, prowlarrApiKey: String) =
+        _settings.update { it.copy(homeServerBase = base, prowlarrApiKey = prowlarrApiKey) }
     override fun setAutoDownloadQueue(enabled: Boolean) = _settings.update { it.copy(autoDownloadQueue = enabled) }
     override fun setAutoDownloadWifiOnly(enabled: Boolean) =
         _settings.update { it.copy(autoDownloadWifiOnly = enabled) }
