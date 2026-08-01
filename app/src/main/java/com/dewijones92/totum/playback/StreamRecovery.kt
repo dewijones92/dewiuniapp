@@ -36,6 +36,12 @@ import kotlinx.coroutines.launch
  *
  * @param replay plays the current item from a position, returning whether it started.
  * @param moveOn starts the next queue entry, for when re-resolving has stopped helping.
+ * @param prefetchNext resolves whatever plays next, started on the FIRST failure so it is ready
+ *   if the retries do not save this item. Measured on report 0.1.277: a video failed, three
+ *   recoveries took 22 seconds, and only THEN did the next item begin a 25-second extraction —
+ *   58 seconds of silence from first failure to sound, 28 of them after the app had already
+ *   given up. Resolving in parallel costs nothing when recovery succeeds and removes almost all
+ *   of that when it does not.
  * @param awaitNetwork suspends until there is a usable connection. Only consulted for an
  *   [StreamFailure.Reason.Unreachable], so an expiry is never delayed by it.
  */
@@ -43,6 +49,7 @@ internal class StreamRecovery(
     private val failures: Flow<StreamFailure>,
     private val replay: suspend (Long) -> Boolean,
     private val moveOn: suspend () -> Boolean,
+    private val prefetchNext: suspend () -> Unit = {},
     private val awaitNetwork: suspend () -> Unit,
     private val scope: CoroutineScope,
     private val maxAttempts: Int = MAX_ATTEMPTS,
@@ -62,8 +69,19 @@ internal class StreamRecovery(
         if (failure.shouldResetBudget()) {
             attempts = 0
         }
+        val firstFailureForThisItem = attempts == 0
         lastItem = failure.itemId
         lastPositionMs = failure.positionMs
+
+        if (firstFailureForThisItem) {
+            // In parallel with the retries, not after them. An extraction costs 20-25s on a real
+            // phone, so starting it only once recovery has given up puts that whole cost into
+            // silence the user is already sitting through. Fire-and-forget: if recovery works the
+            // resolved result simply waits in the cache, and if it does not, the next item is
+            // ready the moment we move on.
+            Diag.log("playback", "resolving the next item too, in case this one cannot be saved")
+            scope.launch { runCatching { prefetchNext() } }
+        }
 
         if (attempts >= maxAttempts) {
             // Giving up on THIS item is the point — re-resolving forever against something

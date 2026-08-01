@@ -27,6 +27,9 @@ class StreamRecoveryTest {
      * Backoff defaults to zero here so the budget and reason tests stay about the decision
      * rather than the clock; the wait itself has its own test below.
      */
+    /** Times the next item was resolved ahead — should be once per failing item, not per retry. */
+    private var prefetched = 0
+
     private fun TestScope.recovery(maxAttempts: Int = 3, backoffMs: Long = 0): StreamRecovery =
         StreamRecovery(
             failures = failures,
@@ -38,6 +41,7 @@ class StreamRecoveryTest {
                 movedOn++
                 true
             },
+            prefetchNext = { prefetched++ },
             awaitNetwork = {
                 waitedForNetwork++
                 networkBack.await()
@@ -216,4 +220,41 @@ class StreamRecoveryTest {
 
     private fun unreachable(at: Long) =
         StreamFailure(MediaItemId("a"), positionMs = at, reason = StreamFailure.Reason.Unreachable)
+
+    /**
+     * The next item is resolved WHILE the retries run, not after them.
+     *
+     * Report 0.1.277 measured the cost of doing it afterwards: a stream failed, three recoveries
+     * took 22 seconds, and only then did the next item start a 25-second extraction — 58 seconds
+     * of silence from the first failure to sound, 28 of them after the app had already given up.
+     * Overlapping the two costs nothing when recovery works, because the resolved result just
+     * sits in the cache.
+     */
+    @Test
+    fun `the next item starts resolving on the first failure`() = runTest {
+        recovery()
+        runCurrent() // let the collector subscribe; a SharedFlow drops what it misses
+
+        failures.emit(expired("a", at = 1_000))
+        runCurrent()
+
+        assertEquals("resolving next should begin immediately, not after the retries", 1, prefetched)
+    }
+
+    /**
+     * Once per failing item, not once per retry. Three retries firing three extractions of the
+     * same video would put 75 seconds of work on a phone to save 25.
+     */
+    @Test
+    fun `retrying the same item does not re-resolve the next one each time`() = runTest {
+        recovery()
+        runCurrent() // let the collector subscribe; a SharedFlow drops what it misses
+
+        repeat(3) {
+            failures.emit(expired("a", at = 1_000))
+            runCurrent()
+        }
+
+        assertEquals(1, prefetched)
+    }
 }

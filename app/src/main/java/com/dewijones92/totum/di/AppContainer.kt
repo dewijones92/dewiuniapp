@@ -519,22 +519,32 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
             isEnabled = { appPreferences.settings.value.autoPlayNext },
             scope = applicationScope,
         ).start()
+        // Resolving one item ahead, defined ONCE. Two things want it for the same reason —
+        // an extraction costs 20-25s on a phone, and any second of that spent while the user is
+        // already in silence is a second wasted — so the prefetcher (near the end of an item)
+        // and the recovery (the moment a stream fails) share this rather than each keeping a
+        // copy of "how do I resolve a video".
+        val prefetchOne: suspend (PlayableItem) -> Unit = { next ->
+            (next.handle as? PlayHandle.Video)?.let { video ->
+                videoResolver.prefetch(video.watchUrl, next.item.sourceId)
+            }
+        }
         // Videos resolve just-in-time, which meant yt-dlp's ~7 seconds landed in the silence
         // AFTER the previous item ended. Same rule, started a minute earlier.
         NextUpPrefetcher(
             states = playbackController.state,
             nextUp = playbackQueue::peekNext,
-            prefetch = { next ->
-                (next.handle as? PlayHandle.Video)?.let { video ->
-                    videoResolver.prefetch(video.watchUrl, next.item.sourceId)
-                }
-            },
+            prefetch = prefetchOne,
             scope = applicationScope,
         ).start()
         StreamRecovery(
             failures = playbackController.streamFailures,
             replay = playbackQueue::replayCurrent,
             moveOn = { playbackQueue.playNextInQueue() },
+            // Started on the first failure, so the 20-25s extraction overlaps the retries
+            // instead of following them. Report 0.1.277: 58s of silence, 28 of it after the app
+            // had already given up on the dead stream.
+            prefetchNext = { playbackQueue.peekNext()?.let { prefetchOne(it) } },
             awaitNetwork = networkStatus::awaitOnline,
             scope = applicationScope,
         ).start()

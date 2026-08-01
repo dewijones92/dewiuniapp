@@ -1,7 +1,7 @@
 ---
 title: Backlog
 kind: index
-updated: 2026-07-30
+updated: 2026-08-01
 ---
 
 # Backlog
@@ -37,6 +37,7 @@ to `shipped` and migrate it to `../features/` once it's a real feature on `main`
 | [watch-history-not-recorded](watch-history-not-recorded.md) | video | high | done — fixed by an authenticated player call carrying a current signatureTimestamp |
 | [sabr-streaming](sabr-streaming.md) | video | medium | fallback shipped; QuickJS runtime open |
 | [feed-pagination](feed-pagination.md) | video | high | feeds + channel tabs shipped; search pending |
+| [queue-drag-reorder](queue-drag-reorder.md) | queue | high | requested |
 | [testing-depth](testing-depth.md) | tests | medium | refining |
 | [audio-video-switching](audio-video-switching.md) | playback | high | shipped (local-audio merge outstanding) |
 | [notification-opens-app](notification-opens-app.md) | playback | high | shipped |
