@@ -66,7 +66,9 @@ echo "[live-test] LAN unreachable from the CI peer, as intended"
 # Say whether it actually RAN or merely skipped. Without this the log shows "Finished 1 tests"
 # and "BUILD SUCCESSFUL" either way, so the one question this whole tunnel exists to answer —
 # did YouTube serve us? — could not be answered from the log at all.
-RESULTS=$(find app/build/outputs/androidTest-results -name '*SabrPlaybackTest*.xml' 2>/dev/null | head -1)
+# One XML per DEVICE, not per class — "TEST-<avd>-_app-.xml" — so match any of them rather
+# than a filename carrying the class, which found nothing and said so.
+RESULTS=$(find app/build/outputs/androidTest-results -name 'TEST-*.xml' 2>/dev/null | head -1)
 if [ -z "$RESULTS" ]; then
   echo "[live-test] no result file found — cannot say whether the test ran"
 elif grep -q '<skipped' "$RESULTS"; then
