@@ -112,10 +112,39 @@ exact-address allowlist:
   existing download strategy. The torrent-ness stops at the Pi's edge, which is the strongest
   argument for this shape.
 
+### Playback: raw files, no transcoding (decided, and measured)
+
+The app plays the file as it is. No Jellyfin in the path, no transcoding, no Pi CPU while
+watching — search results are biased toward phone-safe releases (h264 + AAC) instead.
+
+That is a defensible choice because the bandwidth was **measured, not assumed**: the Pi uploads
+at **65 Mbps** (8.16 MB/s, twice, near-identical, to Cloudflare on 2026-08-01). Against that, a
+1080p x264 rip at 8-10 Mbps has six times the headroom, 1080p remux and 4K web-dl are fine, and
+only a top-end 4K HDR remux at 80 Mbps would not fit. Transcoding is therefore optional here in
+a way it would not be on a slow upstream.
+
+The gap this leaves is **codecs, not bandwidth**. Releases carrying DTS or TrueHD audio cannot
+be decoded by Android at all — video with no sound, or a refusal to play. There is no fixing
+that in the app; the answer is to pick a different release, which is why the search bias
+matters. If it turns out to annoy in practice, Jellyfin is already on the Pi and can be added as
+a fallback path later.
+
+### Seeding competes with streaming — cap it
+
+Both leave by the same 65 Mbps upstream. Uncapped, qBittorrent will take most of it and starve
+the very stream being watched, and the symptom (buffering away from home) looks nothing like the
+cause. Set an upload limit, or pause seeding while something is playing.
+
 ### Consequences to accept
 
 - **Home upload is the streaming ceiling** when away — the video comes off the broadband's
-  upstream, not PureVPN's downstream.
+  upstream, not PureVPN's downstream. Measured at 65 Mbps, so this is comfortable rather than
+  limiting.
+- **Not instant.** A torrent needs peers and a buffer before playback can start, and if playback
+  catches the download edge it stalls. Seeking only reaches into what has arrived.
+- **Multi-file torrents need UI.** A season pack is a folder of episodes, not one playable item.
+- **Subtitles** often ship as separate `.srt` files beside the video; the app renders subtitles
+  already, but finding them in a torrent folder is extra plumbing.
 - **The Pi must be up.** It already hosts the crash sink, so this is not a new dependency.
 - No VPN profile on the phone, ever, which is what Dewi asked for.
 
