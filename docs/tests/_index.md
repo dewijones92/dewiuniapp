@@ -76,3 +76,28 @@ Run it with:
 
 **The screen must be on and unlocked.** Android denies audio focus to a background app, and a
 suppressed player never ends, so the test would be measuring nothing. It says so when it fails.
+
+## Live-YouTube tests run through home broadband (2026-08-01)
+
+`SabrPlaybackTest` talks to the live service, and a GitHub runner is a datacentre IP that gets
+bot-checked — its first CI run came back `Unplayable`. It now runs through a WireGuard peer on
+Dewi's Pi (dot-files `vpn-stack`, `wg-home`), so YouTube sees a residential IP, driven by
+[`tools/ci/live-test-via-home.sh`](../../tools/ci/live-test-via-home.sh).
+
+Three things about it are deliberate:
+
+- **The peer can only reach the internet.** `wg-home` clients normally get full LAN access, and
+  this key lives in a public repo's secrets. The Pi firewalls it
+  (`vpn-stack/wg-home-init/10-ci-peer-lockdown.sh`), and the script **asserts** both that egress
+  is the expected residential IP and that two LAN hosts are unreachable — failing the build if
+  the lockdown ever stops holding, rather than proceeding quietly.
+- **Neither the IP nor the key is ever printed.** This repo is public, so its logs are; the
+  expected IP is itself a secret and only a verdict is logged.
+- **It says whether it RAN or skipped.** "Finished 1 tests" and "BUILD SUCCESSFUL" look
+  identical either way, so the one question the tunnel exists to answer was unanswerable from
+  its own output until the script read the result XML and said which.
+
+It runs inside the emulator action's `script`, because that action kills the emulator the moment
+the script returns — and as a file, because it rewrites backslash line-continuations inside
+`script:` (its own log shows `sh -c \yes | sdkmanager`), which turned a wrapped gradle command
+into a task named backslash.
