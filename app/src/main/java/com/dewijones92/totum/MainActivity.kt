@@ -56,10 +56,22 @@ class MainActivity : FragmentActivity() {
     private fun handleAuthIntent(intent: Intent): Boolean {
         val data = intent.data?.takeIf { it.scheme == "totum" && it.host == "auth" } ?: return false
         val token = data.getQueryParameter("token").orEmpty()
-        // The VALUE is never logged. Whether one arrived is, because "did sign-in work?" is the
-        // first question when the home server section is empty.
-        Diag.log("torrent", "home server sign-in returned a token: ${token.isNotBlank()}")
+        // The Prowlarr key rides the same deep link as the token, because it is the same secret
+        // in every way that matters: the gate has already established who is asking, and making
+        // someone copy a key by hand from a server that just authenticated them is busywork.
+        val prowlarrKey = data.getQueryParameter("key").orEmpty()
+        // VALUES are never logged. Whether each arrived is, because "did sign-in work?" is the
+        // first question when the home server section is empty — and a token without a key is a
+        // specific, silent half-failure worth telling apart from both of them missing.
+        Diag.log(
+            "torrent",
+            "home server sign-in returned token=${token.isNotBlank()} prowlarrKey=${prowlarrKey.isNotBlank()}",
+        )
         if (token.isNotBlank()) container.appPreferences.setHomeServerToken(token)
+        if (prowlarrKey.isNotBlank()) {
+            val base = container.appPreferences.settings.value.homeServerBase
+            container.appPreferences.setHomeServer(base, prowlarrKey)
+        }
         // Consumed, so a rotation or process restart cannot re-apply it.
         setIntent(Intent())
         return true

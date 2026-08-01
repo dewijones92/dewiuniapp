@@ -7,6 +7,7 @@ import com.dewijones92.totum.data.search.TorrentSearchSource
 import com.dewijones92.totum.data.torrent.fake.FakeHomeTorrentServer
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -107,7 +108,7 @@ class ProwlarrShapeTest {
 
     @Test
     fun `the magnet is taken from the field that IS one, not the one named like one`() {
-        val parsed = parseProwlarr(realShape)
+        val parsed = parseProwlarr(realShape)!!
 
         val result = parsed.single()
         assertTrue(
@@ -117,6 +118,24 @@ class ProwlarrShapeTest {
         assertEquals(4, result.seeders)
         assertEquals(1_011_075_711L, result.sizeBytes)
         assertEquals("The Pirate Bay", result.indexer)
+    }
+
+    /**
+     * The crash this prevents was real, on a device, mid-search (2026-08-01). Both services
+     * behind the home gate answer an unknown path with their own web UI and HTTP 200, so a
+     * misrouted request arrives as HTML — and parsing that as JSON threw straight up through
+     * the search coroutine and killed the app. A search that cannot be read is a failed search.
+     */
+    @Test
+    fun `a body that is not JSON is null, never an exception`() {
+        assertNull(parseProwlarr("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"/>"))
+        assertNull(parseProwlarr(""))
+    }
+
+    /** Valid JSON of the wrong SHAPE is equally not a search response. */
+    @Test
+    fun `a JSON object rather than an array is null`() {
+        assertNull(parseProwlarr("""{"error":"unauthorised"}"""))
     }
 
     @Test

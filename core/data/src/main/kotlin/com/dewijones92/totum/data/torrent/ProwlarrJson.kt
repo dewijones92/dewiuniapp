@@ -16,10 +16,18 @@ import kotlinx.serialization.json.longOrNull
  * parsing is where the surprises are, and it can be tested against a captured real response with
  * no network, no Pi and no swarm.
  */
-public fun parseProwlarr(body: String): List<TorrentResult> =
-    (LENIENT.parseToJsonElement(body) as? JsonArray)
-        ?.mapNotNull { it.jsonObject.toResult() }
-        .orEmpty()
+/**
+ * Null when the body is not a Prowlarr search response at all.
+ *
+ * Total rather than throwing, because the thing on the other end is not guaranteed to be
+ * Prowlarr. Both services behind the home gate answer an unrecognised path with their own web UI
+ * and **HTTP 200**, so a misrouted request arrives here as a page of HTML that parses as neither
+ * JSON nor anything else — and on 2026-08-01 that crashed the app outright, mid-search, on an
+ * emulator. A search that cannot be read is a failed search, never a dead process.
+ */
+public fun parseProwlarr(body: String): List<TorrentResult>? =
+    (runCatching { LENIENT.parseToJsonElement(body) }.getOrNull() as? JsonArray)
+        ?.mapNotNull { runCatching { it.jsonObject.toResult() }.getOrNull() }
 
 /**
  * Picks the field that IS a magnet, rather than the one named like one.

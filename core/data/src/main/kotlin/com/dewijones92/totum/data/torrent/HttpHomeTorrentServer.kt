@@ -61,7 +61,19 @@ public class HttpHomeTorrentServer(
                     Diag.warn("torrent", "search for \"$query\" failed: HTTP ${response.code}")
                     return@withContext TorrentSearchResult.Failure("HTTP ${response.code}")
                 }
-                val results = parseProwlarr(response.body.string())
+                val body = response.body.string()
+                val results = parseProwlarr(body) ?: run {
+                    // A 200 that is not a search response means the request reached the wrong
+                    // thing — both services answer an unknown path with their own web UI rather
+                    // than a 404. Named precisely, because "0 results" and "you are talking to a
+                    // login page" look identical from the outside and have nothing in common.
+                    Diag.warn(
+                        "torrent",
+                        "search for \"$query\" got HTTP 200 but not a search response " +
+                            "(${response.header("Content-Type")}, ${body.length} chars) — misrouted?",
+                    )
+                    return@withContext TorrentSearchResult.Failure("the home server returned an unreadable reply")
+                }
                 Diag.log("torrent", "search \"$query\" -> ${results.size} result(s)")
                 TorrentSearchResult.Success(results)
             }

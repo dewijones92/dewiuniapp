@@ -22,6 +22,18 @@ android {
                     .directory(rootDir).start().inputStream.bufferedReader().readLine()?.trim()
             }.getOrNull().takeUnless { it.isNullOrBlank() } ?: "local"
         buildConfigField("String", "GIT_SHA", "\"$gitSha\"")
+
+        // The home server's domain, baked in so nothing has to be typed to use torrents.
+        //
+        // Injected rather than committed: the repo is public and the host is not something to
+        // publish. Read from local.properties (`totum.homeServer=example.com`) or the
+        // TOTUM_HOME_SERVER environment variable, which is how CI supplies it. Absent, it is
+        // simply blank and the app falls back to asking — so a fork or a fresh clone builds
+        // and runs perfectly well without knowing anything about it.
+        val homeServer = (project.findProperty("totum.homeServer") as String?)
+            ?: System.getenv("TOTUM_HOME_SERVER")
+            ?: ""
+        buildConfigField("String", "HOME_SERVER", "\"$homeServer\"")
     }
 
     signingConfigs {

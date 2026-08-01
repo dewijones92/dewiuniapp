@@ -162,6 +162,10 @@ jobs:
           SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
           SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
           SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+          # Baked in so torrents need no setup on a fresh install. A secret rather than a
+          # literal because this repo is public; absent, the build still succeeds and the app
+          # simply asks for a server as it did before.
+          TOTUM_HOME_SERVER: ${{ secrets.TOTUM_HOME_SERVER }}
         run: |
           ./gradlew assembleRelease --no-daemon \
             -PversionCode=$((100 + GITHUB_RUN_NUMBER)) \

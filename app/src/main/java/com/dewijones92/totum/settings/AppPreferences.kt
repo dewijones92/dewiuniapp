@@ -3,6 +3,7 @@ package com.dewijones92.totum.settings
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
+import com.dewijones92.totum.BuildConfig
 import com.dewijones92.totum.common.Diag
 import com.dewijones92.totum.data.sponsorblock.SkipCategory
 import com.dewijones92.totum.data.sponsorblock.SponsorBlockSegmentSource
@@ -132,7 +133,11 @@ class SharedPrefsAppPreferences(context: Context) : AppPreferences {
             cellularMaxHeight = prefs.getInt(KEY_CELLULAR, AppPreferences.DEFAULT_CELLULAR_MAX_HEIGHT),
             autoPlayNext = prefs.getBoolean(KEY_AUTOPLAY, true),
             sabrPlayback = prefs.getBoolean(KEY_SABR, false),
-            homeServerBase = prefs.getString(KEY_HOME_SERVER, "").orEmpty(),
+            // Falls back to the host baked in at build time, so torrents need no setup at all:
+            // install, sign in with Google, done. A value typed in Settings still wins, which is
+            // what makes a different server testable without a rebuild.
+            homeServerBase = prefs.getString(KEY_HOME_SERVER, "")
+                .orEmpty().ifBlank { BuildConfig.HOME_SERVER },
             prowlarrApiKey = prefs.getString(KEY_PROWLARR_KEY, "").orEmpty(),
             homeServerToken = prefs.getString(KEY_HOME_TOKEN, "").orEmpty(),
             autoDownloadQueue = prefs.getBoolean(KEY_AUTO_DOWNLOAD, true),
