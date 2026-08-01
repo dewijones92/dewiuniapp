@@ -124,10 +124,25 @@ them.** Each component was correct against its fake; the composition was not:
 - a watchdog that worked, fed by a flow that conflates equal values
 - a guard that worked for one end, kept across a whole session
 
-The instrumented tests cover Room stores, migrations, the Python engine and the shell — **not
-the loop**. There is no test in which a real `ExoPlayer` finishes a real item and the next one
-starts. That gap is the single best explanation for why I1 keeps breaking, and closing it is
-worth more than any feature currently in the backlog.
+The instrumented tests covered Room stores, migrations, the Python engine and the shell — **not
+the loop**. There was no test in which a real `ExoPlayer` finishes a real item and the next one
+starts, which was the single best explanation for why I1 kept breaking.
+
+**Closed 2026-08-01** by `AutoAdvanceLoopTest`, which plays a generated one-second WAV through
+the app's real container and asserts the next item starts on its own. It fails on the pre-fix
+code and passes on the fix, so it holds I1 rather than merely describing it. Three things had to
+be true before it measured anything at all, each of which cost a run:
+
+- **Drive the real graph, not a private one.** `TotumApplication.onCreate` already starts the
+  advancer, watchdog and prefetcher, and an instrumented test shares that process — so a
+  second controller was a second client of one `MediaSession`, every callback fired three
+  times, and the item sat READY and never played.
+- **The app must be in the foreground.** Android 16 denies audio focus to a background app
+  (`AS.HardeningEnforcer: Focus request DENIED … procState:4`), so the player reaches READY and
+  stops there. An `ActivityScenarioRule` fixes it; the screen must also be on.
+- **Assert PLAYING, not merely current.** Being the selected item is not playing, and
+  conflating them turned a suppressed player into a timeout twenty seconds later that read
+  like a broken advance.
 
 ## Parked, deliberately
 

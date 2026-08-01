@@ -1,7 +1,7 @@
 ---
 title: Testing
 kind: reference
-updated: 2026-07-27
+updated: 2026-08-01
 ---
 
 # Testing
@@ -54,3 +54,25 @@ instead).
 The whole codebase can be swept with a fan-out audit workflow
 (find → multi-lens verify → synthesize). The targeted version has repeatedly
 found real HIGH bugs; keep it in the toolkit for pre-release hardening.
+
+## The core loop, on a device (2026-08-01)
+
+`app/src/androidTest/…/playback/AutoAdvanceLoopTest` is the only test that exercises invariant
+I1 — *when an item finishes, the next one starts* — with a real `ExoPlayer` reaching the real
+end of real media. It exists because all three autoplay bugs of the previous week passed the
+JVM suite: each component was correct against its fake, and the composition was not.
+
+It plays a one-second silent WAV, generated at run time rather than committed, through the app's
+own container and the `PlayHandle.Podcast` route — a local file handed straight to the
+controller, so a failure is a failure of the loop and not of YouTube. Two cases: an item
+finishing starts the next, and an item played a SECOND time advances again (report 0.1.258).
+
+Run it with:
+
+```bash
+./gradlew :app:connectedDebugAndroidTest \
+  -Pandroid.testInstrumentationRunnerArguments.class=com.dewijones92.totum.playback.AutoAdvanceLoopTest
+```
+
+**The screen must be on and unlocked.** Android denies audio focus to a background app, and a
+suppressed player never ends, so the test would be measuring nothing. It says so when it fails.
