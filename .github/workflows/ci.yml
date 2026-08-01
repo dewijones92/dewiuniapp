@@ -35,6 +35,64 @@ jobs:
       - name: Replay cassette and verify offline extraction
         run: tools/mock-youtube/verify_replay.sh
 
+  # The 46 instrumented tests were COMPILED by the gate and never run — no emulator existed
+  # here. That is the gap that let three autoplay bugs ship in one week: each passed the JVM
+  # suite because every component was correct against its fake, and only a real player reaching
+  # the real end of real media exercises the composition where all three lived. A guard that
+  # only runs when someone remembers to run it is not a guard.
+  #
+  # Deliberately its own job, and deliberately NOT a dependency of the release. An emulator is
+  # the flakiest thing in any Android pipeline, and Dewi installs from these releases through
+  # Obtainium — blocking his APK on a flaky VM would trade a real problem for a worse one. It
+  # goes red and is seen; it does not stop a build shipping.
+  instrumented:
+    name: Instrumented tests (emulator)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      # Without KVM the emulator falls back to software rendering and is far too slow to finish.
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run instrumented tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          # The loop test needs audio focus, which the platform refuses to a background app or a
+          # locked screen — so the device is unlocked before anything runs, and animations are
+          # off so Compose's idling resource is not waiting on them.
+          script: |
+            adb shell input keyevent 82
+            adb shell settings put global window_animation_scale 0
+            adb shell settings put global transition_animation_scale 0
+            adb shell settings put global animator_duration_scale 0
+            ./gradlew connectedDebugAndroidTest --no-daemon
+
+      - name: Upload instrumented reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: instrumented-reports
+          path: |
+            **/build/reports/androidTests/**
+            **/build/outputs/androidTest-results/**
+
   build:
     name: Quality gates + build
     runs-on: ubuntu-latest
