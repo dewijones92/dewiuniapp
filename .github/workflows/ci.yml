@@ -86,8 +86,7 @@ jobs:
             adb shell settings put global window_animation_scale 0
             adb shell settings put global transition_animation_scale 0
             adb shell settings put global animator_duration_scale 0
-            ./gradlew connectedDebugAndroidTest --no-daemon \
-              -Pandroid.testInstrumentationRunnerArguments.notClass=com.dewijones92.totum.sabr.SabrPlaybackTest
+            ./gradlew connectedDebugAndroidTest --no-daemon -Pandroid.testInstrumentationRunnerArguments.notClass=com.dewijones92.totum.sabr.SabrPlaybackTest
 
       # The live-YouTube test, run through Dewi's home broadband so YouTube sees a residential
       # IP instead of bot-checking a datacentre one. Its own step, and the tunnel is up for the
@@ -130,8 +129,7 @@ jobs:
           done
           echo "LAN unreachable from the CI peer, as intended"
 
-          ./gradlew connectedDebugAndroidTest --no-daemon \
-            -Pandroid.testInstrumentationRunnerArguments.class=com.dewijones92.totum.sabr.SabrPlaybackTest
+          ./gradlew connectedDebugAndroidTest --no-daemon -Pandroid.testInstrumentationRunnerArguments.class=com.dewijones92.totum.sabr.SabrPlaybackTest
 
       - name: Upload instrumented reports on failure
         if: failure()
