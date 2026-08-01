@@ -54,12 +54,12 @@ that 403s too.
 `n` is solved by running a function extracted from YouTube's `base.js`, so it needs a JavaScript
 engine:
 
-**Neither reference implementation can do this on Android today.** Both were measured, not
-assumed:
+Both reference implementations were measured rather than assumed, and only one of them can help:
 
-- **yt-dlp's n-solving now requires an external binary.** It lives behind a provider architecture
-  (`extractor/youtube/jsc/`) whose only four providers are `deno`, `bun`, `node` and `quickjs`.
-  The pure-Python interpreter is gone. None of these can ship in an Android app.
+- **yt-dlp needs one of four external runtimes.** Its n-solving lives behind a provider
+  architecture (`extractor/youtube/jsc/`) whose providers are `deno`, `bun`, `node` and
+  `quickjs`; the pure-Python interpreter is gone. **Totum already bundles the last of those** —
+  see below, which is the answer.
 - **NewPipe's Rhino solver silently no-ops.** Its age-restricted test being `@Disabled` was the
   hint; the measurement is worse. Running NewPipe's own
   `YoutubeJavaScriptPlayerManager.getUrlWithThrottlingParameterDeobfuscated` against today's
