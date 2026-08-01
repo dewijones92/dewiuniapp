@@ -3,7 +3,7 @@ title: Age-restricted videos
 kind: todo
 area: video
 priority: high
-status: auth recipe proven e2e; no n-solver runs on Android — WebView route identified, not built
+status: auth recipe proven e2e; solve n via the QuickJS already bundled — bridge function is the remaining work
 updated: 2026-08-01
 ---
 
@@ -71,7 +71,28 @@ assumed:
 An earlier version of this document called Rhino "the route with a working precedent". That was
 wrong, and only running it proved so.
 
-### The credible route: a WebView
+### The app already ships a JS runtime — use it
+
+Found while reading report 0.1.295, which carries the line
+`[engine] JS runtime: /data/user/0/com.dewijones92.totum/files/qjs-bin/qjs`.
+
+**Totum bundles QuickJS** (`libqjs.so`, symlinked as `qjs` out of `nativeLibraryDir` by
+`QuickJsBinary`, exactly the trick used for ffmpeg) and hands the path to yt-dlp through
+`totum_ytdlp.configure_js_runtime`. QuickJS is one of the four runtimes yt-dlp's challenge
+providers accept, so **the on-device yt-dlp can already solve `n` challenges**.
+
+That makes the WebView unnecessary. The remaining work is a bridge function in
+`totum_ytdlp.py` that takes a list of `n` challenges plus a player URL and returns the solved
+values via yt-dlp's `jsc` director — the same call this investigation drove from the laptop, on
+a runtime the app already carries. No new dependency, no WebView, and it stays on the yt-dlp
+wheel that self-updates on launch.
+
+The `NSolver` port is still the right seam; its implementation is a Python bridge call rather
+than a browser.
+
+### Superseded: the WebView route
+
+Kept because it was measured and would work, but it is now the second-best answer.
 
 The app is an Android app, and a `WebView` *is* a current JS engine. The reason that matters is
 not raw execution — it is that it can run **yt-dlp's `yt.solver.core.js`**, which does not pattern
