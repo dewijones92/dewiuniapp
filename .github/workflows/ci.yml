@@ -69,6 +69,9 @@ jobs:
           sudo udevadm trigger --name-match=kvm
 
       - name: Run instrumented tests
+        env:
+          WG_CI_CONF: ${{ secrets.WG_CI_CONF }}
+          WG_EXPECTED_EGRESS_IP: ${{ secrets.WG_EXPECTED_EGRESS_IP }}
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
@@ -87,49 +90,8 @@ jobs:
             adb shell settings put global transition_animation_scale 0
             adb shell settings put global animator_duration_scale 0
             ./gradlew connectedDebugAndroidTest --no-daemon -Pandroid.testInstrumentationRunnerArguments.notClass=com.dewijones92.totum.sabr.SabrPlaybackTest
+            tools/ci/live-test-via-home.sh
 
-      # The live-YouTube test, run through Dewi's home broadband so YouTube sees a residential
-      # IP instead of bot-checking a datacentre one. Its own step, and the tunnel is up for the
-      # duration of ONE test rather than the whole job: full-tunnel means the runner's traffic
-      # to GitHub goes over a domestic upload too, which is fine for a minute and not for ten.
-      #
-      # The peer is firewalled to internet egress only on the Pi
-      # (vpn-stack/wg-home-init/10-ci-peer-lockdown.sh) — wg-home clients normally get full LAN
-      # access, and this key lives in a PUBLIC repo. `continue-on-error` because a home
-      # connection is not a build dependency: if the tunnel cannot come up, that is worth seeing
-      # and is not a reason to call the app broken.
-      - name: Live YouTube test via home broadband
-        continue-on-error: true
-        env:
-          WG_CI_CONF: ${{ secrets.WG_CI_CONF }}
-          WG_EXPECTED_EGRESS_IP: ${{ secrets.WG_EXPECTED_EGRESS_IP }}
-        run: |
-          set -euo pipefail
-          if [ -z "${WG_CI_CONF:-}" ]; then echo "no tunnel configured; skipping"; exit 0; fi
-          sudo apt-get update -qq && sudo apt-get install -y -qq wireguard-tools
-          printf '%s\n' "$WG_CI_CONF" | sudo tee /etc/wireguard/wg0.conf >/dev/null
-          sudo chmod 600 /etc/wireguard/wg0.conf
-          sudo wg-quick up wg0
-          trap 'sudo wg-quick down wg0 || true' EXIT
-
-          # Never print the IP: this repo is public, so its logs are. Compare, report a verdict.
-          EGRESS=$(curl -s --max-time 20 https://api.ipify.org)
-          if [ "$EGRESS" = "$WG_EXPECTED_EGRESS_IP" ]; then
-            echo "egress is the expected residential IP"
-          else
-            echo "egress is NOT the expected IP — the tunnel is not carrying traffic"; exit 1
-          fi
-
-          # The lockdown is asserted, not assumed. A peer that can still see the LAN is the
-          # whole risk of doing this at all, so the run fails rather than proceeding quietly.
-          for TARGET in 192.168.0.1 192.168.0.19; do
-            if timeout 5 bash -c "cat < /dev/null > /dev/tcp/$TARGET/80" 2>/dev/null; then
-              echo "LAN host reachable through the CI peer — lockdown FAILED"; exit 1
-            fi
-          done
-          echo "LAN unreachable from the CI peer, as intended"
-
-          ./gradlew connectedDebugAndroidTest --no-daemon -Pandroid.testInstrumentationRunnerArguments.class=com.dewijones92.totum.sabr.SabrPlaybackTest
 
       - name: Upload instrumented reports on failure
         if: failure()
