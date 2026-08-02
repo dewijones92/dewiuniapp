@@ -116,6 +116,28 @@ def extract(url):
         return json.dumps({"ok": False, "kind": _classify(e), "detail": str(e)})
 
 
+# The solver, built ONCE. Rebuilding it per call threw away yt-dlp's own cache of the
+# preprocessed player, so every solve re-parsed a 2.9MB script: measured 16.6s on an emulator
+# for a single parameter, paid again on the next video. Held here so the second solve of a
+# session is nearly free.
+_N_SOLVER = None
+
+
+def _n_solver():
+    global _N_SOLVER
+    if _N_SOLVER is None:
+        from yt_dlp.extractor.youtube import YoutubeIE
+
+        ydl = yt_dlp.YoutubeDL(
+            {"quiet": True, "no_warnings": True, "js_runtimes": _js_runtimes()}
+        )
+        extractor = YoutubeIE()
+        extractor.set_downloader(ydl)
+        extractor.initialize()
+        _N_SOLVER = extractor
+    return _N_SOLVER
+
+
 def solve_n(challenges, player_url):
     """Deobfuscate YouTube `n` throttling parameters using the bundled QuickJS.
 
@@ -142,27 +164,21 @@ def solve_n(challenges, player_url):
     if not _JS_RUNTIME_PATH:
         return json.dumps({"ok": False, "detail": "no JavaScript runtime bundled"})
     try:
-        from yt_dlp.extractor.youtube import YoutubeIE
         from yt_dlp.extractor.youtube.jsc.provider import (
             JsChallengeRequest,
             JsChallengeType,
             NChallengeInput,
         )
 
-        with yt_dlp.YoutubeDL(
-            {"quiet": True, "no_warnings": True, "js_runtimes": _js_runtimes()}
-        ) as ydl:
-            extractor = YoutubeIE()
-            extractor.set_downloader(ydl)
-            extractor.initialize()
-            request = JsChallengeRequest(
-                type=JsChallengeType.N,
-                input=NChallengeInput(challenges=list(challenges), player_url=player_url),
-            )
-            solved = {}
-            for _request, response in extractor._jsc_director.bulk_solve([request]):
-                solved.update(response.output.results)
-            return json.dumps({"ok": True, "solved": solved})
+        extractor = _n_solver()
+        request = JsChallengeRequest(
+            type=JsChallengeType.N,
+            input=NChallengeInput(challenges=list(challenges), player_url=player_url),
+        )
+        solved = {}
+        for _request, response in extractor._jsc_director.bulk_solve([request]):
+            solved.update(response.output.results)
+        return json.dumps({"ok": True, "solved": solved})
     except Exception as e:  # noqa: BLE001 - see docstring: never crash playback
         return json.dumps({"ok": False, "detail": "{}: {}".format(type(e).__name__, e)})
 
