@@ -105,15 +105,44 @@ public fun MediaItem.asPlayable(): PlayableItem = toPlayableOrNull() ?: Playable
 public fun PlayHandle.persisted(): Pair<String, String?> = when (this) {
     is PlayHandle.Video -> PERSISTED_VIDEO to watchUrl.value
     is PlayHandle.LocalVideo -> PERSISTED_LOCAL_VIDEO to localPath
-    is PlayHandle.Podcast -> PERSISTED_PODCAST to localPath
+    // A Podcast handle now carries TWO things, and the schema has one column for them. They
+    // are encoded into it rather than migrated, because the alternative is a database change
+    // across four tables for a field only torrents use — and because an old row, which is a
+    // bare path, still reads correctly below.
+    is PlayHandle.Podcast -> PERSISTED_PODCAST to listOfNotNull(
+        localPath?.let { "$PATH_FIELD$it" },
+        audioUrl?.let { "$AUDIO_FIELD${it.value}" },
+    ).joinToString(FIELD_SEPARATOR).takeIf { it.isNotEmpty() }
 }
 
 /** The inverse of [persisted]; null when the stored pair cannot make a usable handle. */
 public fun playHandleFrom(type: String, handle: String?): PlayHandle? = when (type) {
     PERSISTED_VIDEO -> handle?.let(HttpUrl::parse)?.let(PlayHandle::Video)
     PERSISTED_LOCAL_VIDEO -> handle?.let(PlayHandle::LocalVideo)
-    else -> PlayHandle.Podcast(localPath = handle)
+    // Legacy rows are a bare local path with no field prefix, so anything without one is read
+    // exactly as it always was. Losing this would empty the localPath of every already-queued
+    // download and re-fetch the lot.
+    else -> {
+        val fields = handle?.split(FIELD_SEPARATOR).orEmpty()
+        PlayHandle.Podcast(
+            localPath = fields.firstOrNull { it.startsWith(PATH_FIELD) }?.removePrefix(PATH_FIELD)
+                ?: handle?.takeIf { fields.none { f -> f.contains(FIELD_MARK) } },
+            audioUrl = fields.firstOrNull { it.startsWith(AUDIO_FIELD) }
+                ?.removePrefix(AUDIO_FIELD)?.let(HttpUrl::parse),
+        )
+    }
 }
+
+/**
+ * Field encoding for a Podcast handle inside one column.
+ *
+ * A newline separates and a `name=` prefix labels, because neither a filesystem path nor a URL
+ * can contain a newline — so nothing has to be escaped and an old bare path is unambiguous.
+ */
+private const val FIELD_SEPARATOR = "\n"
+private const val FIELD_MARK = "="
+private const val PATH_FIELD = "path="
+private const val AUDIO_FIELD = "audio="
 
 private const val PERSISTED_VIDEO = "VIDEO"
 private const val PERSISTED_LOCAL_VIDEO = "LOCAL_VIDEO"

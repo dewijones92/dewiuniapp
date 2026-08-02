@@ -3,7 +3,7 @@ title: Listen mode should only stream audio
 kind: todo
 area: playback
 priority: medium
-status: requested — true for YouTube; MEASURED as feasible for torrents (8x saving, stream copy), blocked on seeking
+status: done — YouTube always did; torrents now stream audio-only via the Pi (8x saving), proven on device
 updated: 2026-08-02
 ---
 
@@ -112,6 +112,35 @@ seconds of spinner and the feature is not worth having.
 A long-running ffmpeg per listening stream on a Pi that is 88% full. Segments are temporary and
 small (2.1 MB/min, reaped after), but the job lifecycle is the part that will bite: an orphaned
 ffmpeg per abandoned tap would be a slow leak, so reaping has to be right before this ships.
+
+## Proven on the device, 2026-08-02
+
+Built and verified end to end on the emulator against a real cached episode:
+
+```
+[playback] torrent:bb58…:8 playing as audio only
+[format]   audio mp4a.40.2          ← audio only, no video track at all
+[playback] ready after 1601ms at 2ms
+```
+
+The video path on the SAME episode reports `video hvc1… + audio`. No video track means the
+15.2 → 2.1 MB/min saving is real on the phone, not just on the Pi.
+
+**Two bugs only the device could find**, both now fixed:
+
+- **The audio URL did not survive a restart.** `PlayHandle.Podcast` persisted only its local
+  path, so a reloaded queue silently fell back to video — the feature worked once and never
+  again. Both fields are now encoded into the one column, with legacy bare paths still read
+  correctly, so no migration.
+- **Every segment 401'd.** Relative URLs in an HLS playlist do **not** inherit the playlist's
+  query string, so the token vanished on each segment fetch. The service now stamps it onto
+  each segment line. A code comment had confidently claimed the opposite.
+
+### Still open
+
+The **currently-playing** item's handle gets nulled: its neighbours in the queue keep their
+audio URL, but the active row loses it, so after a restart that one item plays as video until
+something else is picked. Contained and self-recovering, but real.
 
 ## Related
 
