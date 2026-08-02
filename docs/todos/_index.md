@@ -48,7 +48,7 @@ to `shipped` and migrate it to `../features/` once it's a real feature on `main`
 | [library-downloads-podcast-only](library-downloads-podcast-only.md) | downloads | medium | done |
 | [playback-does-not-resume-after-network-loss](playback-does-not-resume-after-network-loss.md) | playback | high | done — StreamRecovery waits for a validated network, then resumes |
 | [download-races-playback](download-races-playback.md) | playback | high | done — downloads now yield to playback; the duplicate extraction itself remains |
-| [listen-mode-saves-data](listen-mode-saves-data.md) | playback | medium | requested — true for YouTube, needs Pi work for torrents |
+| [listen-mode-saves-data](listen-mode-saves-data.md) | playback | medium | true for YouTube; torrents measured feasible (8x saving), seeking is the blocker |
 
 All backlog items are Dewi requests. `refining` = spec written, decisions still open;
 `ready` = decisions made, implementation waits for Dewi's explicit go (his standing

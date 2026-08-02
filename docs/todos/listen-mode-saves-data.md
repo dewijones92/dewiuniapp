@@ -3,7 +3,7 @@ title: Listen mode should only stream audio
 kind: todo
 area: playback
 priority: medium
-status: requested — already true for YouTube, not possible for torrents without work on the Pi
+status: requested — true for YouTube; MEASURED as feasible for torrents (8x saving, stream copy), blocked on seeking
 updated: 2026-08-02
 ---
 
@@ -29,19 +29,45 @@ A torrent is ONE file carrying both tracks. There is no audio-only URL to switch
 why `listen()` now declines rather than pointlessly restarting it (see
 `ListenModeSingleStreamTest`). Listening to a torrent therefore still pulls the video bytes.
 
-Three ways out, in increasing order of effort:
+### Measured on the Pi, 2026-08-02 — it is cheaper than it sounds
 
-1. **Let TorrServer transcode.** It can remux/transcode on the fly in some builds; an
-   audio-only output would be exactly this. Needs checking against the MatriX build on the Pi,
-   and the Pi is a Raspberry Pi — transcoding cost is the question, not capability.
-2. **Remux on the Pi with the ffmpeg already there**, exposing an `?audio` variant of the stream
-   endpoint. More control, more moving parts, and a second thing to keep alive.
-3. **Say so in the UI.** Cheapest and honest: when an item has no audio-only stream, the Listen
-   control explains that this one cannot save data rather than appearing broken. Worth doing
-   whatever else happens, because it is currently silent.
+Dewi's instinct was that a server-side audio-only feed could not be done. It can, and the cost
+is not where you would look for it. Against a real cached episode:
 
-**(3) first**, since it removes the confusion immediately, then measure whether (1) is viable on
-the hardware before building (2).
+| | |
+|---|---|
+| Whole stream | **15.2 MB/min** |
+| Audio only, remuxed | **1.9 MB/min** |
+| Remuxing 120s of audio | **31s wall**, i.e. 2.4× faster than realtime |
+
+`ffmpeg -vn -sn -c:a copy` is a **stream copy, not a transcode** — no decoding, no encoding, so
+the Pi's CPU is never the constraint. ffmpeg 4.3.9 is already installed on the host.
+
+**Eight times less mobile data**, which is exactly what was asked for.
+
+### The real obstacle is SEEKING, not CPU
+
+A piped remux is not seekable. Scrubbing would mean restarting ffmpeg at an offset (`-ss`) for
+every seek, which is how streaming proxies generally do it — workable, but each seek costs a
+process restart and a re-fetch, and the torrent logs show seeking is used heavily.
+
+Two smaller things worth stating plainly:
+
+- **The Pi still downloads the video.** Audio and video are interleaved in the container, so
+  extracting the audio means reading the whole file. That is fine — it saves the PHONE's data,
+  which is the goal, and the Pi is on home broadband — but it does not reduce what the swarm
+  sends.
+- **2.4× realtime is on a warm file.** On a cold one, competing with the torrent fetch, it may
+  not keep ahead.
+
+### Order of work
+
+1. **Say so in the UI.** The Listen control is currently silent about why it cannot help on a
+   torrent. Cheapest, removes the confusion immediately, and worth doing whatever else happens.
+2. **An `?audio` variant of the stream endpoint**, remuxing with the ffmpeg already there.
+   Prove the seek story before building it — a listen mode that cannot scrub is a different
+   feature, and possibly still the right one for a podcast-shaped listen.
+3. TorrServer's own transcode support, only if it turns out to solve seeking for free.
 
 ## Related
 
