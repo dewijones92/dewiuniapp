@@ -37,6 +37,25 @@ public interface HomeTorrentServer {
      * 1.74GB film was served in 3.3s against 3.6s for the start of the same file.
      */
     public fun stream(torrent: PreparedTorrent, file: TorrentFile): HttpUrl
+
+    /**
+     * The same file with the video stripped, as an HLS playlist.
+     *
+     * A torrent is one file carrying both tracks, so listening to one otherwise pulls the video
+     * as well: 15.2 MB/min against 2.1 for the audio alone, measured 2026-08-02. The server
+     * remuxes (a stream copy, never a transcode) and serves HLS specifically so it stays
+     * seekable — a piped remux is not, which was the only real objection to doing this at all.
+     */
+    public fun audioStream(torrent: PreparedTorrent, file: TorrentFile): HttpUrl
+
+    /**
+     * Asks the server to start preparing [file]'s audio, without waiting for it.
+     *
+     * The first segment takes ~25s while ffmpeg waits on the swarm. Called when a torrent is
+     * opened rather than when play is pressed, so that cost is spent while the file list is
+     * still on screen instead of as 25 seconds of spinner.
+     */
+    public suspend fun warmAudio(torrent: PreparedTorrent, file: TorrentFile)
 }
 
 public sealed interface TorrentSearchResult {

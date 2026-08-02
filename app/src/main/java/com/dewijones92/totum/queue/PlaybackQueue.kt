@@ -66,6 +66,14 @@ class PlaybackQueue(
     private val onQueuedByUser: suspend (PlayableItem) -> Unit = {},
     /** Injected so the repeat guard is testable without waiting in real time. */
     private val clock: () -> Long = System::currentTimeMillis,
+    /**
+     * Whether playback should be audio-only right now — the resolved Listen mode.
+     *
+     * Consulted for a torrent, which is one file carrying both tracks: the home server offers a
+     * remuxed audio-only version at 2.1 MB/min against the video's 15.2, and this is what
+     * decides to ask for it. Default false so tests and previews behave as before.
+     */
+    private val audioPreferred: () -> Boolean = { false },
 ) {
     private val _state = MutableStateFlow(QueueSnapshot())
 
@@ -398,8 +406,15 @@ class PlaybackQueue(
                 if (handle.localPath == null && queued.item.mediaUrl == null) {
                     false
                 } else {
+                    // Listen mode takes the audio-only stream when the item HAS one, which today
+                    // means a torrent. A downloaded copy always wins over either: it is already
+                    // on the device and costs nothing to play.
+                    val audio = handle.audioUrl?.takeIf { audioPreferred() && handle.localPath == null }
+                    if (audio != null) {
+                        Diag.log("playback", "${queued.item.id.value} playing as audio only")
+                    }
                     controller.play(
-                        queued.item,
+                        audio?.let { queued.item.copy(mediaUrl = it) } ?: queued.item,
                         MediaKind.PODCAST,
                         localPath = handle.localPath,
                         startPositionMs = startPositionMs,

@@ -30,4 +30,15 @@ public class FakeHomeTorrentServer(
 
     override fun stream(torrent: PreparedTorrent, file: TorrentFile): HttpUrl =
         HttpUrl.of("https://home.test/stream/${file.name}?link=${torrent.hash}&index=${file.index}&play")
+
+    /** A plausible audio URL so tests can assert one was offered without a server. */
+    override fun audioStream(torrent: PreparedTorrent, file: TorrentFile): HttpUrl =
+        HttpUrl.of("https://home.test/ts/audio/${torrent.hash}/${file.index}/index.m3u8")
+
+    /** Records that warming was asked for; there is nothing to warm in memory. */
+    public var warmed: MutableList<String> = mutableListOf()
+
+    override suspend fun warmAudio(torrent: PreparedTorrent, file: TorrentFile) {
+        warmed += "${torrent.hash}:${file.index}"
+    }
 }

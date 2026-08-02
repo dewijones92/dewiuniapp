@@ -177,6 +177,27 @@ public class HttpHomeTorrentServer(
             "?link=${torrent.hash}&index=${file.index}&play&totumToken=${token()}",
     )
 
+    /**
+     * The audio-only HLS playlist for one file. Same token-in-the-query trick as [stream], and
+     * for the same reason: ExoPlayer fetches this with its own HTTP stack and none of our
+     * headers, and it fetches every SEGMENT the same way — so the token has to survive into the
+     * playlist's relative URLs, which it does because they resolve against this address.
+     */
+    override fun audioStream(torrent: PreparedTorrent, file: TorrentFile): HttpUrl = HttpUrl.of(
+        "$torrServerBase/audio/${torrent.hash}/${file.index}/index.m3u8?totumToken=${token()}",
+    )
+
+    override suspend fun warmAudio(torrent: PreparedTorrent, file: TorrentFile) {
+        withContext(Dispatchers.IO) {
+            val url = "$torrServerBase/audio/${torrent.hash}/${file.index}/start"
+            val request = Request.Builder().url(url).header(TOKEN_HEADER, token()).get().build()
+            // Fire and forget: the point is to start the ~25s of work, not to wait for it.
+            runCatching { client.newCall(request).execute().use { it.code } }
+                .onSuccess { Diag.log("torrent", "warming audio for ${torrent.hash.take(HASH_CHARS)}:${file.index}") }
+                .onFailure { Diag.warn("torrent", "could not warm audio for ${file.name}", it) }
+        }
+    }
+
     private fun post(url: String, body: String): JsonObject? = try {
         val request = Request.Builder()
             .url(url)

@@ -696,6 +696,8 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
             applicationScope,
             queueStore,
             onQueuedByUser = ::saveToWatchLater,
+            // The same rule the video path uses, so Listen means one thing on both pillars.
+            audioPreferred = ::audioPlaybackPreferred,
         )
     }
 
@@ -816,6 +818,20 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
     private val networkStatus by lazy { NetworkStatus(context) }
 
     /**
+     * Whether playback should be audio-only right now.
+     *
+     * Auto means "video on Wi-Fi, audio on mobile data". ONE definition, read by the video
+     * launcher and by the queue's torrent path alike — Listen has to mean the same thing on
+     * both pillars, and two copies of this rule would eventually disagree about a video.
+     */
+    private fun audioPlaybackPreferred(): Boolean =
+        when (appPreferences.settings.value.playbackMode) {
+            PlaybackMode.AUDIO -> true
+            PlaybackMode.VIDEO -> false
+            PlaybackMode.AUTO -> networkStatus.isMetered()
+        }
+
+    /**
      * Whether automatic downloads may run on the connection we are on right now.
      *
      * ONE definition, read by both the downloader and the queue screen's summary — the screen
@@ -833,13 +849,7 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
             playHistory = playHistoryStore,
             // Auto means "video on Wi-Fi, audio on mobile data"; the launcher only ever
             // sees the resolved answer.
-            audioPreferred = {
-                when (appPreferences.settings.value.playbackMode) {
-                    PlaybackMode.AUDIO -> true
-                    PlaybackMode.VIDEO -> false
-                    PlaybackMode.AUTO -> networkStatus.isMetered()
-                }
-            },
+            audioPreferred = ::audioPlaybackPreferred,
             preferredMaxHeight = {
                 val settings = appPreferences.settings.value
                 if (networkStatus.isMetered()) settings.cellularMaxHeight else settings.wifiMaxHeight

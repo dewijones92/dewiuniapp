@@ -79,6 +79,14 @@ public class FakePlaybackController : PlaybackController {
 
     /** localPath handed to the most recent [play] call, for assertions. */
     public var lastLocalPath: String? = null
+
+    /**
+     * The item as played, URL included.
+     *
+     * The id alone cannot answer "which STREAM did it choose", which is the whole question when
+     * Listen mode swaps a torrent's video URL for its audio-only one.
+     */
+    public var lastItem: MediaItem? = null
         private set
 
     /** audioUrl handed to the most recent [play] call, for assertions. */
@@ -95,6 +103,7 @@ public class FakePlaybackController : PlaybackController {
         startPositionMs: Long,
     ) {
         played += item.id.value
+        lastItem = item
         lastSkipSegments = skipSegments
         lastLocalPath = localPath
         lastAudioUrl = audioUrl

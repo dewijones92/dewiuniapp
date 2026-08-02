@@ -10,7 +10,20 @@ import com.dewijones92.totum.common.HttpUrl
 public sealed interface PlayHandle {
     public data class Video(public val watchUrl: HttpUrl) : PlayHandle
     public data class LocalVideo(public val localPath: String) : PlayHandle
-    public data class Podcast(public val localPath: String? = null) : PlayHandle
+    public data class Podcast(
+        public val localPath: String? = null,
+        /**
+         * An audio-only version of the same thing, when one exists.
+         *
+         * A torrent is ONE file carrying both tracks, so listening to one otherwise pulls the
+         * video down too — measured 15.2 MB/min against 2.1 for the audio alone. The home
+         * server can remux the audio out and serve it as HLS; this is where that URL lives, so
+         * "play this without the video" needs no knowledge of torrents anywhere above.
+         *
+         * Null for a podcast enclosure, which is already audio and has nothing to strip.
+         */
+        public val audioUrl: HttpUrl? = null,
+    ) : PlayHandle
 
     /**
      * Which pillar this came from. Mixed lists (queue, history, playlists) label their
