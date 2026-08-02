@@ -1,11 +1,11 @@
 ---
 title: Auto-download audio for everything in the queue
 kind: todo
-status: in-progress
+status: shipped — see ../features/offline-queue.md
 area: downloads
 priority: high
 requested: 2026-07-24
-updated: 2026-07-25
+updated: 2026-08-02
 ---
 
 # Auto-download the queue's audio, and show it

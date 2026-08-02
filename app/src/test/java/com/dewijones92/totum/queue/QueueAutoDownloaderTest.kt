@@ -15,6 +15,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -43,6 +44,7 @@ class QueueAutoDownloaderTest {
         enabled: Boolean = true,
         allowedOnNetwork: Boolean = true,
         maxAttempts: Int = 3,
+        settleTimeoutMs: Long = 10_000L,
     ) = QueueAutoDownloader(
         queue = queue,
         downloads = downloads,
@@ -50,6 +52,7 @@ class QueueAutoDownloaderTest {
         isEnabled = { enabled },
         isAllowedOnThisNetwork = { allowedOnNetwork },
         maxAttempts = maxAttempts,
+        settleTimeoutMs = settleTimeoutMs,
     )
 
     @Test
@@ -204,5 +207,77 @@ class QueueAutoDownloaderTest {
 
         Diag.sink = previous
         assertEquals(1, lines.size)
+    }
+
+    /**
+     * A manager whose downloads START and never finish — the shape that matters here, and one
+     * [FakeDownloadManager] cannot produce because its downloads complete instantly. Parking an
+     * item as Downloading up front does not work either: the downloader SKIPS anything already
+     * in flight, so it would never wait on it at all.
+     */
+    private class NeverSettles : com.dewijones92.totum.data.download.DownloadManager by FakeDownloadManager() {
+        val started = mutableListOf<String>()
+        private val states =
+            MutableStateFlow<Map<MediaItemId, com.dewijones92.totum.domain.DownloadState>>(emptyMap())
+
+        override fun observeDownloads() = states
+
+        override suspend fun download(item: PlayableItem, audioOnly: Boolean) {
+            started += item.item.id.value
+            states.value = states.value + (
+                item.item.id to
+                    com.dewijones92.totum.domain.DownloadState.Downloading(1, 100)
+                )
+        }
+    }
+
+    /**
+     * ONE at a time. The class always claimed to be sequential and never was — `download`
+     * launches and returns at once, so the loop fired the whole queue together: report 0.1.313
+     * caught nine running at once, each crawling, competing with playback for the connection.
+     */
+    @Test
+    fun `only one download runs at a time`() = runTest(dispatcher) {
+        val manager = NeverSettles()
+        queue.value = QueueSnapshot(entries = listOf(entry("a"), entry("b"), entry("c")))
+
+        QueueAutoDownloader(
+            queue = queue,
+            downloads = manager,
+            scope = CoroutineScope(dispatcher),
+            isEnabled = { true },
+            isAllowedOnThisNetwork = { true },
+            settleTimeoutMs = Long.MAX_VALUE,
+        ).start()
+        // runCurrent, NOT advanceUntilIdle: advancing virtual time would fire the settle
+        // timeout and let the next download start, which is the very thing being ruled out.
+        runCurrent()
+
+        assertEquals(listOf("a"), manager.started)
+    }
+
+    /**
+     * A download that never settles must cost minutes, not the session.
+     *
+     * Waiting is what makes this sequential, so waiting is now the thing that could break it:
+     * one item whose flow never reaches a terminal state would otherwise hold every remaining
+     * item for the life of the process — strictly worse than the parallelism it replaced.
+     */
+    @Test
+    fun `a download that never settles does not wedge the queue`() = runTest(dispatcher) {
+        val manager = NeverSettles()
+        queue.value = QueueSnapshot(entries = listOf(entry("a"), entry("b")))
+
+        QueueAutoDownloader(
+            queue = queue,
+            downloads = manager,
+            scope = CoroutineScope(dispatcher),
+            isEnabled = { true },
+            isAllowedOnThisNetwork = { true },
+            settleTimeoutMs = 1_000L,
+        ).start()
+        advanceUntilIdle()
+
+        assertEquals(listOf("a", "b"), manager.started)
     }
 }

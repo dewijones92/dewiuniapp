@@ -12,6 +12,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Fetches the **audio** of everything in the queue, so the queue is listenable
@@ -30,6 +31,8 @@ class QueueAutoDownloader(
     private val isEnabled: () -> Boolean,
     private val isAllowedOnThisNetwork: () -> Boolean,
     private val maxAttempts: Int = MAX_ATTEMPTS,
+    /** How long one download may hold the queue before the next starts anyway. */
+    private val settleTimeoutMs: Long = SETTLE_TIMEOUT_MS,
 ) {
     /**
      * Transient attempts per item this session, so a flaky connection gets a few more goes
@@ -79,7 +82,16 @@ class QueueAutoDownloader(
      * immediately rather than queueing behind seventy of these.
      */
     private suspend fun awaitSettled(id: MediaItemId) {
-        downloads.observeDownloads().first { states -> states[id] !is DownloadState.Downloading }
+        val settled = withTimeoutOrNull(settleTimeoutMs) {
+            downloads.observeDownloads().first { states -> states[id] !is DownloadState.Downloading }
+        }
+        if (settled == null) {
+            // BOUNDED, because waiting is now the thing that could break this. A download whose
+            // flow never reaches a terminal state would otherwise hold the queue for the life of
+            // the process — every remaining item stuck behind one, which is strictly worse than
+            // the unbounded parallelism this replaced. Move on and say so.
+            Diag.warn("download", "gave up waiting for $id after ${settleTimeoutMs}ms; moving on")
+        }
     }
 
     /** Items whose skip reason has already been logged; it does not change between passes. */
@@ -124,6 +136,12 @@ class QueueAutoDownloader(
     private companion object {
         /** Transient retries per item per session — enough for a blip, not a loop. */
         const val MAX_ATTEMPTS = 3
+
+        /**
+         * Long enough for a real audio fetch on a poor connection, short enough that a wedged
+         * one costs minutes rather than the session.
+         */
+        const val SETTLE_TIMEOUT_MS = 10 * 60 * 1000L
 
         /** Extractor errors are long; this is enough to recognise one in the trail. */
         const val REASON_CHARS = 80
