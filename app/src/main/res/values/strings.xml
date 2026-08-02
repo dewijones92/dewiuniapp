@@ -67,6 +67,18 @@
     <string name="queue_empty">Nothing queued. Tap anything to play it — it lands here.</string>
     <string name="queue_now_playing">Now playing</string>
     <string name="queue_clear_all">Clear all</string>
+    <string name="queue_group_collapse_action">collapse</string>
+    <string name="queue_group_expand_action">expand</string>
+    <string name="queue_group_collapse">Collapse %1$s</string>
+    <string name="queue_group_expand">Expand %1$s</string>
+    <plurals name="queue_group_hidden">
+        <item quantity="one">1 item hidden</item>
+        <item quantity="other">%1$d items hidden</item>
+    </plurals>
+    <plurals name="queue_group_hidden_playing">
+        <item quantity="one">1 item hidden · playing</item>
+        <item quantity="other">%1$d items hidden · playing</item>
+    </plurals>
     <string name="queue_remove_group">Remove these</string>
     <string name="queue_reorder">Drag to reorder</string>
     <string name="go_to_channel">Go to channel</string>

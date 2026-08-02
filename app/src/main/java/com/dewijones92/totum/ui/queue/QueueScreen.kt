@@ -1,5 +1,6 @@
 package com.dewijones92.totum.ui.queue
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,8 +13,10 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DragHandle
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -23,9 +26,14 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -86,6 +94,9 @@ fun QueueScreen(container: AppContainer, modifier: Modifier = Modifier) {
                 autoDownloadOff = !settings.autoDownloadQueue,
                 waitingForWifi = settings.autoDownloadQueue && !container.autoDownloadAllowedNow(),
             )
+            // Survives rotation and process death: a collapsed 24-episode season staying
+            // collapsed is the entire point, and re-expanding on every return would undo it.
+            var collapsedGroups by rememberSaveable { mutableStateOf(emptySet<String>()) }
             val reorder = rememberReorderState(listState = listState, onMove = queue::move)
             LazyColumn(
                 state = listState,
@@ -98,6 +109,7 @@ fun QueueScreen(container: AppContainer, modifier: Modifier = Modifier) {
                     nowPlaying = NowPlaying(snapshot.currentIndex, playing?.progress, playing?.isPlaying == true),
                     downloads = downloads,
                     reorder = reorder,
+
                     actions = QueueActions(
                         onPlay = queue::jumpTo,
                         onRemove = queue::removeAt,
@@ -111,6 +123,10 @@ fun QueueScreen(container: AppContainer, modifier: Modifier = Modifier) {
                         onDownloadVideo = { item ->
                             scope.launch { container.downloadManager.download(item, audioOnly = false) }
                         },
+                        groups = GroupCollapse(
+                            collapsedIds = collapsedGroups,
+                            onChange = { collapsedGroups = it },
+                        ),
                         onDeleteDownload = { id -> scope.launch { container.downloadManager.delete(id) } },
                     ),
                 )
@@ -128,7 +144,26 @@ private data class QueueActions(
     val onDownload: (MediaItem) -> Unit,
     val onDownloadVideo: (MediaItem) -> Unit,
     val onDeleteDownload: (MediaItemId) -> Unit,
+    /** Which group runs are folded away. Here because it travels with the rows, like the rest. */
+    val groups: GroupCollapse,
 )
+
+/**
+ * Which group runs are folded away, and how to fold another.
+ *
+ * One type rather than a set plus a lambda: they are meaningless apart, and passing them
+ * separately pushed the row emitter past its parameter limit — which is the limit doing its job.
+ */
+private data class GroupCollapse(
+    private val collapsedIds: Set<String>,
+    private val onChange: (Set<String>) -> Unit,
+) {
+    fun isCollapsed(id: String): Boolean = id in collapsedIds
+
+    fun toggle(id: String) {
+        onChange(if (id in collapsedIds) collapsedIds - id else collapsedIds + id)
+    }
+}
 
 /** Where the cursor is and how far through that item playback has got. */
 private data class NowPlaying(val index: Int, val progress: Float?, val isPlaying: Boolean)
@@ -144,14 +179,27 @@ private fun androidx.compose.foundation.lazy.LazyListScope.itemsWithGroupHeaders
     reorder: ReorderState,
     actions: QueueActions,
 ) {
+    val groups = actions.groups
     entries.forEachIndexed { index, entry ->
         val group = entry.group
         val startsRun = group != null && entries.getOrNull(index - 1)?.group?.id != group.id
         if (startsRun) {
+            val run = entries.filter { it.group?.id == group.id }
             item(key = "group-$index-${group.id}") {
-                GroupHeader(title = group.title, onRemoveGroup = { actions.onRemoveGroup(group.id) })
+                GroupHeader(
+                    groupId = group.id,
+                    title = group.title,
+                    count = run.size,
+                    collapsed = groups.isCollapsed(group.id),
+                    containsNowPlaying = entries.getOrNull(nowPlaying.index)?.group?.id == group.id,
+                    onToggle = { groups.toggle(group.id) },
+                    onRemoveGroup = { actions.onRemoveGroup(group.id) },
+                )
             }
         }
+        // Hidden, not removed: the entry keeps its index, so reordering and "play this" still
+        // address the same item once it is shown again.
+        if (group != null && groups.isCollapsed(group.id)) return@forEachIndexed
         item(key = entry.item.item.id.value) {
             val media = entry.item.item
             if (index == nowPlaying.index) NowPlayingLabel(nowPlaying.progress, nowPlaying.isPlaying)
@@ -236,21 +284,62 @@ private fun NowPlayingLabel(progress: Float?, isPlaying: Boolean) {
 
 /** The header over a run of entries that arrived together. */
 @Composable
-private fun GroupHeader(title: String, onRemoveGroup: () -> Unit) {
+private fun GroupHeader(
+    groupId: String,
+    title: String,
+    /** How many entries this run holds — the point of collapsing is to know without seeing. */
+    count: Int,
+    collapsed: Boolean,
+    /** Whether the item playing right now is inside this run; said so a collapse cannot hide it. */
+    containsNowPlaying: Boolean,
+    onToggle: () -> Unit,
+    onRemoveGroup: () -> Unit,
+) {
+    val expandOrCollapse = stringResource(
+        if (collapsed) R.string.queue_group_expand_action else R.string.queue_group_collapse_action,
+    )
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
+            // The whole header toggles, not just the chevron: a 24dp target for something this
+            // routine would be a worse version of the drag handle problem.
+            .clickable(onClickLabel = expandOrCollapse, onClick = onToggle)
+            // Tagged because a UI test cannot otherwise reach this reliably: merged semantics
+            // combine TEXT but not ACTIONS, so the node carrying the title has no click, and a
+            // coordinate tap on the first row of a lazy list does not land.
+            .testTag(queueGroupHeaderTag(groupId))
             .padding(start = 16.dp, end = 8.dp, top = 12.dp),
     ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.primary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
+        Icon(
+            imageVector = if (collapsed) Icons.Filled.ChevronRight else Icons.Filled.ExpandMore,
+            contentDescription = stringResource(
+                if (collapsed) R.string.queue_group_expand else R.string.queue_group_collapse,
+                title,
+            ),
+            tint = MaterialTheme.colorScheme.primary,
         )
+        Column(modifier = Modifier.weight(1f).padding(start = 4.dp)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            // Only when collapsed: expanded, the rows are right there and a count is noise.
+            if (collapsed) {
+                Text(
+                    text = if (containsNowPlaying) {
+                        pluralStringResource(R.plurals.queue_group_hidden_playing, count, count)
+                    } else {
+                        pluralStringResource(R.plurals.queue_group_hidden, count, count)
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
         TextButton(onClick = onRemoveGroup) { Text(stringResource(R.string.queue_remove_group)) }
     }
 }
@@ -270,3 +359,6 @@ private fun DragHandle(modifier: Modifier, onRemove: () -> Unit) {
 }
 
 private val PROGRESS_HEIGHT = 2.dp
+
+/** The header row for a queue group, so a UI test can toggle exactly the one it means. */
+internal fun queueGroupHeaderTag(groupId: String): String = "queue-group-header-$groupId"

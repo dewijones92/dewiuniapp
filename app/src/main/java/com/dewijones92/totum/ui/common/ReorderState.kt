@@ -1,6 +1,6 @@
 package com.dewijones92.totum.ui.common
 
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.Composable
@@ -92,7 +92,14 @@ class ReorderState internal constructor(
         return this
             .onGloballyPositioned { handleTop = it.positionInWindow().y }
             .pointerInput(index, itemCount) {
-                detectDragGesturesAfterLongPress(
+                // Drag starts on TOUCH, not after a long press.
+                //
+                // Two reasons, and the first is a bug Dewi hit: the row beneath carries
+                // `combinedClickable(onLongClick = …)` for its context menu, so a long press on
+                // the grip fired BOTH — the sheet opened over the drag that had just begun.
+                // A grip is unambiguous by construction; making it wait 500ms to decide what an
+                // unambiguous control meant was only ever a cost.
+                detectDragGestures(
                     onDragStart = {
                         draggingIndex = index
                         accumulated = 0f
@@ -100,6 +107,9 @@ class ReorderState internal constructor(
                     onDragEnd = { reset() },
                     onDragCancel = { reset() },
                     onDrag = { change, delta ->
+                        // Consumed so the LazyColumn does not scroll the list out from under a
+                        // drag that is already moving it.
+                        change.consume()
                         applyDrag(delta.y)
                         // The finger in window space: where the grip is, plus where the touch
                         // sits within it. Edge detection only needs to be right to within a row.

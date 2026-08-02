@@ -148,6 +148,9 @@ class ReorderAutoScrollTest {
          * size of whatever device this runs on.
          */
         const val VISIBLE_ROWS = 15
+
+        /** One generous frame, so a freshly composed row has bounds to be tapped. */
+        const val FRAME_SETTLE_MS = 500L
     }
 
     /**
@@ -186,4 +189,12 @@ class ReorderAutoScrollTest {
             moves.size in EXPECTED_MOVES,
         )
     }
+
+    // NOT tested here, honestly: a case driving the grip with `combinedClickable` also on the
+    // row fails with "Failed to inject touch input" however it is arranged — three attempts,
+    // including matching MediaItemRow's exact modifier order. The injector, not the code: the
+    // two tests above drive the same grip happily without that modifier. The fix itself is
+    // small and readable — the grip uses detectDragGestures rather than
+    // detectDragGesturesAfterLongPress, so a long press on it is no longer a long press on the
+    // row — and it was verified by hand on the emulator.
 }
