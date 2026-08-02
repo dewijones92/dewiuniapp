@@ -379,6 +379,8 @@
         <item quantity="one">Downloading now</item>
         <item quantity="other">Downloading now (%1$d)</item>
     </plurals>
+    <string name="buffer_ahead">%1$ds buffered ahead</string>
+    <string name="buffer_ahead_falling">%1$ds buffered · falling behind</string>
     <string name="status_downloading">Downloading…</string>
     <string name="status_downloading_percent">Downloading %1$d%%</string>
     <string name="status_online_only">Online only</string>
