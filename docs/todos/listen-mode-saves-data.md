@@ -66,12 +66,52 @@ Two smaller things worth stating plainly:
 
 ### Order of work
 
-1. **Say so in the UI.** The Listen control is currently silent about why it cannot help on a
-   torrent. Cheapest, removes the confusion immediately, and worth doing whatever else happens.
+1. ~~Say so in the UI.~~ **Already handled** — `QualityControl` returns early when
+   `canListen` is false, so the toggle is not shown for a torrent at all. Checked rather than
+   assumed, 2026-08-02. What Dewi actually hit was the pointless restart, fixed in
+   `ListenModeSingleStreamTest`. Nothing to build here.
 2. **An `?audio` variant of the stream endpoint**, remuxing with the ffmpeg already there.
-   Prove the seek story before building it — a listen mode that cannot scrub is a different
-   feature, and possibly still the right one for a podcast-shaped listen.
-3. TorrServer's own transcode support, only if it turns out to solve seeking for free.
+   The seek question is now answered — see the design below.
+3. ~~TorrServer's own transcode support.~~ Checked 2026-08-02: it has none, so this is a build
+   rather than a setting.
+
+## The design, now that the seek question is measured
+
+**HLS, not a pipe.** A piped remux cannot seek; an HLS playlist of audio-only segments can,
+natively, because ExoPlayer already speaks it. That removes the only real objection.
+
+Measured on the Pi against a real episode:
+
+| | |
+|---|---|
+| First playable segment | **25s** |
+| Generation rate after that | 48s of audio per 20s wall — **2.4× realtime** |
+| Size | **2.1 MB/min** against 15.2 for the video |
+
+So it keeps ahead comfortably once started, and the 25s is a STARTUP cost, not a throughput one.
+
+**Start it at prepare time, not play time.** The app already calls `HomeTorrentServer.prepare()`
+when a search result is opened — which is exactly when the torrent is registered and metadata
+fetched. Kicking the remux off there absorbs the 25s while the person is still looking at the
+file list, so pressing play meets a playlist that is already growing. Without that it is 25
+seconds of spinner and the feature is not worth having.
+
+### What it needs building
+
+- A small service on the Pi that owns ffmpeg jobs keyed by `hash:index`, writes segments to a
+  temp dir, and reaps them when nobody is listening. The estate already has this shape in
+  `totum-crashlog`, so it is a sibling rather than a new pattern.
+- An nginx location (`/ts/audio/`) behind the same token guard as `/ts/`.
+- App side: `HomeTorrentServer` gains an audio URL, and the torrent item carries it as
+  `audioOnlyUrl` — at which point `listen()` works unchanged, `canListen` turns true, and the
+  Listen toggle appears on its own. **No playback code changes at all**, which is the point of
+  having had one seam for this.
+
+### Honest cost
+
+A long-running ffmpeg per listening stream on a Pi that is 88% full. Segments are temporary and
+small (2.1 MB/min, reaped after), but the job lifecycle is the part that will bite: an orphaned
+ffmpeg per abandoned tap would be a slow leak, so reaping has to be right before this ships.
 
 ## Related
 
