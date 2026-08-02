@@ -15,32 +15,32 @@ import com.dewijones92.totum.ytdlp.fake.FakeYtDlpEngine
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * YouTube's player response is asked BEFORE yt-dlp, and extraction still catches everything
- * it cannot answer.
+ * Extraction is what resolves a video; the player response only catches what extraction cannot.
  *
- * The reordering is the point: extraction measured 13.9s on Dewi's phone and 23.4s on the
- * emulator against ~0.2s for the player call, and that gap is the entire wait before a video
- * starts. The risk is equally the point — extraction has years of edge cases behind it, so
- * every way the fast path can come up empty must fall through rather than fail.
+ * The ordering was briefly the other way round and is pinned here because reverting it was
+ * evidence-driven, not a matter of taste. Report 0.1.312, from a real phone: asking YouTube
+ * first took 15-37 SECONDS per resolve — every one paying for a QuickJS `n` solve, where the
+ * emulator's URLs happened to need none — and nearly all thirteen of them ended in "Source
+ * error / stream failed". Slower AND broken, against an extraction path that works.
+ *
+ * What the attempt left behind is still load-bearing: building a result straight from a player
+ * response is what makes age-restricted videos play, once extraction has refused them.
  */
 class VideoResolverFastPathTest {
 
-    /** A REAL-shaped id: youTubeVideoId() requires exactly 11 characters and returns null
-     *  otherwise, so a short placeholder silently disables the whole fast path. */
-    private val videoId = VIDEO_ID
-    private val url = HttpUrl.of("https://www.youtube.com/watch?v=$VIDEO_ID")
     private val source = SourceId("s")
 
     private companion object {
         const val VIDEO_ID = "dQw4w9WgXcQ"
     }
 
-    /** Counts extractions, so a test can prove one did NOT happen. */
+    private val url = HttpUrl.of("https://www.youtube.com/watch?v=$VIDEO_ID")
+
+    /** Counts extractions, so a test can prove one did or did not happen. */
     private class CountingEngine(val calls: AtomicInteger) : YtDlpEngine by FakeYtDlpEngine() {
         override suspend fun extract(url: HttpUrl): ExtractionResult {
             calls.incrementAndGet()
@@ -60,6 +60,12 @@ class VideoResolverFastPathTest {
                 ),
             )
         }
+    }
+
+    /** An engine that cannot extract — the age-restricted case, where the player is the answer. */
+    private class RefusingEngine : YtDlpEngine by FakeYtDlpEngine() {
+        override suspend fun extract(url: HttpUrl) =
+            ExtractionResult.Failure.Extractor("ERROR: Sign in to confirm your age")
     }
 
     private fun playerResponse(url: String?) = PlayerResult.Success(
@@ -87,160 +93,71 @@ class VideoResolverFastPathTest {
         ),
     )
 
-    private fun resolver(calls: AtomicInteger, streams: PlayerStreams?) =
-        VideoResolver(
+    /**
+     * The revert, pinned. Extraction works and is predictable; the player response is not asked
+     * while it is succeeding, however tempting its latency looks in isolation.
+     */
+    @Test
+    fun `extraction resolves the video, not the player response`() = runTest {
+        val calls = AtomicInteger()
+        val resolver = VideoResolver(
             engine = CountingEngine(calls),
             skipSegments = SkipSegmentSource { emptyList() },
-            playerStreams = streams,
+            playerStreams = { playerResponse("https://x.test/fast") },
         )
 
-    @Test
-    fun `the player response is used and yt-dlp is never asked`() = runTest {
-        val calls = AtomicInteger()
-        val resolved = resolver(calls) { playerResponse("https://x.test/fast") }
-            .resolve(url, source, asked = "play")
-
-        assertEquals("From the player", resolved?.item?.title)
-        assertEquals(0, calls.get())
-    }
-
-    /**
-     * The whole safety argument for reordering. A refusal, an unsolvable `n` and a SABR-only
-     * response all surface here as null, and each must reach extraction — otherwise a video
-     * that plays today stops playing because it was asked in a different order.
-     */
-    @Test
-    fun `a player response that yields nothing falls through to extraction`() = runTest {
-        val calls = AtomicInteger()
-        val resolved = resolver(calls) { null }.resolve(url, source, asked = "play")
-
-        assertEquals("From extraction", resolved?.item?.title)
-        assertEquals(1, calls.get())
-    }
-
-    /** A response whose formats all lack URLs is no more playable than no response at all. */
-    @Test
-    fun `a player response with no fetchable url falls through to extraction`() = runTest {
-        val calls = AtomicInteger()
-        val resolved = resolver(calls) { playerResponse(url = null) }
-            .resolve(url, source, asked = "play")
-
-        assertEquals("From extraction", resolved?.item?.title)
+        // The player may still be CONSULTED — betterQualities asks it whether YouTube can beat a
+        // degraded yt-dlp ladder — but the item that comes back is extraction's, which is the
+        // property that was reverted to restore.
+        assertEquals("From extraction", resolver.resolve(url, source, asked = "play")?.item?.title)
         assertEquals(1, calls.get())
     }
 
     /**
-     * A throwing player must not take the resolve down with it — the fast path is an
-     * optimisation, and an optimisation that can break playback is not one.
+     * The reason the machinery stayed. yt-dlp cannot reach an age-restricted video at all, and
+     * this is the path that plays one — verified on a device 2026-08-01.
      */
     @Test
-    fun `a player that throws falls through to extraction`() = runTest {
-        val calls = AtomicInteger()
-        val resolved = resolver(calls) { error("innertube exploded") }
-            .resolve(url, source, asked = "play")
-
-        assertEquals("From extraction", resolved?.item?.title)
-        assertEquals(1, calls.get())
-    }
-
-    /** With no player wired at all — tests, previews, a signed-out build — nothing changes. */
-    @Test
-    fun `no player configured means extraction as before`() = runTest {
-        val calls = AtomicInteger()
-        val resolved = resolver(calls, streams = null).resolve(url, source, asked = "play")
-
-        assertEquals("From extraction", resolved?.item?.title)
-        assertEquals(1, calls.get())
-    }
-
-    /** A non-YouTube URL has no video id to ask about, so it must not even try. */
-    @Test
-    fun `a non-youtube url goes straight to extraction`() = runTest {
-        val calls = AtomicInteger()
-        val resolved = resolver(calls) { playerResponse("https://x.test/fast") }
-            .resolve(HttpUrl.of("https://example.test/media.mp4"), source, asked = "play")
-
-        // The player has no video id to be asked about, so extraction is the only thing that
-        // could have produced this.
-        assertEquals("From extraction", resolved?.item?.title)
-        assertEquals(1, calls.get())
-        assertTrue(resolved != null)
-    }
-
-    /** The fast result is cached like any other, so a second ask costs nothing at all. */
-    @Test
-    fun `a fast resolve is cached`() = runTest {
-        val calls = AtomicInteger()
-        val players = AtomicInteger()
-        val resolver = resolver(calls) {
-            players.incrementAndGet()
-            playerResponse("https://x.test/fast")
-        }
-
-        resolver.resolve(url, source, asked = "play")
-        resolver.resolve(url, source, asked = "play")
-
-        assertEquals(1, players.get())
-        assertEquals(0, calls.get())
-    }
-
-    /**
-     * The safety valve for the reordering, and the reason it is safe to ship.
-     *
-     * The player response is right for most videos and wrong for some: measured on the emulator
-     * 2026-08-02, several played from it while others 403'd on open where extraction handled
-     * them fine. Recovery re-resolves after a dead stream, so without this it would take the
-     * same bad path three times and skip the video. One failure is enough to switch it.
-     */
-    @Test
-    fun `a video whose fast stream failed extracts from then on`() = runTest {
-        val calls = AtomicInteger()
-        val resolver = resolver(calls) { playerResponse("https://x.test/fast") }
+    fun `an extraction failure is recovered from the player response`() = runTest {
+        val resolver = VideoResolver(
+            engine = RefusingEngine(),
+            skipSegments = SkipSegmentSource { emptyList() },
+            playerStreams = { playerResponse("https://x.test/from-player") },
+        )
 
         assertEquals("From the player", resolver.resolve(url, source, asked = "play")?.item?.title)
-        assertEquals(0, calls.get())
-
-        // What recovery does when the stream will not open.
-        resolver.forget(url)
-
-        assertEquals("From extraction", resolver.resolve(url, source, asked = "play")?.item?.title)
-        assertEquals(1, calls.get())
     }
 
-    /** Forgetting a video the fast path never produced must not blame it. */
+    /** A player response with nothing fetchable in it cannot rescue anything. */
     @Test
-    fun `forgetting an extracted video does not disable the fast path for it`() = runTest {
-        val calls = AtomicInteger()
-        val resolver = resolver(calls) { null }
-
-        assertEquals("From extraction", resolver.resolve(url, source, asked = "play")?.item?.title)
-        resolver.forget(url)
-
-        // The player is offered again — it was never the thing that failed.
-        var asked = false
-        val second = VideoResolver(
-            engine = CountingEngine(calls),
-            skipSegments = SkipSegmentSource { emptyList() },
-            playerStreams = {
-                asked = true
-                playerResponse("https://x.test/fast")
-            },
-        )
-        second.forget(url)
-        assertEquals("From the player", second.resolve(url, source, asked = "play")?.item?.title)
-        assertEquals(true, asked)
-    }
-
-    /** Nothing anywhere is still null, not an exception and not a half-built item. */
-    @Test
-    fun `neither path producing anything is a null`() = runTest {
+    fun `an extraction failure with no fetchable stream stays a failure`() = runTest {
         val resolver = VideoResolver(
-            engine = object : YtDlpEngine by FakeYtDlpEngine() {
-                override suspend fun extract(url: HttpUrl) =
-                    ExtractionResult.Failure.Extractor("nope")
-            },
+            engine = RefusingEngine(),
             skipSegments = SkipSegmentSource { emptyList() },
-            playerStreams = { null },
+            playerStreams = { playerResponse(url = null) },
+        )
+
+        assertNull(resolver.resolve(url, source, asked = "play"))
+    }
+
+    /** A throwing player must never turn a recoverable failure into a crash. */
+    @Test
+    fun `a player that throws leaves the resolve as a null`() = runTest {
+        val resolver = VideoResolver(
+            engine = RefusingEngine(),
+            skipSegments = SkipSegmentSource { emptyList() },
+            playerStreams = { error("innertube exploded") },
+        )
+
+        assertNull(resolver.resolve(url, source, asked = "play"))
+    }
+
+    /** With no player wired at all, an extraction failure is simply a failure. */
+    @Test
+    fun `no player configured means an extraction failure is final`() = runTest {
+        val resolver = VideoResolver(
+            engine = RefusingEngine(),
+            skipSegments = SkipSegmentSource { emptyList() },
         )
 
         assertNull(resolver.resolve(url, source, asked = "play"))

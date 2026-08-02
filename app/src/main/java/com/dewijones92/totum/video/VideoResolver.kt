@@ -81,17 +81,6 @@ class VideoResolver(
      */
     private val cache = LinkedHashMap<HttpUrl, Cached>()
 
-    /** Videos resolved by the fast path, so a later failure knows what to blame. */
-    private val fastPathUsed = mutableSetOf<HttpUrl>()
-
-    /**
-     * Videos whose fast-path streams failed to open, which must extract from now on.
-     *
-     * Per-process and unbounded on purpose: it only ever grows by one per genuinely broken
-     * video, and forgetting would send the next play straight back into the failure.
-     */
-    private val distrustFastPath = mutableSetOf<HttpUrl>()
-
     /**
      * The extraction currently running, if any, and what it is for. Concurrent callers for
      * the same video await this rather than starting a second one.
@@ -176,38 +165,20 @@ class VideoResolver(
         }
         val startedAt = now()
         overSabr(watchUrl, sourceId, asked, startedAt)?.let { return it }
-        // Ask YouTube directly BEFORE extracting, because it is two orders of magnitude faster:
-        // ~0.2s against 13.9s on Dewi's phone (23.4s on the emulator), and that gap is the whole
-        // of the wait before a video starts. Extraction stays as the fallback and is reached
-        // whenever this returns null — a refusal, an unsolvable `n`, or nothing fetchable — so
-        // nothing that plays today can stop playing because of the reordering.
-        fromFastPlayer(watchUrl, sourceId, asked, startedAt)?.let { return it }
+        // Extraction FIRST, and the player response only as a fallback. Asking YouTube first was
+        // tried and reverted on the evidence of report 0.1.312, which measured it on a real
+        // phone rather than the emulator where it looked wonderful:
+        //
+        //   - it was not fast. 15-37 SECONDS per resolve, not the 0.2s seen on the emulator,
+        //     because the emulator's URLs happened to carry no `n` and the phone's all do — so
+        //     every resolve paid for a QuickJS solve.
+        //   - it was not reliable. Thirteen fast resolves in one session, nearly all ending in
+        //     "Source error / stream failed — Unreachable", with 7 playback errors and 17 stalls.
+        //
+        // Slower AND broken, against an extraction path that works. The machinery it added is
+        // kept and still earns its place — [fromDirectStreams] is what finally made
+        // age-restricted videos play, via the recovery path below.
         return byExtraction(watchUrl, sourceId, asked, startedAt)
-    }
-
-    /**
-     * The fast path: YouTube's own player response, no extraction at all.
-     *
-     * Null whenever it cannot produce something playable, and every one of those cases is
-     * ordinary rather than exceptional — the video is age-restricted and needs the account, the
-     * `n` solver could not answer, the response carries only SABR streams. The caller extracts,
-     * which is what it always did.
-     */
-    private suspend fun fromFastPlayer(
-        watchUrl: HttpUrl,
-        sourceId: SourceId,
-        asked: String,
-        startedAt: Long,
-    ): Resolved? {
-        val fast = playerStreams ?: return null
-        if (watchUrl in distrustFastPath) {
-            Diag.log("resolve", "${watchUrl.value.takeLast(ID_CHARS)}: player response failed before, extracting")
-            return null
-        }
-        val id = watchUrl.youTubeVideoId() ?: return null
-        val response = runCatching { fast.playerFor(id) }.getOrNull() ?: return null
-        return fromDirectStreams(PlayerRequest(id, sourceId, watchUrl, asked, startedAt), response)
-            ?.also { fastPathUsed += watchUrl }
     }
 
     /** The long way round: yt-dlp, ~2-4s on a phone, and what everything falls back to. */
@@ -344,7 +315,9 @@ class VideoResolver(
     ): Resolved? {
         val id = watchUrl.youTubeVideoId() ?: return null
         val fast = playerStreams ?: return null
-        val response = fast.playerFor(id) ?: run {
+        // Guarded: this is a LAST resort after extraction already failed, so a throwing player
+        // must leave the honest "could not resolve" rather than replace it with a crash.
+        val response = runCatching { fast.playerFor(id) }.getOrNull() ?: run {
             // Name the cause. Two client identities were tried against a rated video with a
             // valid signed-in token on 2026-08-01 — TVHTML5 and the embedded player — and both
             // were refused, so age restriction is a wall rather than a missing credential.
@@ -519,15 +492,6 @@ class VideoResolver(
     fun forget(watchUrl: HttpUrl) {
         if (cache.remove(watchUrl) != null) {
             Diag.log("resolve", "forgot the cached URL for ${watchUrl.value.takeLast(ID_CHARS)}; it will re-resolve")
-        }
-        // A stream that died is also a vote against however it was resolved. The fast path is
-        // right for most videos and wrong for some — measured on the emulator 2026-08-02, where
-        // several played from the player response and others 403'd on open while extraction
-        // handled them fine — so re-resolving the SAME way just fails identically three times
-        // and skips the video. Once burned, that video extracts instead.
-        if (fastPathUsed.remove(watchUrl)) {
-            distrustFastPath += watchUrl
-            Diag.log("resolve", "${watchUrl.value.takeLast(ID_CHARS)} failed from the player response; extracting next")
         }
     }
 
