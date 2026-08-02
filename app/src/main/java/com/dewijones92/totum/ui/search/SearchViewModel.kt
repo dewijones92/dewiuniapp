@@ -15,6 +15,7 @@ import com.dewijones92.totum.data.search.SearchOutcome
 import com.dewijones92.totum.data.search.SearchQuery
 import com.dewijones92.totum.data.search.SearchSource
 import com.dewijones92.totum.data.torrent.HomeTorrentServer
+import com.dewijones92.totum.data.torrent.TorrentEpisodes
 import com.dewijones92.totum.data.torrent.TorrentPlayables
 import com.dewijones92.totum.di.AppContainer
 import com.dewijones92.totum.domain.MediaSource
@@ -250,7 +251,14 @@ class SearchViewModel(
                 return@launch
             }
             Diag.log("search", "queueing ${items.size} item(s) from \"${hit.title}\"")
-            queue.playAll(items, QueueGroup(id = prepared!!.hash, title = prepared.name))
+            // Start the audio remux for what is about to play, without waiting for it. The
+            // first HLS segment takes ~25s while ffmpeg waits on the swarm, so if this is left
+            // until Listen is pressed it is 25 seconds of spinner; started here it overlaps the
+            // queueing and the video that plays first.
+            TorrentEpisodes.playableInOrder(prepared!!.files).firstOrNull()?.let { first ->
+                launch { server.warmAudio(prepared, first) }
+            }
+            queue.playAll(items, QueueGroup(id = prepared.hash, title = prepared.name))
             playAttempt.value = PlayAttempt()
         }
     }
