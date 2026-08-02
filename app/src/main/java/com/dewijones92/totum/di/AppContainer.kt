@@ -384,7 +384,16 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
         val settings = appPreferences.settings.value
         val base = settings.homeServerBase.takeIf { it.isNotBlank() } ?: return@lazy null
         HttpHomeTorrentServer(
-            client = httpClient,
+            // Its own read timeout, because a torrent search is nothing like the app's other
+            // requests: it fans out to every indexer and waits for the slowest. Measured
+            // 2026-08-02, one query answered in 10.7s and another was still going at 60s — both
+            // well past the 20s that suits a feed fetch, and a cut-off would have looked to the
+            // person searching exactly like "no results". Shares the connection pool, so this
+            // costs nothing but the setting.
+            client = httpClient.newBuilder()
+                .readTimeout(TORRENT_SEARCH_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                .callTimeout(TORRENT_SEARCH_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                .build(),
             base = "https://totum.$base",
             prowlarrApiKey = settings.prowlarrApiKey,
             // Read per call, so signing in takes effect immediately rather than after a restart.
@@ -883,5 +892,8 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
 
     private companion object {
         const val HTTP_TIMEOUT_SECONDS = 20L
+
+        /** Matches the home server's own 180s ceiling for a fan-out indexer search. */
+        const val TORRENT_SEARCH_TIMEOUT_SECONDS = 180L
     }
 }

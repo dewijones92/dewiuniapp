@@ -49,6 +49,14 @@ public class HttpHomeTorrentServer(
     private val json = Json { ignoreUnknownKeys = true }
 
     override suspend fun search(query: String): TorrentSearchResult = withContext(Dispatchers.IO) {
+        // Asked BEFORE the request, because signing in is the one cause the person can fix and
+        // the reply it produces is indistinguishable from every other refusal: nginx answers a
+        // missing token and a wrong one with the same bare 401. Report 0.1.308 said only
+        // "search failed: HTTP 401", which named the symptom and hid the entire cause.
+        if (token().isBlank()) {
+            Diag.log("torrent", "not searching for \"$query\": not signed in to the home server")
+            return@withContext TorrentSearchResult.Failure("sign in to the home server first")
+        }
         val encoded = query.replace(" ", "+")
         val request = Request.Builder()
             .url("$prowlarrBase/api/v1/search?query=$encoded&type=search")
@@ -58,8 +66,17 @@ public class HttpHomeTorrentServer(
         try {
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
-                    Diag.warn("torrent", "search for \"$query\" failed: HTTP ${response.code}")
-                    return@withContext TorrentSearchResult.Failure("HTTP ${response.code}")
+                    // Each code says something different to the person holding the phone, and
+                    // "HTTP 401" says nothing at all. A rejected token means the sign-in has to
+                    // be done again; a gateway timeout means the search itself was slow and
+                    // retrying may work; anything else is genuinely the server.
+                    val detail = when (response.code) {
+                        HTTP_UNAUTHORIZED -> "the home server rejected the sign-in — sign in again"
+                        HTTP_GATEWAY_TIMEOUT -> "the search took too long — try a narrower one"
+                        else -> "the home server answered HTTP ${response.code}"
+                    }
+                    Diag.warn("torrent", "search for \"$query\" failed: HTTP ${response.code} — $detail")
+                    return@withContext TorrentSearchResult.Failure(detail)
                 }
                 val body = response.body.string()
                 val results = parseProwlarr(body) ?: run {
@@ -165,5 +182,9 @@ public class HttpHomeTorrentServer(
         const val TOKEN_HEADER = "X-Totum-Token"
 
         const val HASH_CHARS = 12
+
+        /** Both mean "sign in again" / "that was slow" rather than "the server is broken". */
+        const val HTTP_UNAUTHORIZED = 401
+        const val HTTP_GATEWAY_TIMEOUT = 504
     }
 }
