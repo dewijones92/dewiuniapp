@@ -38,7 +38,7 @@ public class FakeHomeTorrentServer(
     /** Records that warming was asked for; there is nothing to warm in memory. */
     public var warmed: MutableList<String> = mutableListOf()
 
-    override suspend fun warmAudio(torrent: PreparedTorrent, file: TorrentFile) {
-        warmed += "${torrent.hash}:${file.index}"
+    override suspend fun warmAudio(audioUrl: HttpUrl) {
+        warmed += audioUrl.value.substringBefore('?').removeSuffix("/index.m3u8").substringAfterLast("/audio/")
     }
 }

@@ -601,9 +601,16 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
         // already in silence is a second wasted — so the prefetcher (near the end of an item)
         // and the recovery (the moment a stream fails) share this rather than each keeping a
         // copy of "how do I resolve a video".
+        // Exhaustive rather than a cast, so a new kind of playable cannot quietly get no
+        // preparation at all — which is what happened to torrents: this was written when only a
+        // video cost anything to get ready, and a torrent's audio URL now has ~25s of ffmpeg on
+        // the home server behind it. The compiler asks the question now.
         val prefetchOne: suspend (PlayableItem) -> Unit = { next ->
-            (next.handle as? PlayHandle.Video)?.let { video ->
-                videoResolver.prefetch(video.watchUrl, next.item.sourceId)
+            when (val handle = next.handle) {
+                is PlayHandle.Video -> videoResolver.prefetch(handle.watchUrl, next.item.sourceId)
+                // Already on the device, and a plain podcast enclosure is already a playable URL.
+                is PlayHandle.LocalVideo -> Unit
+                is PlayHandle.Podcast -> handle.audioUrl?.let { homeTorrentServer?.warmAudio(it) }
             }
         }
         // Videos resolve just-in-time, which meant yt-dlp's ~7 seconds landed in the silence

@@ -256,7 +256,7 @@ class SearchViewModel(
             // until Listen is pressed it is 25 seconds of spinner; started here it overlaps the
             // queueing and the video that plays first.
             TorrentEpisodes.playableInOrder(prepared!!.files).firstOrNull()?.let { first ->
-                launch { server.warmAudio(prepared, first) }
+                launch { server.warmAudio(server.audioStream(prepared, first)) }
             }
             queue.playAll(items, QueueGroup(id = prepared.hash, title = prepared.name))
             playAttempt.value = PlayAttempt()

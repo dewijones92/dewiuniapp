@@ -187,14 +187,22 @@ public class HttpHomeTorrentServer(
         "$torrServerBase/audio/${torrent.hash}/${file.index}/index.m3u8?totumToken=${token()}",
     )
 
-    override suspend fun warmAudio(torrent: PreparedTorrent, file: TorrentFile) {
+    override suspend fun warmAudio(audioUrl: HttpUrl) {
+        // The playlist and its start trigger are siblings, so the URL an item already carries
+        // names the job to start. Anything else is not one of ours and is left alone.
+        val start = audioUrl.value.substringBefore('?').removeSuffix("/index.m3u8")
+        if (!start.startsWith("$torrServerBase/audio/")) {
+            Diag.log("torrent", "not warming ${audioUrl.value.take(URL_CHARS)}: not a home-server audio stream")
+            return
+        }
+        val what = start.substringAfterLast("/audio/")
         withContext(Dispatchers.IO) {
-            val url = "$torrServerBase/audio/${torrent.hash}/${file.index}/start"
+            val url = "$start/start"
             val request = Request.Builder().url(url).header(TOKEN_HEADER, token()).get().build()
             // Fire and forget: the point is to start the ~25s of work, not to wait for it.
             runCatching { client.newCall(request).execute().use { it.code } }
-                .onSuccess { Diag.log("torrent", "warming audio for ${torrent.hash.take(HASH_CHARS)}:${file.index}") }
-                .onFailure { Diag.warn("torrent", "could not warm audio for ${file.name}", it) }
+                .onSuccess { Diag.log("torrent", "warming audio for $what") }
+                .onFailure { Diag.warn("torrent", "could not warm audio for $what", it) }
         }
     }
 
@@ -234,6 +242,7 @@ public class HttpHomeTorrentServer(
         const val TOKEN_HEADER = "X-Totum-Token"
 
         const val HASH_CHARS = 12
+        const val URL_CHARS = 80
 
         /** Roughly 30s of waiting for a swarm to answer, which is generous and still bounded. */
         const val METADATA_ATTEMPTS = 30

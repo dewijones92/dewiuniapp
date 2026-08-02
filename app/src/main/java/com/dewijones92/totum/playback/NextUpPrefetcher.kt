@@ -58,13 +58,29 @@ internal class NextUpPrefetcher(
             prefetchedFor = state.itemId
             return
         }
-        // Only a video costs anything to resolve. A podcast enclosure is already a playable URL,
-        // so prefetching one would be a no-op with a log line attached.
-        if (next.handle !is PlayHandle.Video) return
+        // What "getting ready" means is the caller's business, and differs per source: a video is
+        // resolved, a torrent's audio is remuxed on the home server, a podcast enclosure needs
+        // nothing. This used to skip anything that was not a video, on the reasoning that nothing
+        // else cost anything — which stopped being true when a torrent gained an audio-only URL
+        // with ~25 seconds of ffmpeg behind it, and silently left that case unprepared.
+        if (!worthPreparing(next)) return
 
         prefetchedFor = state.itemId
-        Diag.log("resolve", "${remaining}ms left — resolving \"${next.item.title}\" ahead of time")
+        Diag.log("resolve", "${remaining}ms left — getting \"${next.item.title}\" ready ahead of time")
         prefetch(next)
+    }
+
+    /**
+     * Whether there is real work to do ahead of time, so the once-per-item budget is not spent on
+     * an item that needs nothing — and, more importantly, so the log does not claim preparation
+     * that never happened.
+     */
+    private fun worthPreparing(next: PlayableItem): Boolean = when (val handle = next.handle) {
+        is PlayHandle.Video -> true
+        is PlayHandle.LocalVideo -> false
+        // Only a torrent carries one, and it is the expensive case: the home server has to seek
+        // to the file and remux its audio before a single segment exists.
+        is PlayHandle.Podcast -> handle.audioUrl != null
     }
 
     private companion object {

@@ -93,6 +93,41 @@ class NextUpPrefetcherTest {
         assertEquals(emptyList<String>(), prefetched.map { it.item.title })
     }
 
+    /**
+     * A torrent is the opposite case, and the reason the video-only rule had to go: its audio-only
+     * URL is served by the home server, which has to seek to the file and remux before a single
+     * segment exists — ~25 seconds, measured. Left unprepared, that lands as silence at every
+     * track change, which is exactly what this class exists to prevent.
+     */
+    @Test
+    fun `a torrent's audio stream is worth preparing`() = runTest {
+        next = PlayableItem(
+            item = item("S01E02"),
+            handle = PlayHandle.Podcast(
+                audioUrl = HttpUrl.of("https://home.test/ts/audio/abc/8/index.m3u8"),
+            ),
+        )
+        prefetcher()
+        states.value = playing(positionMs = 580_000, durationMs = 600_000)
+        runCurrent()
+
+        assertEquals(listOf("S01E02"), prefetched.map { it.item.title })
+    }
+
+    /** Already on the device: there is nothing to get ready and nothing to wait for. */
+    @Test
+    fun `a downloaded copy needs no preparation`() = runTest {
+        next = PlayableItem(
+            item = item("S01E03"),
+            handle = PlayHandle.Podcast(localPath = "/data/S01E03.m4a"),
+        )
+        prefetcher()
+        states.value = playing(positionMs = 580_000, durationMs = 600_000)
+        runCurrent()
+
+        assertEquals(emptyList<String>(), prefetched.map { it.item.title })
+    }
+
     private fun playing(id: String = "current", positionMs: Long, durationMs: Long?) =
         PlaybackState(
             itemId = MediaItemId(id),

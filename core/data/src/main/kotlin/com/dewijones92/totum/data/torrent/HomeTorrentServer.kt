@@ -49,13 +49,17 @@ public interface HomeTorrentServer {
     public fun audioStream(torrent: PreparedTorrent, file: TorrentFile): HttpUrl
 
     /**
-     * Asks the server to start preparing [file]'s audio, without waiting for it.
+     * Asks the server to start preparing an audio stream, without waiting for it.
      *
-     * The first segment takes ~25s while ffmpeg waits on the swarm. Called when a torrent is
-     * opened rather than when play is pressed, so that cost is spent while the file list is
-     * still on screen instead of as 25 seconds of spinner.
+     * The first segment takes ~25s while ffmpeg waits on the swarm, so this is called early —
+     * when a torrent is opened, and again when the item is next in the queue and the current one
+     * is ending — so that cost is spent while something else is on screen or still playing.
+     *
+     * Addressed by the URL [audioStream] produces, rather than by torrent and file, because a
+     * queue entry holds a URL and nothing else. Plumbing torrent objects through the queue would
+     * put torrent knowledge in the one place deliberately free of it.
      */
-    public suspend fun warmAudio(torrent: PreparedTorrent, file: TorrentFile)
+    public suspend fun warmAudio(audioUrl: HttpUrl)
 }
 
 public sealed interface TorrentSearchResult {
