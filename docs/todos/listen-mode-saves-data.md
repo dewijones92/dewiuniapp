@@ -23,11 +23,15 @@ That re-prepare does happen for YouTube (there is a separate URL to move to), so
 real — but it is untested, and "we think it saves data" is exactly the sort of claim that turns
 out to be false on a phone.
 
-## Torrents: not currently possible
+## Torrents: not possible in the APP, very possible on the Pi
 
-A torrent is ONE file carrying both tracks. There is no audio-only URL to switch to, which is
-why `listen()` now declines rather than pointlessly restarting it (see
-`ListenModeSingleStreamTest`). Listening to a torrent therefore still pulls the video bytes.
+A torrent is ONE file carrying both tracks. There is no audio-only URL for the app to switch to,
+which is why `listen()` now declines rather than pointlessly restarting it (see
+`ListenModeSingleStreamTest`). Listening to a torrent therefore still pulls the video bytes today.
+
+That is a statement about the app, not about what is achievable — as the measurements below
+show. An earlier version of this file said "not currently possible" full stop, which was a guess
+dressed as a finding.
 
 ### Measured on the Pi, 2026-08-02 — it is cheaper than it sounds
 
