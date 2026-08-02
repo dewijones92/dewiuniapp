@@ -16,6 +16,7 @@ import androidx.compose.material.icons.outlined.CollectionsBookmark
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -26,7 +27,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -98,12 +101,14 @@ private fun LibraryHome(
 ) {
     val viewModel: LibraryViewModel = viewModel(factory = LibraryViewModel.factory(container))
     val downloaded by viewModel.downloaded.collectAsStateWithLifecycle()
+    val inProgress by viewModel.inProgress.collectAsStateWithLifecycle()
     val storage by viewModel.storage.collectAsStateWithLifecycle()
     val sort by viewModel.sortOrder.collectAsStateWithLifecycle()
     val addToPlaylist = rememberPlaylistAdder(container)
 
     LibraryContent(
         downloaded = downloaded,
+        inProgress = inProgress,
         storage = storage,
         sort = sort,
         onOpenPlaylists = onOpenPlaylists,
@@ -120,6 +125,8 @@ private fun LibraryHome(
 @Composable
 internal fun LibraryContent(
     downloaded: List<LibraryViewModel.Entry>,
+    /** Downloads running right now — shown above the finished ones, newest progress first. */
+    inProgress: List<LibraryViewModel.InProgress>,
     storage: StorageUsage,
     sort: MediaSort,
     onOpenPlaylists: () -> Unit,
@@ -137,9 +144,29 @@ internal fun LibraryContent(
             item { PlaylistsEntry(onOpenPlaylists) }
             item { HistoryEntry(onOpenHistory) }
             item { AccountEntry(onOpenAccount) }
-            if (downloaded.isEmpty()) {
+            // In-progress FIRST, and outside the empty check: a fresh install with everything
+            // still downloading would otherwise show "nothing downloaded yet" while the phone
+            // was busily downloading, which is the most misleading thing this screen could say.
+            if (inProgress.isNotEmpty()) {
+                item {
+                    Text(
+                        text = pluralStringResource(
+                            R.plurals.library_downloading_now,
+                            inProgress.size,
+                            inProgress.size,
+                        ),
+                        style = MaterialTheme.typography.titleSmall,
+                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 4.dp),
+                    )
+                }
+                items(inProgress, key = { "downloading-${it.id.value}" }) { active ->
+                    DownloadingRow(active)
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                }
+            }
+            if (downloaded.isEmpty() && inProgress.isEmpty()) {
                 item { DownloadsEmpty() }
-            } else {
+            } else if (downloaded.isNotEmpty()) {
                 item {
                     SectionHeaderWithSort(
                         title = stringResource(R.string.library_downloads),
@@ -255,3 +282,45 @@ private fun DownloadsEmpty() {
 private fun LibraryScreenPreview() {
     TotumTheme { LibraryScreen(FakeAppContainer()) }
 }
+
+/**
+ * One download in flight: a bar you can watch, and a percentage you can read.
+ *
+ * Deliberately BOTH. A bar alone cannot be read out or compared between two rows, and a
+ * percentage alone gives no sense of movement — and the whole complaint was that nothing on
+ * screen said anything was happening. Indeterminate when the server sends no length, rather than
+ * a bar frozen at zero pretending to be stuck.
+ */
+@Composable
+private fun DownloadingRow(active: LibraryViewModel.InProgress) {
+    val fraction = active.state.fraction
+    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = active.id.value,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = fraction
+                    ?.let { stringResource(R.string.status_downloading_percent, (it * PERCENT).toInt()) }
+                    ?: stringResource(R.string.status_downloading),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+        if (fraction != null) {
+            LinearProgressIndicator(
+                progress = { fraction },
+                modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+            )
+        } else {
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp))
+        }
+    }
+}
+
+/** Fractions are 0..1; people read percentages. */
+private const val PERCENT = 100

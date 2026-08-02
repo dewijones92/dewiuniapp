@@ -363,6 +363,10 @@
         <item quantity="one">Automatic downloads are off · 1 item not saved offline</item>
         <item quantity="other">Automatic downloads are off · %1$d items not saved offline</item>
     </plurals>
+    <plurals name="library_downloading_now">
+        <item quantity="one">Downloading now</item>
+        <item quantity="other">Downloading now (%1$d)</item>
+    </plurals>
     <string name="status_downloading">Downloading…</string>
     <string name="status_downloading_percent">Downloading %1$d%%</string>
     <string name="status_online_only">Online only</string>

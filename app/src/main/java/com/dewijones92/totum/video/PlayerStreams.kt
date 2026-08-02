@@ -18,10 +18,11 @@ import com.dewijones92.totum.innertube.player.StreamingData
  * With `--js-runtimes node` on a laptop yt-dlp gets the full ladder too, which is what
  * proved the runtime — not YouTube, and not SABR — was the thing missing.
  *
- * It is also FAR faster, which is why it is now asked first rather than as a fallback: measured
- * 2026-08-02, this call answers in ~0.2s where extracting the same video took 13.9s on Dewi's
- * phone and 23.4s on the emulator. That difference is the whole of the wait before a video
- * starts.
+ * A FALLBACK, deliberately, and it was briefly the primary path. On the emulator it answered in
+ * ~0.2s against extraction's 23.4s, which looked like a free win; on Dewi's actual phone the same
+ * change measured 15-37 SECONDS per resolve and broke playback outright (report 0.1.312, 7 errors
+ * and 17 stalls). The emulator's URLs carried no `n` and the phone's all do, so every resolve
+ * there paid for a QuickJS solve. Reverted — see `VideoResolver.extractAndCache`.
  *
  * This comment used to say the URLs need no deciphering. That was true when written and is not
  * now — 140 of 140 formats on one video carry an obfuscated `n` — so a solver is supplied and

@@ -6,7 +6,9 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.dewijones92.totum.data.download.DownloadManager
 import com.dewijones92.totum.di.AppContainer
+import com.dewijones92.totum.domain.DownloadState
 import com.dewijones92.totum.domain.DownloadedMedia
+import com.dewijones92.totum.domain.MediaItemId
 import com.dewijones92.totum.domain.StorageUsage
 import com.dewijones92.totum.queue.PlaybackQueue
 import com.dewijones92.totum.ui.common.MediaSort
@@ -50,6 +52,26 @@ class LibraryViewModel(
     fun setSort(order: MediaSort) {
         sort.value = order
     }
+
+    /**
+     * What is being fetched RIGHT NOW, newest progress first.
+     *
+     * The Library listed only finished downloads, so the moment anything was actually happening
+     * there was nowhere in the app that said so — Dewi, 2026-08-02: *"its not clear from gui what
+     * is downloading atm"*. The queue's own rows now show progress too, but a download started
+     * from anywhere else had no home at all, and "is it doing something?" is the question this
+     * screen exists to answer.
+     */
+    val inProgress: StateFlow<List<InProgress>> = downloads.observeDownloads()
+        .map { states ->
+            states.mapNotNull { (id, state) ->
+                (state as? DownloadState.Downloading)?.let { InProgress(id, it) }
+            }.sortedByDescending { it.state.fraction ?: 0f }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), emptyList())
+
+    /** One download in flight: which item, and how far it has got. */
+    data class InProgress(val id: MediaItemId, val state: DownloadState.Downloading)
 
     val downloaded: StateFlow<List<Entry>> = combine(
         downloads.observeDownloaded(),
