@@ -143,8 +143,13 @@ when driven on the emulator. Verify real flows on a device, not just via tests.
   reads `PlayHandle.pillar` instead — it knows exactly rather than guessing.
 - **ffmpeg IS bundled** as a minimal static binary (`libffmpeg.so` in
   `app/src/main/jniLibs/<abi>`, ~7MB; built from FFmpeg 7.1.1 by
-  `tools/ffmpeg/build-ffmpeg-android.sh`, remux-only — no decoders/encoders/
-  ffprobe). PyPI has no `aarch64-linux-android` ffmpeg wheel, so it can't be
+  `tools/ffmpeg/build-ffmpeg-android.sh`, remux-only — no decoders/encoders).
+  **ffprobe is bundled too** (`libffprobe.so`, another ~7MB per ABI): yt-dlp's
+  ModifyChapters postprocessor — the one that cuts SponsorBlock segments out of
+  a download — asks ffprobe for the media duration and fails with "ffprobe not
+  found" without it. Together they are ~30MB of the repo's 36MB working tree,
+  which is why the tracked binaries look disproportionate and are not a mistake.
+  PyPI has no `aarch64-linux-android` ffmpeg wheel, so it can't be
   pip'd; a shipped binary is the only way. Under Android 14 W^X the only
   app-private executable location is `nativeLibraryDir`, so the `.so` is
   extracted there (`packaging { jniLibs { useLegacyPackaging = true } }`) and
