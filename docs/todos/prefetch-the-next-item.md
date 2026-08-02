@@ -62,7 +62,32 @@ setting.
 | YouTube 1080p | ~5–10 MB |
 
 Flat in time, eight times apart in bytes. In Listen mode it is cheap; watching video it is ~8 MB
-per track change — bounded and predictable, but worth a setting rather than a silent default.
+per track change.
+
+### Decided: Wi-Fi yes, mobile no
+
+Dewi, 2026-08-02: *"defo yes on wifi, but maybe not on mobile please"*. So the byte preload is
+gated on `NetworkStatus.isMetered()`, which already exists and already errs toward "metered" when
+the state is unknown — the data-saving side, which is the right way to be wrong here.
+
+This gate applies to Layer 2 ONLY. Layer 1 runs everywhere, on any connection, because it pulls no
+media at all — gating readiness would give up a 25-second saving to protect data it never spends.
+
+### There is no player cache yet, and that decides the route
+
+Checked 2026-08-02: no `SimpleCache`, `CacheDataSource` or `CacheWriter` anywhere in the app. That
+rules out the simplest possible implementation — writing 30s into a cache the player will later
+read from — and leaves two routes:
+
+1. **`DefaultPreloadManager` in `PlaybackService`.** Contained: the service already sets a custom
+   `MediaSourceFactory` (`MergingAudioVideoFactory`), so a wrapping factory can hand back a
+   preloaded source when one exists. Needs a custom session command to nominate the next item,
+   because the app talks to the service through a `MediaController`.
+2. **Add a `SimpleCache`.** Simpler preloading, but it changes how *all* playback reads bytes and
+   needs a disk budget and an eviction policy alongside downloads. A bigger change to something
+   already shipped, for the same result.
+
+Route 1, on the strength of blast radius: it touches only what is being added.
 
 ## Related
 
