@@ -36,6 +36,7 @@ import com.dewijones92.totum.di.AppContainer
 import com.dewijones92.totum.domain.DownloadState
 import com.dewijones92.totum.domain.MediaItem
 import com.dewijones92.totum.domain.MediaItemId
+import com.dewijones92.totum.domain.OfflineReadiness
 import com.dewijones92.totum.ui.common.CollapsingTitle
 import com.dewijones92.totum.ui.common.EmptyState
 import com.dewijones92.totum.ui.common.EqualiserSize
@@ -77,6 +78,14 @@ fun QueueScreen(container: AppContainer, modifier: Modifier = Modifier) {
                 supportingText = stringResource(R.string.queue_empty),
             )
         } else {
+            val settings by container.appPreferences.settings.collectAsStateWithLifecycle()
+            OfflineSummary(
+                readiness = OfflineReadiness.of(entries.map { it.item.item.id }) {
+                    downloads[it] ?: DownloadState.NotDownloaded
+                },
+                autoDownloadOff = !settings.autoDownloadQueue,
+                waitingForWifi = settings.autoDownloadQueue && !container.autoDownloadAllowedNow(),
+            )
             val reorder = rememberReorderState(listState = listState, onMove = queue::move)
             LazyColumn(
                 state = listState,

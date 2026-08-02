@@ -125,6 +125,9 @@ class FakeAppContainer(
         channelResolver = channelRepository,
     ),
 ) : AppContainer {
+
+    /** Previews and tests always look "allowed", so the queue shows its normal state. */
+    override fun autoDownloadAllowedNow(): Boolean = true
     override fun refreshExtractorEngine() = Unit
 
     override fun startQueueAutoDownload() = Unit

@@ -57,6 +57,10 @@ internal fun HomeServerRow(container: AppContainer, modifier: Modifier = Modifie
                     settings.homeServerBase.isBlank() -> stringResource(R.string.settings_home_server_none)
                     settings.homeServerToken.isBlank() ->
                         stringResource(R.string.settings_home_server_signed_out, settings.homeServerBase)
+                    // A token without a key reaches the server and is refused by Prowlarr, so
+                    // "signed in" would be true and useless. Both or neither.
+                    settings.prowlarrApiKey.isBlank() ->
+                        stringResource(R.string.settings_home_server_no_key, settings.homeServerBase)
                     else -> stringResource(R.string.settings_home_server_ready, settings.homeServerBase)
                 },
                 style = MaterialTheme.typography.bodySmall,
@@ -114,7 +118,11 @@ private fun HomeServerDialog(
         },
         confirmButton = {
             TextButton(onClick = {
-                container.appPreferences.setHomeServer(base, key)
+                // A BLANK key never overwrites a stored one. The key arrives automatically on
+                // the sign-in deep link now, so this box is normally empty — and saving it
+                // blank would delete the very thing that had just been fetched, turning
+                // "sign in again" into "break it again".
+                container.appPreferences.setHomeServer(base, key.ifBlank { initialKey })
                 onDone()
                 if (base.isNotBlank()) {
                     context.startActivity(Intent(Intent.ACTION_VIEW, "https://totumauth.$base/".toUri()))

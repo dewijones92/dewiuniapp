@@ -161,6 +161,9 @@ interface AppContainer {
     /** Adds a torrent to the home server and turns it into queue items; null when unconfigured. */
     val homeTorrentServer: HomeTorrentServer?
 
+    /** Whether automatic downloads may run on the current connection — see the implementation. */
+    fun autoDownloadAllowedNow(): Boolean
+
     /** Recent search queries, offered again in the search screen's idle state. */
     val searchHistoryStore: SearchHistoryStore
     val skipSegmentSource: SkipSegmentSource
@@ -679,7 +682,7 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
             scope = applicationScope,
             isEnabled = { appPreferences.settings.value.autoDownloadQueue },
             isAllowedOnThisNetwork = {
-                !appPreferences.settings.value.autoDownloadWifiOnly || !networkStatus.isMetered()
+                autoDownloadAllowedNow()
             },
         ).start()
     }
@@ -809,6 +812,16 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
     override val appPreferences: AppPreferences by lazy { SharedPrefsAppPreferences(context) }
 
     private val networkStatus by lazy { NetworkStatus(context) }
+
+    /**
+     * Whether automatic downloads may run on the connection we are on right now.
+     *
+     * ONE definition, read by both the downloader and the queue screen's summary — the screen
+     * explains why nothing is downloading, and a second copy of this rule would eventually
+     * explain the wrong reason.
+     */
+    override fun autoDownloadAllowedNow(): Boolean =
+        !appPreferences.settings.value.autoDownloadWifiOnly || !networkStatus.isMetered()
 
     override val videoPlaybackLauncher: VideoPlaybackLauncher by lazy {
         VideoPlaybackLauncher(

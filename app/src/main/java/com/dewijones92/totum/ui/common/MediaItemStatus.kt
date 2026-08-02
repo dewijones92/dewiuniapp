@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.SmartDisplay
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -25,6 +26,7 @@ import com.dewijones92.totum.R
 import com.dewijones92.totum.domain.DownloadState
 import com.dewijones92.totum.domain.MediaKind
 import com.dewijones92.totum.domain.PlayState
+import com.dewijones92.totum.domain.isPermanent
 
 /**
  * The one status line every row shows: which pillar the item is, whether it's held
@@ -64,6 +66,17 @@ internal fun MediaItemStatus(
             } else {
                 StatusIcon(Icons.Filled.DownloadForOffline, R.string.status_offline_video)
             }
+        }
+        // In WORDS, not a glyph. A permanently-failed download is the one state a person has to
+        // understand rather than glance at — it is why the queue summary says "4 can't be
+        // downloaded", and the row has to say WHICH four. Retryable failures deliberately show
+        // nothing: the app is still trying, so there is nothing to tell anyone yet.
+        if (downloadState is DownloadState.Failed && downloadState.isPermanent) {
+            Text(
+                text = stringResource(R.string.status_online_only),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
         if (playState.isPlayed) {
             StatusIcon(Icons.Filled.Check, R.string.status_played)

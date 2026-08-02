@@ -335,8 +335,33 @@
     <string name="settings_home_server">Home server</string>
     <string name="settings_home_server_none">Not set up — tap to add yours.</string>
     <string name="settings_home_server_signed_out">%1$s · not signed in</string>
+    <string name="settings_home_server_no_key">%1$s · signed in, but no search key — sign in again</string>
     <string name="settings_home_server_ready">%1$s · signed in</string>
     <string name="settings_home_server_domain">Domain (e.g. example.com)</string>
-    <string name="settings_home_server_key">Prowlarr API key</string>
+    <string name="settings_home_server_key">Prowlarr API key (fetched automatically)</string>
     <string name="settings_home_server_sign_in">Save and sign in</string>
+    <!-- Queue offline readiness. Wording is deliberately plain: these answer "can I listen to
+         this with no signal?" at a glance, which a per-row glyph never could. Plurals rather
+         than "item(s)", because the whole point of this line is that it reads like a sentence. -->
+    <plurals name="queue_offline_ready_all">
+        <item quantity="one">Ready to play offline</item>
+        <item quantity="other">All %1$d ready to play offline</item>
+    </plurals>
+    <plurals name="queue_offline_ready_with_gaps">
+        <item quantity="one">%1$d ready offline · 1 can\'t be downloaded</item>
+        <item quantity="other">%1$d ready offline · %2$d can\'t be downloaded</item>
+    </plurals>
+    <plurals name="queue_offline_in_progress">
+        <item quantity="one">%1$d of %2$d ready offline · 1 still to fetch</item>
+        <item quantity="other">%1$d of %2$d ready offline · %3$d still to fetch</item>
+    </plurals>
+    <plurals name="queue_offline_waiting_wifi">
+        <item quantity="one">Waiting for Wi-Fi to download 1 item</item>
+        <item quantity="other">Waiting for Wi-Fi to download %1$d items</item>
+    </plurals>
+    <plurals name="queue_offline_auto_off">
+        <item quantity="one">Automatic downloads are off · 1 item not saved offline</item>
+        <item quantity="other">Automatic downloads are off · %1$d items not saved offline</item>
+    </plurals>
+    <string name="status_online_only">Online only</string>
 </resources>

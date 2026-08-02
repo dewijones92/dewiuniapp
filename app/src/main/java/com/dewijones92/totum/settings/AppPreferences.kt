@@ -97,8 +97,16 @@ interface AppPreferences {
         val homeServerToken: String = "",
         /** Whether queued items have their audio fetched for offline listening. */
         val autoDownloadQueue: Boolean = true,
-        /** Restricts automatic downloads to Wi-Fi, so a long queue can't eat data. */
-        val autoDownloadWifiOnly: Boolean = true,
+        /**
+         * Restricts automatic downloads to Wi-Fi. **Off by default** (Dewi, 2026-08-02).
+         *
+         * It defaulted ON, which quietly made "everything in the queue is available offline"
+         * untrue exactly when it mattered — away from home, on mobile data, the downloader did
+         * nothing and said nothing. A queue that is only ready when you did not need it is not
+         * ready. The setting stays for whoever wants it, and the queue now states plainly when
+         * it is what is holding things up.
+         */
+        val autoDownloadWifiOnly: Boolean = false,
         val playbackMode: PlaybackMode = PlaybackMode.AUTO,
         /**
          * Which items feeds show, by progress. Global rather than per-feed: "hide what I have
@@ -141,7 +149,7 @@ class SharedPrefsAppPreferences(context: Context) : AppPreferences {
             prowlarrApiKey = prefs.getString(KEY_PROWLARR_KEY, "").orEmpty(),
             homeServerToken = prefs.getString(KEY_HOME_TOKEN, "").orEmpty(),
             autoDownloadQueue = prefs.getBoolean(KEY_AUTO_DOWNLOAD, true),
-            autoDownloadWifiOnly = prefs.getBoolean(KEY_AUTO_DOWNLOAD_WIFI, true),
+            autoDownloadWifiOnly = prefs.getBoolean(KEY_AUTO_DOWNLOAD_WIFI, false),
             playbackMode = prefs.getString(KEY_PLAYBACK_MODE, null)
                 ?.let { name -> runCatching { PlaybackMode.valueOf(name) }.getOrNull() }
                 ?: PlaybackMode.AUTO,
