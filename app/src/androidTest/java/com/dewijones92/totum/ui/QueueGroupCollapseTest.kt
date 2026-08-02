@@ -55,6 +55,8 @@ class QueueGroupCollapseTest {
      * ACTIONS, so the node carrying "Peep Show S01" has no click to perform.
      */
     private fun toggleSeason() = composeTestRule
+        // Only the group's first header is tagged, so this is unambiguous even when the queue
+        // has split the season into separate runs — which this one has.
         .onNodeWithTag(queueGroupHeaderTag(season.id))
         .performClick()
 
@@ -112,6 +114,9 @@ class QueueGroupCollapseTest {
         // OUTSIDE the season, so this run does not contain what is playing. The "· playing"
         // variant exists for when it does, which is the case that stops a collapse hiding the
         // current item with no explanation.
+        // ONE line, not one per run: this queue splits the season (playAll inserts the second
+        // batch after the current item), and three identical "3 items hidden" lines would be
+        // three claims about the same three items.
         composeTestRule.onNodeWithText("3 items hidden").assertIsDisplayed()
     }
 

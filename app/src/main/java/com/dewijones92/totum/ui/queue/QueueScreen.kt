@@ -183,11 +183,18 @@ private fun androidx.compose.foundation.lazy.LazyListScope.itemsWithGroupHeaders
     entries.forEachIndexed { index, entry ->
         val group = entry.group
         val startsRun = group != null && entries.getOrNull(index - 1)?.group?.id != group.id
-        if (startsRun) {
+        // A group need not be contiguous — queueing something else mid-season splits it — so each
+        // RUN normally draws its own header. Collapsed, all of them are hidden together, and
+        // repeating "3 items hidden" once per run would be three lies about the same three items.
+        // So a collapsed group shows one header: the first run's.
+        val isFirstRunOfGroup = group != null && entries.take(index).none { it.group?.id == group.id }
+        val alreadyCollapsedAbove = group != null && groups.isCollapsed(group.id) && !isFirstRunOfGroup
+        if (startsRun && !alreadyCollapsedAbove) {
             val run = entries.filter { it.group?.id == group.id }
             item(key = "group-$index-${group.id}") {
                 GroupHeader(
                     groupId = group.id,
+                    isFirstRun = isFirstRunOfGroup,
                     title = group.title,
                     count = run.size,
                     collapsed = groups.isCollapsed(group.id),
@@ -286,6 +293,8 @@ private fun NowPlayingLabel(progress: Float?, isPlaying: Boolean) {
 @Composable
 private fun GroupHeader(
     groupId: String,
+    /** Whether this is the group's FIRST run; only that one is tagged, so the tag stays unique. */
+    isFirstRun: Boolean,
     title: String,
     /** How many entries this run holds — the point of collapsing is to know without seeing. */
     count: Int,
@@ -308,7 +317,7 @@ private fun GroupHeader(
             // Tagged because a UI test cannot otherwise reach this reliably: merged semantics
             // combine TEXT but not ACTIONS, so the node carrying the title has no click, and a
             // coordinate tap on the first row of a lazy list does not land.
-            .testTag(queueGroupHeaderTag(groupId))
+            .then(if (isFirstRun) Modifier.testTag(queueGroupHeaderTag(groupId)) else Modifier)
             .padding(start = 16.dp, end = 8.dp, top = 12.dp),
     ) {
         Icon(
@@ -360,5 +369,12 @@ private fun DragHandle(modifier: Modifier, onRemove: () -> Unit) {
 
 private val PROGRESS_HEIGHT = 2.dp
 
-/** The header row for a queue group, so a UI test can toggle exactly the one it means. */
+/**
+ * The header row for one RUN of a queue group, so a UI test can toggle exactly the one it means.
+ *
+ * Only the group's FIRST header carries it. A group is not necessarily contiguous — queueing
+ * something else mid-season splits it, and each part draws its own header when expanded — so
+ * tagging every one produced duplicate tags and a test that could not say which it meant.
+ * Caught by CI rather than locally, where the split happened to lay out differently.
+ */
 internal fun queueGroupHeaderTag(groupId: String): String = "queue-group-header-$groupId"
