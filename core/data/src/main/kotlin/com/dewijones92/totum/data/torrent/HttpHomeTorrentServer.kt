@@ -3,6 +3,7 @@ package com.dewijones92.totum.data.torrent
 import com.dewijones92.totum.common.Diag
 import com.dewijones92.totum.common.HttpUrl
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -125,10 +126,30 @@ public class HttpHomeTorrentServer(
         }
         val name = added["name"]?.jsonPrimitive?.contentOrNull ?: "torrent"
         // Metadata arrives from the swarm a moment after the add, so the file list is asked for
-        // separately rather than assumed to be in the add response.
-        val files = filesFor(hash)
+        // separately — and WAITED FOR. Asking once returns an empty list while the metadata is
+        // still in flight: report 0.1.317 shows "prepared … with 0 file(s)" followed 14 seconds
+        // later by the same torrent with 89, which to anyone tapping a search result is a
+        // season that silently had nothing in it.
+        val files = awaitFiles(hash)
         Diag.log("torrent", "prepared ${hash.take(HASH_CHARS)} \"$name\" with ${files.size} file(s)")
         PreparedTorrent(hash, name, files)
+    }
+
+    /**
+     * The file list once the swarm has supplied the metadata, or empty if it never does.
+     *
+     * Polled rather than pushed because the server offers no signal for it. Bounded so a magnet
+     * with no seeders fails in seconds instead of hanging on a tap forever.
+     */
+    private suspend fun awaitFiles(hash: String): List<TorrentFile> {
+        repeat(METADATA_ATTEMPTS) { attempt ->
+            val files = filesFor(hash)
+            if (files.isNotEmpty()) return files
+            if (attempt == 0) Diag.log("torrent", "waiting for ${hash.take(HASH_CHARS)}'s metadata")
+            delay(METADATA_POLL_MS)
+        }
+        Diag.warn("torrent", "${hash.take(HASH_CHARS)} never produced a file list")
+        return emptyList()
     }
 
     private fun filesFor(hash: String): List<TorrentFile> {
@@ -185,13 +206,17 @@ public class HttpHomeTorrentServer(
     /** Only what a path segment cannot contain; the server treats this purely as a label. */
     private fun String.urlPath(): String = replace(" ", "%20").replace("?", "").replace("#", "")
 
-    private companion object {
+    internal companion object {
         val JSON_TYPE = "application/json".toMediaType()
 
         /** Checked by nginx before anything is proxied; a wrong or missing one is a 401. */
         const val TOKEN_HEADER = "X-Totum-Token"
 
         const val HASH_CHARS = 12
+
+        /** Roughly 30s of waiting for a swarm to answer, which is generous and still bounded. */
+        const val METADATA_ATTEMPTS = 30
+        const val METADATA_POLL_MS = 1_000L
 
         /** Both mean "sign in again" / "that was slow" rather than "the server is broken". */
         const val HTTP_UNAUTHORIZED = 401

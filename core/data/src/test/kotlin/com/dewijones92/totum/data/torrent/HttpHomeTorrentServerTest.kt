@@ -92,4 +92,38 @@ class HttpHomeTorrentServerTest {
         val detail = (result as TorrentSearchResult.Failure).detail
         assertTrue("should mention it took too long, was: $detail", detail.contains("too long"))
     }
+
+    /**
+     * A magnet's file list arrives from the SWARM, not from the add, so the first ask is often
+     * empty. Report 0.1.317: "prepared … with 0 file(s)", then the same torrent with 89 fourteen
+     * seconds later — which to anyone tapping a search result is a season that had nothing in it.
+     */
+    @Test
+    fun `prepare waits for the file list to arrive`() = runTest {
+        // add → hash, then an empty file list, then a populated one.
+        server.enqueue(MockResponse.Builder().code(200).body("""{"hash":"abc","name":"A season"}""").build())
+        server.enqueue(MockResponse.Builder().code(200).body("""{"file_stats":[]}""").build())
+        server.enqueue(
+            MockResponse.Builder().code(200).body(
+                """{"file_stats":[{"id":1,"path":"A season/S01E01.mkv","length":100}]}""",
+            ).build(),
+        )
+
+        val prepared = serverWith(token = { "t" }, key = { "k" }).prepare("magnet:?xt=urn:btih:abc")
+
+        assertEquals(1, prepared?.files?.size)
+    }
+
+    /** A magnet nobody is seeding must fail in seconds, not hang on the tap forever. */
+    @Test
+    fun `prepare gives up when the metadata never arrives`() = runTest {
+        server.enqueue(MockResponse.Builder().code(200).body("""{"hash":"abc","name":"Nothing"}""").build())
+        repeat(HttpHomeTorrentServer.METADATA_ATTEMPTS) {
+            server.enqueue(MockResponse.Builder().code(200).body("""{"file_stats":[]}""").build())
+        }
+
+        val prepared = serverWith(token = { "t" }, key = { "k" }).prepare("magnet:?xt=urn:btih:abc")
+
+        assertEquals(emptyList<TorrentFile>(), prepared?.files)
+    }
 }
