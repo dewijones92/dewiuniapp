@@ -88,6 +88,17 @@ class OfflineSummaryTest {
         composeTestRule.onNodeWithText("Waiting for Wi-Fi to download 1 item").assertIsDisplayed()
     }
 
+    /**
+     * A queue mid-fetch must read as progress, not as a problem. This is the state Dewi was
+     * looking at when he said it was not clear what was downloading.
+     */
+    @Test
+    fun oneItemDownloadingReadsAsProgress() {
+        show(OfflineReadiness(ready = 40, downloading = 1, waiting = 36, unavailableOffline = 4))
+
+        composeTestRule.onNodeWithText("40 of 81 ready offline · 37 still to fetch").assertIsDisplayed()
+    }
+
     /** Automatic downloads switched off must never be reported as "still to fetch". */
     @Test
     fun automaticDownloadsBeingOffIsSaidOutLoud() {

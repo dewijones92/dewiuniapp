@@ -18,5 +18,8 @@ dependencies {
     implementation(libs.okhttp)
 
     testImplementation(libs.junit)
+  // The home-server client is HTTP-shaped; its credential handling is only meaningfully
+  // testable by inspecting the headers that actually go out.
+  testImplementation(libs.okhttp.mockwebserver)
     testImplementation(libs.kotlinx.coroutines.test)
 }

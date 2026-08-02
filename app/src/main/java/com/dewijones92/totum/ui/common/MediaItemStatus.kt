@@ -67,6 +67,19 @@ internal fun MediaItemStatus(
                 StatusIcon(Icons.Filled.DownloadForOffline, R.string.status_offline_video)
             }
         }
+        // The state that was completely invisible: a row being fetched right now looked exactly
+        // like one nobody had touched. Dewi, 2026-08-02: "its not clear from gui what is
+        // downloading atm". Percentage when the size is known, plain "Downloading…" when it is
+        // not — a server that sends no Content-Length must not produce a stuck "0%".
+        if (downloadState is DownloadState.Downloading) {
+            val percent = downloadState.fraction?.let { (it * PERCENT).toInt() }
+            Text(
+                text = percent?.let { stringResource(R.string.status_downloading_percent, it) }
+                    ?: stringResource(R.string.status_downloading),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
         // In WORDS, not a glyph. A permanently-failed download is the one state a person has to
         // understand rather than glance at — it is why the queue summary says "4 can't be
         // downloaded", and the row has to say WHICH four. Retryable failures deliberately show
@@ -123,3 +136,6 @@ private const val PLAYED_TITLE_ALPHA = 0.55f
 
 /** Padding that keeps the status row visually attached to the text above it. */
 internal val StatusRowSpacing = Modifier.padding(top = 3.dp)
+
+/** Fractions are 0..1; people read percentages. */
+private const val PERCENT = 100

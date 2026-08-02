@@ -63,6 +63,23 @@ class QueueAutoDownloader(
         }
         // The whole entry, handle included, so the video route gets its watch URL.
         downloads.download(entry.item, audioOnly = true)
+        awaitSettled(item.id)
+    }
+
+    /**
+     * Waits for one download to finish before the next is started.
+     *
+     * The class has always CLAIMED to be sequential and never was: `DownloadManager.download`
+     * launches into its own scope and returns at once, so this loop fired the entire queue in one
+     * go — report 0.1.313 shows nine running together, each crawling, with the app unable to say
+     * anything useful about any of them. Sequential is the right shape here because these are
+     * background fetches competing with playback for the same connection.
+     *
+     * Only the AUTOMATIC path waits. A download somebody asked for by tapping still starts
+     * immediately rather than queueing behind seventy of these.
+     */
+    private suspend fun awaitSettled(id: MediaItemId) {
+        downloads.observeDownloads().first { states -> states[id] !is DownloadState.Downloading }
     }
 
     /** Items whose skip reason has already been logged; it does not change between passes. */

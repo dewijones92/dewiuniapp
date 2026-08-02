@@ -398,8 +398,10 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
                 .callTimeout(TORRENT_SEARCH_TIMEOUT_SECONDS, TimeUnit.SECONDS)
                 .build(),
             base = "https://totum.$base",
-            prowlarrApiKey = settings.prowlarrApiKey,
-            // Read per call, so signing in takes effect immediately rather than after a restart.
+            // BOTH read per call, so signing in takes effect immediately rather than after a
+            // restart. The key used to be captured here by value, which meant a fresh install
+            // built this with no key and never picked up the one sign-in delivered.
+            prowlarrApiKey = { appPreferences.settings.value.prowlarrApiKey },
             token = { appPreferences.settings.value.homeServerToken },
         )
     }

@@ -32,8 +32,18 @@ public class HttpHomeTorrentServer(
     private val client: OkHttpClient,
     /** One host, e.g. `https://totum.example.com` — Prowlarr under `/prowlarr/`, TorrServer `/ts/`. */
     private val base: String,
-    /** Prowlarr requires its own key behind the proxy; the gate protects, it does not identify. */
-    private val prowlarrApiKey: String,
+    /**
+     * Prowlarr requires its own key behind the proxy; the gate protects, it does not identify.
+     *
+     * Read per call, exactly like [token], and for a reason that cost a whole day. It used to be
+     * captured by VALUE when this was constructed — so on a fresh install the client was built
+     * with an empty key before sign-in, and the key the sign-in then delivered was never used.
+     * Prowlarr answers a bad key with 401, which is indistinguishable from the gate refusing the
+     * token, so signing in "worked" and every search still failed until the app was restarted.
+     * Seen in report 0.1.313: `sign-in returned token=true prowlarrKey=true` at 15:53:04,
+     * followed by HTTP 401 twelve seconds later.
+     */
+    private val prowlarrApiKey: () -> String,
     /**
      * The token obtained by signing in with Google, replayed on every request.
      *
@@ -60,7 +70,7 @@ public class HttpHomeTorrentServer(
         val encoded = query.replace(" ", "+")
         val request = Request.Builder()
             .url("$prowlarrBase/api/v1/search?query=$encoded&type=search")
-            .header("X-Api-Key", prowlarrApiKey)
+            .header("X-Api-Key", prowlarrApiKey())
             .header(TOKEN_HEADER, token())
             .build()
         try {
