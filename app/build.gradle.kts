@@ -143,6 +143,9 @@ dependencies {
   // Local tests: jUnit, coroutines, Android runner
   testImplementation(libs.junit)
   testImplementation(libs.kotlinx.coroutines.test)
+  // The fast player path is HTTP-shaped, so its tests drive a real InnerTubeClient against a
+  // local server rather than faking the client and proving nothing about the parsing.
+  testImplementation(libs.okhttp.mockwebserver)
 
   // Instrumented tests: jUnit rules and runners
   // The SABR playback test drives a real ExoPlayer; :core:playback keeps media3 internal.

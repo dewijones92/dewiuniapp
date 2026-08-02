@@ -473,7 +473,27 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
             // and then 403s at every offset beyond it, whatever the range size or User-Agent.
             // Everything past that is behind SABR, which is why this is wired as the SABR
             // path's source and NOT as a fallback for extraction.
-            playerStreams = InnerTubePlayerStreams(innerTubeClient, accountPlayer),
+            playerStreams = InnerTubePlayerStreams(
+                innerTubeClient,
+                accountPlayer,
+                // Only the anonymous response needs solving here; the account path already
+                // solved its own, and doing it twice would transform an answer into nonsense.
+                solveN = { streaming ->
+                    val playerUrl = runCatching { signatureTimestamps.playerScriptUrl() }.getOrNull()
+                    if (playerUrl != null) {
+                        streaming.withSolvedN(nSolver, playerUrl)
+                    } else {
+                        // FAIL CLOSED. Returning the streams untouched here looked harmless and
+                        // was the worst option: their `n` is unsolved, so they 403 the moment
+                        // playback opens them — a video that resolved in 112ms and then died,
+                        // rather than one that took 14s and worked. Seen on the emulator
+                        // 2026-08-02. An empty solver drops every format carrying an `n`, which
+                        // sends the caller to extraction, and anything with no `n` survives.
+                        Diag.warn("resolve", "no player script — dropping any stream that needs its n solved")
+                        streaming.withSolvedN({ _, _ -> emptyMap() }, "")
+                    }
+                },
+            ),
             sabrEnabled = { appPreferences.settings.value.sabrPlayback },
             resumePositionMs = playbackProgressStore::resumePositionMs,
         )

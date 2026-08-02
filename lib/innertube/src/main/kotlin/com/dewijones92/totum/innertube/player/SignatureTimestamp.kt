@@ -63,7 +63,12 @@ public class HttpSignatureTimestampSource(
      */
     public suspend fun playerScriptUrl(): String? {
         current()
+        // Null here silently disables `n` solving, which in turn silently makes every stream
+        // URL 403 — so it says so. It happens when [current] never reached a player: the
+        // timestamp is cached for the process, so a first fetch failing offline leaves this
+        // null for the whole session even once the network returns.
         return lock.withLock { cachedBuild?.let(::basePlayerScriptUrl) }
+            ?: null.also { Diag.warn("yt-sync", "no player build known yet; n parameters cannot be solved") }
     }
 
     private suspend fun fetch(): Int? {

@@ -34,8 +34,9 @@ class VideoResolver(
     /** Keeps undecodable streams out of the quality ladder (see [VideoCodecSupport]). */
     private val codecSupport: VideoCodecSupport = VideoCodecSupport.Permissive,
     /**
-     * Asked only when yt-dlp comes back with a degraded ladder — see [betterQualities].
-     * Null disables the fallback entirely, which is what tests and previews want.
+     * YouTube's own player response — asked FIRST, because it is ~0.2s against extraction's
+     * 13.9s, and also consulted when an extraction comes back with a degraded ladder.
+     * Null disables both, which is what tests and previews want.
      */
     private val playerStreams: PlayerStreams? = null,
     /**
@@ -79,6 +80,17 @@ class VideoResolver(
      * stale, not the count, so holding a handful is no less safe than holding one.
      */
     private val cache = LinkedHashMap<HttpUrl, Cached>()
+
+    /** Videos resolved by the fast path, so a later failure knows what to blame. */
+    private val fastPathUsed = mutableSetOf<HttpUrl>()
+
+    /**
+     * Videos whose fast-path streams failed to open, which must extract from now on.
+     *
+     * Per-process and unbounded on purpose: it only ever grows by one per genuinely broken
+     * video, and forgetting would send the next play straight back into the failure.
+     */
+    private val distrustFastPath = mutableSetOf<HttpUrl>()
 
     /**
      * The extraction currently running, if any, and what it is for. Concurrent callers for
@@ -164,7 +176,38 @@ class VideoResolver(
         }
         val startedAt = now()
         overSabr(watchUrl, sourceId, asked, startedAt)?.let { return it }
+        // Ask YouTube directly BEFORE extracting, because it is two orders of magnitude faster:
+        // ~0.2s against 13.9s on Dewi's phone (23.4s on the emulator), and that gap is the whole
+        // of the wait before a video starts. Extraction stays as the fallback and is reached
+        // whenever this returns null — a refusal, an unsolvable `n`, or nothing fetchable — so
+        // nothing that plays today can stop playing because of the reordering.
+        fromFastPlayer(watchUrl, sourceId, asked, startedAt)?.let { return it }
         return byExtraction(watchUrl, sourceId, asked, startedAt)
+    }
+
+    /**
+     * The fast path: YouTube's own player response, no extraction at all.
+     *
+     * Null whenever it cannot produce something playable, and every one of those cases is
+     * ordinary rather than exceptional — the video is age-restricted and needs the account, the
+     * `n` solver could not answer, the response carries only SABR streams. The caller extracts,
+     * which is what it always did.
+     */
+    private suspend fun fromFastPlayer(
+        watchUrl: HttpUrl,
+        sourceId: SourceId,
+        asked: String,
+        startedAt: Long,
+    ): Resolved? {
+        val fast = playerStreams ?: return null
+        if (watchUrl in distrustFastPath) {
+            Diag.log("resolve", "${watchUrl.value.takeLast(ID_CHARS)}: player response failed before, extracting")
+            return null
+        }
+        val id = watchUrl.youTubeVideoId() ?: return null
+        val response = runCatching { fast.playerFor(id) }.getOrNull() ?: return null
+        return fromDirectStreams(PlayerRequest(id, sourceId, watchUrl, asked, startedAt), response)
+            ?.also { fastPathUsed += watchUrl }
     }
 
     /** The long way round: yt-dlp, ~2-4s on a phone, and what everything falls back to. */
@@ -262,7 +305,11 @@ class VideoResolver(
         if (qualities.size > 1 || best > DEGRADED_HEIGHT) return qualities
         Diag.log("resolve", "$id offered one quality at ${best}p — asking YouTube directly")
 
-        val streams = fallback.playerFor(id)?.streaming ?: return qualities.also { reportIfDegraded(id, it) }
+        // Guarded like the fast path: this is an OPTIMISATION — asking whether YouTube offers
+        // better than yt-dlp did — and an optimisation must never be able to fail a resolve that
+        // has already succeeded. Caught here after a test proved it could.
+        val streams = runCatching { fallback.playerFor(id) }.getOrNull()?.streaming
+            ?: return qualities.also { reportIfDegraded(id, it) }
         val better = streams.videoQualities()
         val betterBest = better.maxOfOrNull { it.height } ?: 0
         if (betterBest <= best) {
@@ -342,7 +389,11 @@ class VideoResolver(
             return null
         }
         val details = response.details
-        val qualities = betterQualities(request.id, response.streaming.videoQualities())
+        // NOT through betterQualities: that exists to ask YouTube whether it can beat a degraded
+        // yt-dlp ladder, and this ladder IS YouTube's answer. Routing it through anyway fetched
+        // the same player response a second time on every single play — caught by a test
+        // asserting one fetch and seeing two.
+        val qualities = response.streaming.videoQualities()
         Vitals.add("resolve.successes")
         Diag.log(
             "resolve",
@@ -468,6 +519,15 @@ class VideoResolver(
     fun forget(watchUrl: HttpUrl) {
         if (cache.remove(watchUrl) != null) {
             Diag.log("resolve", "forgot the cached URL for ${watchUrl.value.takeLast(ID_CHARS)}; it will re-resolve")
+        }
+        // A stream that died is also a vote against however it was resolved. The fast path is
+        // right for most videos and wrong for some — measured on the emulator 2026-08-02, where
+        // several played from the player response and others 403'd on open while extraction
+        // handled them fine — so re-resolving the SAME way just fails identically three times
+        // and skips the video. Once burned, that video extracts instead.
+        if (fastPathUsed.remove(watchUrl)) {
+            distrustFastPath += watchUrl
+            Diag.log("resolve", "${watchUrl.value.takeLast(ID_CHARS)} failed from the player response; extracting next")
         }
     }
 

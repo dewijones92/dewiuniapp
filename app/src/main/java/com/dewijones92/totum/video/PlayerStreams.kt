@@ -18,8 +18,14 @@ import com.dewijones92.totum.innertube.player.StreamingData
  * With `--js-runtimes node` on a laptop yt-dlp gets the full ladder too, which is what
  * proved the runtime — not YouTube, and not SABR — was the thing missing.
  *
- * Crucially the URLs this returns carry no `n` parameter, so nothing needs deciphering and
- * no JS runtime is implied. That is why this works on a phone where yt-dlp cannot.
+ * It is also FAR faster, which is why it is now asked first rather than as a fallback: measured
+ * 2026-08-02, this call answers in ~0.2s where extracting the same video took 13.9s on Dewi's
+ * phone and 23.4s on the emulator. That difference is the whole of the wait before a video
+ * starts.
+ *
+ * This comment used to say the URLs need no deciphering. That was true when written and is not
+ * now — 140 of 140 formats on one video carry an obfuscated `n` — so a solver is supplied and
+ * the response is only offered once its URLs are actually fetchable.
  */
 fun interface PlayerStreams {
     /**
@@ -45,6 +51,20 @@ class InnerTubePlayerStreams(
      * Null disables the fallback, which is what tests and a signed-out app want.
      */
     private val account: AccountPlayer? = null,
+    /**
+     * Makes the anonymous response's URLs fetchable, by solving their `n` parameter.
+     *
+     * Required, not decorative: every URL this client returns now carries an obfuscated `n` and
+     * 403s until it is transformed — measured 2026-08-02, 140 of 140 formats on one video and 36
+     * of 36 on another. The comment above once claimed these URLs needed no deciphering, which
+     * was true when it was written and silently stopped being true.
+     *
+     * Only the ANONYMOUS response passes through here. The account path solves its own before
+     * returning, and solving twice would replace an already-correct value with a transform of
+     * itself — which fails in exactly the way an unsolved one does, and would be far harder to
+     * spot. Null leaves URLs untouched, which is what tests and previews want.
+     */
+    private val solveN: (suspend (StreamingData) -> StreamingData)? = null,
 ) : PlayerStreams {
 
     /** What the signed-in retry needs: a token, and the timestamp streams are signed against. */
@@ -71,6 +91,23 @@ class InnerTubePlayerStreams(
         return signedIn
     }
 
+    /**
+     * The same response with fetchable URLs, or null when none survived solving.
+     *
+     * Null rather than a response full of URLs that will 403: the caller then falls back to
+     * extraction, which is slower but works. Handing back streams that cannot be fetched would
+     * turn a slow start into a broken video.
+     */
+    private suspend fun PlayerResult.Success.playable(): PlayerResult.Success? {
+        val solve = solveN ?: return this
+        val solved = copy(streaming = solve(streaming))
+        if (solved.streaming.directlyPlayable.isEmpty()) {
+            Diag.log("resolve", "the fast player response had nothing fetchable after solving n")
+            return null
+        }
+        return solved
+    }
+
     /** The parsed anonymous response, refusals included — see [playerFor] for why they matter. */
     private suspend fun anonymousPlayer(videoId: String): PlayerResult? {
         val response = runCatching { innerTube.player(videoId) }.getOrElse { failure ->
@@ -82,7 +119,7 @@ class InnerTubePlayerStreams(
             return null
         }
         return when (val parsed = PlayerResponseParser.parse(body)) {
-            is PlayerResult.Success -> parsed
+            is PlayerResult.Success -> parsed.playable()
             is PlayerResult.Unplayable -> {
                 Diag.log("resolve", "second opinion for $videoId refused: ${parsed.reason}")
                 parsed
