@@ -200,10 +200,18 @@ class PlaybackQueue(
         val ids = run.map { it.item.id }.toSet()
         var index = NOTHING_PLAYING
         mutate("play-all(${run.size})") { snapshot ->
-            snapshot
-                .removing { entry -> entry.item.item.id in ids && entry != snapshot.current }
-                .inserted(run.map { QueueEntry(it, group) })
-                .also { index = it.currentIndex + 1 }
+            // The playing item is refreshed in place and NOT re-inserted. It is exempt from the
+            // remove-and-re-add every other entry goes through, so adding it again left the queue
+            // holding two copies and then moved the cursor onto the newly-added one — which is how
+            // the refresh kept landing on the entry being abandoned.
+            val refreshed = snapshot.adoptingRoutesFrom(run)
+            val playing = refreshed.current?.item?.item?.id
+            refreshed
+                .removing { entry -> entry.item.item.id in ids && entry.item.item.id != playing }
+                .inserted(run.filterNot { it.item.id == playing }.map { QueueEntry(it, group) })
+                // Where the run's first item ACTUALLY ended up, rather than assuming it was
+                // inserted after the cursor: it may be the entry the cursor is already on.
+                .also { now -> index = now.entries.indexOfFirst { it.item.item.id == run.first().item.id } }
         }
         scope.launch { playAt(index) }
     }
@@ -457,8 +465,33 @@ private fun QueueSnapshot.relocating(
     item: PlayableItem,
     place: (QueueSnapshot) -> QueueSnapshot,
 ): QueueSnapshot {
-    if (current?.item?.item?.id == item.item.id) return this
+    if (current?.item?.item?.id == item.item.id) return adoptingRoutesFrom(listOf(item))
     return place(removing { it.item.item.id == item.item.id })
+}
+
+/**
+ * Gives the playing entry any route [fresh] knows about that it does not, leaving it in place.
+ *
+ * The playing entry is exempt from the remove-then-re-add that every other entry goes through, so
+ * it alone never picks up a better handle — it keeps whatever it was created with until it stops
+ * being current. A torrent queued before its audio-only URL existed therefore went on playing as
+ * video for as long as it was the thing playing, while its neighbours in the same run got the URL.
+ */
+private fun QueueSnapshot.adoptingRoutesFrom(fresh: List<PlayableItem>): QueueSnapshot {
+    val playing = current ?: return this
+    val update = fresh.firstOrNull { it.item.id == playing.item.item.id } ?: return this
+    val merged = playing.item.handle.mergedWith(update.handle)
+    if (merged == playing.item.handle) return this
+    Diag.log("queue", "playing entry adopted a fresher route: $merged")
+    return copy(
+        entries = entries.map {
+            if (it.item.item.id == playing.item.item.id) {
+                it.copy(item = it.item.copy(handle = merged))
+            } else {
+                it
+            }
+        },
+    )
 }
 
 /** Inserts [run] immediately after the current entry, leaving the cursor put. */

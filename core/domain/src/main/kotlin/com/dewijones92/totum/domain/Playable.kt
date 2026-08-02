@@ -26,6 +26,28 @@ public sealed interface PlayHandle {
     ) : PlayHandle
 
     /**
+     * This handle plus any route [newer] knows about that this one does not.
+     *
+     * Re-queueing something can only ever ADD a way to reach it, never take one away. That
+     * direction is the whole point: the naive "newer wins" loses a `localPath` when a fresh
+     * copy arrives without one, and the app then streams a file already sitting on the disk.
+     *
+     * Needed because the currently-playing entry is deliberately left in place when its item is
+     * queued again — moving it would interrupt playback — so without this it keeps the route it
+     * was created with forever. That is how a torrent kept playing as video after the audio-only
+     * URL existed: the fresh handle carrying it was discarded as a duplicate.
+     *
+     * Different pillars never merge; a video is not a fuller version of a podcast.
+     */
+    public fun mergedWith(newer: PlayHandle): PlayHandle = when {
+        this !is Podcast || newer !is Podcast -> newer
+        else -> Podcast(
+            localPath = newer.localPath ?: localPath,
+            audioUrl = newer.audioUrl ?: audioUrl,
+        )
+    }
+
+    /**
      * Which pillar this came from. Mixed lists (queue, history, playlists) label their
      * rows from this rather than sniffing a URL — the handle already knows, exactly.
      */

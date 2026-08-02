@@ -136,11 +136,29 @@ The video path on the SAME episode reports `video hvc1… + audio`. No video tra
   query string, so the token vanished on each segment fetch. The service now stamps it onto
   each segment line. A code comment had confidently claimed the opposite.
 
-### Still open
+### The playing entry kept a stale route — fixed
 
-The **currently-playing** item's handle gets nulled: its neighbours in the queue keep their
-audio URL, but the active row loses it, so after a restart that one item plays as video until
-something else is picked. Contained and self-recovering, but real.
+Its neighbours in the queue had the audio URL and it did not, so the one item being listened to
+was the one still pulling video. Cause: every other entry is removed and re-added on a re-queue
+and so takes the fresh handle, but the playing entry is deliberately exempt (moving it would
+interrupt playback) — leaving it stuck with whatever route it was created with.
+
+Two changes, both in the queue:
+
+- **The playing entry adopts routes it lacks** (`PlayHandle.mergedWith`). Merged, never replaced:
+  "newest wins" would drop a `localPath` when a fresh handle arrives without one, and the app
+  would then stream a file already on the disk — no error, just data spent on nothing.
+- **It is no longer re-inserted alongside itself.** Re-queueing the playing item left the queue
+  holding *two* copies and moved the cursor onto the new one, so any in-place refresh landed on
+  the entry being abandoned. A pre-existing bug, surfaced by fixing the first.
+
+Verified on the emulator: `play-all(89)` leaves 89 entries (not 178), the cursor stays on the
+entry already playing, and it continues from 34s as audio-only rather than restarting.
+
+**Not yet proven on device:** the adoption branch itself. That run rebuilt the whole queue, so
+every entry got a fresh handle and adoption was never reached — it is covered by unit tests
+(`PlayHandleMergeTest`, `PlayingEntryAdoptsRoutesTest`) and by the `[queue] playing entry adopted
+a fresher route` line, which has not yet been seen in a real report.
 
 ## Related
 
