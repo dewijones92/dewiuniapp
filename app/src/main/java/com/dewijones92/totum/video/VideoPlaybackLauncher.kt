@@ -1,5 +1,6 @@
 package com.dewijones92.totum.video
 
+import com.dewijones92.totum.common.Diag
 import com.dewijones92.totum.common.HttpUrl
 import com.dewijones92.totum.data.history.PlayHistoryStore
 import com.dewijones92.totum.domain.MediaItem
@@ -95,6 +96,14 @@ class VideoPlaybackLauncher(
         return true
     }
 
+    /**
+     * True when the item is ONE stream carrying everything — a torrent file, a podcast
+     * enclosure — so there is no audio track to switch to and no quality ladder to move within.
+     * Switching modes on one of these can only reload what is already playing.
+     */
+    private val VideoResolver.Resolved.isOneStream: Boolean
+        get() = audioOnlyUrl == null && qualities.isEmpty()
+
     /** Plays [resolved] as video at the best allowed quality — the shared play/"Watch" path. */
     private fun playVideoQuality(resolved: VideoResolver.Resolved, startPositionMs: Long = 0) {
         // Auto-pick the best quality within the network's cap; fall back to the
@@ -133,7 +142,13 @@ class VideoPlaybackLauncher(
      */
     fun listen() {
         val resolved = current ?: return
-        val audio = resolved.audioOnlyUrl ?: return
+        val audio = resolved.audioOnlyUrl ?: run {
+            // Said out loud rather than returning silently: "listen mode is a bit weird with
+            // torrents" was exactly this — the control appeared to do nothing, and nothing in a
+            // report explained why.
+            Diag.log("playback", "${resolved.item.id.value} has no audio-only stream; cannot listen")
+            return
+        }
         _quality.update { it.copy(selectedId = null, listening = true) }
         playback.play(resolved.item.copy(mediaUrl = audio), skipSegments = resolved.skipSegments)
     }
@@ -141,6 +156,15 @@ class VideoPlaybackLauncher(
     /** Leaves "Listen" (audio-only) and returns to watching the video, at the saved position. */
     fun watch() {
         val resolved = current ?: return
+        if (resolved.isOneStream) {
+            // Nothing to switch TO. A torrent is a single file carrying both tracks, so
+            // re-preparing it changes nothing except losing your place — measured 2026-08-02,
+            // report 0.1.317: toggling the mode on a Peep Show episode restarted it at 20ms
+            // from 5876ms, every time, and the video decoded on regardless because there is
+            // only the one stream. Silence beats a pointless restart.
+            Diag.log("playback", "${resolved.item.id.value} has one stream; staying where it is")
+            return
+        }
         playVideoQuality(resolved)
     }
 
