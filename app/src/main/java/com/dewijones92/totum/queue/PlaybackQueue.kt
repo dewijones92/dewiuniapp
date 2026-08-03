@@ -67,6 +67,15 @@ class PlaybackQueue(
     /** Injected so the repeat guard is testable without waiting in real time. */
     private val clock: () -> Long = System::currentTimeMillis,
     /**
+     * The downloaded file for an item, if there is one — asked at play time.
+     *
+     * The queue cannot rely on handles for this: a handle is fixed when the item is queued, and the
+     * auto-downloader finishes long afterwards. Consulting the store instead means "play the local
+     * copy if we have one" is true for everything in the queue, which is what offline playback
+     * actually requires.
+     */
+    private val downloadedPath: suspend (MediaItemId) -> String? = { null },
+    /**
      * Whether playback should be audio-only right now — the resolved Listen mode.
      *
      * Consulted for a torrent, which is one file carrying both tracks: the home server offers a
@@ -410,21 +419,31 @@ class PlaybackQueue(
                 true
             }
             is PlayHandle.Podcast -> {
+                // ASKED FOR, never assumed from the handle. A queue entry's handle is a snapshot
+                // taken when it was queued, so an item downloaded AFTER it joined the queue — which
+                // is every item the auto-downloader fetches — still carried a null path and quietly
+                // streamed. On a plane that is the whole feature failing silently. Found by the
+                // offline test on 2026-08-03, not by a report, because the fallback made it
+                // invisible anywhere with a connection.
+                val localPath = handle.localPath ?: downloadedPath(queued.item.id)
                 // A podcast needs either a downloaded file or a stream URL; skip if neither.
-                if (handle.localPath == null && queued.item.mediaUrl == null) {
+                if (localPath == null && queued.item.mediaUrl == null) {
                     false
                 } else {
+                    if (handle.localPath == null && localPath != null) {
+                        Diag.log("playback", "${queued.item.id.value} playing the downloaded copy at $localPath")
+                    }
                     // Listen mode takes the audio-only stream when the item HAS one, which today
                     // means a torrent. A downloaded copy always wins over either: it is already
                     // on the device and costs nothing to play.
-                    val audio = handle.audioUrl?.takeIf { audioPreferred() && handle.localPath == null }
+                    val audio = handle.audioUrl?.takeIf { audioPreferred() && localPath == null }
                     if (audio != null) {
                         Diag.log("playback", "${queued.item.id.value} playing as audio only")
                     }
                     controller.play(
                         audio?.let { queued.item.copy(mediaUrl = it) } ?: queued.item,
                         MediaKind.PODCAST,
-                        localPath = handle.localPath,
+                        localPath = localPath,
                         startPositionMs = startPositionMs,
                     )
                     true

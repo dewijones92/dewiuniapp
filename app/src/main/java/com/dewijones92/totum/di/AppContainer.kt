@@ -59,6 +59,7 @@ import com.dewijones92.totum.diagnostics.ActivitySnapshotter
 import com.dewijones92.totum.diagnostics.CrashReporter
 import com.dewijones92.totum.diagnostics.DiagnosticsUploader
 import com.dewijones92.totum.diagnostics.installAndroidLogSink
+import com.dewijones92.totum.domain.DownloadState
 import com.dewijones92.totum.domain.MediaKind
 import com.dewijones92.totum.domain.PlayHandle
 import com.dewijones92.totum.domain.PlayableItem
@@ -126,6 +127,7 @@ import com.dewijones92.totum.ytdlp.chaquopy.YtDlpUpdater
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import java.io.File
@@ -708,6 +710,10 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
             onQueuedByUser = ::saveToWatchLater,
             // The same rule the video path uses, so Listen means one thing on both pillars.
             audioPreferred = ::audioPlaybackPreferred,
+            // Asked per play, so an item downloaded after it was queued still plays from disk.
+            downloadedPath = { id ->
+                (downloadManager.observe(id).first() as? DownloadState.Downloaded)?.localPath
+            },
         )
     }
 
