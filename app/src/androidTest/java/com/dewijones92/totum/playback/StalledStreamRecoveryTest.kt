@@ -141,6 +141,42 @@ class StalledStreamRecoveryTest {
         }
 
     /**
+     * And when it never recovers, the queue moves on instead of replaying forever.
+     *
+     * This is the reported-online-but-broken shape: the network says VALIDATED, nothing arrives,
+     * and no number of fresh connections to the same dead address changes that. Each rescue moves
+     * the position, which re-arms the watchdog — so before the budget existed, a dead stream was
+     * replayed every ~25 seconds indefinitely, restarting the spinner each time and saying nothing.
+     *
+     * Slow by nature: two rescues plus the give-up is over a minute of real stalling. It is the
+     * only way to observe the whole escalation against a real player, so it earns the wall clock.
+     */
+    @Test
+    fun `a stream that never recovers is given up on and the queue moves on`() =
+        runBlocking(Dispatchers.Main) {
+            // Something playable to land on, so "moved on" cannot be confused with "gave up and
+            // stopped" — a local file needs no network and cannot itself stall.
+            queue.enqueue(playableFromDisk())
+
+            queue.playNow(hostedItem())
+            awaitPlaying()
+
+            val movedOn = withTimeoutOrNull(GIVE_UP_TIMEOUT_MS) {
+                while (controller.state.value?.itemId?.value != NEXT_ID) delay(POLL_MS)
+                true
+            } ?: false
+
+            val trail = Breadcrumbs.snapshot().map { it.message }
+            assertTrue(
+                "a stream that never recovers must be given up on rather than replayed forever. " +
+                    "Requests served: ${requests.get()}. Trail: " +
+                    trail.filter { "rescue" in it || "Giving up" in it || "exhausted" in it },
+                trail.any { "Giving up on this stream" in it },
+            )
+            assertTrue("after giving up, the queue must move on to something playable", movedOn)
+        }
+
+    /**
      * Serves [SERVED_BEFORE_HANG_BYTES] and then holds the socket open sending nothing more, which
      * is the failure being reproduced. A CLOSED socket would raise an error and take the
      * [ExpiredStreamRecovery] path instead; the whole point of this one is that it is silent.
@@ -183,6 +219,23 @@ class StalledStreamRecoveryTest {
                 out.flush()
             }
         }
+    }
+
+    /** A silent local file: playable with no network, so it cannot stall in its own right. */
+    private fun playableFromDisk(): PlayableItem {
+        val file = java.io.File(context.cacheDir, "$NEXT_ID.wav")
+        file.writeBytes(media)
+        return PlayableItem(
+            item = MediaItem(
+                id = MediaItemId(NEXT_ID),
+                sourceId = SourceId("test"),
+                title = "something that works",
+                publishedAt = null,
+                duration = null,
+                mediaUrl = null,
+            ),
+            handle = PlayHandle.Podcast(file.absolutePath),
+        )
     }
 
     private fun hostedItem() = PlayableItem(
@@ -282,6 +335,10 @@ class StalledStreamRecoveryTest {
         const val RECOVERY_TIMEOUT_MS = 60_000L
         const val FROZEN_MS = 3_000L
         const val POLL_MS = 200L
+        const val NEXT_ID = "something-that-works"
+
+        /** Two rescues at ~25s each, the give-up, and the advance — plus room for a slow emulator. */
+        const val GIVE_UP_TIMEOUT_MS = 150_000L
         const val SAMPLE_RATE = 8_000
         const val WAV_HEADER_BYTES = 44
         const val RIFF_PREAMBLE = 8

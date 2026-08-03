@@ -83,31 +83,40 @@ class StallWatchdogTest {
     fun `the real report — frozen mid-item — replays from where it stopped`() = runTest {
         watchdog()
         states.value = state(positionMs = 652_353, buffering = true)
-        advanceTimeBy(46_000)
+        advanceTimeBy(26_000)
 
         assertEquals(listOf(652_353L), replayedAt)
     }
 
     /**
-     * And it must NEVER advance for a mid-item stall. Skipping a video someone is watching
+     * And it must not SKIP a mid-item stall while there are rescues left. Skipping a video someone
+     * is watching
      * because it hiccuped is a worse outcome than the hiccup itself.
      */
     @Test
-    fun `a mid-item stall never skips the item`() = runTest {
+    fun `a mid-item stall is rescued, not skipped`() = runTest {
         watchdog()
         states.value = state(positionMs = 500_000, buffering = true)
-        advanceTimeBy(600_000)
+        advanceTimeBy(46_000)
 
-        assertEquals(0, advanced)
+        assertEquals("rescued", 2, replayedAt.size)
+        assertEquals("and not skipped while rescues remained", 0, advanced)
     }
 
+    /**
+     * One continuous stall ESCALATES — rescue, rescue, give up — rather than acting once and then
+     * waiting for a movement a frozen player will never make. That was the bug the emulator found:
+     * a replay seeks back to the stall position, so the position never changes, so a
+     * re-arm-on-movement guard left the give-up permanently unreachable.
+     */
     @Test
-    fun `a mid-item stall replays exactly once, however long it lasts`() = runTest {
+    fun `a stall that goes on forever escalates and then stops`() = runTest {
         watchdog()
         states.value = state(positionMs = 500_000, buffering = true)
         advanceTimeBy(600_000)
 
-        assertEquals(1, replayedAt.size)
+        assertEquals("bounded rescues", 2, replayedAt.size)
+        assertEquals("then gives up exactly once", 1, advanced)
     }
 
     /** A short mid-item re-buffer is ordinary and must not restart the stream. */
@@ -192,8 +201,11 @@ class StallWatchdogTest {
     fun `an unknown duration is never treated as the end`() = runTest {
         watchdog()
         states.value = state(REPORTED_POSITION, buffering = true, durationMs = null)
-        advanceTimeBy(600_000)
+        advanceTimeBy(26_000)
 
+        // Rescued as mid-item, which is the point: with no duration there is no "end" to be at,
+        // so it must never take the advance-because-it-is-over path.
+        assertEquals(1, replayedAt.size)
         assertEquals(0, advanced)
     }
 
@@ -203,6 +215,80 @@ class StallWatchdogTest {
         watchdog()
         runCurrent()
         advanceTimeBy(600_000)
+
+        assertEquals(0, advanced)
+    }
+
+    /**
+     * A dead stream must not be replayed forever.
+     *
+     * Each rescue moves the position, which clears the once-per-item guard and makes the next stall
+     * eligible — so before this was bounded, a stream that never recovered was replayed every ~25
+     * seconds indefinitely, restarting the spinner each time and telling the person nothing. This is
+     * the reported-online-but-broken case: the network says VALIDATED, nothing arrives, and no
+     * number of fresh connections to the same dead address changes that.
+     */
+    @Test
+    fun `a stream that never recovers is replayed a bounded number of times`() = runTest {
+        watchdog()
+        // Each cycle: stall long enough to be rescued, then "resume" exactly where the rescue put
+        // us — which is what a dead stream does, and must NOT count as the rescue having worked.
+        repeat(5) { cycle ->
+            states.value = state(positionMs = 500_000, buffering = true)
+            advanceTimeBy(26_000)
+            states.value = state(positionMs = 500_000 + cycle.toLong(), buffering = true)
+            advanceTimeBy(6_000)
+        }
+
+        assertEquals(2, replayedAt.size)
+    }
+
+    /** And once the rescues are spent, the queue moves on rather than sitting on a dead stream. */
+    @Test
+    fun `giving up on a stream advances the queue`() = runTest {
+        watchdog()
+        repeat(5) { cycle ->
+            states.value = state(positionMs = 500_000, buffering = true)
+            advanceTimeBy(26_000)
+            states.value = state(positionMs = 500_000 + cycle.toLong(), buffering = true)
+            advanceTimeBy(6_000)
+        }
+
+        assertEquals(1, advanced)
+    }
+
+    /**
+     * Genuine progress refills the budget, or a long session with three unrelated hiccups hours
+     * apart would skip the third one for the sins of the first two.
+     */
+    @Test
+    fun `real progress restores the rescue budget`() = runTest {
+        watchdog()
+        states.value = state(positionMs = 500_000, buffering = true)
+        advanceTimeBy(26_000)
+        assertEquals(1, replayedAt.size)
+
+        // Played on for a while — the rescue worked.
+        states.value = state(positionMs = 560_000, buffering = false)
+        advanceTimeBy(6_000)
+        states.value = state(positionMs = 560_000, buffering = true)
+        advanceTimeBy(26_000)
+
+        assertEquals("a stall after real progress must still be rescued", 2, replayedAt.size)
+        assertEquals("and must not be treated as a dead stream", 0, advanced)
+    }
+
+    /** Auto-play off means the queue is not moved on without being asked, even for a dead stream. */
+    @Test
+    fun `auto-play off means a dead stream is reported but not skipped`() = runTest {
+        enabled = false
+        watchdog()
+        repeat(5) { cycle ->
+            states.value = state(positionMs = 500_000, buffering = true)
+            advanceTimeBy(26_000)
+            states.value = state(positionMs = 500_000 + cycle.toLong(), buffering = true)
+            advanceTimeBy(6_000)
+        }
 
         assertEquals(0, advanced)
     }

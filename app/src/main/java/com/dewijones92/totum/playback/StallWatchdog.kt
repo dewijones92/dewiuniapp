@@ -67,6 +67,17 @@ internal class StallWatchdog(
     private var stalledForMs = 0L
 
     /**
+     * How far into THIS stall the last decision was taken, so a stall that goes on gets escalated.
+     *
+     * The guard used to be "once per item", re-armed only when the position changed — and a replay
+     * seeks back to where it stalled, so on a genuinely dead stream the position never changes and
+     * nothing further ever happened. Proven on the emulator: two rescues fired at 4812ms and the
+     * give-up was unreachable. Escalating on elapsed time needs no re-arming, which a frozen player
+     * cannot provide by definition.
+     */
+    private var actedAtStalledMs = 0L
+
+    /**
      * The stall already rescued, so a frozen player cannot advance the queue over and over.
      *
      * Cleared the moment that item makes progress again. It used to be set once per item and
@@ -76,6 +87,30 @@ internal class StallWatchdog(
      * two were the same three lines written twice.
      */
     private var handled: MediaItemId? = null
+
+    /**
+     * How many times this item has been rescued without ever getting anywhere.
+     *
+     * A rescue moves the position (it re-prepares and seeks), which clears [handled] and makes the
+     * next stall eligible — so a stream that is genuinely dead was replayed every ~25 seconds
+     * forever, restarting the spinner each time and saying nothing to the person watching. Bounded
+     * because "keep trying the same dead address" stops being a rescue after the second go.
+     *
+     * Reset only by GENUINE forward progress, not by the position change the replay itself causes.
+     */
+    private var rescues = 0
+    private var rescuedItem: MediaItemId? = null
+    private var rescuedAtMs = -1L
+
+    /**
+     * The item already given up on, so giving up happens ONCE.
+     *
+     * Needed because giving up moves the position too, which clears the once-per-item guard — so
+     * without this the queue was advanced again on every subsequent stall of the same item. That is
+     * not hypothetical: if the advance fails (nothing playable after it), the dead item stays
+     * current and would be skipped over and over.
+     */
+    private var abandoned: MediaItemId? = null
 
     fun start() {
         Diag.log("advance", "watching for stalls (a frozen buffer at the end of an item)")
@@ -95,29 +130,16 @@ internal class StallWatchdog(
             return
         }
         if (state.itemId != stuckItem || state.positionMs != stuckPositionMs) {
-            // A stall that recovers is the only evidence there will ever be for how long a
-            // NORMAL re-buffer lasts, which is what the STALL_MS threshold is guessing at
-            // and what the deferred mid-item decision needs. It costs one line per stall.
-            if (stalledForMs >= NOTEWORTHY_MS && stuckItem != null) {
-                Diag.log(
-                    "advance",
-                    "${stuckItem?.value} recovered after ${stalledForMs}ms stuck at ${stuckPositionMs}ms",
-                )
-            }
-            stuckItem = state.itemId
-            stuckPositionMs = state.positionMs
-            stalledForMs = 0
-            // Progress means any earlier rescue of this item is spent, not a reason to refuse
-            // the next one.
-            if (handled == state.itemId) {
-                Diag.log("advance", "${state.itemId.value} is moving again; its earlier stall no longer counts")
-                handled = null
-            }
+            noteProgress(state)
             return
         }
         stalledForMs += checkEveryMs
-        if (stalledForMs < STALL_MS || handled == state.itemId) return
-        handled = state.itemId
+        if (stalledForMs < STALL_MS || abandoned == state.itemId) return
+        // Another full window since the last decision, so one continuous stall escalates:
+        // rescue, rescue, give up — rather than acting once and waiting for a movement that a
+        // frozen player will never make.
+        if (stalledForMs - actedAtStalledMs < STALL_MS) return
+        actedAtStalledMs = stalledForMs
 
         // "starved" vs "stuck" is the question a stall report has never been able to answer,
         // and it decides whether the fix is a fresh URL or a nudge to the player.
@@ -133,16 +155,84 @@ internal class StallWatchdog(
 
         val remainingMs = state.durationMs?.minus(state.positionMs)
         if (remainingMs == null || remainingMs > END_MS) {
-            // Mid-item: replay from where it stopped rather than advancing. Advancing would skip
-            // a video the person is watching, which is a worse outcome than the stall.
-            Diag.warn(
-                "advance",
-                "${state.itemId.value} stalled ${stalledForMs}ms at ${state.positionMs}ms — $diagnosis, " +
-                    "${remainingMs}ms left — replaying it from there with a fresh stream",
-            )
-            Diag.log("advance", "${state.itemId.value} stall replay=${replay(state.positionMs)}")
+            rescueOrGiveUp(state, diagnosis, remainingMs)
             return
         }
+        advanceAtEnd(state, diagnosis, remainingMs)
+    }
+
+    /** Bookkeeping for a player that has moved — which is also how a rescue is judged to have worked. */
+    private fun noteProgress(state: PlaybackState) {
+        // A stall that recovers is the only evidence there will ever be for how long a
+        // NORMAL re-buffer lasts, which is what the STALL_MS threshold is guessing at.
+        if (stalledForMs >= NOTEWORTHY_MS && stuckItem != null) {
+            Diag.log(
+                "advance",
+                "${stuckItem?.value} recovered after ${stalledForMs}ms stuck at ${stuckPositionMs}ms",
+            )
+        }
+        stuckItem = state.itemId
+        stuckPositionMs = state.positionMs
+        stalledForMs = 0
+        actedAtStalledMs = 0
+        // A different item starts with a clean slate; nothing about the last one's failures
+        // says anything about this one.
+        if (rescuedItem != state.itemId) resetRescues(state.itemId)
+        // Genuine forward progress — PAST where the rescue put us, not merely different from
+        // it. Without the margin the replay's own seek reads as success and the budget never
+        // depletes.
+        if (rescues > 0 && state.positionMs > rescuedAtMs + PROGRESS_MS) {
+            Diag.log("advance", "${state.itemId.value} is genuinely playing again after $rescues rescue(s)")
+            resetRescues(state.itemId)
+        }
+        // Progress means any earlier rescue of this item is spent, not a reason to refuse
+        // the next one.
+        if (handled == state.itemId) {
+            Diag.log("advance", "${state.itemId.value} is moving again; its earlier stall no longer counts")
+            handled = null
+        }
+    }
+
+    /**
+     * Mid-item: replay from where it stopped, or stop trying once the budget is spent.
+     *
+     * Never advances while a rescue remains — skipping a video someone is watching is a worse
+     * outcome than the stall.
+     */
+    private suspend fun rescueOrGiveUp(state: PlaybackState, diagnosis: String, remainingMs: Long?) {
+        if (rescues >= MAX_RESCUES) {
+            // Out of rescues. Moving on is what a person does after the third restart, and it at
+            // least keeps the queue alive; replaying a dead stream forever has nothing to
+            // recommend it.
+            Diag.warn(
+                "advance",
+                "${state.itemId.value} stalled again at ${state.positionMs}ms after $rescues " +
+                    "rescue(s) — $diagnosis. Giving up on this stream and moving on",
+            )
+            abandoned = state.itemId
+            if (isEnabled()) {
+                Diag.log("advance", "${state.itemId.value} exhausted rescues advance=${advance()}")
+            } else {
+                Diag.log("advance", "${state.itemId.value} is unplayable but auto-play next is off")
+            }
+            return
+        }
+        rescues++
+        rescuedItem = state.itemId
+        rescuedAtMs = state.positionMs
+        Diag.warn(
+            "advance",
+            "${state.itemId.value} stalled ${stalledForMs}ms at ${state.positionMs}ms — $diagnosis, " +
+                "${remainingMs}ms left — replaying it from there with a fresh stream " +
+                "(rescue $rescues of $MAX_RESCUES)",
+        )
+        Diag.log("advance", "${state.itemId.value} stall replay=${replay(state.positionMs)}")
+    }
+
+    /** At its end and frozen: whatever the player believes, this item is over. */
+    private suspend fun advanceAtEnd(state: PlaybackState, diagnosis: String, remainingMs: Long?) {
+        if (handled == state.itemId) return
+        handled = state.itemId
         if (!isEnabled()) {
             Diag.log(
                 "advance",
@@ -156,6 +246,15 @@ internal class StallWatchdog(
                 "($diagnosis); treating it as ended",
         )
         Diag.log("advance", "${state.itemId.value} stall advance=${advance()}")
+    }
+
+    private fun resetRescues(item: MediaItemId) {
+        rescues = 0
+        rescuedItem = item
+        rescuedAtMs = -1L
+        // Genuine progress earns a clean slate, so an item that plays fine later in a long session
+        // is not held to a verdict reached hours earlier.
+        if (abandoned == item) abandoned = null
     }
 
     private companion object {
@@ -183,6 +282,18 @@ internal class StallWatchdog(
          * a second is nothing on any stream this app plays.
          */
         const val STARVED_UNDER_MS = 200L
+
+        /**
+         * Replays before giving up on a stream. Two, because the first can be bad luck and a third
+         * identical failure is information rather than a reason to try a fourth.
+         */
+        const val MAX_RESCUES = 2
+
+        /**
+         * Forward progress that proves a rescue worked, measured PAST where the rescue resumed.
+         * Anything smaller and the replay's own seek counts as success.
+         */
+        const val PROGRESS_MS = 3_000L
 
         /**
          * How close to the duration counts as "this is the end". The observed stall was 7

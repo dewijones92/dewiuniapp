@@ -42,6 +42,27 @@ fresh URL.
 3. **STUCK vs STARVED split on `> 0`.** 48ms counted as "STUCK", which reads as "has data, not
    draining it" and points at the wrong fix. Floor is now 200ms.
 
+## The reported-online-but-broken case — done
+
+The network says VALIDATED, nothing arrives, and no number of fresh connections to the same dead
+address changes that. `iptables -j DROP` is that shape, and so is the Dwarkesh report.
+
+**A rescue that keeps failing used to have no bound.** It is now two rescues, then the app gives up
+on the stream and moves on, keeping the queue alive. Budget refilled only by *genuine* forward
+progress — past where the rescue resumed, not merely different from it, because the replay's own
+seek would otherwise read as success and the budget would never deplete.
+
+### The emulator found the flaw in my first attempt at this
+
+The escalation was gated on the once-per-item guard, which re-arms when the position changes. But
+**a replay seeks back to the stall position, so the position never changes** — two rescues fired at
+4812ms and the give-up was permanently unreachable. Escalation now runs off elapsed stall time,
+which needs no movement, because a frozen player cannot provide any by definition.
+
+A second guard was needed for the same reason: giving up moves the position too, so without an
+"already abandoned" flag the queue was advanced again on every later stall of the same item —
+which matters if the advance fails and the dead item stays current.
+
 ## Newly found, and OPEN
 
 **A replay only gets a fresh URL for a video.** `PlaybackQueue.replayCurrent` invalidates the
@@ -54,13 +75,16 @@ test*, not from a report.
 
 ## Tests
 
-- `StallWatchdogTest` — the mid-item replay, that it never skips, that it fires once, that the
-  end-of-item case still advances rather than replaying.
+- `StallWatchdogTest` — the mid-item replay; that it rescues rather than skipping; that one
+  continuous stall escalates to exactly two rescues and then gives up once; that genuine progress
+  refills the budget; that auto-play off never skips; that the end-of-item case still advances.
 - `PlaybackDiagnosticsTest` — abandoned buffering counted; recovered not counted as abandoned; a
   transition with nothing buffering invents nothing.
 - `StalledStreamRecoveryTest` (instrumented, runs in the existing CI emulator job) — a socket that
-  answers 200 and then goes quiet, with a real ExoPlayer. **Verified both ways**: passes with the
-  fix, fails without it.
+  answers 200 and then goes quiet, with a real ExoPlayer. Two cases: the stall is rescued, and a
+  stream that never recovers is given up on so the queue moves to something playable.
+  **Verified both ways**: passes with the fix, fails without it.
+- `OfflineQueuePlaybackTest` (instrumented) — see `docs/todos/offline-queue-e2e.md`.
 
 ### The trap this test walked into first
 
