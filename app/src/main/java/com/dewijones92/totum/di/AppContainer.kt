@@ -593,6 +593,9 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
         StallWatchdog(
             states = playbackController.state,
             advance = { playbackQueue.playNextInQueue() },
+            // The same recovery ExpiredStreamRecovery uses. A hung request raises no error, so
+            // that watcher never fires for it — this one has to reach the same rescue itself.
+            replay = { positionMs -> playbackQueue.replayCurrent(positionMs) },
             isEnabled = { appPreferences.settings.value.autoPlayNext },
             scope = applicationScope,
         ).start()

@@ -50,6 +50,36 @@ internal class PlaybackDiagnostics(
     }
 
     /**
+     * Closes off the stall in progress, counting it however it ended.
+     *
+     * **The stall that never recovers is the one that matters, and it used to count for nothing.**
+     * `playback.bufferingMs` was written only on `STATE_READY`, and every other way out of
+     * BUFFERING — a transition, ENDED, IDLE — just discarded `stalledSince`. So a spinner the
+     * person escaped by pressing play again contributed zero. Report 0.1.332 recorded
+     * `bufferingMs = 1370` for a session containing a **136-second** freeze, which is why "we have
+     * lots of buffering issues" never showed up in the numbers: the metric structurally excluded
+     * the worst cases.
+     *
+     * Abandoned time is counted separately as well as in the total. It is the figure that
+     * corresponds to what someone actually experienced — a stall that resolved in 400ms and one
+     * that was still frozen when they gave up are not the same event, and summing them hides
+     * exactly the difference worth seeing.
+     */
+    private fun endStall(recovered: Boolean): Long? {
+        val waited = stalledSince?.let { now() - it } ?: return null
+        stalledSince = null
+        Vitals.add("playback.bufferingMs", waited)
+        if (!recovered) {
+            Vitals.add("playback.abandonedBufferingMs", waited)
+            Diag.warn(
+                "playback",
+                "gave up buffering after ${waited}ms at ${position()} — it never recovered",
+            )
+        }
+        return waited
+    }
+
+    /**
      * Times each stall rather than just noting it. A duration is what distinguishes a
      * normal start-up buffer from the repeated mid-item stalls that read as "buffering".
      */
@@ -73,10 +103,8 @@ internal class PlaybackDiagnostics(
                 )
             }
             Player.STATE_READY -> {
-                val waited = stalledSince?.let { now() - it }
-                stalledSince = null
+                val waited = endStall(recovered = true)
                 if (waited != null) {
-                    Vitals.add("playback.bufferingMs", waited)
                     // The throughput at the moment it recovered is what separates a
                     // throttled stream from a connection that simply cannot carry 1080p.
                     val kbps = PlaybackVitals.kbps()
@@ -88,8 +116,14 @@ internal class PlaybackDiagnostics(
                     )
                 }
             }
-            Player.STATE_ENDED -> reportEnd()
-            Player.STATE_IDLE -> Diag.log("playback", "idle")
+            Player.STATE_ENDED -> {
+                endStall(recovered = false)
+                reportEnd()
+            }
+            Player.STATE_IDLE -> {
+                endStall(recovered = false)
+                Diag.log("playback", "idle")
+            }
         }
     }
 
@@ -110,7 +144,7 @@ internal class PlaybackDiagnostics(
             Vitals.add("playback.earlyEnds")
             Diag.warn(
                 "playback",
-                "ENDED EARLY at ${at}ms of ${duration}ms — ${shortBy}ms short (${percent(at, duration)}%) " +
+                "ENDED EARLY at ${at}ms of ${duration}ms — ${shortBy}ms short (${at * PERCENT / duration}%) " +
                     "— ${describeItem()}",
             )
         } else {
@@ -119,11 +153,11 @@ internal class PlaybackDiagnostics(
         endedAt = now()
     }
 
-    private fun percent(at: Long, duration: Long) = at * PERCENT / duration
-
     /** The reason matters: an automatic advance and a user tap look identical without it. */
     override fun onMediaItemTransition(mediaItem: Media3MediaItem?, reason: Int) {
-        stalledSince = null
+        // Counted, not discarded. Moving off an item that was still buffering is precisely the
+        // "I gave up and pressed play again" case, and it used to erase its own evidence.
+        endStall(recovered = false)
         Vitals.add("playback.transitions")
         Diag.log("playback", "transition (${reasonName(reason)}) -> ${mediaItem?.mediaId ?: "nothing"}")
     }

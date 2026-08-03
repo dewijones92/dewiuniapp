@@ -31,11 +31,16 @@ class StallWatchdogTest {
     private val states = MutableStateFlow<PlaybackState?>(null)
     private var advanced = 0
     private var enabled = true
+    private val replayedAt = mutableListOf<Long>()
 
     private fun TestScope.watchdog() = StallWatchdog(
         states = states,
         advance = {
             advanced++
+            true
+        },
+        replay = { positionMs ->
+            replayedAt += positionMs
             true
         },
         isEnabled = { enabled },
@@ -69,13 +74,61 @@ class StallWatchdogTest {
         assertEquals(1, advanced)
     }
 
+    /**
+     * Report 0.1.332: frozen at 652353ms with 25 seconds still to go, 48ms buffered, on 125Mbps.
+     * The watchdog saw it and deliberately did nothing; the player never recovered; it took 2m16s
+     * and Dewi pressing play again. Replaying from the same position is what fixed it by hand.
+     */
     @Test
-    fun `a stall in the middle of an item is left to the player`() = runTest {
+    fun `the real report — frozen mid-item — replays from where it stopped`() = runTest {
+        watchdog()
+        states.value = state(positionMs = 652_353, buffering = true)
+        advanceTimeBy(46_000)
+
+        assertEquals(listOf(652_353L), replayedAt)
+    }
+
+    /**
+     * And it must NEVER advance for a mid-item stall. Skipping a video someone is watching
+     * because it hiccuped is a worse outcome than the hiccup itself.
+     */
+    @Test
+    fun `a mid-item stall never skips the item`() = runTest {
         watchdog()
         states.value = state(positionMs = 500_000, buffering = true)
         advanceTimeBy(600_000)
 
         assertEquals(0, advanced)
+    }
+
+    @Test
+    fun `a mid-item stall replays exactly once, however long it lasts`() = runTest {
+        watchdog()
+        states.value = state(positionMs = 500_000, buffering = true)
+        advanceTimeBy(600_000)
+
+        assertEquals(1, replayedAt.size)
+    }
+
+    /** A short mid-item re-buffer is ordinary and must not restart the stream. */
+    @Test
+    fun `a brief mid-item buffer is left alone`() = runTest {
+        watchdog()
+        states.value = state(positionMs = 500_000, buffering = true)
+        advanceTimeBy(19_000)
+
+        assertEquals(emptyList<Long>(), replayedAt)
+    }
+
+    /** Replaying is a rescue, not a skip: the end-of-item case must still advance, not replay. */
+    @Test
+    fun `a stall at the end advances rather than replaying`() = runTest {
+        watchdog()
+        states.value = state(REPORTED_POSITION, buffering = true)
+        advanceTimeBy(46_000)
+
+        assertEquals(1, advanced)
+        assertEquals(emptyList<Long>(), replayedAt)
     }
 
     /** A paused player has a frozen position too, and is not stuck. */
