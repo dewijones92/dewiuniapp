@@ -138,6 +138,58 @@ class OfflineQueuePlaybackTest {
         assertTrue("offline playback stalled at ${controller.state.value?.positionMs}ms", progressed)
     }
 
+    /**
+     * Offline, the queue steps over what it cannot play and reaches what it can — quickly.
+     *
+     * "Quickly" is the assertion, not a nicety. Before the device was consulted, a non-downloaded
+     * item was ATTEMPTED offline: a 20-second stall, two rescues and a give-up, about a minute of
+     * spinner per item, to reach a conclusion `ConnectivityManager` had from the start. With a queue
+     * of eighty that is indistinguishable from the app being broken. The timeout here is far below
+     * that budget, so a regression shows up as a failure rather than as slowness nobody notices.
+     *
+     * No comma in the name: dex cannot represent one in a method name, and D8 fails the whole
+     * androidTest build with "cannot be represented in dex format". JVM tests have no such limit,
+     * so the same phrasing is fine one tier down and fatal here.
+     */
+    @Test
+    fun `with the radios off the queue skips what it cannot play and reaches what it can`() =
+        runBlocking(Dispatchers.Main) {
+            val item = hostedItem()
+            downloads.download(item, audioOnly = false)
+            assertTrue("setup: the item must download while still online", awaitDownloaded() != null)
+
+            // Queued in front of it: same shape, never downloaded, so offline it is unplayable.
+            val unavailable = PlayableItem(
+                item = MediaItem(
+                    id = MediaItemId(UNAVAILABLE_ID),
+                    sourceId = SourceId("test"),
+                    title = "not downloaded",
+                    publishedAt = null,
+                    duration = null,
+                    mediaUrl = HttpUrl.of("http://127.0.0.1:${server.localPort}/never-downloaded.wav"),
+                ),
+                handle = PlayHandle.Podcast(),
+            )
+            queue.enqueue(unavailable)
+            queue.enqueue(item)
+
+            goOffline()
+            assertEquals("the radios did not actually go off", false, hasNetwork())
+
+            queue.playNextInQueue()
+
+            val reached = withTimeoutOrNull(SKIP_TIMEOUT_MS) {
+                while (controller.state.value?.itemId != ITEM_ID) delay(POLL_MS)
+                true
+            } ?: false
+            assertTrue(
+                "offline, the queue must step straight over the item it cannot play. It was still " +
+                    "on \"${controller.state.value?.itemId?.value}\" after ${SKIP_TIMEOUT_MS}ms, " +
+                    "which is what attempting a doomed stream looks like",
+                reached,
+            )
+        }
+
     /** The local path once the download reports itself finished, or null on timeout. */
     private suspend fun awaitDownloaded(): String? = withTimeoutOrNull(DOWNLOAD_TIMEOUT_MS) {
         var path: String? = null
@@ -270,6 +322,13 @@ class OfflineQueuePlaybackTest {
         const val OFFLINE_TIMEOUT_MS = 15_000L
         const val PROGRESS_MS = 1_000L
         const val POLL_MS = 200L
+        const val UNAVAILABLE_ID = "never-downloaded"
+
+        /**
+         * Well under the stall budget an attempted stream would burn (~60s), so a regression to
+         * "try it anyway" fails here rather than merely feeling slow.
+         */
+        const val SKIP_TIMEOUT_MS = 20_000L
         const val SAMPLE_RATE = 8_000
         const val WAV_HEADER_BYTES = 44
         const val RIFF_PREAMBLE = 8

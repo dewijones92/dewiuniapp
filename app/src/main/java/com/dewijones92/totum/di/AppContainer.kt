@@ -714,6 +714,9 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
             downloadedPath = { id ->
                 (downloadManager.observe(id).first() as? DownloadState.Downloaded)?.localPath
             },
+            // Errs toward "there is a network" only when it can genuinely tell; NetworkStatus
+            // itself errs the other way when unsure, which is the safe direction for data.
+            offline = { !networkStatus.isOnline() },
         )
     }
 

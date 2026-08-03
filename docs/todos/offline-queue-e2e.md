@@ -52,9 +52,35 @@ The radios are restored in `@After` unconditionally. Test-class order is not gua
 leaked offline device would fail every later test in the run for a reason nowhere near the code
 that appears broken.
 
+## The negative case — done
+
+Offline, an item that can only come over the wire is now **declined immediately** instead of being
+attempted. Attempting it was not harmless: the stall machinery ran its whole course — a 20-second
+stall, two rescues, a give-up — roughly a minute of spinner *per item* to reach a conclusion
+`ConnectivityManager` had from the start. With a queue of eighty that is indistinguishable from the
+app being broken.
+
+A downloaded copy still plays, which is the whole point of downloading it, and is the assertion
+most at risk of being lost to an over-broad "offline means no playback" rule. Pinned by
+`OfflineSkipsUnavailableTest` (unit, 5 cases) and by the second case in
+`OfflineQueuePlaybackTest` (radios off, real player) — **verified to fail without the fix**: it sits
+on the undownloadable item for the full 20 seconds.
+
+That e2e discriminates for a slightly lucky reason worth writing down: the test's own server is on
+**loopback, which survives the radios going off**, so without the check the doomed item actually
+plays and the queue never reaches the downloaded one. Same failure, different mechanism — and it is
+why the assertion is "we reached the downloaded item", not "the other one failed".
+
+### Instrumented test names cannot contain a comma
+
+D8 refuses it — *"Method name … cannot be represented in dex format"* — and it fails the whole
+`androidTest` build, not just that test. JVM test names have no such limit, so the identical
+phrasing is fine one tier down and fatal here.
+
 ## Still worth adding
 
-- The **negative** case: a queued item with no download should be visibly "waiting" offline rather
-  than spinning. `OfflineReadiness` already models it and is unit-tested; the UI assertion is not.
-- The **reported-online-but-broken** case (the iptables row above), which is the shape of report
-  0.1.332 — see `docs/todos/buffering-defects-0.1.332.md`.
+- The **reported-online-but-broken** case at the *iptables* level (network reports VALIDATED,
+  nothing arrives). The behaviour is covered by `StalledStreamRecoveryTest` via a hung socket; the
+  connectivity-lies variant is not exercised. See `docs/todos/buffering-defects-0.1.332.md`.
+- A **UI** assertion that the queue row reads "waiting" rather than merely being skipped.
+  `OfflineReadiness` models it and is unit-tested; the visible label is not.
