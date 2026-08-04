@@ -129,8 +129,14 @@ public class PlaybackService : MediaSessionService() {
                         // The detector only observes; the skipper removes silent samples when
                         // there is no picture to keep in sync; Sonic does the retiming when there
                         // is. Exactly one of the last two is ever active — see SilenceStrategy.
+                        // The THREE-ARGUMENT constructor, and it matters more than it looks. The
+                        // vararg one treats every processor as opaque and builds its own (idle)
+                        // silence skipper, so the chain reports ZERO skipped frames — and the sink
+                        // corrects its clock from exactly that number. Handing ours over by name is
+                        // what lets the media clock learn that samples were removed, which is what
+                        // NewPipe/PipePipe get for free by calling setSkipSilenceEnabled().
                         DefaultAudioSink.DefaultAudioProcessorChain(
-                            silenceDetector,
+                            arrayOf(silenceDetector),
                             silenceSkipper,
                             SonicAudioProcessor(),
                         ),

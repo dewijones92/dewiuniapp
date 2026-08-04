@@ -52,10 +52,40 @@ which is what `hasVideo` has always meant elsewhere.
 
 A unit test could not have caught it: the decision was correct, and the input was wrong.
 
+## PipePipe is smoother in video mode, and the reason was a wiring bug
+
+Dewi asked, 2026-08-04. Yes — and the cause is not that they found a cleverer mechanism. NewPipe and
+its PipePipe fork just call ExoPlayer's own `setSkipSilenceEnabled(true)`, which wires the silence
+skipper into `DefaultAudioSink` *properly*.
+
+`DefaultAudioSink.DefaultAudioProcessorChain` has two constructors:
+
+```
+DefaultAudioProcessorChain(AudioProcessor...)
+DefaultAudioProcessorChain(AudioProcessor[], SilenceSkippingAudioProcessor, SonicAudioProcessor)
+```
+
+The sink corrects its position from the chain's `getSkippedOutputFrameCount()`. The **vararg**
+constructor treats every processor as opaque and builds its own idle skipper, so that count is
+always zero — the audio gets shorter and the media clock never hears about it. On audio you would
+see it as seek-bar drift; on video you see the picture fall behind.
+
+We were using the vararg one. It now hands the skipper over by name.
+
+**This casts doubt on our own earlier finding.** The "~6s desync over a 20s clip" that justified
+never using sample removal on video was measured under this wiring, so it is evidence about a bug,
+not about the mechanism. Re-measuring may well show video can use `REMOVE_SAMPLES` too — which
+would delete the `SPEED_UP` path entirely and make video as smooth as PipePipe.
+
+That has NOT been re-measured. `SilenceStrategy` still sends video down `SPEED_UP`, which is
+correct-but-possibly-unnecessary rather than known-necessary.
+
 ## Still to do
 
 - **Listen to it.** The mechanism is now the same one AntennaPod uses, so it should sound the same,
   but nobody has actually heard it on a real podcast with real gaps. That is the remaining check.
+- **Re-measure the video desync** now the chain is wired correctly. If it holds sync, `SPEED_UP`
+  and the whole `SilenceStrategy` split can go, and video gets AntennaPod/PipePipe smoothness too.
 - The `SPEED_UP` path keeps its 4x step and 20-buffer (~500ms) entry threshold. Both were tuned
   against the flapping problem rather than for smoothness, and video is now the only thing using
   them — worth revisiting if it still sounds abrupt.
