@@ -3,8 +3,8 @@ title: Age-restricted videos
 kind: todo
 area: video
 priority: high
-status: streams reached on-device (7/7 playable); playback blocked on a direct-stream path + a title source
-updated: 2026-08-01
+status: shipped — age-restricted videos play on-device
+updated: 2026-08-04
 ---
 
 # Age-restricted videos
@@ -168,3 +168,13 @@ doing regardless of the n-solver.
 `InnerTubeClient` carries the earlier attempts (`playerAsAccount`, `playerEmbedded`,
 `playerAndroidVr`, `playerWebEmbedded`) wired cheapest-first in `AppContainer.accountPlayer`. The
 downgraded-TV call is the one to add; the others can go once it works.
+
+## Status corrected, 2026-08-04
+
+This said *"playback blocked on a direct-stream path + a title source"* long after both were built.
+`VideoResolver.fromDirectStreams()` and `InnerTubeClient.playerDowngradedTv()` are in the tree and
+the videos play — verified on-device when they landed.
+
+A stale "blocked" is the most expensive kind of wrong note: the next session reads it, believes the
+feature is broken, and either redoes finished work or designs around a limitation that no longer
+exists. Checked against the code rather than memory.

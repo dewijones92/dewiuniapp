@@ -3,8 +3,8 @@ title: Show how far ahead the file is buffered
 kind: todo
 area: playback
 priority: medium
-status: requested
-updated: 2026-08-02
+status: shipped — seconds-ahead gauge on the scrub bar
+updated: 2026-08-04
 ---
 
 # Show how far ahead the file is buffered
@@ -56,3 +56,8 @@ would be a second clock disagreeing with the first. Reuse the existing one.
 
 And it must not become chatty in the diagnostics buffer — the log-volume rule applies, so any
 trail from this is counted and periodic, never per tick.
+
+## Status corrected, 2026-08-04
+
+Said "requested" while `BufferAhead` (9 unit tests) had been shipped and wired into
+`ui/player/SeekBar.kt`. Corrected against the code.

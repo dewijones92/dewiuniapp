@@ -3,7 +3,7 @@ title: Torrents work out of the box
 kind: todo
 area: torrent
 priority: high
-status: requested
+status: requested — VERIFY: sign-in may already be shipped, not checked
 updated: 2026-08-01
 ---
 
