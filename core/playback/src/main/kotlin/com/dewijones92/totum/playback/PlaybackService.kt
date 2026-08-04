@@ -18,6 +18,7 @@ import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.audio.DefaultAudioSink
+import androidx.media3.exoplayer.audio.SilenceSkippingAudioProcessor
 import androidx.media3.exoplayer.drm.DrmSessionManagerProvider
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.MediaSource
@@ -60,6 +61,13 @@ public class PlaybackService : MediaSessionService() {
     /** The user's skip-silences intent. Applies to both pillars now. */
     private var skipSilenceEnabled = false
 
+    /**
+     * Media3's own sample-removing processor — the mechanism AntennaPod uses, and the reason it
+     * sounds seamless. Enabled only when nothing is being kept in sync with the audio clock.
+     */
+    @UnstableApi
+    private val silenceSkipper = SilenceSkippingAudioProcessor()
+
     /** The speed the user chose, restored when a silent stretch ends. */
     private var userSpeed = 1f
 
@@ -75,6 +83,17 @@ public class PlaybackService : MediaSessionService() {
     private val speedWatcher = object : Player.Listener {
         override fun onPlaybackParametersChanged(playbackParameters: androidx.media3.common.PlaybackParameters) {
             if (!inSilence) userSpeed = playbackParameters.speed
+        }
+
+        /**
+         * A queue mixes both kinds, so the mechanism has to follow the content — the same switch
+         * means sample-removal for a podcast and a rate change for the video after it. Video size
+         * rather than track type: it is what the player reports once a picture is actually being
+         * rendered, which is the thing that must not desync.
+         */
+        @UnstableApi
+        override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
+            applySilenceStrategy()
         }
     }
     private var player: ExoPlayer? = null
@@ -107,7 +126,14 @@ public class PlaybackService : MediaSessionService() {
                     .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
                     .setAudioProcessorChain(
                         // The detector only observes; Sonic does the actual retiming.
-                        DefaultAudioSink.DefaultAudioProcessorChain(silenceDetector, SonicAudioProcessor()),
+                        // The detector only observes; the skipper removes silent samples when
+                        // there is no picture to keep in sync; Sonic does the retiming when there
+                        // is. Exactly one of the last two is ever active — see SilenceStrategy.
+                        DefaultAudioSink.DefaultAudioProcessorChain(
+                            silenceDetector,
+                            silenceSkipper,
+                            SonicAudioProcessor(),
+                        ),
                     )
                     .build()
             }
@@ -253,6 +279,7 @@ public class PlaybackService : MediaSessionService() {
                 val enabled = args.getBoolean(EXTRA_SKIP_SILENCE_ENABLED)
                 Diag.log("playback", "skip-silence -> $enabled")
                 skipSilenceEnabled = enabled
+                applySilenceStrategy()
                 applyEffectiveSkipSilence()
                 return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
             }
@@ -290,6 +317,15 @@ public class PlaybackService : MediaSessionService() {
      */
     private fun onSilenceChanged(silent: Boolean) {
         val target = player ?: return
+        // Sample removal handles its own gaps entirely, so touching the rate as well would add
+        // back the audible step this exists to avoid.
+        if (strategy == SilenceStrategy.REMOVE_SAMPLES) {
+            if (inSilence) {
+                inSilence = false
+                target.setPlaybackSpeed(userSpeed)
+            }
+            return
+        }
         if (!skipSilenceEnabled) {
             if (inSilence) {
                 inSilence = false
@@ -316,6 +352,37 @@ public class PlaybackService : MediaSessionService() {
      * A session effect can't reach a Cast receiver, so this is local playback only —
      * accepted rather than half-built.
      */
+    /** What handles silence right now, given the setting and whether a picture is being shown. */
+    private val strategy: SilenceStrategy
+        get() = SilenceStrategy.of(
+            skipSilenceEnabled,
+            // The selected TRACKS, not videoSize. Size is only populated once the decoder has
+            // reported one, so asking too early says "no video" for a video — which the device
+            // test caught choosing sample-removal for a clip, the one combination that desyncs.
+            hasVideo = player?.currentTracks?.groups?.any {
+                it.type == C.TRACK_TYPE_VIDEO && it.isSelected
+            } == true,
+        )
+
+    /**
+     * Points the right mechanism at the current content.
+     *
+     * Called whenever the setting OR the content changes, because a queue mixes both: the same
+     * switch has to mean sample-removal for the podcast and a rate change for the video after it.
+     */
+    // A lambda property rather than a method: the class sits on detekt's function limit, and this
+    // reads identically at both call sites.
+    @UnstableApi
+    private val applySilenceStrategy: () -> Unit = {
+        val current = strategy
+        silenceSkipper.setEnabled(current == SilenceStrategy.REMOVE_SAMPLES)
+        if (current != SilenceStrategy.SPEED_UP && inSilence) {
+            inSilence = false
+            player?.setPlaybackSpeed(userSpeed)
+        }
+        Diag.log("silence", "handling silence by $current")
+    }
+
     @UnstableApi
     private fun applyVolumeBoost(millibels: Int) {
         val sessionId = player?.audioSessionId ?: return
