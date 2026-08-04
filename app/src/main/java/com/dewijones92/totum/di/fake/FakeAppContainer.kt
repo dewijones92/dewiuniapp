@@ -127,6 +127,9 @@ class FakeAppContainer(
 ) : AppContainer {
 
     /** Previews and tests always look "allowed", so the queue shows its normal state. */
+    /** Previews and tests are "online" unless a case says otherwise. */
+    override fun isOffline(): Boolean = false
+
     override fun autoDownloadAllowedNow(): Boolean = true
     override fun refreshExtractorEngine() = Unit
 

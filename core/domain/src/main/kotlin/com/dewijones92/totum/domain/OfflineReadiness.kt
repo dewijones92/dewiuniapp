@@ -61,3 +61,14 @@ public data class OfflineReadiness(
         }
     }
 }
+
+/**
+ * Whether this item cannot be played right now because it is not on the device and there is no
+ * network — the one row state that needs saying out loud rather than being discovered.
+ *
+ * The queue already SKIPS these offline rather than spending a stall budget on each (see
+ * `PlaybackQueue`), which is right and also invisible: an item silently passed over reads as the
+ * app losing your place. A row that says why costs nothing and answers the question.
+ */
+public fun unavailableOfflineNow(state: DownloadState, offline: Boolean): Boolean =
+    offline && state !is DownloadState.Downloaded

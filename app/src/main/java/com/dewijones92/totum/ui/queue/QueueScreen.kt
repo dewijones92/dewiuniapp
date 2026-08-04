@@ -45,6 +45,7 @@ import com.dewijones92.totum.domain.DownloadState
 import com.dewijones92.totum.domain.MediaItem
 import com.dewijones92.totum.domain.MediaItemId
 import com.dewijones92.totum.domain.OfflineReadiness
+import com.dewijones92.totum.domain.unavailableOfflineNow
 import com.dewijones92.totum.ui.common.CollapsingTitle
 import com.dewijones92.totum.ui.common.EmptyState
 import com.dewijones92.totum.ui.common.EqualiserSize
@@ -105,9 +106,9 @@ fun QueueScreen(container: AppContainer, modifier: Modifier = Modifier) {
                 modifier = with(reorder) { Modifier.fillMaxSize().reorderContainer() },
             ) {
                 itemsWithGroupHeaders(
+                    availability = QueueAvailability(downloads, container.isOffline()),
                     entries = entries,
                     nowPlaying = NowPlaying(snapshot.currentIndex, playing?.progress, playing?.isPlaying == true),
-                    downloads = downloads,
                     reorder = reorder,
 
                     actions = QueueActions(
@@ -169,13 +170,29 @@ private data class GroupCollapse(
 private data class NowPlaying(val index: Int, val progress: Float?, val isPlaying: Boolean)
 
 /**
+ * What a queue row needs to know about whether it can actually be played.
+ *
+ * The two travel together everywhere — a download state means something different with no network
+ * behind it — so they are one parameter rather than two that could be passed inconsistently.
+ *
+ * [offline] is read once per list composition rather than observed: it changes a row's WORDING, not
+ * its behaviour, and the queue recomposes whenever a download state does.
+ */
+private data class QueueAvailability(
+    val downloads: Map<MediaItemId, DownloadState>,
+    val offline: Boolean,
+) {
+    fun stateOf(id: MediaItemId): DownloadState = downloads[id] ?: DownloadState.NotDownloaded
+}
+
+/**
  * Emits the queue rows, inserting a header wherever the group tag changes — so a
  * run of entries from one "Play all" reads as a block and can be dropped together.
  */
 private fun androidx.compose.foundation.lazy.LazyListScope.itemsWithGroupHeaders(
     entries: List<QueueEntry>,
     nowPlaying: NowPlaying,
-    downloads: Map<MediaItemId, DownloadState>,
+    availability: QueueAvailability,
     reorder: ReorderState,
     actions: QueueActions,
 ) {
@@ -210,10 +227,16 @@ private fun androidx.compose.foundation.lazy.LazyListScope.itemsWithGroupHeaders
         item(key = entry.item.item.id.value) {
             val media = entry.item.item
             if (index == nowPlaying.index) NowPlayingLabel(nowPlaying.progress, nowPlaying.isPlaying)
+            val downloadState = availability.stateOf(media.id)
             MediaItemRow(
                 item = media,
-                subtitle = mediaItemSubtitle(media),
-                downloadState = downloads[media.id] ?: DownloadState.NotDownloaded,
+                // Says why a row will be passed over, rather than leaving it to be discovered.
+                subtitle = if (unavailableOfflineNow(downloadState, availability.offline)) {
+                    stringResource(R.string.queue_unavailable_offline)
+                } else {
+                    mediaItemSubtitle(media)
+                },
+                downloadState = downloadState,
                 pillar = entry.item.handle.pillar,
                 onPlay = { actions.onPlay(index) },
                 onDownload = { actions.onDownload(media) },

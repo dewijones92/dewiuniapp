@@ -363,6 +363,10 @@
         <item quantity="one">%1$d ready offline · 1 can\'t be downloaded</item>
         <item quantity="other">%1$d ready offline · %2$d can\'t be downloaded</item>
     </plurals>
+    <!-- Shown on a queue row that cannot play because it is not on the device and there is no
+         network. The queue skips these rather than stalling on each; without the label a skipped
+         item reads as the app losing your place. -->
+    <string name="queue_unavailable_offline">Not downloaded — unavailable offline</string>
     <plurals name="queue_offline_in_progress">
         <item quantity="one">%1$d of %2$d ready offline · 1 still to fetch</item>
         <item quantity="other">%1$d of %2$d ready offline · %3$d still to fetch</item>

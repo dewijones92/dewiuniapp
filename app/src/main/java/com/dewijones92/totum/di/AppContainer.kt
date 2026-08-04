@@ -166,6 +166,9 @@ interface AppContainer {
     /** Whether automatic downloads may run on the current connection — see the implementation. */
     fun autoDownloadAllowedNow(): Boolean
 
+    /** Whether there is no usable network — what makes a non-downloaded queue row unplayable. */
+    fun isOffline(): Boolean
+
     /** Recent search queries, offered again in the search screen's idle state. */
     val searchHistoryStore: SearchHistoryStore
     val skipSegmentSource: SkipSegmentSource
@@ -716,7 +719,7 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
             },
             // Errs toward "there is a network" only when it can genuinely tell; NetworkStatus
             // itself errs the other way when unsure, which is the safe direction for data.
-            offline = { !networkStatus.isOnline() },
+            offline = ::isOffline,
         )
     }
 
@@ -859,6 +862,8 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
      */
     override fun autoDownloadAllowedNow(): Boolean =
         !appPreferences.settings.value.autoDownloadWifiOnly || !networkStatus.isMetered()
+
+    override fun isOffline(): Boolean = !networkStatus.isOnline()
 
     override val videoPlaybackLauncher: VideoPlaybackLauncher by lazy {
         VideoPlaybackLauncher(
