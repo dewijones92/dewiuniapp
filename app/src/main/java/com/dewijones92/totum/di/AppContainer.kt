@@ -9,6 +9,7 @@ import com.dewijones92.totum.backup.asBackupSettings
 import com.dewijones92.totum.busy.BusyInterceptor
 import com.dewijones92.totum.busy.BusyYtDlpEngine
 import com.dewijones92.totum.common.Diag
+import com.dewijones92.totum.common.HttpUrl
 import com.dewijones92.totum.data.channel.ChannelRepository
 import com.dewijones92.totum.data.channel.DefaultChannelRepository
 import com.dewijones92.totum.data.content.ContentRefresher
@@ -891,7 +892,21 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
      */
     private suspend fun readyAgain(item: PlayableItem) {
         when (val handle = item.handle) {
+            // A video's stream URL does not exist until it resolves, so the bytes are nominated
+            // HERE, on the far side of the resolution, rather than in preloadBytesOf with the rest.
             is PlayHandle.Video -> videoResolver.prefetch(handle.watchUrl, item.item.sourceId)
+                ?.let { resolved ->
+                    // The cheap stream when listening: an audio-only track is a fraction of the
+                    // video's size, and preloading the picture for a mode that will not show it
+                    // would spend the data twice over.
+                    nominatePreload(
+                        if (audioPlaybackPreferred()) {
+                            resolved.audioOnlyUrl ?: resolved.item.mediaUrl
+                        } else {
+                            resolved.item.mediaUrl
+                        },
+                    )
+                }
             is PlayHandle.LocalVideo -> Unit
             is PlayHandle.Podcast -> handle.audioUrl?.let { homeTorrentServer?.warmAudio(it) }
         }
@@ -909,10 +924,6 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
      * something that spends data.
      */
     private fun preloadBytesOf(item: PlayableItem) {
-        if (networkStatus.isMetered()) {
-            Diag.log("preload", "not preloading ${item.item.id.value}: on metered data")
-            return
-        }
         // A local copy needs nothing, and a video's URL is not known until it resolves — so this
         // covers exactly what has a playable URL in hand right now.
         val url = when (val handle = item.handle) {
@@ -923,6 +934,16 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
             is PlayHandle.LocalVideo -> null
             is PlayHandle.Video -> null
         } ?: return
+        nominatePreload(url)
+    }
+
+    /** The one place bytes are actually asked for, so the Wi-Fi gate cannot be bypassed. */
+    private fun nominatePreload(url: HttpUrl?) {
+        if (url == null) return
+        if (networkStatus.isMetered()) {
+            Diag.log("preload", "not preloading ${url.value.take(URL_LOG_CHARS)}: on metered data")
+            return
+        }
         playbackController.preloadNext(url)
     }
 
@@ -1029,3 +1050,6 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
         const val TORRENT_SEARCH_TIMEOUT_SECONDS = 180L
     }
 }
+
+/** Enough of a URL to identify it in a report without filling the buffer. */
+private const val URL_LOG_CHARS = 60

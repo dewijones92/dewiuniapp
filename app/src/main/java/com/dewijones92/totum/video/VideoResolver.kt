@@ -536,14 +536,17 @@ class VideoResolver(
      * deliberately swallowed: a prefetch that does not work must cost nothing, and the real
      * resolve will run and report properly when the item is actually needed.
      */
-    suspend fun prefetch(watchUrl: HttpUrl, sourceId: SourceId) {
-        if (fresh(watchUrl) != null) return
+    suspend fun prefetch(watchUrl: HttpUrl, sourceId: SourceId): Resolved? {
+        fresh(watchUrl)?.let { return it }
         Diag.log("resolve", "prefetching ${watchUrl.value.takeLast(ID_CHARS)}")
         val resolved = runCatching { resolve(watchUrl, sourceId, asked = "prefetch") }.getOrNull() ?: run {
             Diag.log("resolve", "prefetch produced nothing; the real resolve will try again")
-            return
+            return null
         }
         remember(watchUrl, resolved)
+        // Returned, not just cached: the caller preloads BYTES from the stream URL this produced,
+        // which is the one thing that could not be known before the resolution happened.
+        return resolved
     }
 
     private companion object {

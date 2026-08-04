@@ -98,6 +98,51 @@ class PreloadOnWifiOnlyTest {
         assertEquals(emptyList<HttpUrl>(), controller.preloaded)
     }
 
+    /**
+     * A resolved video nominates the stream the CURRENT mode will actually play.
+     *
+     * Preloading the picture while listening spends the data twice over: an audio-only track is a
+     * fraction of the size, and the video bytes would never be shown. This mirrors the choice
+     * `AppContainer.readyAgain` makes on the far side of a resolution — the one place a video's
+     * stream URL exists at all, since it does not until it resolves.
+     */
+    private fun nominateResolved(streamUrl: HttpUrl?, audioOnlyUrl: HttpUrl?, listening: Boolean) {
+        val url = if (listening) audioOnlyUrl ?: streamUrl else streamUrl
+        url?.let { controller.preloadNext(it) }
+    }
+
+    private val videoStream = HttpUrl.of("https://googlevideo.test/videoplayback?itag=22")
+    private val videoAudio = HttpUrl.of("https://googlevideo.test/videoplayback?itag=140")
+
+    @Test
+    fun `watching preloads the video stream`() {
+        nominateResolved(videoStream, videoAudio, listening = false)
+
+        assertEquals(listOf(videoStream), controller.preloaded)
+    }
+
+    @Test
+    fun `listening preloads the audio-only stream`() {
+        nominateResolved(videoStream, videoAudio, listening = true)
+
+        assertEquals(listOf(videoAudio), controller.preloaded)
+    }
+
+    /** Some videos have no separate audio track; the muxed stream is still better than nothing. */
+    @Test
+    fun `listening falls back to the full stream when there is no audio-only one`() {
+        nominateResolved(videoStream, audioOnlyUrl = null, listening = true)
+
+        assertEquals(listOf(videoStream), controller.preloaded)
+    }
+
+    @Test
+    fun `a resolution that produced no stream nominates nothing`() {
+        nominateResolved(streamUrl = null, audioOnlyUrl = null, listening = false)
+
+        assertEquals(emptyList<HttpUrl>(), controller.preloaded)
+    }
+
     @Test
     fun `an item with no URL at all is not preloaded`() {
         preload(item(PlayHandle.Podcast(), mediaUrl = null), metered = false)

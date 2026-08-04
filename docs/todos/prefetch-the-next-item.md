@@ -128,8 +128,21 @@ already on the device over the network. `PreloadOnWifiOnlyTest` caught it before
 preload manager has accepted the item, so a passing test means the command arrived, was permitted,
 and was taken.
 
+### Videos too, since 2026-08-04
+
+A video's stream URL does not exist until it resolves, so its bytes are nominated on the FAR SIDE of
+the resolution rather than alongside the other pillars. `VideoResolver.prefetch` now returns what it
+resolved instead of only caching it, which is the one thing that could not be known beforehand.
+
+It nominates the stream the CURRENT mode will actually play: the audio-only track when listening,
+the video otherwise. Preloading the picture for a mode that will never show it would spend the data
+twice over. A video with no separate audio track falls back to the muxed stream, which is still
+better than nothing.
+
+All three pillars now preload, and every nomination goes through one `nominatePreload`, so the Wi-Fi
+gate cannot be bypassed by a future caller.
+
 ### Still worth doing
 
-A video is not preloaded, because its stream URL is not known until it resolves — the readiness half
-warms that resolution, so the bytes could be nominated straight afterwards. That is the obvious
-next increment.
+Nothing outstanding on this item. The natural follow-on is measuring what it actually saves at a
+track change on a device — the mechanism is proven, the felt improvement is not.
