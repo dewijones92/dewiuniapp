@@ -637,14 +637,7 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
         // preparation at all — which is what happened to torrents: this was written when only a
         // video cost anything to get ready, and a torrent's audio URL now has ~25s of ffmpeg on
         // the home server behind it. The compiler asks the question now.
-        val prefetchOne: suspend (PlayableItem) -> Unit = { next ->
-            when (val handle = next.handle) {
-                is PlayHandle.Video -> videoResolver.prefetch(handle.watchUrl, next.item.sourceId)
-                // Already on the device, and a plain podcast enclosure is already a playable URL.
-                is PlayHandle.LocalVideo -> Unit
-                is PlayHandle.Podcast -> handle.audioUrl?.let { homeTorrentServer?.warmAudio(it) }
-            }
-        }
+        val prefetchOne: suspend (PlayableItem) -> Unit = ::readyAgain
         // Videos resolve just-in-time, which meant yt-dlp's ~7 seconds landed in the silence
         // AFTER the previous item ended. Same rule, started a minute earlier.
         NextUpPrefetcher(
@@ -744,6 +737,7 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
             // Errs toward "there is a network" only when it can genuinely tell; NetworkStatus
             // itself errs the other way when unsure, which is the safe direction for data.
             offline = ::isOffline,
+            refresh = { item -> readyAgain(item) },
         )
     }
 
@@ -888,6 +882,20 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
         !appPreferences.settings.value.autoDownloadWifiOnly || !networkStatus.isMetered()
 
     private val dataSaverNotifier by lazy { DataSaverNotifier(context) }
+
+    /**
+     * The one "get this ready" routing, shared by the prefetcher and the stall rescue.
+     *
+     * Defined here rather than inline in both, so a torrent gaining a way to be warmed cannot be
+     * picked up by one caller and missed by the other.
+     */
+    private suspend fun readyAgain(item: PlayableItem) {
+        when (val handle = item.handle) {
+            is PlayHandle.Video -> videoResolver.prefetch(handle.watchUrl, item.item.sourceId)
+            is PlayHandle.LocalVideo -> Unit
+            is PlayHandle.Podcast -> handle.audioUrl?.let { homeTorrentServer?.warmAudio(it) }
+        }
+    }
 
     override fun isOffline(): Boolean = !networkStatus.isOnline()
 

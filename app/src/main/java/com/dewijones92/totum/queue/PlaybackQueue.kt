@@ -85,6 +85,13 @@ class PlaybackQueue(
      */
     private val offline: () -> Boolean = { false },
     /**
+     * Asks an item's source to get it ready again — the second thing to try when a stream dies.
+     *
+     * Pillar-routed by the caller (see `AppContainer`), and the SAME routing the prefetcher uses,
+     * so "get this ready" means one thing in the app rather than two that could drift apart.
+     */
+    private val refresh: suspend (PlayableItem) -> Unit = {},
+    /**
      * Whether playback should be audio-only right now — the resolved Listen mode.
      *
      * Consulted for a torrent, which is one file carrying both tracks: the home server offers a
@@ -459,6 +466,16 @@ class PlaybackQueue(
         // seconds apart, each logging "cache hit … skipped extraction", after which a perfectly
         // playable video was skipped as broken.
         (entry.item.handle as? PlayHandle.Video)?.let { launcher.forgetResolved(it.watchUrl) }
+        // And for everything that is NOT a video, ask its source to get ready again — which for a
+        // torrent means telling the home server to restart the remux behind its audio stream.
+        //
+        // Without this the rescue was far weaker than it looked for the other pillars: forgetting
+        // a cached resolution only means anything for a video, so replaying a torrent or a podcast
+        // re-requested the identical address. A fresh connection sometimes helps; a source that has
+        // been asked to produce the stream again helps more, and it is the only second thing there
+        // is to try. Found by writing the stall tests on 2026-08-03, not by a report.
+        runCatching { refresh(entry.item) }
+            .onFailure { Diag.warn("playback", "could not refresh ${entry.item.item.id.value} before replaying", it) }
         return play(entry.item, positionMs)
     }
 

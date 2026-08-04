@@ -3,7 +3,7 @@ title: The buffering defects from report 0.1.332
 kind: todo
 area: playback
 priority: high
-status: three fixed with tests; one newly found and OPEN
+status: all four fixed with tests
 updated: 2026-08-03
 ---
 
@@ -63,9 +63,9 @@ A second guard was needed for the same reason: giving up moves the position too,
 "already abandoned" flag the queue was advanced again on every later stall of the same item —
 which matters if the advance fails and the dead item stays current.
 
-## Newly found, and OPEN
+## Newly found, and now fixed
 
-**A replay only gets a fresh URL for a video.** `PlaybackQueue.replayCurrent` invalidates the
+**A replay only got a fresh URL for a video.** `PlaybackQueue.replayCurrent` invalidates the
 resolver cache for `PlayHandle.Video` only, so replaying a podcast enclosure or a torrent stream
 asks the same address again — which for a genuinely dead address changes nothing.
 
@@ -97,3 +97,18 @@ code. Two lessons, both cheap to forget:
   otherwise have shipped as false assurance.
 - **Reproduce the signature, not the symptom.** The phone showed loads accumulating while none
   completed, so the faithful fault hangs *every* request. It now runs 19 requests deep.
+
+## The video-only rescue — fixed 2026-08-04
+
+A replay now asks the item's SOURCE to produce the stream again, not just the network to try the
+same address again. For a torrent that means telling the home server to restart the remux behind its
+audio stream, which is the only second thing there is to try.
+
+It reuses `AppContainer.readyAgain` — the same pillar routing the prefetcher uses — rather than a
+second copy. A torrent gaining a new way to be warmed can no longer be picked up by one caller and
+missed by the other, which is exactly how this gap opened: the prefetcher learned about audio
+streams and the rescue did not.
+
+Failure is swallowed by design. The home server being unreachable is precisely when a stall
+happens, so a refresh that threw would turn a recoverable stream into a stopped queue. Pinned by
+`ReplayRefreshesTheSourceTest`.

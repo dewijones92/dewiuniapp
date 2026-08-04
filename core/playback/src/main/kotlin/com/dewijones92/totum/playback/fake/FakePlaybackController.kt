@@ -91,6 +91,9 @@ public class FakePlaybackController : PlaybackController {
 
     /** audioUrl handed to the most recent [play] call, for assertions. */
     public var lastAudioUrl: HttpUrl? = null
+
+    /** Where playback was asked to START — how a resume is told apart from a restart. */
+    public var lastStartPositionMs: Long = 0
         private set
 
     override fun play(
@@ -107,6 +110,7 @@ public class FakePlaybackController : PlaybackController {
         lastSkipSegments = skipSegments
         lastLocalPath = localPath
         lastAudioUrl = audioUrl
+        lastStartPositionMs = startPositionMs
         _state.value = PlaybackState(
             itemId = item.id,
             title = item.title,
