@@ -93,11 +93,13 @@ import com.dewijones92.totum.innertube.related.RelatedResult
 import com.dewijones92.totum.innertube.related.YouTubeRelated
 import com.dewijones92.totum.innertube.search.HttpYouTubeSearch
 import com.dewijones92.totum.innertube.subscriptions.HttpYouTubeSubscriptions
+import com.dewijones92.totum.notifications.DataSaverNotifier
 import com.dewijones92.totum.notifications.DownloadNotifier
 import com.dewijones92.totum.notifications.SharedPrefsSeenItemsTracker
 import com.dewijones92.totum.notifications.YouTubeSubscriptionItemsSource
 import com.dewijones92.totum.playback.AutoAdvancer
 import com.dewijones92.totum.playback.Media3PlaybackController
+import com.dewijones92.totum.playback.MeteredAudioSwitch
 import com.dewijones92.totum.playback.NextUpPrefetcher
 import com.dewijones92.totum.playback.PlaybackController
 import com.dewijones92.totum.playback.PlaybackProgressStore
@@ -595,6 +597,28 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
         ).start()
         // The advancer only ever hears about a clean end. An item that stops dead at its own
         // end without reporting one leaves the queue silently stopped — see StallWatchdog.
+        // Protects mobile data when the phone walks off Wi-Fi mid-video: 15.2 MB/min against 2.1
+        // for the audio alone, measured. Holds before acting, so a lift or a tunnel is a no-op.
+        MeteredAudioSwitch(
+            metered = networkStatus::isMetered,
+            // Only something actually SHOWING video can be downgraded. Already-audio, paused and
+            // stopped all report nothing here, so none of them provokes a pointless re-prepare.
+            playingVideoId = {
+                playbackController.state.value?.takeIf { it.hasVideo && it.isPlaying }?.itemId
+            },
+            switchToAudio = {
+                // The real "listen only" mode, not a private one — so the player's own toggle is
+                // the undo, and the choice survives to the next item as the person would expect.
+                appPreferences.setPlaybackMode(PlaybackMode.AUDIO)
+                playbackQueue.replayCurrent(playbackController.state.value?.positionMs ?: 0L)
+            },
+            announce = { id ->
+                dataSaverNotifier.switchedToAudio(
+                    playbackController.state.value?.title ?: id.value,
+                )
+            },
+            scope = applicationScope,
+        ).also { it.start() }
         StallWatchdog(
             states = playbackController.state,
             advance = { playbackQueue.playNextInQueue() },
@@ -862,6 +886,8 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
      */
     override fun autoDownloadAllowedNow(): Boolean =
         !appPreferences.settings.value.autoDownloadWifiOnly || !networkStatus.isMetered()
+
+    private val dataSaverNotifier by lazy { DataSaverNotifier(context) }
 
     override fun isOffline(): Boolean = !networkStatus.isOnline()
 
