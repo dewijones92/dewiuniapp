@@ -3,7 +3,7 @@ title: Drop to audio when Wi-Fi drops mid-video
 kind: todo
 area: playback
 priority: high
-status: shipped — decision + hysteresis unit-tested; on-device toggle not yet exercised
+status: shipped — unit-tested, and proven on a device with the radios actually toggled
 updated: 2026-08-04
 ---
 
@@ -53,12 +53,29 @@ level, and the interesting case is a state that persists.
 - **Its own notification channel**, so it can be silenced alone. A notification you cannot turn off
   separately is one people turn off entirely, taking the useful ones with it.
 
+## Proven on a device, 2026-08-04
+
+`MeteredAudioSwitchDeviceTest` plays a real clip with a real video track and turns Wi-Fi off. The
+emulator carries BOTH a mobile and a Wi-Fi network, so `svc wifi disable` falls back to mobile
+exactly as a phone does when you walk out of the house — a change of network, not a loss of one.
+
+Two cases, and the pair is what makes it meaningful: mobile that HOLDS switches the mode to AUDIO,
+and a six-second blip changes nothing. Either alone would be satisfied by a broken implementation
+(one that always fires, or one that never does).
+
+It also settled the assumption underneath the whole feature: **the emulator's mobile network really
+is reported as metered.** If it were not, `isMetered()` would be false and nothing would ever fire —
+the feature would have looked fine in unit tests and done nothing on a phone.
+
+The clip is a 90-second black 320x240 H.264 with silent audio, ~69KB, generated with ffmpeg rather
+than sourced, so the repository carries no real media.
+
+**What this does NOT prove:** that less data is used. The clip is local, so nothing is downloaded
+either way. The saving was measured separately (15.2 MB/min against 2.1); what was unproven was the
+machinery, and that is what runs here.
+
 ## Still to do
 
-- **Exercise it on a device.** The decision is unit-tested (10 cases) but the actual switch —
-  re-prepare, notification, and what the player looks like afterwards — has not been run with the
-  radios toggled. `svc data enable` / `svc wifi disable` is the proven technique here (see
-  `offline-queue-e2e.md`).
 - A **"keep video"** action on the notification itself. `MeteredAudioSwitch.keepVideo` exists and is
   tested; nothing calls it yet, because switching back through the player's toggle already prevents
   a re-downgrade (the item is marked switched until Wi-Fi returns).
