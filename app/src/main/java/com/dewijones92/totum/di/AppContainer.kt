@@ -895,6 +895,35 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
             is PlayHandle.LocalVideo -> Unit
             is PlayHandle.Podcast -> handle.audioUrl?.let { homeTorrentServer?.warmAudio(it) }
         }
+        preloadBytesOf(item)
+    }
+
+    /**
+     * Holds the first seconds of the next item's audio, on Wi-Fi only.
+     *
+     * Dewi, 2026-08-02: *"defo yes on wifi, but maybe not on mobile please"*. Thirty seconds is flat
+     * in TIME and eight times apart in BYTES across the pillars — roughly 0.5MB for a podcast, 8MB
+     * for 1080p video — so it is spent only where it is free.
+     *
+     * `isMetered()` errs toward metered when it cannot tell, which is the right way to be wrong for
+     * something that spends data.
+     */
+    private fun preloadBytesOf(item: PlayableItem) {
+        if (networkStatus.isMetered()) {
+            Diag.log("preload", "not preloading ${item.item.id.value}: on metered data")
+            return
+        }
+        // A local copy needs nothing, and a video's URL is not known until it resolves — so this
+        // covers exactly what has a playable URL in hand right now.
+        val url = when (val handle = item.handle) {
+            // NOT `localPath?.let { null } ?: …` — an elvis cannot tell a deliberate null from an
+            // absent one, so that spelling fell straight through and preloaded a file already on
+            // the device. Caught by PreloadOnWifiOnlyTest before it shipped.
+            is PlayHandle.Podcast -> if (handle.localPath != null) null else handle.audioUrl ?: item.item.mediaUrl
+            is PlayHandle.LocalVideo -> null
+            is PlayHandle.Video -> null
+        } ?: return
+        playbackController.preloadNext(url)
     }
 
     override fun isOffline(): Boolean = !networkStatus.isOnline()

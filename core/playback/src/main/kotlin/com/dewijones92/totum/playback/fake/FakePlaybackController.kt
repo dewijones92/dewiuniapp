@@ -156,6 +156,13 @@ public class FakePlaybackController : PlaybackController {
         _state.update { it?.copy(speed = speed) }
     }
 
+    /** What was nominated for preloading, so a test can assert data was (or was not) spent. */
+    public var preloaded: MutableList<HttpUrl> = mutableListOf()
+
+    override fun preloadNext(url: HttpUrl) {
+        preloaded += url
+    }
+
     override fun setVolumeBoost(boost: VolumeBoost) {
         _state.update { it?.copy(volumeBoost = boost) }
     }

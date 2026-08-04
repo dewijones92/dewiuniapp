@@ -3,7 +3,7 @@ title: Preload the next item's first 30 seconds
 kind: todo
 area: playback
 priority: medium
-status: requested — readiness half DONE; byte preload not started
+status: done — readiness and byte preload both shipped, Wi-Fi only
 updated: 2026-08-02
 ---
 
@@ -40,7 +40,7 @@ than 30 would be — and unlike Layer 2 it pulls no media, so a longer lead cost
 `NextUpPrefetcher` almost exactly — same lead, same `peekNext`, same once-per-item guard. Worth
 recording: the seam already existed and only its routing was out of date.
 
-## Layer 2 — the bytes. Not started, and the expensive half
+## Layer 2 — the bytes. Shipped 2026-08-04, Wi-Fi only
 
 `ExoPlayer.PreloadConfiguration` looks like the answer and is not: it preloads the next item **in
 the player's playlist**, and `Media3PlaybackController` calls `setMediaItem` — one item at a time,
@@ -93,3 +93,43 @@ Route 1, on the strength of blast radius: it touches only what is being added.
 
 - `docs/todos/listen-mode-saves-data.md` — the audio-only stream this readies.
 - `AutoAdvancer` — the sibling that watches for the END rather than the position.
+
+## How Layer 2 was actually built
+
+`DefaultPreloadManager` lives in `PlaybackService` and holds the first **30 seconds** of whatever
+the app nominates. `ExoPlayer.PreloadConfiguration` could not do it: that preloads the next item in
+the PLAYER'S PLAYLIST, and the queue plays one item at a time because it owns advancing.
+
+The app cannot preload anything itself — only the service owns media sources, and a
+`MediaController` cannot be handed one — so nomination goes over a custom session command
+(`ACTION_PRELOAD_NEXT`), alongside the skip-silence and volume-boost commands that were already
+there. The player and the preloader share ONE `MediaSourceFactory`: a source preloaded by one
+factory and played through another is a different object, and its bytes would simply be discarded.
+
+Nominating happens inside `readyAgain`, so preloading rides the same seam as resolving a video and
+warming a torrent. One place decides what "get the next item ready" means.
+
+### The Wi-Fi gate, and a bug it caught
+
+`preloadBytesOf` declines on a metered connection, per Dewi's *"defo yes on wifi, but maybe not on
+mobile please"*. It also declines for a **downloaded** item — and the first version did not, because
+it was spelled `localPath?.let { null } ?: (audioUrl ?: mediaUrl)`. An elvis cannot tell a
+deliberate null from an absent one, so it fell straight through and would have fetched a file
+already on the device over the network. `PreloadOnWifiOnlyTest` caught it before it shipped.
+
+### Two things only a device could show
+
+- **`setPreloadLooper` throws** when the builder was created with the `Context` constructor, which
+  already supplies one. It compiles perfectly and dies at runtime.
+- **A session command must be advertised in `onConnect`** or it is rejected in silence — which looks
+  identical to a preload that simply did nothing.
+
+`PreloadCommandReachesServiceTest` asserts the SERVICE's own breadcrumb, written only after the
+preload manager has accepted the item, so a passing test means the command arrived, was permitted,
+and was taken.
+
+### Still worth doing
+
+A video is not preloaded, because its stream URL is not known until it resolves — the readiness half
+warms that resolution, so the bytes could be nominated straight afterwards. That is the obvious
+next increment.

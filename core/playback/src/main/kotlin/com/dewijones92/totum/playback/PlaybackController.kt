@@ -97,6 +97,15 @@ public interface PlaybackController {
 
     /** Lifts quiet audio; remembered per source. Local playback only (not Cast). */
     public fun setVolumeBoost(boost: VolumeBoost)
+
+    /**
+     * Asks the service to hold the first seconds of [url], so the next track change is not a wait.
+     *
+     * A nomination, not a fetch: only the service owns media sources, so the app can say what is
+     * coming and never build it. Callers decide WHETHER to spend the data — this seam does not
+     * check the network, because the caller already knows more about intent than it can.
+     */
+    public fun preloadNext(url: HttpUrl)
 }
 
 /** What the UI needs to render a player for the current item. */

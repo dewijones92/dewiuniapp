@@ -291,6 +291,15 @@ public class Media3PlaybackController(
         currentSourceId?.let { source -> scope.launch { speedStore.save(source, clamped) } }
     }
 
+    override fun preloadNext(url: HttpUrl) {
+        withController {
+            it.sendCustomCommand(
+                SessionCommand(ACTION_PRELOAD_NEXT, Bundle.EMPTY),
+                bundleOf(EXTRA_PRELOAD_URI to url.value),
+            )
+        }
+    }
+
     override fun setVolumeBoost(boost: VolumeBoost) {
         volumeBoost = boost
         withController {

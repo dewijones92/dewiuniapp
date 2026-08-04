@@ -22,6 +22,7 @@ import androidx.media3.exoplayer.drm.DrmSessionManagerProvider
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.MergingMediaSource
+import androidx.media3.exoplayer.source.preload.DefaultPreloadManager
 import androidx.media3.exoplayer.upstream.DefaultBandwidthMeter
 import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy
 import androidx.media3.session.MediaSession
@@ -143,18 +144,7 @@ public class PlaybackService : MediaSessionService() {
             )
             // Ranged fetches, not one open-ended GET: see ChunkedDataSource for the
             // measurements. This is what stops the every-seven-seconds stalling.
-            .setMediaSourceFactory(
-                MergingAudioVideoFactory(
-                    DefaultMediaSourceFactory(this).setDataSourceFactory(
-                        // sabr:// URLs are served from a registered session; everything else
-                        // goes through the ranged fetcher exactly as before, so the path that
-                        // already works is untouched.
-                        SabrDataSourceFactory(
-                            ChunkedDataSource.Factory(DefaultDataSource.Factory(this)),
-                        ),
-                    ),
-                ),
-            )
+            .setMediaSourceFactory(sourceFactory())
             .setAudioAttributes(
                 AudioAttributes.Builder()
                     .setUsage(C.USAGE_MEDIA)
@@ -187,6 +177,47 @@ public class PlaybackService : MediaSessionService() {
             .build()
     }
 
+    /**
+     * The one factory, shared by the player and the preloader.
+     *
+     * They MUST be the same: a source preloaded by one factory and played through another is a
+     * different object with different settings, and the preloaded bytes would simply be discarded.
+     */
+    @UnstableApi
+    private var cachedSourceFactory: MergingAudioVideoFactory? = null
+
+    // A function rather than `by lazy`: Android lint does not follow an opt-in into a lazy lambda,
+    // and the annotation has to sit somewhere it understands.
+    @UnstableApi
+    private fun sourceFactory(): MergingAudioVideoFactory = cachedSourceFactory ?: run {
+        MergingAudioVideoFactory(
+            DefaultMediaSourceFactory(this).setDataSourceFactory(
+                // sabr:// URLs are served from a registered session; everything else goes through
+                // the ranged fetcher exactly as before, so the path that already works is untouched.
+                SabrDataSourceFactory(
+                    ChunkedDataSource.Factory(DefaultDataSource.Factory(this)),
+                ),
+            ),
+        ).also { cachedSourceFactory = it }
+    }
+
+    /**
+     * Holds the first [PRELOAD_MS] of what is coming next, so a track change is not a wait.
+     *
+     * Dewi, 2026-08-02: *"just 30 seconds of future to be loaded right??"* — and Wi-Fi only, which
+     * is decided by the APP before it ever nominates anything. Nothing here spends data on its own
+     * initiative; it preloads exactly what it is told to.
+     *
+     * `ExoPlayer.PreloadConfiguration` cannot do this job: it preloads the next item in the
+     * PLAYER'S PLAYLIST, and the queue plays one item at a time because it owns advancing. This
+     * holds sources outside any playlist, which is the shape that actually fits.
+     */
+    @UnstableApi
+    private var cachedPreloader: DefaultPreloadManager? = null
+
+    /** What is currently held, so nominating something else releases the last one. */
+    private var preloading: MediaItem? = null
+
     /** Adds the skip-silences custom command and applies it to the audio processor. */
     @UnstableApi
     private inner class SkipSilenceCallback : MediaSession.Callback {
@@ -199,6 +230,7 @@ public class PlaybackService : MediaSessionService() {
                     MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS.buildUpon()
                         .add(SessionCommand(ACTION_SKIP_SILENCE, Bundle.EMPTY))
                         .add(SessionCommand(ACTION_VOLUME_BOOST, Bundle.EMPTY))
+                        .add(SessionCommand(ACTION_PRELOAD_NEXT, Bundle.EMPTY))
                         .build(),
                 )
                 .build()
@@ -209,6 +241,10 @@ public class PlaybackService : MediaSessionService() {
             customCommand: SessionCommand,
             args: Bundle,
         ): ListenableFuture<SessionResult> {
+            if (customCommand.customAction == ACTION_PRELOAD_NEXT) {
+                args.getString(EXTRA_PRELOAD_URI)?.let(::preloadNext)
+                return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+            }
             if (customCommand.customAction == ACTION_VOLUME_BOOST) {
                 applyVolumeBoost(args.getInt(EXTRA_VOLUME_BOOST_MILLIBELS, 0))
                 return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
@@ -221,6 +257,28 @@ public class PlaybackService : MediaSessionService() {
                 return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
             }
             return super.onCustomCommand(session, controller, customCommand, args)
+        }
+
+        @UnstableApi
+        private fun preloadNext(uri: String) {
+            // Built here rather than in its own function: the class is at detekt's function limit, and
+            // this is the only caller.
+            val preloader = cachedPreloader ?: run {
+                DefaultPreloadManager.Builder(this@PlaybackService) { _: Int ->
+                    DefaultPreloadManager.PreloadStatus.specifiedRangeLoaded(PRELOAD_MS * MICROS_PER_MS)
+                }
+                    .setMediaSourceFactory(sourceFactory())
+                    // No setPreloadLooper: the Context constructor supplies one and setting it again throws.
+                    .build()
+                    .also { cachedPreloader = it }
+            }
+            val item = MediaItem.fromUri(uri)
+            if (preloading?.localConfiguration?.uri?.toString() == uri) return
+            preloading?.let { preloader.remove(it) }
+            preloading = item
+            preloader.add(item, 0)
+            preloader.invalidate()
+            Diag.log("preload", "holding the first ${PRELOAD_MS}ms of ${uri.take(URL_CHARS)}")
         }
     }
 
@@ -349,6 +407,16 @@ public class PlaybackService : MediaSessionService() {
         const val MIN_BUFFER_MS = 30_000
 
         /**
+         * How much of the NEXT item to hold. Dewi's figure, 2026-08-02: *"just 30 seconds of future
+         * to be loaded right??"*. Flat in time, but eight times apart in bytes across the pillars —
+         * ~0.5MB for a podcast, ~8MB for 1080p video — which is why the app only ever nominates
+         * something on Wi-Fi.
+         */
+        const val PRELOAD_MS = 30_000L
+        const val MICROS_PER_MS = 1_000L
+        const val URL_CHARS = 80
+
+        /**
          * Four minutes. Bounded on purpose: buffering to the END of a queue of long items would
          * be a download, and the app already has a button for that.
          */
@@ -374,6 +442,15 @@ public class PlaybackService : MediaSessionService() {
 
 /** Custom session command to toggle silence-skipping; the bool rides in [EXTRA_SKIP_SILENCE_ENABLED]. */
 internal const val ACTION_SKIP_SILENCE: String = "com.dewijones92.totum.SKIP_SILENCE"
+
+/**
+ * Nominates the item to preload next, with its URL.
+ *
+ * A command rather than a shared object because only the SERVICE owns `MediaSource`s — a
+ * `MediaController` cannot be handed one — so the app can name what is coming but never build it.
+ */
+internal const val ACTION_PRELOAD_NEXT: String = "com.dewijones92.totum.PRELOAD_NEXT"
+internal const val EXTRA_PRELOAD_URI: String = "uri"
 internal const val ACTION_VOLUME_BOOST: String = "com.dewijones92.totum.VOLUME_BOOST"
 internal const val EXTRA_VOLUME_BOOST_MILLIBELS: String = "gain_millibels"
 internal const val EXTRA_SKIP_SILENCE_ENABLED: String = "enabled"
