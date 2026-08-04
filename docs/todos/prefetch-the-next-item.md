@@ -4,7 +4,7 @@ kind: todo
 area: playback
 priority: medium
 status: done — readiness and byte preload both shipped, Wi-Fi only
-updated: 2026-08-02
+updated: 2026-08-04
 ---
 
 # Preload the next item's first 30 seconds
