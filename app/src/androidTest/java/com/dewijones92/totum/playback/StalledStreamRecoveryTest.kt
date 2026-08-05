@@ -95,6 +95,11 @@ class StalledStreamRecoveryTest {
         thread(isDaemon = true, name = "stalling-media-server") { serveUntilClosed() }
         runBlocking(Dispatchers.Main) {
             awaitControllerConnected()
+            // Explicitly OFF, not merely assumed off. This media is a SILENT wav, so if a
+            // previous test left skip-silence on, sample-removal deletes the entire file and
+            // playback never starts — which reads as "the item never played" and looks like a
+            // playback bug. CI hit exactly that; the local order happened to hide it.
+            controller.setSkipSilence(false)
             queue.clear()
             controller.player?.stop()
             controller.player?.clearMediaItems()
