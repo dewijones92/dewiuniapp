@@ -8,7 +8,6 @@ import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.lifecycleScope
 import com.dewijones92.totum.common.Diag
 import com.dewijones92.totum.common.HttpUrl
-import com.dewijones92.totum.common.canonicalWatchUrl
 import com.dewijones92.totum.domain.PlayHandle
 import com.dewijones92.totum.domain.PlayableItem
 import com.dewijones92.totum.domain.SourceId
@@ -80,12 +79,6 @@ class MainActivity : FragmentActivity() {
     private fun handleShareIntent(intent: Intent) {
         if (handleAuthIntent(intent)) return
         val url = intent.sharedWatchUrl() ?: return
-        if (intent.getBooleanExtra(EXTRA_SHARE_HANDLED, false)) {
-            // Said out loud: a share that is deliberately ignored and a share that silently failed
-            // look identical from the outside, and only one of them is a bug.
-            Diag.log("share", "ignoring a share already handled: $url")
-            return
-        }
         // Logged because this path was completely silent: a shared link that misbehaved left
         // nothing in a report tying the playback to the share (0.1.228).
         Diag.log("share", "shared link -> $url")
@@ -112,21 +105,14 @@ class MainActivity : FragmentActivity() {
     }
 
     /** The YouTube watch URL from a VIEW (link) or SEND (share text) intent, if any. */
-    private fun Intent.sharedWatchUrl(): HttpUrl? {
-        val raw = when (action) {
+    private fun Intent.sharedWatchUrl(): HttpUrl? = sharedWatchUrl(
+        rawText = when (action) {
             Intent.ACTION_VIEW -> dataString
             Intent.ACTION_SEND -> getStringExtra(Intent.EXTRA_TEXT)
             else -> null
-        } ?: return null
-        val match = URL_PATTERN.find(raw)?.value ?: return null
-        val url = HttpUrl.parse(match) ?: return null
-        // Canonicalised at the door. The URL becomes this video's identity everywhere —
-        // MediaItemId, the resolve cache key, what the queue dedupes on — so a share link's
-        // `?si=` tracking parameter would make it a DIFFERENT video from the same one
-        // already queued, which is exactly what went wrong.
-        return url.takeIf { candidate -> WATCH_MARKERS.any { it in candidate.value } }
-            ?.canonicalWatchUrl()
-    }
+        },
+        alreadyHandled = getBooleanExtra(EXTRA_SHARE_HANDLED, false),
+    )
 
     private companion object {
         /**
