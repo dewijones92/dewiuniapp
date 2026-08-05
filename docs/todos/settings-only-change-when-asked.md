@@ -3,7 +3,7 @@ title: Settings change only when you change them
 kind: todo
 area: settings
 priority: high
-status: speed and volume boost done; brightness is a decision for Dewi
+status: done — speed, volume boost and brightness all hold until you change them
 updated: 2026-08-05
 ---
 
@@ -21,7 +21,7 @@ audio switch counts: *"meter thing is an exception"*.
 |---|---|---|
 | Playback speed | stored per `SourceId` | one global value |
 | Volume boost | stored per `SourceId` | one global value |
-| Brightness | window override, released when video ends | **unchanged — see below** |
+| Brightness | window override, released when video ends — and the choice reset with it | window released, choice kept for the session |
 
 Both stores were keyed by source on the same reasoning: a podcast you listen to at 1.5×, a quiet
 recording you boost. Defensible as a feature, and precisely the reported problem — the value moves
@@ -43,7 +43,7 @@ player does this.
 But it is called whenever video goes away — so on a queue of videos, a brightness you set by gesture
 is likely lost at each track change. That IS the app changing it.
 
-Three options, and it is Dewi's call:
+Three options were put to Dewi; he chose (2), 2026-08-05:
 
 1. **Leave it.** Brightness is a transient window override, not a stored setting. Simplest, and it
    is what other players do — but it does violate "no exceptions" as stated.
@@ -52,11 +52,18 @@ Three options, and it is Dewi's call:
 3. **Persist it** like speed and boost. Most literal reading of the rule; also the most surprising,
    since a brightness set once weeks ago would apply to a video today.
 
-Recommended: **(2)**. It fixes the case that actually looks like a bug without making brightness a
-sticky global that outlives the sitting.
+**Chosen: (2).** `ChosenBrightness` holds the level for the sitting; `release()` now drops only the
+WINDOW override, not the choice, and `rememberVideoGestures()` re-applies it when a video appears.
+Not persisted, deliberately — a brightness set weeks ago applying to a video today would be the
+same surprise in the other direction.
+
+Note `isSet` is `value >= 0`, not `value > 0`: full dark is a real choice, and a `> 0` test would
+silently ignore it. That edge has its own test.
 
 ## Tests
 
+- `ChosenBrightnessTest` (5) — remembered across a video ending, zero counts as a choice, later
+  gestures replace earlier ones, out-of-range drags clamp without falling back to the sentinel.
 - `GlobalPlaybackSpeedTest` (4) and `GlobalVolumeBoostTest` (4) — one value, applies to everything,
   replaced only by an explicit save, and the no-op stores never remember.
 - Not instrumented: both are pure decisions with no device-shaped failure mode. The device-shaped

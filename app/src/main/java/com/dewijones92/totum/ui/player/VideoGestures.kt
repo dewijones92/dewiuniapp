@@ -38,7 +38,7 @@ internal class VideoGestureState(
     var feedback: AdjustmentFeedback? by mutableStateOf(null)
         private set
 
-    private var brightness by mutableFloatStateOf(INITIAL_BRIGHTNESS)
+    private var brightness by mutableFloatStateOf(ChosenBrightness.value)
 
     private val maxVolume: Int get() = audio?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 1
 
@@ -61,6 +61,8 @@ internal class VideoGestureState(
         when (kind) {
             VideoAdjustment.BRIGHTNESS -> {
                 brightness = (brightness + step).coerceIn(0f, 1f)
+                // Remembered for the sitting, so the next video in the queue keeps it.
+                ChosenBrightness.choose(brightness)
                 activity?.applyBrightness(brightness)
             }
             VideoAdjustment.VOLUME -> {
@@ -89,12 +91,20 @@ internal class VideoGestureState(
     }
 
     /**
-     * Restores the window to the system brightness. Called when the video goes away:
-     * a window left dimmed would silently darken the rest of the app.
+     * Restores the WINDOW to the system brightness. Called when the video goes away: a window left
+     * dimmed would silently darken the rest of the app.
+     *
+     * The user's CHOICE is deliberately not forgotten — see [ChosenBrightness]. This used to reset
+     * it too, so a brightness set by gesture was lost at every track change, which is the app
+     * changing a setting nobody touched.
      */
     fun release() {
-        brightness = INITIAL_BRIGHTNESS
         activity?.applyBrightness(WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE)
+    }
+
+    /** Re-applies a brightness chosen earlier this session, when a video appears again. */
+    fun restoreChosenBrightness() {
+        if (ChosenBrightness.isSet) activity?.applyBrightness(ChosenBrightness.value)
     }
 
     private companion object {
@@ -109,7 +119,9 @@ internal fun rememberVideoGestures(): VideoGestureState {
     val context = LocalContext.current
     val activity = context.findActivity()
     val audio = context.getSystemService<AudioManager>()
-    return remember(activity, audio) { VideoGestureState(activity, audio) }
+    return remember(activity, audio) {
+        VideoGestureState(activity, audio).also { it.restoreChosenBrightness() }
+    }
 }
 
 /**
