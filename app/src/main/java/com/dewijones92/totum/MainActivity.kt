@@ -80,12 +80,28 @@ class MainActivity : FragmentActivity() {
     private fun handleShareIntent(intent: Intent) {
         if (handleAuthIntent(intent)) return
         val url = intent.sharedWatchUrl() ?: return
+        if (intent.getBooleanExtra(EXTRA_SHARE_HANDLED, false)) {
+            // Said out loud: a share that is deliberately ignored and a share that silently failed
+            // look identical from the outside, and only one of them is a bug.
+            Diag.log("share", "ignoring a share already handled: $url")
+            return
+        }
         // Logged because this path was completely silent: a shared link that misbehaved left
         // nothing in a report tying the playback to the share (0.1.228).
         Diag.log("share", "shared link -> $url")
-        // Consumed, so it plays ONCE. The activity's intent outlives a recreation, and
-        // onCreate reads it — so a rotation, a theme change or a process restart replayed
-        // the shared video over whatever was playing, days after it was shared.
+        // Consumed, so it plays ONCE — and consumed TWO ways, because clearing the field is not
+        // enough on its own.
+        //
+        // `setIntent(Intent())` only replaces the Activity's in-memory intent. The TASK keeps the
+        // intent it was launched with, so reopening from recents — especially after the process has
+        // been killed — delivers the original ACTION_SEND again. Report 0.1.346 caught exactly that:
+        // one shared link fired five times over five hours (21:22, then 02:16, 02:20, 02:21,
+        // 02:22), barging a TED talk in over whatever was playing each time. The clear alone had
+        // been in place the whole while.
+        //
+        // Marking the intent itself is what survives that, because the extra travels with the
+        // intent the task redelivers.
+        intent.putExtra(EXTRA_SHARE_HANDLED, true)
         setIntent(Intent())
         // Resolved first so the queue entry carries a real title rather than a URL; a
         // shared link is a deliberate, occasional action, so the extra resolve is cheap.
@@ -113,6 +129,12 @@ class MainActivity : FragmentActivity() {
     }
 
     private companion object {
+        /**
+         * Marks a share intent as spent. On the intent rather than in a field, so it survives the
+         * task being redelivered after the process is killed — the case a cleared field misses.
+         */
+        const val EXTRA_SHARE_HANDLED = "com.dewijones92.totum.SHARE_HANDLED"
+
         val SHARED_SOURCE = SourceId("shared")
         val URL_PATTERN = Regex("""https?://\S+""")
         val WATCH_MARKERS = listOf(
