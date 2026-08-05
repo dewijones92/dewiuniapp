@@ -229,7 +229,7 @@ public class Media3PlaybackController(
             // one stopped, which is finer-grained than the periodically-saved progress.
             val resumeMs = startPositionMs.takeIf { it > 0 }
                 ?: progressStore.resumePositionMs(item.id) ?: 0L
-            val speed = speedStore.speedFor(item.sourceId)
+            val speed = speedStore.speed()
             val boost = boostStore.boostFor(item.sourceId)
             withController { controller ->
                 // A newer play() superseded this one while we were loading — drop it,
@@ -288,7 +288,7 @@ public class Media3PlaybackController(
             it.setPlaybackSpeed(clamped)
             _state.value = it.currentPlaybackState()
         }
-        currentSourceId?.let { source -> scope.launch { speedStore.save(source, clamped) } }
+        scope.launch { speedStore.save(clamped) }
     }
 
     override fun preloadNext(url: HttpUrl) {
