@@ -230,7 +230,7 @@ public class Media3PlaybackController(
             val resumeMs = startPositionMs.takeIf { it > 0 }
                 ?: progressStore.resumePositionMs(item.id) ?: 0L
             val speed = speedStore.speed()
-            val boost = boostStore.boostFor(item.sourceId)
+            val boost = boostStore.boost()
             withController { controller ->
                 // A newer play() superseded this one while we were loading — drop it,
                 // so its media item and state never clobber the current item.
@@ -309,7 +309,7 @@ public class Media3PlaybackController(
             )
             _state.value = it.currentPlaybackState()
         }
-        currentSourceId?.let { source -> scope.launch { boostStore.save(source, boost) } }
+        scope.launch { boostStore.save(boost) }
     }
 
     override fun setSubtitleLanguage(languageCode: String?) {

@@ -3,7 +3,7 @@ title: Finding public-domain films and TV
 kind: todo
 area: search
 priority: medium
-status: Pi side BUILT and proven end to end 2026-08-01; app side not started
+status: BACKLOG — Pi side built and proven 2026-08-01; app side not started (Dewi, 2026-08-05)
 updated: 2026-08-01
 ---
 
