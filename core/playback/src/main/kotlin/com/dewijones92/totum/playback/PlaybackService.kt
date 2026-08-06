@@ -23,7 +23,6 @@ import androidx.media3.exoplayer.drm.DrmSessionManagerProvider
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.MergingMediaSource
-import androidx.media3.exoplayer.source.preload.DefaultPreloadManager
 import androidx.media3.exoplayer.upstream.DefaultBandwidthMeter
 import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy
 import androidx.media3.session.MediaSession
@@ -152,26 +151,18 @@ public class PlaybackService : MediaSessionService() {
         val player = ExoPlayer.Builder(this)
             .setRenderersFactory(renderersFactory)
             .setBandwidthMeter(bandwidth)
-            // Buffer MINUTES ahead, not the default ~50 seconds. Report 0.1.289 measured 4.5s
-            // of stalling across 16 minutes while the connection was delivering 57-184 Mbps at
-            // the very moments it recovered — you cannot stall for bandwidth at 184 Mbps. The
-            // default simply stops fetching once it is ~50s ahead, so a hiccup empties a buffer
-            // that had no business being that small.
-            //
-            // Bounded at four minutes rather than "the whole video": filling a queue of long
-            // items to the end would be a download, and there is a button for that. The PLAYBACK
-            // thresholds are left alone — they decide how fast playback starts, and raising them
-            // would trade these stalls for a slower start, which is more noticeable.
             .setLoadControl(
                 DefaultLoadControl.Builder()
                     .setBufferDurationsMs(
-                        MIN_BUFFER_MS,
-                        MAX_BUFFER_MS,
+                        BufferBudget.MIN_BUFFER_MS,
+                        BufferBudget.MAX_BUFFER_MS,
                         DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_MS,
                         DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS,
                     )
                     // A little behind too, so a small scrub back does not refetch.
-                    .setBackBuffer(BACK_BUFFER_MS, true)
+                    .setBackBuffer(BufferBudget.BACK_BUFFER_MS, true)
+                    // The byte ceiling that makes the duration above safe — see [BufferBudget].
+                    .setTargetBufferBytes(BufferBudget.PLAYBACK_BYTES)
                     .build(),
             )
             // Ranged fetches, not one open-ended GET: see ChunkedDataSource for the
@@ -200,8 +191,16 @@ public class PlaybackService : MediaSessionService() {
         player.addListener(
             object : Player.Listener {
                 override fun onTracksChanged(tracks: Tracks) = applyEffectiveSkipSilence()
+
+                // The service's own view of what started playing. Worth a line: the app logs the
+                // transition it ASKED for, which is not evidence the player made it.
+                override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                    Diag.log("playback", "service now on ${mediaItem?.mediaId ?: "nothing"} (reason $reason)")
+                    cachedPreloader?.releaseIfPlaying(mediaItem)
+                }
             },
         )
+        cachedPreloader = NextItemPreloader(this, ::sourceFactory)
         setUpCast(player)
         mediaSession = MediaSession.Builder(this, currentPlayer ?: player)
             .setCallback(SkipSilenceCallback())
@@ -233,22 +232,13 @@ public class PlaybackService : MediaSessionService() {
         ).also { cachedSourceFactory = it }
     }
 
-    /**
-     * Holds the first [PRELOAD_MS] of what is coming next, so a track change is not a wait.
-     *
-     * Dewi, 2026-08-02: *"just 30 seconds of future to be loaded right??"* — and Wi-Fi only, which
-     * is decided by the APP before it ever nominates anything. Nothing here spends data on its own
-     * initiative; it preloads exactly what it is told to.
-     *
-     * `ExoPlayer.PreloadConfiguration` cannot do this job: it preloads the next item in the
-     * PLAYER'S PLAYLIST, and the queue plays one item at a time because it owns advancing. This
-     * holds sources outside any playlist, which is the shape that actually fits.
-     */
+    /** Holds the first seconds of what is coming next; see [NextItemPreloader]. */
     @UnstableApi
-    private var cachedPreloader: DefaultPreloadManager? = null
+    private var cachedPreloader: NextItemPreloader? = null
 
-    /** What is currently held, so nominating something else releases the last one. */
-    private var preloading: MediaItem? = null
+    // Constructed in onCreate rather than lazily: Android lint does not follow an opt-in into a
+    // lazy lambda (see [sourceFactory]), and it is cheap — it builds no preload manager until it
+    // is first asked to hold something.
 
     /** Adds the skip-silences custom command and applies it to the audio processor. */
     @UnstableApi
@@ -274,7 +264,7 @@ public class PlaybackService : MediaSessionService() {
             args: Bundle,
         ): ListenableFuture<SessionResult> {
             if (customCommand.customAction == ACTION_PRELOAD_NEXT) {
-                args.getString(EXTRA_PRELOAD_URI)?.let(::preloadNext)
+                args.getString(EXTRA_PRELOAD_URI)?.let { cachedPreloader?.hold(it) }
                 return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
             }
             if (customCommand.customAction == ACTION_VOLUME_BOOST) {
@@ -290,28 +280,6 @@ public class PlaybackService : MediaSessionService() {
                 return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
             }
             return super.onCustomCommand(session, controller, customCommand, args)
-        }
-
-        @UnstableApi
-        private fun preloadNext(uri: String) {
-            // Built here rather than in its own function: the class is at detekt's function limit, and
-            // this is the only caller.
-            val preloader = cachedPreloader ?: run {
-                DefaultPreloadManager.Builder(this@PlaybackService) { _: Int ->
-                    DefaultPreloadManager.PreloadStatus.specifiedRangeLoaded(PRELOAD_MS * MICROS_PER_MS)
-                }
-                    .setMediaSourceFactory(sourceFactory())
-                    // No setPreloadLooper: the Context constructor supplies one and setting it again throws.
-                    .build()
-                    .also { cachedPreloader = it }
-            }
-            val item = MediaItem.fromUri(uri)
-            if (preloading?.localConfiguration?.uri?.toString() == uri) return
-            preloading?.let { preloader.remove(it) }
-            preloading = item
-            preloader.add(item, 0)
-            preloader.invalidate()
-            Diag.log("preload", "holding the first ${PRELOAD_MS}ms of ${uri.take(URL_CHARS)}")
         }
     }
 
@@ -477,7 +445,6 @@ public class PlaybackService : MediaSessionService() {
 
     private companion object {
         /** Enough to ride out a hiccup without a long wait before playback begins. */
-        const val MIN_BUFFER_MS = 30_000
 
         /**
          * How much of the NEXT item to hold. Dewi's figure, 2026-08-02: *"just 30 seconds of future
@@ -485,18 +452,8 @@ public class PlaybackService : MediaSessionService() {
          * ~0.5MB for a podcast, ~8MB for 1080p video — which is why the app only ever nominates
          * something on Wi-Fi.
          */
-        const val PRELOAD_MS = 30_000L
         const val MICROS_PER_MS = 1_000L
         const val URL_CHARS = 80
-
-        /**
-         * Four minutes. Bounded on purpose: buffering to the END of a queue of long items would
-         * be a download, and the app already has a button for that.
-         */
-        const val MAX_BUFFER_MS = 240_000
-
-        /** A short scrub backwards should not have to refetch what was just played. */
-        const val BACK_BUFFER_MS = 30_000
 
         // Podcast-style transport: small hop back to re-hear, bigger hop forward.
         const val SEEK_BACK_MS = 10_000L

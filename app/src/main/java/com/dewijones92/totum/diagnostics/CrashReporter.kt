@@ -3,6 +3,7 @@ package com.dewijones92.totum.diagnostics
 import android.app.ActivityManager
 import android.content.Context
 import android.os.Build
+import android.os.Debug
 import android.os.Environment
 import android.os.StatFs
 import androidx.core.content.getSystemService
@@ -33,11 +34,36 @@ public class CrashReporter(
     private val context: Context,
     private val stateProviders: () -> Map<String, String> = { emptyMap() },
 ) {
+    /**
+     * Held so an OutOfMemoryError can be reported at all.
+     *
+     * Writing a report allocates — a JSONObject, the stack trace as a string, the event trail —
+     * and on the way out of an OOM there is nothing left to allocate from, so the attempt threw a
+     * second OutOfMemoryError, `runCatching` swallowed it, and the crash left NO report. That is
+     * exactly what happened on 2026-08-06: the app died twice of OOM at 07:43 and the sink knew
+     * nothing about it; the cause had to be reconstructed from a diagnostics report sent by hand
+     * fifty minutes later, from a different process.
+     *
+     * Dropping this reserve first hands the handler a few MB of headroom to work in. Deliberately
+     * a plain allocation rather than anything clever: it has to exist before the crash, and the
+     * only thing it does is stop being referenced.
+     */
+    @Volatile
+    private var oomReserve: ByteArray? = ByteArray(OOM_RESERVE_BYTES)
+
     /** Installs the handler, chaining to whatever was there so the app still dies properly. */
     public fun install() {
         val previous = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, error ->
+            // FIRST, before anything that allocates, and for any error: a heap this close to
+            // full is why the report is about to fail, whatever the exception type says.
+            oomReserve = null
             runCatching { writeReport(kind = "crash", error = error, thread = thread.name) }
+                .onFailure {
+                    // A failure here is the report itself failing, which is invisible by
+                    // definition. Logcat is all that is left, and it survives the process.
+                    Diag.warn("diagnostics", "could not write the crash report for $error", it)
+                }
             previous?.uncaughtException(thread, error)
         }
         Diag.log("diagnostics", "crash reporter installed")
@@ -83,6 +109,13 @@ public class CrashReporter(
             put("android", "${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
             put("abis", JSONArray(Build.SUPPORTED_ABIS.toList()))
             put("memory", memoryInfo())
+            // Broken out as numbers as well as prose, because "was it near the ceiling?" is the
+            // first question of any OOM and the prose form cannot be compared across reports.
+            Runtime.getRuntime().let { runtime ->
+                put("heapUsedMb", (runtime.totalMemory() - runtime.freeMemory()) / MB)
+                put("heapMaxMb", runtime.maxMemory() / MB)
+                put("nativeHeapMb", Debug.getNativeHeapAllocatedSize() / MB)
+            }
             put("storageFreeMb", freeStorageMb())
 
             // Whatever the app can tell us about itself right now — playback, queue,
@@ -147,6 +180,12 @@ public class CrashReporter(
 
     private companion object {
         const val MB = 1024L * 1024L
+
+        /**
+         * Enough headroom for one report: the JSON, a stack trace, the event trail and a trimmed
+         * logcat come to a few hundred KB, and 4MB leaves room for the copies made on the way.
+         */
+        const val OOM_RESERVE_BYTES = 4 * 1024 * 1024
         const val LOGCAT_LINES = 1500
         const val MAX_LOGCAT_CHARS = 400_000
     }

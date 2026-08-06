@@ -3,6 +3,7 @@ package com.dewijones92.totum.playback
 import android.content.ComponentName
 import android.content.Context
 import android.os.Bundle
+import android.os.Debug
 import androidx.annotation.OptIn
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
@@ -19,6 +20,7 @@ import androidx.media3.session.SessionToken
 import com.dewijones92.totum.common.Diag
 import com.dewijones92.totum.common.HttpUrl
 import com.dewijones92.totum.common.SubtitleTrack
+import com.dewijones92.totum.common.Vitals
 import com.dewijones92.totum.domain.Chapter
 import com.dewijones92.totum.domain.MediaItem
 import com.dewijones92.totum.domain.MediaItemId
@@ -90,6 +92,7 @@ public class Media3PlaybackController(
     private var skipSilence = false
     private var volumeBoost = VolumeBoost.OFF
     private var ticksSinceSave = 0
+    private var ticksSinceMemory = 0
 
     init {
         val token = SessionToken(context, ComponentName(context, PlaybackService::class.java))
@@ -353,10 +356,40 @@ public class Media3PlaybackController(
                         ticksSinceSave = 0
                         saveProgress(controller)
                     }
+                    if (++ticksSinceMemory >= TICKS_PER_MEMORY_LOG) {
+                        ticksSinceMemory = 0
+                        logMemory()
+                    }
                 }
                 delay(POSITION_TICK_MS)
             }
         }
+    }
+
+    /**
+     * One line of heap, once a minute while something is playing.
+     *
+     * Because 0.1.346 died of OutOfMemoryError and the report could not say what had been
+     * climbing towards it: a Java OOM stack names whoever allocated last (a 16-byte allocation
+     * in Media3's frame-release code), never the hog. A sampled trail can show the shape, and
+     * sampling is the only way to see it — a watcher that only reports on change never fires
+     * while the number creeps.
+     *
+     * Sampled on the clock rather than per tick, and only while playing, so it costs one line a
+     * minute in a bounded report buffer.
+     */
+    private fun logMemory() {
+        val runtime = Runtime.getRuntime()
+        val usedMb = (runtime.totalMemory() - runtime.freeMemory()) / BYTES_PER_MB
+        val maxMb = runtime.maxMemory() / BYTES_PER_MB
+        val nativeMb = Debug.getNativeHeapAllocatedSize() / BYTES_PER_MB
+        Vitals.set("memory.heapUsedMb", usedMb.toString())
+        Vitals.set("memory.heapMaxMb", maxMb.toString())
+        Diag.log(
+            "memory",
+            "heap ${usedMb}MB of ${maxMb}MB, native ${nativeMb}MB " +
+                "(buffered ${_state.value?.bufferedPositionMs?.minus(_state.value?.positionMs ?: 0)}ms ahead)",
+        )
     }
 
     /** Persists the current item's position so it resumes there next time. */
@@ -414,6 +447,10 @@ public class Media3PlaybackController(
 
     private companion object {
         const val POSITION_TICK_MS = 500L
+
+        /** A minute at [POSITION_TICK_MS], so the heap trail is one line a minute while playing. */
+        const val TICKS_PER_MEMORY_LOG = 120
+        const val BYTES_PER_MB = 1024L * 1024L
         const val MIN_SPEED = 0.5f
         const val MAX_SPEED = 3.0f
 
