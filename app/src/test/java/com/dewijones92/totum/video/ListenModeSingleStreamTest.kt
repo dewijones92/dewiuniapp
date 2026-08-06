@@ -3,6 +3,8 @@ package com.dewijones92.totum.video
 import com.dewijones92.totum.common.HttpUrl
 import com.dewijones92.totum.data.history.fake.InMemoryPlayHistoryStore
 import com.dewijones92.totum.data.sponsorblock.SkipSegmentSource
+import com.dewijones92.totum.domain.MediaItem
+import com.dewijones92.totum.domain.MediaItemId
 import com.dewijones92.totum.domain.SourceId
 import com.dewijones92.totum.innertube.history.fake.FakeYouTubeWatchHistory
 import com.dewijones92.totum.playback.fake.FakePlaybackController
@@ -58,10 +60,26 @@ class ListenModeSingleStreamTest {
 
     private val watchUrl = HttpUrl.of("https://home.test/ts/stream/S01E01.mkv")
 
+    /**
+     * The listing that was tapped, which is now what `play` takes.
+     *
+     * It takes the item rather than a bare URL because a resolution has nothing to say about view
+     * counts or publication dates, and building a fresh item from one dropped both — see
+     * `MediaItem.withStreamFrom`.
+     */
+    private val listing = MediaItem(
+        id = MediaItemId("one-stream"),
+        sourceId = SourceId("torrent"),
+        title = "S01E01",
+        publishedAt = null,
+        duration = null,
+        mediaUrl = watchUrl,
+    )
+
     @Test
     fun `switching to watch does not re-prepare a single-stream item`() = runTest {
         val launcher = launcher()
-        launcher.play(watchUrl, SourceId("torrent"))
+        launcher.play(listing, watchUrl)
         val afterPlay = playback.played.size
 
         launcher.watch()
@@ -73,7 +91,7 @@ class ListenModeSingleStreamTest {
     @Test
     fun `switching to listen does not re-prepare a single-stream item`() = runTest {
         val launcher = launcher()
-        launcher.play(watchUrl, SourceId("torrent"))
+        launcher.play(listing, watchUrl)
         val afterPlay = playback.played.size
 
         launcher.listen()

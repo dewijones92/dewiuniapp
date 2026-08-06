@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import com.dewijones92.totum.R
 import com.dewijones92.totum.domain.MediaItem
+import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -15,22 +16,30 @@ import kotlin.time.Duration
  * Duration is deliberately NOT here — it rides on the thumbnail, where an ellipsis cannot
  * reach it. This line is the part that may truncate, so the least essential facts go last.
  */
-@Composable
-fun mediaItemSubtitle(item: MediaItem): String? {
-    // Prefer the source's own published text (e.g. YouTube's "2 days ago");
-    // otherwise format an absolute date (podcasts).
-    val date = item.publishedText ?: item.publishedAt?.let {
+fun mediaItemSubtitle(item: MediaItem): String? =
+    mediaSubtitle(item.author, mediaDateText(item.publishedText, item.publishedAt), item.viewsText)
+
+/**
+ * When a thing was published, as a list says it.
+ *
+ * Its own function because the video page has to say it too, and it holds a real decision: prefer
+ * the source's own relative wording ("2 days ago") over a formatted absolute date, because that is
+ * what YouTube gives and re-deriving "2 days ago" from a timestamp would drift from the site.
+ *
+ * Deliberately NOT `@Composable` — nor is [mediaSubtitle] any more, though both used to be. Neither
+ * ever called anything composable, and the annotation was the only thing keeping the rule that
+ * decides what appears under every video title out of reach of a JVM unit test.
+ */
+fun mediaDateText(publishedText: String?, publishedAt: Instant?): String? =
+    publishedText ?: publishedAt?.let {
         DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withZone(ZoneId.systemDefault()).format(it)
     }
-    return mediaSubtitle(item.author, date, item.viewsText)
-}
 
 /**
  * The one place that formats "author · views · date". Takes the parts rather than a
  * [MediaItem] so search hits — which aren't media items yet — read identically to every
  * other list instead of composing their own subtitle.
  */
-@Composable
 fun mediaSubtitle(author: String?, dateText: String?, viewsText: String? = null): String? =
     listOfNotNull(author, viewsText, dateText).joinToString(" · ").ifBlank { null }
 

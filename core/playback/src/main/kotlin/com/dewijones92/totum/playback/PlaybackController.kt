@@ -10,6 +10,7 @@ import com.dewijones92.totum.domain.MediaKind
 import com.dewijones92.totum.domain.SkipSegment
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
+import java.time.Instant
 
 /**
  * The app's single playback seam. Both pillars play through this: a podcast
@@ -121,6 +122,18 @@ public data class PlaybackState(
     val title: String,
     val artist: String?,
     val artworkUrl: String?,
+    /**
+     * "1.2M views" as the source rendered it, and when it was published — the same facts every
+     * list shows under a title, so the video page can say them too.
+     *
+     * Dewi, 2026-08-06: *"videoviews, datestuff, datepublished ... this additional detail must
+     * appear within video page also"*. They arrive here rather than being looked up because the
+     * player is the only thing that knows what is playing, and the session is the only channel
+     * between the two — a UI that re-fetched them would be a second source of the same truth.
+     */
+    val viewsText: String? = null,
+    val publishedText: String? = null,
+    val publishedAt: Instant? = null,
     /** Which pillar is playing — lets the UI show whether it's a video or a podcast. */
     val kind: MediaKind = MediaKind.VIDEO,
     /** The item's description / show notes, when known. Shown on the full player. */

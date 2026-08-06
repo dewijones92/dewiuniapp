@@ -524,3 +524,13 @@ private class MergingAudioVideoFactory(
 
 /** Extras key on a [MediaItem]'s request metadata carrying the separate audio-track URL. */
 internal const val EXTRA_AUDIO_URL: String = "com.dewijones92.totum.AUDIO_URL"
+
+/**
+ * The listing's own facts, carried on the session metadata so the video page can show them.
+ *
+ * A resolution knows nothing about view counts or publication dates, so these can only come from
+ * the listing that was tapped — see `MediaItem.withStreamFrom`.
+ */
+internal const val EXTRA_VIEWS_TEXT: String = "com.dewijones92.totum.VIEWS_TEXT"
+internal const val EXTRA_PUBLISHED_TEXT: String = "com.dewijones92.totum.PUBLISHED_TEXT"
+internal const val EXTRA_PUBLISHED_AT: String = "com.dewijones92.totum.PUBLISHED_AT"

@@ -50,6 +50,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -66,6 +67,8 @@ import com.dewijones92.totum.playback.SleepTimerState
 import com.dewijones92.totum.ui.cast.CastButton
 import com.dewijones92.totum.ui.common.MediaThumbnail
 import com.dewijones92.totum.ui.common.PillarBadge
+import com.dewijones92.totum.ui.common.mediaDateText
+import com.dewijones92.totum.ui.common.mediaSubtitle
 import com.dewijones92.totum.ui.player.WatchViewModel.CommentsState
 import com.dewijones92.totum.ui.player.WatchViewModel.PostState
 import com.dewijones92.totum.ui.player.WatchViewModel.RelatedState
@@ -360,6 +363,7 @@ private fun PlayerDetails(
             modifier = Modifier.padding(top = 8.dp),
         )
     }
+    ViewsAndDate(state)
     // Says whether this is a YouTube video or a podcast, and — beside it — the same
     // long-press menu every row has. Sharing that sheet is what guarantees the player
     // never offers less than a row does.
@@ -414,6 +418,38 @@ private fun PlayerDetails(
         CommentsSection(comments, watchActions, replies)
     }
 }
+
+/**
+ * "1.2M views · 2 days ago" — the same facts every list shows under a title.
+ *
+ * Formatted by the same function the rows use, so the page cannot drift from the row that led to it.
+ * The author is omitted rather than repeated: it is the line directly above this one.
+ *
+ * Dewi, 2026-08-06: *"this additional detail must appear within video page also"*.
+ */
+@Composable
+private fun ViewsAndDate(state: PlaybackState) {
+    val line = mediaSubtitle(
+        author = null,
+        dateText = mediaDateText(state.publishedText, state.publishedAt),
+        viewsText = state.viewsText,
+    ) ?: return
+    Text(
+        text = line,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.padding(top = 4.dp).testTag(PLAYER_METADATA_TAG),
+    )
+}
+
+/**
+ * Test tag on the views/date line, so an instrumented test can assert the facts reached the page.
+ *
+ * They travel through the media session as extras, which is exactly the kind of handoff that
+ * compiles and then silently carries nothing — see `PlayerMetadataTest`.
+ */
+const val PLAYER_METADATA_TAG: String = "player-views-and-date"
 
 /** The up-next queue: a titled list, tap an entry to jump to it, X to remove it. */
 @Composable

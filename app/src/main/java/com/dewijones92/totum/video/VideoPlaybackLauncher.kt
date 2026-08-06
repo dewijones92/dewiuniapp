@@ -7,6 +7,7 @@ import com.dewijones92.totum.domain.MediaItem
 import com.dewijones92.totum.domain.PlayHandle
 import com.dewijones92.totum.domain.PlayableItem
 import com.dewijones92.totum.domain.SourceId
+import com.dewijones92.totum.domain.withStreamFrom
 import com.dewijones92.totum.innertube.history.YouTubeWatchHistory
 import com.dewijones92.totum.playback.PlaybackController
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -76,10 +77,16 @@ class VideoPlaybackLauncher(
      * quality ladder) and plays the default quality. Returns false when the
      * video can't be resolved (private, removed, geo-blocked, …).
      */
-    suspend fun play(watchUrl: HttpUrl, sourceId: SourceId, startPositionMs: Long = 0): Boolean {
+    suspend fun play(listing: MediaItem, watchUrl: HttpUrl, startPositionMs: Long = 0): Boolean {
         // `asked` names WHO wanted this, because a report showed one video extracted four
         // times in thirty seconds and the log could not say by whom.
-        val resolved = resolver.resolve(watchUrl, sourceId, asked = "play") ?: return false
+        val extracted = resolver.resolve(watchUrl, listing.sourceId, asked = "play") ?: return false
+        // The listing's facts kept, ONCE, here — so every path below (a quality switch, Listen
+        // mode, a stall replay) carries the view count and publication date without knowing it
+        // has to. A resolution has nothing to say about either, and all three resolver paths
+        // build a fresh item with `publishedAt = null`, so this is where they would otherwise be
+        // lost for good. See MediaItem.withStreamFrom.
+        val resolved = extracted.copy(item = listing.withStreamFrom(extracted.item))
         current = resolved
         // Record the play against the stable watch URL (streaming URLs expire), so
         // a history replay re-resolves through this same launcher.

@@ -64,13 +64,19 @@ class VideosPagingTest {
     @After
     fun resetMainDispatcher() = Dispatchers.resetMain()
 
-    private fun video(id: String) = FeedVideo(
+    private fun video(
+        id: String,
+        viewsText: String? = null,
+        publishedText: String? = null,
+    ) = FeedVideo(
         videoId = id,
         title = "Video $id",
         author = "Channel",
         durationSeconds = 60,
         thumbnailUrl = null,
         watchUrl = HttpUrl.of("https://www.youtube.com/watch?v=$id"),
+        viewsText = viewsText,
+        publishedText = publishedText,
     )
 
     private fun TestScope.viewModel(): VideosViewModel {
@@ -149,6 +155,49 @@ class VideosPagingTest {
         assertEquals(listOf("Video a", "Video b"), model.uiState.value.videos.map { it.title })
         assertEquals(PageToken("page-2"), feeds.requested.last().second)
         assertTrue(model.uiState.value.canLoadMore)
+    }
+
+    /**
+     * Scrolling down must not lose the facts under each title.
+     *
+     * Dewi, 2026-08-06: *"i want things like videoviews, datestuff, datepublished always visible
+     * whenever videos are listed (test scrolling down also to see if they work for scrolled down of
+     * list of videos"*.
+     *
+     * This is the level at which "scrolled down" can genuinely break, and it is not the UI: a lazy
+     * list composes every row from one composable, so if row 1 shows its view count then row 60
+     * does. What differs about row 60 is where its DATA came from — a continuation response, mapped
+     * and appended by a different call than the first page. A page-2 mapping that dropped a field
+     * would look exactly like "the details stop when you scroll".
+     */
+    @Test
+    fun `videos from a later page keep their view count and date`() = runTest(dispatcher) {
+        feeds.results[AccountFeed.SUBSCRIPTIONS] = FeedResult.Success(
+            Page(listOf(video("a", "1.2M views", "2 days ago")), PageToken("page-2")),
+        )
+        feeds.pages["page-2"] = FeedResult.Success(
+            Page.last(listOf(video("b", "907K views", "3 weeks ago"))),
+        )
+
+        val model = viewModel()
+        backgroundScope.launch { model.uiState.collect {} }
+        model.select(FeedChoice.Account(AccountFeed.SUBSCRIPTIONS))
+        advanceUntilIdle()
+        model.loadMore()
+        advanceUntilIdle()
+
+        val videos = model.uiState.value.videos
+        assertEquals("both pages should be present", 2, videos.size)
+        assertEquals(
+            "the second page's view counts were dropped on the way through",
+            listOf("1.2M views", "907K views"),
+            videos.map { it.viewsText },
+        )
+        assertEquals(
+            "the second page's dates were dropped on the way through",
+            listOf("2 days ago", "3 weeks ago"),
+            videos.map { it.publishedText },
+        )
     }
 
     /** YouTube does return overlapping pages; a duplicate LazyColumn key is a crash. */

@@ -72,6 +72,42 @@ public data class MediaItem(
 }
 
 /**
+ * The same item, now playable: whatever [stream] actually says, and the listing's facts kept.
+ *
+ * **A resolution answers "how do I play this", not "what is this"** — and until this existed the
+ * two were conflated. Resolving a video builds a fresh [MediaItem] from what the extractor says,
+ * in three separate places, and the extractor says nothing about view counts and nothing about
+ * when a thing was published (`publishedAt = null` in all three). So an item that carried
+ * "1.2M views · 2 days ago" in every list arrived at the player with both gone, and the video page
+ * could not have shown them however it was written.
+ *
+ * Which facts belong to which side is the whole content of this function, so it is here — one
+ * pillar-neutral rule with tests — rather than spelled out at each call site where the next
+ * resolution path would forget one.
+ *
+ * Substituted once, at the moment of resolution, so every downstream path (a quality switch,
+ * Listen mode, a stall rescue) carries the listing's facts without knowing it has to.
+ */
+public fun MediaItem.withStreamFrom(stream: MediaItem): MediaItem = copy(
+    // The resolution wins wherever it actually says something, so nothing about how a resolved
+    // item plays or reads changes. This is deliberately the SMALLEST rule that fixes the loss:
+    // an early version also preferred the listing's title, which changed shipped behaviour for no
+    // reason anybody had asked for, and `SearchViewModelTest` caught it.
+    mediaUrl = stream.mediaUrl ?: mediaUrl,
+    duration = stream.duration ?: duration,
+    description = stream.description ?: description,
+    title = stream.title.ifBlank { title },
+    author = stream.author ?: author,
+    thumbnailUrl = stream.thumbnailUrl ?: thumbnailUrl,
+    sourceUrl = stream.sourceUrl ?: sourceUrl,
+    chapters = stream.chapters.ifEmpty { chapters },
+    // Everything not named above keeps the listing's value — viewsText, publishedText,
+    // publishedAt, membersOnly, contentKind — because a resolution has nothing to say about any of
+    // them. A null from something that never had an opinion is silence, not news, and treating it
+    // as news is exactly how these facts were being thrown away.
+)
+
+/**
  * "1.2M views" from a raw count — YouTube's own shape, so a yt-dlp-sourced row and an
  * InnerTube-sourced one read identically in the same list.
  */

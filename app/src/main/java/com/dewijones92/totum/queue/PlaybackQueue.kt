@@ -482,7 +482,7 @@ class PlaybackQueue(
                 )
                 true
             }
-            is PlayRoute.VideoStream -> launcher.play(route.watchUrl, route.playable.item.sourceId, startPositionMs)
+            is PlayRoute.VideoStream -> launcher.play(route.playable.item, route.watchUrl, startPositionMs)
             is PlayRoute.AudioStream -> {
                 controller.play(route.playable.item, MediaKind.PODCAST, startPositionMs = startPositionMs)
                 true

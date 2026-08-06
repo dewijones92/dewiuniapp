@@ -39,6 +39,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.IOException
+import java.time.Instant
 import kotlin.time.Duration.Companion.milliseconds
 import androidx.media3.common.MediaItem as Media3MediaItem
 
@@ -215,6 +216,18 @@ public class Media3PlaybackController(
                     .setArtist(item.author)
                     .setDescription(item.description)
                     .setArtworkUri(item.thumbnailUrl?.value?.let(android.net.Uri::parse))
+                    // The listing's own facts, round-tripped so the video page can show what every
+                    // list shows. MediaMetadata has no field for either, hence extras — the same
+                    // channel the merged audio URL already uses.
+                    .setExtras(
+                        bundleOf(
+                            EXTRA_VIEWS_TEXT to item.viewsText,
+                            EXTRA_PUBLISHED_TEXT to item.publishedText,
+                            // Epoch millis, with -1 for absent: a Bundle cannot carry an Instant,
+                            // and a nullable Long would box for no gain.
+                            EXTRA_PUBLISHED_AT to (item.publishedAt?.toEpochMilli() ?: NO_INSTANT),
+                        ),
+                    )
                     // Round-trips the pillar through the session so the UI can label it.
                     .setMediaType(
                         when (kind) {
@@ -417,6 +430,12 @@ public class Media3PlaybackController(
             title = current.mediaMetadata.title?.toString().orEmpty(),
             artist = current.mediaMetadata.artist?.toString(),
             artworkUrl = current.mediaMetadata.artworkUri?.toString(),
+            viewsText = current.mediaMetadata.extras?.getString(EXTRA_VIEWS_TEXT),
+            publishedText = current.mediaMetadata.extras?.getString(EXTRA_PUBLISHED_TEXT),
+            publishedAt = current.mediaMetadata.extras
+                ?.getLong(EXTRA_PUBLISHED_AT, NO_INSTANT)
+                ?.takeIf { it != NO_INSTANT }
+                ?.let(Instant::ofEpochMilli),
             description = current.mediaMetadata.description?.toString(),
             kind = if (current.mediaMetadata.mediaType == MediaMetadata.MEDIA_TYPE_PODCAST_EPISODE) {
                 MediaKind.PODCAST
@@ -463,6 +482,9 @@ public class Media3PlaybackController(
 
         /** Room for a burst of ends without ever suspending the player's callback thread. */
         const val EVENT_BUFFER = 8
+
+        /** A Bundle cannot hold a null Long, so absence needs a value no real instant has. */
+        const val NO_INSTANT = -1L
     }
 }
 
