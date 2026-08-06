@@ -1,14 +1,19 @@
 ---
 title: Easy audio ↔ video switching for a queue item
 kind: todo
-status: refining
+status: shipped — the switch and the toggle both work; merging a LOCAL audio copy with video is the open part
 area: playback
 priority: high
 requested: 2026-07-25
-updated: 2026-07-25
+updated: 2026-08-06
 ---
 
 # Switch between audio and video, carrying the position
+
+> **Status corrected 2026-08-06.** This file said `refining` while the backlog index said
+> "shipped (local-audio merge outstanding)" — two statuses for one item, which is how a stale status
+> starts. The switch, the toggle and the position-carrying all shipped; what remains is the narrow
+> case below.
 
 **Ask:** the queue auto-downloads audio for everything — but when I tap a queue item
 (playing or not), ask me whether I want to **switch to video**; if yes, carry on from

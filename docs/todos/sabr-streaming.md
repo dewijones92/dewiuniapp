@@ -3,8 +3,8 @@ title: yt-dlp needs a JavaScript runtime (kids videos were stuck at 360p)
 kind: todo
 area: video
 priority: medium
-status: partly shipped
-updated: 2026-07-31
+status: partly shipped — fallback AND QuickJS both shipped; time-addressed seeking still open
+updated: 2026-08-06
 ---
 
 # The 360p problem, and what it actually was
@@ -44,7 +44,13 @@ ranged GET returns HTTP 206 at ~29 MB/s, and on-device the resolver logs
 Deliberately a fallback, not a replacement: yt-dlp handles age gates, region locks,
 signature ciphers and non-YouTube sources that this does not.
 
-## Open: ship QuickJS, so yt-dlp itself works properly
+## SHIPPED: QuickJS, so yt-dlp itself works properly
+
+> Confirmed 2026-08-06 from the code and from a device. `lib/ytdlp-chaquopy/QuickJsBinary.kt` ships
+> the binary and links it where yt-dlp looks; `NSolver` (with its own tests) solves `n` for the
+> InnerTube path; and report 0.1.346 records the runtime being used on Dewi's phone:
+> `[engine] JS runtime: /data/user/0/com.dewijones92.totum/files/qjs-bin/qjs`. The reasoning below is
+> kept for why it was worth doing.
 
 yt-dlp supports `deno`, `node`, `quickjs`, `bun`, and looks for quickjs as a binary named
 `qjs` at a path we can supply. That is **the machinery we already have for ffmpeg**: build a

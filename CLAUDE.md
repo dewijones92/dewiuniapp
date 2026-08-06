@@ -311,6 +311,14 @@ when driven on the emulator. Verify real flows on a device, not just via tests.
   otherwise (his standing rule, which reverses the earlier strip-before-commit one):
   these lines are often useful again. Make a chatty one reasonable — log only the
   interesting case, or lower its frequency — rather than deleting it.
+- **A doc's `status` is a claim, and a stale claim is worse than none.** Twice on 2026-08-06 a
+  status line was simply wrong: `public-domain-film-tv` said "app side not started" when the whole
+  client, the zero-config host and the sign-in flow had shipped — which sent that session's opening
+  recommendation in the wrong direction — and `audio-video-switching` said `refining` in its
+  frontmatter while the index said "shipped". So: when you touch an area, **re-read its status
+  against the code and correct it**, treat a disagreement between a file and the index as a bug in
+  both, and when you find a status was wrong, say so in the doc rather than quietly fixing it — the
+  next person needs to know the map has been unreliable there.
 - **Every flow that matters gets an e2e in CI.** Dewi, 2026-08-06: *"make sure you have e2e of
   all these flows … in the ci/cd please"*. A flow with no e2e is one whose next regression is
   found on a plane. Where a flow depends on something CI cannot reach (the Pi, live YouTube),
