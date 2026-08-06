@@ -264,7 +264,13 @@ public class PlaybackService : MediaSessionService() {
             args: Bundle,
         ): ListenableFuture<SessionResult> {
             if (customCommand.customAction == ACTION_PRELOAD_NEXT) {
-                args.getString(EXTRA_PRELOAD_URI)?.let { cachedPreloader?.hold(it) }
+                val uri = args.getString(EXTRA_PRELOAD_URI)
+                val itemId = args.getString(EXTRA_PRELOAD_ITEM_ID)
+                if (uri != null && itemId != null) {
+                    cachedPreloader?.hold(itemId, uri)
+                } else {
+                    Diag.warn("preload", "nomination with no ${if (uri == null) "uri" else "item id"} — ignored")
+                }
                 return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
             }
             if (customCommand.customAction == ACTION_VOLUME_BOOST) {
@@ -481,6 +487,9 @@ internal const val ACTION_SKIP_SILENCE: String = "com.dewijones92.totum.SKIP_SIL
  */
 internal const val ACTION_PRELOAD_NEXT: String = "com.dewijones92.totum.PRELOAD_NEXT"
 internal const val EXTRA_PRELOAD_URI: String = "uri"
+
+/** The item a nomination is FOR; what the preloader releases on. See [NextItemPreloader]. */
+internal const val EXTRA_PRELOAD_ITEM_ID: String = "item_id"
 internal const val ACTION_VOLUME_BOOST: String = "com.dewijones92.totum.VOLUME_BOOST"
 internal const val EXTRA_VOLUME_BOOST_MILLIBELS: String = "gain_millibels"
 internal const val EXTRA_SKIP_SILENCE_ENABLED: String = "enabled"

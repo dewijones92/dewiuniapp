@@ -977,6 +977,7 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
                     // video's size, and preloading the picture for a mode that will not show it
                     // would spend the data twice over.
                     nominatePreload(
+                        item.item.id,
                         if (audioPlaybackPreferred()) {
                             resolved.audioOnlyUrl ?: resolved.item.mediaUrl
                         } else {
@@ -1011,17 +1012,23 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
             is PlayHandle.LocalVideo -> null
             is PlayHandle.Video -> null
         } ?: return
-        nominatePreload(url)
+        nominatePreload(item.item.id, url)
     }
 
-    /** The one place bytes are actually asked for, so the Wi-Fi gate cannot be bypassed. */
-    private fun nominatePreload(url: HttpUrl?) {
+    /**
+     * The one place bytes are actually asked for, so the Wi-Fi gate cannot be bypassed.
+     *
+     * [itemId] travels with the URL because it is what the preloader releases on — a stream URL is
+     * re-signed per resolve and is routinely not the one the item ends up playing, so keying on it
+     * meant nothing was ever released. See `PlaybackController.preloadNext`.
+     */
+    private fun nominatePreload(itemId: MediaItemId, url: HttpUrl?) {
         if (url == null) return
         if (networkStatus.isMetered()) {
-            Diag.log("preload", "not preloading ${url.value.take(URL_LOG_CHARS)}: on metered data")
+            Diag.log("preload", "not preloading $itemId: on metered data")
             return
         }
-        playbackController.preloadNext(url)
+        playbackController.preloadNext(itemId, url)
     }
 
     override fun isOffline(): Boolean = !networkStatus.isOnline()
@@ -1127,9 +1134,6 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
         const val TORRENT_SEARCH_TIMEOUT_SECONDS = 180L
     }
 }
-
-/** Enough of a URL to identify it in a report without filling the buffer. */
-private const val URL_LOG_CHARS = 60
 
 /** Enough of a title to recognise the item in a per-item report line. */
 private const val DIAG_TITLE_CHARS = 40

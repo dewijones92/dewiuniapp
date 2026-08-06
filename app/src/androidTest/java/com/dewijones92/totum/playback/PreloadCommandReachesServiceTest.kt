@@ -54,7 +54,7 @@ class PreloadCommandReachesServiceTest {
 
     @Test
     fun `nominating the next item reaches the service and is accepted`() = runBlocking(Dispatchers.Main) {
-        controller.preloadNext(HttpUrl.of("https://example.test/next-episode.mp3"))
+        controller.preloadNext(MediaItemId("nominated-item"), HttpUrl.of("https://example.test/next-episode.mp3"))
 
         val held = withTimeoutOrNull(TIMEOUT_MS) {
             while (Breadcrumbs.snapshot().none { "holding the first" in it.message }) delay(POLL_MS)
@@ -82,23 +82,15 @@ class PreloadCommandReachesServiceTest {
      */
     @Test
     fun `playing the nominated item releases the held copy`() = runBlocking(Dispatchers.Main) {
-        // A URI of its OWN, not the one the test above nominates: the service outlives a single
-        // test, and `hold` correctly ignores a re-nomination of what it is already holding — so
-        // sharing the URI made this test's setup fail for a reason that was nothing to do with it.
+        // An id and URI of their OWN, not the ones the test above nominates: the service outlives a
+        // single test, and `hold` correctly ignores a re-nomination of what it is already holding —
+        // so sharing them made this test's setup fail for a reason nothing to do with it.
+        val itemId = MediaItemId("preloaded-item")
         val uri = HttpUrl.of("https://example.test/released-episode.mp3")
-        controller.preloadNext(uri)
+        controller.preloadNext(itemId, uri)
         assertTrue("setup: it must be held before releasing it means anything", awaitTrail("holding the first"))
 
-        controller.play(
-            MediaItem(
-                id = MediaItemId("preloaded-item"),
-                sourceId = SourceId("test"),
-                title = "the nominated item",
-                publishedAt = null,
-                duration = null,
-                mediaUrl = uri,
-            ),
-        )
+        controller.play(itemPlaying(itemId, uri))
 
         assertTrue(
             "playing what was preloaded must release the held copy, or its bytes are held twice. " +
@@ -106,6 +98,46 @@ class PreloadCommandReachesServiceTest {
             awaitTrail("released the held copy"),
         )
     }
+
+    /**
+     * The release must key on the ITEM, because the URL is never the same twice.
+     *
+     * This is the test that was missing, and its absence is why the defect shipped: the case above
+     * nominates and plays the SAME URL, which real playback does not do. A video's stream URL is
+     * re-resolved for playback and comes back signed, expiring and often at a different itag, so the
+     * held URL and the played URL differ every time — and while the release compared them, it could
+     * never match. Report 0.1.359 has three `still holding … — what started is …` lines where both
+     * URLs are the same video at itags 18 and 399, so the preloaded bytes stayed on a heap that was
+     * already at 255MB of 256MB.
+     */
+    @Test
+    fun `the held copy is released even though the stream url resolved differently`() =
+        runBlocking(Dispatchers.Main) {
+            val itemId = MediaItemId("re-resolved-item")
+            controller.preloadNext(itemId, HttpUrl.of("https://example.test/muxed.mp4?itag=18&expire=1"))
+
+            assertTrue("setup: nothing was held", awaitTrail("holding the first"))
+            Breadcrumbs.clear()
+
+            // The same item, resolved to a different stream — which is the normal case.
+            controller.play(itemPlaying(itemId, HttpUrl.of("https://example.test/video.mp4?itag=399&expire=2")))
+
+            assertTrue(
+                "the held copy must be released when its ITEM starts playing, whatever URL that " +
+                    "item resolved to. Trail: " +
+                    Breadcrumbs.snapshot().map { it.message }.takeLast(TRAIL_LINES),
+                awaitTrail("released the held copy"),
+            )
+        }
+
+    private fun itemPlaying(id: MediaItemId, url: HttpUrl) = MediaItem(
+        id = id,
+        sourceId = SourceId("test"),
+        title = "the nominated item",
+        publishedAt = null,
+        duration = null,
+        mediaUrl = url,
+    )
 
     private suspend fun awaitTrail(fragment: String): Boolean = withTimeoutOrNull(TIMEOUT_MS) {
         while (Breadcrumbs.snapshot().none { fragment in it.message }) delay(POLL_MS)

@@ -33,7 +33,7 @@ class PreloadOnWifiOnlyTest {
             is PlayHandle.LocalVideo -> null
             is PlayHandle.Video -> null
         } ?: return
-        controller.preloadNext(url)
+        controller.preloadNext(MediaItemId("nominated"), url)
     }
 
     private val stream = HttpUrl.of("https://example.test/episode.mp3")
@@ -108,7 +108,7 @@ class PreloadOnWifiOnlyTest {
      */
     private fun nominateResolved(streamUrl: HttpUrl?, audioOnlyUrl: HttpUrl?, listening: Boolean) {
         val url = if (listening) audioOnlyUrl ?: streamUrl else streamUrl
-        url?.let { controller.preloadNext(it) }
+        url?.let { controller.preloadNext(MediaItemId("nominated"), it) }
     }
 
     private val videoStream = HttpUrl.of("https://googlevideo.test/videoplayback?itag=22")

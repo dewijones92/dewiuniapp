@@ -294,11 +294,15 @@ public class Media3PlaybackController(
         scope.launch { speedStore.save(clamped) }
     }
 
-    override fun preloadNext(url: HttpUrl) {
+    override fun preloadNext(itemId: MediaItemId, url: HttpUrl) {
         withController {
             it.sendCustomCommand(
                 SessionCommand(ACTION_PRELOAD_NEXT, Bundle.EMPTY),
-                bundleOf(EXTRA_PRELOAD_URI to url.value),
+                bundleOf(
+                    EXTRA_PRELOAD_URI to url.value,
+                    // The identity the service releases on. See PlaybackController.preloadNext.
+                    EXTRA_PRELOAD_ITEM_ID to itemId.value,
+                ),
             )
         }
     }

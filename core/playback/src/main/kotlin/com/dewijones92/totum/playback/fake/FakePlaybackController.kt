@@ -4,6 +4,7 @@ import androidx.media3.common.Player
 import com.dewijones92.totum.common.HttpUrl
 import com.dewijones92.totum.common.SubtitleTrack
 import com.dewijones92.totum.domain.MediaItem
+import com.dewijones92.totum.domain.MediaItemId
 import com.dewijones92.totum.domain.MediaKind
 import com.dewijones92.totum.domain.SkipSegment
 import com.dewijones92.totum.playback.PlaybackController
@@ -159,8 +160,12 @@ public class FakePlaybackController : PlaybackController {
     /** What was nominated for preloading, so a test can assert data was (or was not) spent. */
     public var preloaded: MutableList<HttpUrl> = mutableListOf()
 
-    override fun preloadNext(url: HttpUrl) {
+    /** Which item each nomination was for, which is what the real preloader keys on. */
+    public var preloadedFor: MutableList<MediaItemId> = mutableListOf()
+
+    override fun preloadNext(itemId: MediaItemId, url: HttpUrl) {
         preloaded += url
+        preloadedFor += itemId
     }
 
     override fun setVolumeBoost(boost: VolumeBoost) {

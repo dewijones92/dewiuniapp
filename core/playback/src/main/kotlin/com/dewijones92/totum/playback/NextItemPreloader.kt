@@ -8,6 +8,7 @@ import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.preload.DefaultPreloadManager
 import com.dewijones92.totum.common.Diag
+import com.dewijones92.totum.common.Vitals
 
 /**
  * Holds the first [BufferBudget.PRELOAD_MS] of what is coming next, so a track change is not a wait.
@@ -34,16 +35,22 @@ internal class NextItemPreloader(
     /** What is currently held, so nominating something else releases it. */
     private var held: MediaItem? = null
 
+    /** Which item it is held FOR — the identity [releaseIfPlaying] matches on, not the URL. */
+    private var heldFor: String? = null
+
     @OptIn(UnstableApi::class)
-    fun hold(uri: String) {
-        if (held?.localConfiguration?.uri?.toString() == uri) return
+    fun hold(itemId: String, uri: String) {
+        if (heldFor == itemId) return
         val preloader = manager ?: build().also { manager = it }
         held?.let { preloader.remove(it) }
-        val item = MediaItem.fromUri(uri)
+        // The id rides on the MediaItem so the held copy carries its own identity: the URI cannot,
+        // because it is re-signed on every resolve.
+        val item = MediaItem.Builder().setMediaId(itemId).setUri(uri).build()
         held = item
+        heldFor = itemId
         preloader.add(item, 0)
         preloader.invalidate()
-        Diag.log("preload", "holding the first ${BufferBudget.PRELOAD_MS}ms of ${uri.take(URL_CHARS)}")
+        Diag.log("preload", "holding the first ${BufferBudget.PRELOAD_MS}ms of $itemId — ${uri.forLog()}")
     }
 
     /**
@@ -57,21 +64,37 @@ internal class NextItemPreloader(
     @OptIn(UnstableApi::class)
     fun releaseIfPlaying(item: MediaItem?) {
         val holding = held ?: return
-        // Either source, because a MediaItem crossing the session boundary does not always carry
-        // its localConfiguration — requestMetadata is what survives.
-        val playing = item?.uriOrNull()
-        val heldUri = holding.uriOrNull()
-        if (playing == null || playing != heldUri) {
+        val playing = item?.mediaId
+        if (playing == null || playing != heldFor) {
             // Said out loud: this is a silent no-op otherwise, and a silent no-op here means the
             // bytes stay held. The instrumented test caught exactly that.
-            Diag.log("preload", "still holding $heldUri — what started is $playing")
+            Diag.log("preload", "still holding $heldFor — what started is ${playing ?: "nothing"}")
             return
+        }
+        // A wasted nomination, said plainly. The bytes are correctly released either way, but a
+        // preload of a stream the player then did not use is data spent for nothing, and the only
+        // way to know it is happening in the wild is to count it. Report 0.1.359 had it on every
+        // video: itag 18 held, itag 399 played.
+        val heldUri = holding.uriOrNull()
+        val playingUri = item.uriOrNull()
+        if (heldUri != null && playingUri != null && heldUri != playingUri) {
+            Diag.warn(
+                "preload",
+                "held a different stream of $playing than the one that played, so the preload was " +
+                    "wasted — held ${heldUri.forLog()}, playing ${playingUri.forLog()}",
+            )
+            Vitals.add("playback.preloadsWasted")
         }
         manager?.remove(holding)
         held = null
-        Diag.log("preload", "released the held copy of ${playing.take(URL_CHARS)} — it is playing now")
+        heldFor = null
+        Diag.log("preload", "released the held copy of $playing — it is playing now")
     }
 
+    /**
+     * Either source, because a MediaItem crossing the session boundary does not always carry its
+     * localConfiguration — requestMetadata is what survives.
+     */
     private fun MediaItem.uriOrNull(): String? =
         (localConfiguration?.uri ?: requestMetadata.mediaUri)?.toString()
 
@@ -93,6 +116,5 @@ internal class NextItemPreloader(
 
     private companion object {
         const val MICROS_PER_MS = 1_000L
-        const val URL_CHARS = 80
     }
 }

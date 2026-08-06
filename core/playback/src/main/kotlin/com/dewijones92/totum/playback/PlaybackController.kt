@@ -104,8 +104,15 @@ public interface PlaybackController {
      * A nomination, not a fetch: only the service owns media sources, so the app can say what is
      * coming and never build it. Callers decide WHETHER to spend the data — this seam does not
      * check the network, because the caller already knows more about intent than it can.
+     *
+     * [itemId] is what identifies the nomination, NOT [url]. A stream URL is re-resolved per play
+     * and comes back signed, expiring and often in a different format, so the URL held for an item
+     * is routinely not the URL that item ends up playing — and comparing them, which is how this
+     * used to decide when to let go, could then never match. It never did: report 0.1.359 holds
+     * three `still holding … — what started is …` lines where both URLs are the same video at
+     * different itags, so the bytes were held for the rest of the session.
      */
-    public fun preloadNext(url: HttpUrl)
+    public fun preloadNext(itemId: MediaItemId, url: HttpUrl)
 }
 
 /** What the UI needs to render a player for the current item. */
