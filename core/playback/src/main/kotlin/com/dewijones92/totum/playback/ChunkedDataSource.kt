@@ -8,6 +8,7 @@ import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.HttpDataSource
 import androidx.media3.datasource.TransferListener
 import com.dewijones92.totum.common.Diag
+import com.dewijones92.totum.common.Vitals
 
 /**
  * Fetches a stream as a series of bounded range requests instead of one open-ended GET.
@@ -25,9 +26,12 @@ import com.dewijones92.totum.common.Diag
  *
  * The wrapper is transparent. ExoPlayer opens once and reads to the end; each time a
  * chunk is exhausted the next range is opened underneath, so nothing above needs to know.
+ *
+ * Which range, and when to stop, is [ChunkedRead]'s — a state machine a unit test can hold.
+ * This class is the socket around it, and keeps no bookkeeping of its own.
  */
-// The count is DataSource's interface plus the small helpers that decide a chunk's bounds;
-// splitting it would scatter the one thing this class knows, which is how to range a request.
+// The count is DataSource's own interface surface plus the handful of helpers that decide a range's
+// bounds; splitting it would scatter the one thing this class knows, which is how to range a request.
 @Suppress("TooManyFunctions")
 @UnstableApi
 internal class ChunkedDataSource(
@@ -36,14 +40,7 @@ internal class ChunkedDataSource(
 ) : DataSource {
 
     private var spec: DataSpec? = null
-    private var position = 0L
-
-    /** Bytes of the caller's request still to serve; [UNKNOWN_LENGTH] when unknown. */
-    private var remaining = UNKNOWN_LENGTH
-
-    /** Bytes left in the range currently open upstream. */
-    private var chunkRemaining = 0L
-    private var chunkOpen = false
+    private var read: ChunkedRead? = null
 
     override fun addTransferListener(transferListener: TransferListener) {
         upstream.addTransferListener(transferListener)
@@ -51,25 +48,33 @@ internal class ChunkedDataSource(
 
     override fun open(dataSpec: DataSpec): Long {
         spec = dataSpec
-        position = dataSpec.position
-        remaining = when {
-            dataSpec.length != UNKNOWN_LENGTH -> dataSpec.length
-            // Ask the URL before asking the server. YouTube puts the content length in a
-            // `clen` parameter, so a probe request is both slower and — for the ANDROID
-            // client's URLs — fatal: they answer an UNBOUNDED GET with 403, which is exactly
-            // what a probe is. That broke every video resolved through the InnerTube
-            // fallback on Dewi's phone, retrying ~20 times in 13 seconds and never playing.
-            else -> declaredLength(dataSpec.uri) ?: probeLength(dataSpec)
+        val cursor = ChunkedRead(remainingFor(dataSpec), chunkBytes)
+        read = cursor
+        openNextRange(cursor)
+        return cursor.declaredLength
+    }
+
+    /**
+     * Bytes to serve this caller, from whichever source can say.
+     *
+     * The three quantities are deliberately kept apart, because merging two of them is the bug
+     * this had: `clen` describes the WHOLE resource and so has the caller's position taken off it,
+     * while a probe answers from that position already and so does not. See [remainingFrom].
+     */
+    private fun remainingFor(dataSpec: DataSpec): Long {
+        val clen = declaredLength(dataSpec.uri)
+        if (dataSpec.length == UNKNOWN_LENGTH && clen == null) {
+            return remainingFrom(dataSpec.position, probeLength(dataSpec), resourceLength = null)
         }
-        openNextChunk()
-        return remaining
+        return remainingFrom(dataSpec.position, dataSpec.length, clen)
     }
 
     /**
      * The length YouTube states in the URL's `clen`, or null when it says nothing.
      *
      * Free — no request at all — and it sidesteps the probe entirely for the streams we
-     * actually play.
+     * actually play. It is the length of the whole resource, NOT of what remains from
+     * wherever the caller is starting.
      */
     private fun declaredLength(uri: Uri): Long? =
         runCatching { uri.getQueryParameter("clen")?.toLongOrNull() }
@@ -82,6 +87,9 @@ internal class ChunkedDataSource(
      * A bounded request answers 206 with only that range's size, so the total has to come
      * from an unbounded one. It is closed immediately, so the throttling that applies to
      * an open-ended GET never gets the chance to matter.
+     *
+     * The answer is bytes remaining FROM `dataSpec.position`, which is already what a caller
+     * needs — unlike `clen`, which has to have the position taken off it.
      */
     private fun probeLength(dataSpec: DataSpec): Long {
         val length = runCatching { upstream.open(dataSpec) }.getOrElse { failure ->
@@ -97,42 +105,51 @@ internal class ChunkedDataSource(
         return length
     }
 
-    private fun openNextChunk() {
+    private fun openNextRange(cursor: ChunkedRead) {
         val current = spec ?: return
-        if (remaining == 0L) return
-        val size = if (remaining == UNKNOWN_LENGTH) chunkBytes else minOf(chunkBytes, remaining)
-        chunkRemaining = upstream.open(current.subrange(position - current.position, size))
-        chunkOpen = true
+        if (cursor.finished) return
+        val range = cursor.nextRange()
+        cursor.opened(upstream.open(current.subrange(range.offset, range.bytes)))
     }
 
+    /**
+     * A loop, deliberately, where this used to call itself.
+     *
+     * The recursion was unbounded: every iteration re-opened a range and re-read it, so a resource
+     * that answered a past-the-end range with nothing spun inside one `read()` until the stack or
+     * the process gave out — no bytes, no error, and a load that never finished. [ChunkedRead] now
+     * refuses to continue past a range that produced nothing, and the loop cannot outlive that.
+     */
     override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
-        if (remaining == 0L) return C.RESULT_END_OF_INPUT
-        if (!chunkOpen) openNextChunk()
-
-        val read = upstream.read(buffer, offset, boundedLength(length))
-        if (read == C.RESULT_END_OF_INPUT) {
-            // The chunk ended, not the resource: close it and continue from where it
-            // stopped. Only an unknown total can genuinely end here.
-            closeChunk()
-            if (remaining == UNKNOWN_LENGTH || remaining == 0L) return C.RESULT_END_OF_INPUT
-            openNextChunk()
-            return read(buffer, offset, length)
+        val cursor = read ?: return C.RESULT_END_OF_INPUT
+        while (!cursor.finished) {
+            if (!cursor.rangeOpen) openNextRange(cursor)
+            val got = upstream.read(buffer, offset, cursor.cap(length))
+            if (got != C.RESULT_END_OF_INPUT) {
+                cursor.served(got)
+                if (!cursor.rangeOpen) closeRange()
+                return got
+            }
+            closeRange()
+            when (cursor.endOfRange()) {
+                // This range is spent and there is more resource after it: open the next one.
+                ChunkedRead.RangeEnd.Continue -> Unit
+                ChunkedRead.RangeEnd.Ended -> return C.RESULT_END_OF_INPUT
+                // Said out loud, and with the numbers, because a tail that never arrives had no
+                // line of its own: 208 of 244 seconds of buffering in report 0.1.359 were spent
+                // waiting for bytes the stream was never going to send, and the only trace was a
+                // load that never ended. Counted too, so its rate is comparable between reports.
+                ChunkedRead.RangeEnd.EndedEarly -> {
+                    Diag.warn("chunked", "stream ended while it still owed bytes — ${cursor.describe()}")
+                    Vitals.add("playback.streamsEndedEarly")
+                    return C.RESULT_END_OF_INPUT
+                }
+            }
         }
-
-        position += read
-        chunkRemaining -= read
-        if (remaining != UNKNOWN_LENGTH) remaining -= read
-        if (chunkRemaining == 0L) closeChunk()
-        return read
+        return C.RESULT_END_OF_INPUT
     }
 
-    /** Never read past the current range, or the next chunk would start at the wrong offset. */
-    private fun boundedLength(length: Int): Int =
-        if (chunkRemaining == UNKNOWN_LENGTH) length else minOf(length.toLong(), chunkRemaining).toInt()
-
-    private fun closeChunk() {
-        if (!chunkOpen) return
-        chunkOpen = false
+    private fun closeRange() {
         runCatching { upstream.close() }
     }
 
@@ -141,8 +158,9 @@ internal class ChunkedDataSource(
     override fun getResponseHeaders(): Map<String, List<String>> = upstream.responseHeaders
 
     override fun close() {
-        closeChunk()
+        closeRange()
         spec = null
+        read = null
     }
 
     /** Wraps another factory so every source it makes fetches in ranges. */
@@ -154,10 +172,7 @@ internal class ChunkedDataSource(
             ChunkedDataSource(upstream.createDataSource(), chunkBytes)
     }
 
-    private companion object {
-        /** C.LENGTH_UNSET is an Int; every length here is a Long. */
-        const val UNKNOWN_LENGTH = -1L
-
+    internal companion object {
         /**
          * Big enough that the per-request overhead is noise, small enough that the
          * throttle never engages. Roughly ten seconds of a 1080p stream.

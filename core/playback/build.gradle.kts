@@ -31,4 +31,11 @@ dependencies {
     testImplementation(project(":core:data"))
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+
+    // ChunkedDataSource can only be driven with a real DataSpec, which needs an android.net.Uri.
+    // No device behaviour and no network in these — see ChunkedDataSourceTest.
+    androidTestImplementation(libs.junit)
+    androidTestImplementation(libs.androidx.test.core)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.test.runner)
 }
