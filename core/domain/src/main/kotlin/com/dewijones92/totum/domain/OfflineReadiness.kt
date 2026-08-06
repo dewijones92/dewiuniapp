@@ -27,8 +27,18 @@ public data class OfflineReadiness(
      * not the app's call.
      */
     public val unavailableOffline: Int,
+    /**
+     * Not fetched automatically, and downloadable by hand — today, a torrent.
+     *
+     * Its own count because it is neither of the two things it would otherwise be lumped with. It
+     * is not *waiting*: nothing will ever fetch it, so "still to fetch" would be a promise the app
+     * has no intention of keeping. And it is not *unavailable*: tapping Download works. The queue
+     * skips these because an automatic fetch exists to make the queue LISTENABLE and a torrent has
+     * no audio-only fetch — so the alternative is quietly pulling a 1.7GB film per queue entry.
+     */
+    public val notAutomatic: Int = 0,
 ) {
-    public val total: Int get() = ready + downloading + waiting + unavailableOffline
+    public val total: Int get() = ready + downloading + waiting + unavailableOffline + notAutomatic
 
     /** Nothing left to wait for: everything is either here or never coming. */
     public val settled: Boolean get() = downloading == 0 && waiting == 0
@@ -41,11 +51,14 @@ public data class OfflineReadiness(
         public fun of(
             items: List<MediaItemId>,
             stateOf: (MediaItemId) -> DownloadState,
+            /** False for an item nothing will fetch on its own; see [notAutomatic]. */
+            fetchedAutomatically: (MediaItemId) -> Boolean = { true },
         ): OfflineReadiness {
             var ready = 0
             var downloading = 0
             var waiting = 0
             var unavailable = 0
+            var notAutomatic = 0
             items.forEach { id ->
                 when (val state = stateOf(id)) {
                     is DownloadState.Downloaded -> ready++
@@ -54,10 +67,12 @@ public data class OfflineReadiness(
                     // retries it, so telling them it failed would ask for a decision they do not
                     // need to make.
                     is DownloadState.Failed -> if (state.isPermanent) unavailable++ else waiting++
-                    DownloadState.NotDownloaded -> waiting++
+                    // A manual download makes it ready like anything else, so only a not-yet-fetched
+                    // one counts here — and it counts as its own thing rather than as waiting.
+                    DownloadState.NotDownloaded -> if (fetchedAutomatically(id)) waiting++ else notAutomatic++
                 }
             }
-            return OfflineReadiness(ready, downloading, waiting, unavailable)
+            return OfflineReadiness(ready, downloading, waiting, unavailable, notAutomatic)
         }
     }
 }

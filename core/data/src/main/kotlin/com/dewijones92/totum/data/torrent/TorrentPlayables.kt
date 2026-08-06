@@ -63,3 +63,19 @@ public object TorrentPlayables {
         return if (playable <= 1) torrent.name else TorrentEpisodes.label(file)
     }
 }
+
+/**
+ * Whether the queue's automatic downloads — which exist to fetch AUDIO — can fetch this at all.
+ *
+ * False for a torrent. The home server's audio-only form is a live HLS playlist, which a plain
+ * download cannot store as one file, so an `audioOnly = true` request quietly fetched the whole film
+ * instead: proven on a device 2026-08-06, where a torrent requested audio-only was recorded
+ * `copy=full`. A queue of films would fill the phone several times over to deliver something nobody
+ * asked for, so nothing fetches them on your behalf and a deliberate tap still does.
+ *
+ * Here rather than in three call sites — the downloader, the queue banner and the diagnostics
+ * report — because a banner promising a fetch the downloader will never make is worse than no
+ * banner, and that is exactly what two copies of this rule would produce.
+ */
+public val PlayableItem.hasAudioOnlyFetch: Boolean
+    get() = item.sourceId != TorrentPlayables.SOURCE

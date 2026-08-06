@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dewijones92.totum.R
 import com.dewijones92.totum.data.queue.QueueEntry
+import com.dewijones92.totum.data.torrent.hasAudioOnlyFetch
 import com.dewijones92.totum.di.AppContainer
 import com.dewijones92.totum.domain.DownloadState
 import com.dewijones92.totum.domain.MediaItem
@@ -89,9 +90,7 @@ fun QueueScreen(container: AppContainer, modifier: Modifier = Modifier) {
         } else {
             val settings by container.appPreferences.settings.collectAsStateWithLifecycle()
             OfflineSummary(
-                readiness = OfflineReadiness.of(entries.map { it.item.item.id }) {
-                    downloads[it] ?: DownloadState.NotDownloaded
-                },
+                readiness = readinessOf(entries, downloads),
                 autoDownloadOff = !settings.autoDownloadQueue,
                 waitingForWifi = settings.autoDownloadQueue && !container.autoDownloadAllowedNow(),
             )
@@ -401,3 +400,20 @@ private val PROGRESS_HEIGHT = 2.dp
  * Caught by CI rather than locally, where the split happened to lay out differently.
  */
 internal fun queueGroupHeaderTag(groupId: String): String = "queue-group-header-$groupId"
+
+/**
+ * How much of the queue is playable with no signal.
+ *
+ * `fetchedAutomatically` uses the SAME rule the downloader does ([hasAudioOnlyFetch]), so the
+ * banner cannot promise a fetch that is never coming.
+ */
+private fun readinessOf(
+    entries: List<QueueEntry>,
+    downloads: Map<MediaItemId, DownloadState>,
+): OfflineReadiness = OfflineReadiness.of(
+    entries.map { it.item.item.id },
+    stateOf = { downloads[it] ?: DownloadState.NotDownloaded },
+    fetchedAutomatically = { id ->
+        entries.firstOrNull { it.item.item.id == id }?.item?.hasAudioOnlyFetch ?: true
+    },
+)

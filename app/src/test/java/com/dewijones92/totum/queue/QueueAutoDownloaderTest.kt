@@ -5,6 +5,7 @@ import com.dewijones92.totum.common.HttpUrl
 import com.dewijones92.totum.data.download.fake.FakeDownloadManager
 import com.dewijones92.totum.data.queue.QueueEntry
 import com.dewijones92.totum.data.queue.QueueSnapshot
+import com.dewijones92.totum.domain.DownloadState
 import com.dewijones92.totum.domain.MediaItem
 import com.dewijones92.totum.domain.MediaItemId
 import com.dewijones92.totum.domain.PlayHandle
@@ -13,6 +14,7 @@ import com.dewijones92.totum.domain.SourceId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
@@ -45,12 +47,14 @@ class QueueAutoDownloaderTest {
         allowedOnNetwork: Boolean = true,
         maxAttempts: Int = 3,
         settleTimeoutMs: Long = 10_000L,
+        fetchesAudioOnly: (PlayableItem) -> Boolean = { true },
     ) = QueueAutoDownloader(
         queue = queue,
         downloads = downloads,
         scope = CoroutineScope(dispatcher),
         isEnabled = { enabled },
         isAllowedOnThisNetwork = { allowedOnNetwork },
+        fetchesAudioOnly = fetchesAudioOnly,
         maxAttempts = maxAttempts,
         settleTimeoutMs = settleTimeoutMs,
     )
@@ -279,5 +283,32 @@ class QueueAutoDownloaderTest {
         advanceUntilIdle()
 
         assertEquals(listOf("a", "b"), manager.started)
+    }
+
+    /**
+     * A torrent has no audio-only fetch — the home server's audio is a live HLS playlist — so
+     * `audioOnly = true` silently fetched the whole film instead. Proven on a device 2026-08-06,
+     * where a torrent requested audio-only was recorded `copy=full`. A queue of films would fill
+     * the phone to deliver something nobody asked for, so the automatic path leaves them alone and
+     * a deliberate tap still fetches them.
+     */
+    @Test
+    fun `an item with no audio-only fetch is left alone`() = runTest(dispatcher) {
+        val film = entry("film")
+        queue.value = QueueSnapshot(entries = listOf(film, entry("episode")))
+
+        downloader(fetchesAudioOnly = { it.item.id.value != "film" }).start()
+        advanceUntilIdle()
+
+        assertEquals(
+            "the film must not be fetched automatically",
+            DownloadState.NotDownloaded,
+            downloads.observe(MediaItemId("film")).first(),
+        )
+        assertEquals(
+            "and the podcast beside it must still be",
+            true,
+            downloads.observe(MediaItemId("episode")).first() is DownloadState.Downloaded,
+        )
     }
 }

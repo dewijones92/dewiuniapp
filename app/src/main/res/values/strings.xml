@@ -359,6 +359,13 @@
         <item quantity="one">Ready to play offline</item>
         <item quantity="other">All %1$d ready to play offline</item>
     </plurals>
+    <!-- Shown when the queue holds something the automatic downloads will never fetch — a film,
+         whose only audio-only form is a live stream that cannot be stored. Downloading it by hand
+         works, which is why this is not the "can't be downloaded" line. -->
+    <plurals name="queue_offline_manual_only">
+        <item quantity="one">%1$d ready offline · 1 to download by hand</item>
+        <item quantity="other">%1$d ready offline · %2$d to download by hand</item>
+    </plurals>
     <plurals name="queue_offline_ready_with_gaps">
         <item quantity="one">%1$d ready offline · 1 can\'t be downloaded</item>
         <item quantity="other">%1$d ready offline · %2$d can\'t be downloaded</item>

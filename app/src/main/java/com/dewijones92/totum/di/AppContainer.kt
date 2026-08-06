@@ -47,6 +47,7 @@ import com.dewijones92.totum.data.sponsorblock.SkipSegmentSource
 import com.dewijones92.totum.data.sponsorblock.SponsorBlockSegmentSource
 import com.dewijones92.totum.data.torrent.HomeTorrentServer
 import com.dewijones92.totum.data.torrent.HttpHomeTorrentServer
+import com.dewijones92.totum.data.torrent.hasAudioOnlyFetch
 import com.dewijones92.totum.database.RoomDownloadStore
 import com.dewijones92.totum.database.RoomFeedCache
 import com.dewijones92.totum.database.RoomLocalPlaylistStore
@@ -712,13 +713,18 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
             // that hangs, and this runs on whatever thread just crashed.
             val states = latestDownloadStates
             val entries = playbackQueue.state.value.entries
-            val readiness = OfflineReadiness.of(entries.map { it.item.item.id }) { id ->
-                states[id] ?: DownloadState.NotDownloaded
-            }
+            val readiness = OfflineReadiness.of(
+                entries.map { it.item.item.id },
+                stateOf = { id -> states[id] ?: DownloadState.NotDownloaded },
+                fetchedAutomatically = { id ->
+                    entries.firstOrNull { it.item.item.id == id }?.item?.hasAudioOnlyFetch ?: true
+                },
+            )
             put("downloads.queueReady", readiness.ready.toString())
             put("downloads.queueDownloading", readiness.downloading.toString())
             put("downloads.queueWaiting", readiness.waiting.toString())
             put("downloads.queueUnavailableOffline", readiness.unavailableOffline.toString())
+            put("downloads.queueNotAutomatic", readiness.notAutomatic.toString())
             put("downloads.onDisk", states.count { it.value is DownloadState.Downloaded }.toString())
             // Per item, because a count cannot say whether the one that was TAPPED was there.
             put(
@@ -763,6 +769,9 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
             isAllowedOnThisNetwork = {
                 autoDownloadAllowedNow()
             },
+            // The one place pillar routing lives. A torrent has no audio-only fetch — the server's
+            // audio is HLS — so an automatic "fetch the audio" would silently pull a whole film.
+            fetchesAudioOnly = { it.hasAudioOnlyFetch },
         ).start()
     }
 

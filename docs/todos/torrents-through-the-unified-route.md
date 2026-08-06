@@ -3,7 +3,7 @@ title: Do torrents go through the unified play route too?
 kind: todo
 area: torrent
 priority: medium
-status: mostly answered — routing and offline both proven by CI e2e; ONE real gap left (audioOnly ignored)
+status: answered and fixed — routing + offline proven in CI; the audioOnly gap closed by not auto-fetching films
 updated: 2026-08-06
 ---
 
@@ -37,17 +37,27 @@ protocols — copyright-free media, public-domain titles, no swarm:
   thing nobody had ever checked. `route torrent:… -> the downloaded audio at /data/… [copy=full
   offline=true]`.
 
-## The gap that is real, and was found by that test
+## The gap that was real, found by that test, and now fixed
 
-**Doubt (2) is CONFIRMED.** The download is requested with `audioOnly = true` and the trail records
-`copy=full`: `HttpDownloadStrategy` ignores the flag ("a podcast enclosure is the audio"), which is
-true of a podcast and false of a torrent. So a queued torrent fetches the **whole file, video
-included**, over the home upstream — the opposite of the 8x saving Listen mode measured, and it will
-fill a phone far faster than anyone expects.
+**Doubt (2) was CONFIRMED.** The download was requested with `audioOnly = true` and the trail
+recorded `copy=full`: `HttpDownloadStrategy` ignores the flag ("a podcast enclosure is the audio"),
+which is true of a podcast and false of a torrent. So a queued torrent fetched the **whole file,
+video included** — the opposite of the 8x saving Listen mode measured, and a fast way to fill a
+phone with films nobody asked to store.
 
-The fix belongs on the download side of the same seam: an audio-only request for a torrent should
-fetch the server's remuxed audio, not everything. Until then, automatic queue downloads of torrents
-cost ~7x more data and disk than intended.
+**Fixed by not pretending.** The automatic path exists to make the queue *listenable*, so it now
+fetches only what has an audio-only form: `PlayableItem.hasAudioOnlyFetch` (one definition, in
+`:core:data` beside `TorrentPlayables`) is false for a torrent, the downloader skips it with a logged
+reason, and a deliberate tap on Download still fetches the whole thing.
+
+The alternative — teaching the download side to store the server's HLS audio — is a real option and
+a bigger one: it means fetching segments and remuxing them locally (the bundled ffmpeg cannot fetch,
+by design). Worth doing if Dewi wants films listenable offline without storing the video; not worth
+guessing at.
+
+**And the banner does not lie about it.** `OfflineReadiness` counts these apart as `notAutomatic`,
+because they are neither *waiting* (nothing is coming) nor *unavailable* (a tap works). The queue
+says `3 ready offline · 2 to download by hand`.
 
 ## Still unverified
 

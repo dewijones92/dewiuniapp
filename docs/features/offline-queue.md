@@ -24,6 +24,11 @@ file, and it is removed from Library like any other download.
 **Audio only, video on request.** Small, quick, and it matches how a queue is used. A full video
 stays a deliberate per-item choice from the row menu.
 
+**And only what HAS an audio-only form.** A torrent does not: the home server's audio is a live HLS
+playlist, so `audioOnly = true` fetched the whole film instead (proven on a device 2026-08-06,
+`copy=full`). Films are therefore left for a deliberate tap, and the banner counts them as
+`2 to download by hand` rather than promising a fetch that is never coming.
+
 ## Three things were wrong, and only one was the machinery
 
 **It only ran on Wi-Fi.** The default was Wi-Fi-only, so the queue was ready offline exactly when
@@ -58,7 +63,7 @@ Novara's `AD FREE` uploads) can play with signal and never offline. The app mark
 
 | Where | What it says |
 |---|---|
-| Queue banner | `All 77 ready to play offline` · `73 ready offline · 4 can't be downloaded` · `60 of 77 ready offline · 17 still to fetch` · `Waiting for Wi-Fi to download 9 items` · `Automatic downloads are off · 5 items not saved offline` |
+| Queue banner | `All 77 ready to play offline` · `62 ready offline · 2 to download by hand` · `73 ready offline · 4 can't be downloaded` · `60 of 77 ready offline · 17 still to fetch` · `Waiting for Wi-Fi to download 9 items` · `Automatic downloads are off · 5 items not saved offline` |
 | Queue row, fetching | `Downloading 42%`, or `Downloading…` when the server sends no length |
 | Queue row, impossible | `Online only`, in words |
 | Library | An in-progress section at the top, with a bar **and** a percentage |

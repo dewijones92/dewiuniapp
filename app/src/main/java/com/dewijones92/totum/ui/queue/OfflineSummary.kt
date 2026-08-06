@@ -63,6 +63,16 @@ internal fun OfflineSummary(
             readiness.downloading + readiness.waiting,
         )
 
+        // Downloadable, but only if asked — a film, which nothing fetches on your behalf. Said
+        // before the "can't be downloaded" line because the two are different answers and this one
+        // has something the person can do about it.
+        readiness.notAutomatic > 0 -> Icons.Filled.OfflinePin to pluralStringResource(
+            R.plurals.queue_offline_manual_only,
+            readiness.notAutomatic,
+            readiness.ready,
+            readiness.notAutomatic,
+        )
+
         // Settled. The count of things that can never be offline is worth stating even in the
         // good case, so "62 of 66" never looks like something silently went missing.
         readiness.unavailableOffline > 0 -> Icons.Filled.OfflinePin to pluralStringResource(

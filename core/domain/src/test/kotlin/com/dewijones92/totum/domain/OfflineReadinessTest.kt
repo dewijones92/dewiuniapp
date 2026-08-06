@@ -17,7 +17,7 @@ class OfflineReadinessTest {
 
     private fun readiness(vararg states: DownloadState): OfflineReadiness {
         val byId = states.mapIndexed { index, state -> id(index) to state }.toMap()
-        return OfflineReadiness.of(byId.keys.toList()) { byId.getValue(it) }
+        return OfflineReadiness.of(byId.keys.toList(), stateOf = { byId.getValue(it) })
     }
 
     @Test
@@ -88,5 +88,65 @@ class OfflineReadinessTest {
 
         assertEquals(0, summary.total)
         assertTrue(summary.settled)
+    }
+
+    /**
+     * An item nothing will fetch automatically is its own count — not *waiting*, because no fetch
+     * is coming, and not *unavailable*, because tapping Download works. A queue of films counted as
+     * "still to fetch" would be a promise the app has no intention of keeping.
+     */
+    @Test
+    fun `an item nothing fetches automatically is counted apart`() {
+        val byId = mapOf(
+            id(0) to DownloadState.Downloaded("/data/0.mp3"),
+            id(1) to DownloadState.NotDownloaded,
+            id(2) to DownloadState.NotDownloaded,
+        )
+
+        val summary = OfflineReadiness.of(
+            byId.keys.toList(),
+            stateOf = { byId.getValue(it) },
+            fetchedAutomatically = { it != id(2) },
+        )
+
+        assertEquals(1, summary.ready)
+        assertEquals(1, summary.waiting)
+        assertEquals(1, summary.notAutomatic)
+        assertEquals(3, summary.total)
+        assertEquals("one item IS still waiting, so this is not settled", false, summary.settled)
+    }
+
+    /**
+     * The invariant that matters for the banner: a queue of nothing but films must read as settled,
+     * or it spins on "still to fetch" forever for fetches that are never coming.
+     */
+    @Test
+    fun `a queue of only such items is settled`() {
+        val byId = mapOf(id(0) to DownloadState.NotDownloaded, id(1) to DownloadState.NotDownloaded)
+
+        val summary = OfflineReadiness.of(
+            byId.keys.toList(),
+            stateOf = { byId.getValue(it) },
+            fetchedAutomatically = { false },
+        )
+
+        assertEquals(2, summary.notAutomatic)
+        assertEquals(0, summary.waiting)
+        assertEquals(true, summary.settled)
+    }
+
+    /** A film downloaded by hand is ready like anything else, and must not still be counted apart. */
+    @Test
+    fun `a manual download of such an item counts as ready`() {
+        val byId = mapOf(id(0) to DownloadState.Downloaded("/data/film.mkv", audioOnly = false))
+
+        val summary = OfflineReadiness.of(
+            byId.keys.toList(),
+            stateOf = { byId.getValue(it) },
+            fetchedAutomatically = { false },
+        )
+
+        assertEquals(1, summary.ready)
+        assertEquals(0, summary.notAutomatic)
     }
 }

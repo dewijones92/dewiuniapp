@@ -7,6 +7,7 @@ import com.dewijones92.totum.data.queue.QueueSnapshot
 import com.dewijones92.totum.domain.DownloadState
 import com.dewijones92.totum.domain.MediaItemId
 import com.dewijones92.totum.domain.PlayHandle
+import com.dewijones92.totum.domain.PlayableItem
 import com.dewijones92.totum.domain.isPermanent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.StateFlow
@@ -30,6 +31,18 @@ class QueueAutoDownloader(
     private val scope: CoroutineScope,
     private val isEnabled: () -> Boolean,
     private val isAllowedOnThisNetwork: () -> Boolean,
+    /**
+     * Whether an item can be fetched as AUDIO, which is the only thing this class exists to do.
+     *
+     * False for a torrent: the home server's audio-only version is an HLS playlist, which a plain
+     * download cannot store as one file, so `audioOnly = true` silently fetched the whole film
+     * instead — confirmed on a device 2026-08-06, where a torrent requested audio-only was recorded
+     * `copy=full`. A queue of films would then fill the phone, roughly seven times over per item,
+     * to deliver something nobody asked for. A deliberate tap on Download still fetches it.
+     *
+     * Supplied by AppContainer, where all pillar routing lives, so this class stays pillar-agnostic.
+     */
+    private val fetchesAudioOnly: (PlayableItem) -> Boolean = { true },
     private val maxAttempts: Int = MAX_ATTEMPTS,
     /** How long one download may hold the queue before the next starts anyway. */
     private val settleTimeoutMs: Long = SETTLE_TIMEOUT_MS,
@@ -106,6 +119,9 @@ class QueueAutoDownloader(
         // A local file is already the point of this; nothing to fetch.
         entry.item.handle is PlayHandle.LocalVideo -> ""
         state is DownloadState.Downloaded || state is DownloadState.Downloading -> ""
+        // Said once per item, and worth saying: silence here would read as a broken auto-download.
+        !fetchesAudioOnly(entry.item) ->
+            "there is no audio-only fetch for it, and fetching the whole thing is not this feature"
         // Nothing to fetch yet — a feed item whose enclosure hasn't been read. Asking
         // anyway would only record a failure against it.
         entry.item.fetchUrl == null -> ""
