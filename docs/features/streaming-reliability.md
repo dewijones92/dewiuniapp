@@ -3,7 +3,7 @@ title: Streaming reliability — chunked fetch, codec choice, expired-URL recove
 kind: feature
 status: shipped
 area: playback
-updated: 2026-07-28
+updated: 2026-08-06
 ---
 
 # Making video actually play
@@ -140,3 +140,22 @@ An audit of the rest came back clean: every screen that takes a `modifier` appli
 the overlay list is the only category that bypasses the Scaffold. Dewi said "some screens",
 plural, so **one is proven and fixed and the rest is an argument** — if another turns up,
 the overlay list is the first place to look, but the audit is not the same as having seen it.
+
+## The ranged fetch had a tail bug of its own (2026-08-06)
+
+The fix above is right and stays. Two defects in how it was *implemented* were found from reports
+`20260806T1843/1844`, both at the very end of a stream:
+
+1. **"Bytes remaining" was read from `clen`, the length of the whole resource**, while the caller
+   could be starting partway through it — so a read resumed at byte P over-declared itself by exactly
+   P and then asked for a range past the end. ExoPlayer restarts its loader at a non-zero offset on
+   every seek and every load-control pause, so this was nearly every read.
+2. **A range that produced nothing was re-requested, recursively, without bound.** Asked for a range
+   at or past the end, googlevideo can answer with no bytes rather than a refusal — and a refusal
+   would at least have been a load error. So a single `read()` could spin forever: no bytes, no
+   completion, no cancellation, no error, and everything it held retained.
+
+The arithmetic and the stopping rule now live in `ChunkedRead`, a pure state machine, because they
+are the part worth testing and the data source could not be tested at all without a device. See
+`../todos/stalls-near-the-end-of-an-item.md` for the evidence, and for what about the reported stall
+is still unproven.

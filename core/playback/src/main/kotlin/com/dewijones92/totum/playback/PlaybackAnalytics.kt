@@ -45,7 +45,10 @@ internal class PlaybackAnalytics : AnalyticsListener {
      * once). Those have opposite fixes, and a completed-load average cannot tell them apart
      * because a load that never completes contributes to it not at all.
      */
-    private val startedAtMs = HashMap<Long, Long>()
+    private val inFlight = LinkedHashMap<Long, InFlight>()
+
+    /** One outstanding load, named — because a COUNT cannot say which stream is stuck. */
+    private data class InFlight(val startedAtMs: Long, val track: String, val uri: String)
 
     /**
      * The last few completed loads, for a throughput figure that describes NOW.
@@ -94,8 +97,7 @@ internal class PlaybackAnalytics : AnalyticsListener {
     ) {
         outstanding = (outstanding - 1).coerceAtLeast(0)
         Vitals.set("playback.loadsOutstanding", outstanding.toString())
-        startedAtMs.remove(loadEventInfo.loadTaskId)
-        Vitals.set("playback.oldestLoadStartedAt", (startedAtMs.values.minOrNull() ?: -1L).toString())
+        forget(loadEventInfo.loadTaskId)
         loads++
         bytes += loadEventInfo.bytesLoaded
         // Kilobytes, not megabytes: 0.1.295 reported "loadedMb 0" through five minutes of
@@ -159,8 +161,12 @@ internal class PlaybackAnalytics : AnalyticsListener {
     ) {
         outstanding++
         Vitals.set("playback.loadsOutstanding", outstanding.toString())
-        startedAtMs[loadEventInfo.loadTaskId] = eventTime.realtimeMs
-        Vitals.set("playback.oldestLoadStartedAt", (startedAtMs.values.minOrNull() ?: -1L).toString())
+        inFlight[loadEventInfo.loadTaskId] = InFlight(
+            startedAtMs = eventTime.realtimeMs,
+            track = mediaLoadData.trackName(),
+            uri = loadEventInfo.uri.toString().forLog(),
+        )
+        publishInFlight()
     }
 
     /**
@@ -178,8 +184,8 @@ internal class PlaybackAnalytics : AnalyticsListener {
         mediaLoadData: MediaLoadData,
     ) {
         outstanding = (outstanding - 1).coerceAtLeast(0)
-        startedAtMs.remove(loadEventInfo.loadTaskId)
         Vitals.set("playback.loadsOutstanding", outstanding.toString())
+        forget(loadEventInfo.loadTaskId)
         Vitals.add("playback.loadsCanceled")
     }
 
@@ -191,8 +197,7 @@ internal class PlaybackAnalytics : AnalyticsListener {
         wasCanceled: Boolean,
     ) {
         outstanding = (outstanding - 1).coerceAtLeast(0)
-        startedAtMs.remove(loadEventInfo.loadTaskId)
-        Vitals.set("playback.oldestLoadStartedAt", (startedAtMs.values.minOrNull() ?: -1L).toString())
+        forget(loadEventInfo.loadTaskId)
         Vitals.add("playback.loadErrors")
         Vitals.set("playback.lastLoadError", "${mediaLoadData.trackName()}: ${error.javaClass.simpleName}")
         Diag.warn(
@@ -216,6 +221,35 @@ internal class PlaybackAnalytics : AnalyticsListener {
         bitrateEstimate: Long,
     ) {
         Vitals.set("playback.bandwidthKbps", (bitrateEstimate / BITS_PER_KILOBIT).toString())
+    }
+
+    private fun forget(loadTaskId: Long) {
+        inFlight.remove(loadTaskId)
+        publishInFlight()
+    }
+
+    /**
+     * The outstanding loads, named and aged — not just counted.
+     *
+     * A count invites a diagnosis it cannot support. Report 0.1.359 said "37 load(s) in flight,
+     * oldest 25489806ms" — an outstanding load SEVEN HOURS old, on a player that had not errored
+     * once — and there was no way to tell from that whether the stuck one was the video track, the
+     * audio track, a subtitle, or an artefact of the counting. Those have entirely different fixes.
+     * So: which track, how old, and which host, for the few oldest.
+     */
+    private fun publishInFlight() {
+        Vitals.set("playback.oldestLoadStartedAt", (inFlight.values.minOfOrNull { it.startedAtMs } ?: -1L).toString())
+        Vitals.set(
+            "playback.loadsInFlight",
+            if (inFlight.isEmpty()) {
+                "none"
+            } else {
+                inFlight.values
+                    .sortedBy { it.startedAtMs }
+                    .take(NAMED_IN_FLIGHT)
+                    .joinToString(" | ") { "${it.track} startedAt=${it.startedAtMs} ${it.uri}" }
+            },
+        )
     }
 
     /**
@@ -253,6 +287,12 @@ internal class PlaybackAnalytics : AnalyticsListener {
         const val BITS_PER_BYTE = 8L
         const val BITS_PER_KILOBIT = 1_000L
         const val BYTES_PER_KB = 1024L
+
+        /**
+         * How many outstanding loads to name. The oldest are the interesting ones and a report
+         * buffer is bounded, so this is the few that answer the question rather than all of them.
+         */
+        const val NAMED_IN_FLIGHT = 6
 
         /** Often enough to show a trend across a stall, rare enough not to crowd the buffer. */
         const val LOAD_SUMMARY_EVERY = 25L

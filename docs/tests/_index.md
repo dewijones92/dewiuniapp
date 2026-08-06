@@ -35,6 +35,9 @@ instead).
 | yt-dlp `BridgeJson` | JVM unit | `:lib:ytdlp-chaquopy` |
 | Room DAOs / stores | instrumented | `:core:database` |
 | `Media3PlaybackController` / service | instrumented + on-device | `:core:playback` |
+| Ranged fetch arithmetic + stopping rule (`ChunkedRead`) | JVM unit | `:core:playback` — 18 cases; the class every stream flows through, previously untested |
+| `ChunkedDataSource` over a googlevideo-shaped stand-in | instrumented | `:core:playback` — no network; resumed reads, past-the-end ranges, truncated resources |
+| An item resumed near its end reaches its end | instrumented | `:app` `StreamPlaysToItsEndTest` — real player over a localhost ranged server. **Covers the flow, does not reproduce the reported stall** — see below |
 | ViewModels, queue | JVM unit | `:app` |
 
 ## Verification reflexes (learned the hard way)
@@ -157,6 +160,27 @@ the worst kind, because the natural response is to re-run it.
 The lesson is not "raise the timeout" (that was also needed: CI's emulator is far slower, so 60s):
 it is that a stand-in claiming a capability has to implement it, or it tests the app against a server
 that does not exist. It now serves real 206 responses with a `Content-Range`.
+
+## A passing e2e is not the same as a reproduction (2026-08-06)
+
+`StreamPlaysToItsEndTest` plays an item resumed three seconds from its end, through the real queue,
+session, service and ExoPlayer, over HTTP with a `clen` parameter — the whole flow behind Dewi's
+*"buffers towards the end of the video"*. It **passes with both of the fixed defects deliberately
+reinstated**, so it does not prove the fix.
+
+Recorded here rather than quietly relied on, because a green e2e next to a fixed bug reads as a
+reproduction and this one is not. The likely reason is the media: a generated WAV carries explicit
+sample sizes, so the extractor stops at the last sample and never reads to the data source's
+end-of-input — which is where the defect bit. The streams in the report carry `gir=yes` and are read
+to end-of-input instead. Reproducing it needs media of that kind, which this repository does not
+carry.
+
+What *does* fail without the fix, at two levels each: `ChunkedReadTest` (6 of 18 cases) and
+`ChunkedDataSourceTest` (2 of 6 on the arithmetic, plus the read-cap assertion tripping on the
+infinite loop). The habit that matters: **reinstate the defect and watch the test fail before
+believing it.** Doing that is the only reason this gap is known.
+
+Full write-up: `../todos/stalls-near-the-end-of-an-item.md`.
 
 ## A test whose name is broader than its coverage hides the gap (2026-08-06)
 

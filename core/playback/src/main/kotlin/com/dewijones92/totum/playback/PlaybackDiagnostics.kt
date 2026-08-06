@@ -20,6 +20,9 @@ import androidx.media3.common.MediaItem as Media3MediaItem
  * A separate listener from the one that publishes [PlaybackState] on purpose: observing is
  * not the same job as mapping state, and this way logging can never break playback.
  */
+// The count is Player.Listener's own callback surface plus a few small formatting helpers; each
+// callback observes one thing, and merging any of them to satisfy the counter would hide which.
+@Suppress("TooManyFunctions")
 internal class PlaybackDiagnostics(
     private val player: () -> Player?,
     private val now: () -> Long = System::currentTimeMillis,
@@ -80,6 +83,39 @@ internal class PlaybackDiagnostics(
     }
 
     /**
+     * The moment the player stops fetching, and how much it had when it stopped.
+     *
+     * This is the line that separates the two explanations for a stall near the end of an item, and
+     * neither was distinguishable without it. If loading stops with the buffer reaching the
+     * duration, the item is fully fetched and anything after that is playback's problem. If it
+     * stops **short** — report 0.1.359 stalled with 70ms buffered and 35 seconds of the item still
+     * to come — then the fetch gave up believing it was done, and the tail never arrived at all.
+     *
+     * A count of buffering milliseconds cannot tell those apart, which is why that report could
+     * only be diagnosed by reading code.
+     */
+    override fun onIsLoadingChanged(isLoading: Boolean) {
+        if (isLoading) return
+        val current = player() ?: return
+        val buffered = current.bufferedPosition
+        val ahead = buffered - current.currentPosition
+        val unfetched = current.duration.takeIf { it > 0 }?.minus(buffered)
+        // Stopping because the buffer is FULL is the load control doing its job, and it happens
+        // constantly — counted, never a line each, because the report buffer is bounded and a
+        // chatty log destroys the history it is meant to preserve.
+        if (ahead > BufferBudget.MIN_BUFFER_MS || unfetched == null || unfetched <= SHORT_OF_THE_END_MS) {
+            Vitals.add("playback.loadPauses")
+            return
+        }
+        Diag.warn(
+            "playback",
+            "stopped loading at ${position()} with only ${ahead}ms buffered ahead and " +
+                "${unfetched}ms of the item never fetched — the tail is not coming",
+        )
+        Vitals.add("playback.loadsStoppedShort")
+    }
+
+    /**
      * Times each stall rather than just noting it. A duration is what distinguishes a
      * normal start-up buffer from the repeated mid-item stalls that read as "buffering".
      */
@@ -101,6 +137,10 @@ internal class PlaybackDiagnostics(
                         ", oldest ${oldestLoadAge(vitals["playback.oldestLoadStartedAt"])}" +
                         ", ~${vitals["playback.avgChunkKb"] ?: "?"}KB chunks)",
                 )
+                // WHICH loads, not just how many. A count of 37 with the oldest seven hours old
+                // (report 0.1.359) cannot say whether the stuck stream is the video, the audio or
+                // a subtitle — and those have different fixes. See PlaybackAnalytics.publishInFlight.
+                Diag.log("playback", "in flight: ${vitals["playback.loadsInFlight"] ?: "?"}")
             }
             Player.STATE_READY -> {
                 val waited = endStall(recovered = true)
@@ -227,6 +267,9 @@ internal class PlaybackDiagnostics(
          * tracks and starts reading as something being broken. It is a label, not a threshold
          * anything acts on — every handover is timed either way.
          */
+        /** Below this much left unfetched, the player is simply at the end of the item. */
+        const val SHORT_OF_THE_END_MS = 5_000L
+
         const val SLOW_HANDOVER_MS = 3_000L
         const val PERCENT = 100
     }
