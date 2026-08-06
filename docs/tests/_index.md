@@ -132,6 +132,7 @@ flow with no e2e is a flow whose next regression is found by Dewi on a plane.
 | Torrent: downloaded → radios off → plays from the file | `TorrentQueuePlaybackTest` | every commit |
 | Preload nominated, and released once it plays | `PreloadCommandReachesServiceTest` | every commit |
 | Real yt-dlp download → radios off → plays from that file | `LiveDownloadedVideoOfflineTest` | residential-egress tunnel |
+| The app fetching a stream ITSELF (SABR) → radios off → plays from that file | `LiveSabrDownloadTest` | residential-egress tunnel |
 | SABR playback against live YouTube | `SabrPlaybackTest` | residential-egress tunnel |
 | Auto-advance, stall recovery, metered switch, silence strategy | `AutoAdvanceLoopTest`, `StalledStreamRecoveryTest`, `MeteredAudioSwitchDeviceTest`, `SilenceStrategyDeviceTest` | every commit |
 

@@ -18,6 +18,7 @@ import com.dewijones92.totum.data.content.SeenItemsTracker
 import com.dewijones92.totum.data.download.DefaultDownloadManager
 import com.dewijones92.totum.data.download.DownloadManager
 import com.dewijones92.totum.data.download.EngineDownloadStrategy
+import com.dewijones92.totum.data.download.FallbackDownloadStrategy
 import com.dewijones92.totum.data.download.HttpDownloadStrategy
 import com.dewijones92.totum.data.download.RoutedDownloadStrategy
 import com.dewijones92.totum.data.feed.FeedCache
@@ -69,6 +70,7 @@ import com.dewijones92.totum.domain.OfflineReadiness
 import com.dewijones92.totum.domain.PlayHandle
 import com.dewijones92.totum.domain.PlayableItem
 import com.dewijones92.totum.domain.SourceId
+import com.dewijones92.totum.domain.isPermanent
 import com.dewijones92.totum.domain.toPlayableOrNull
 import com.dewijones92.totum.importexport.SubscriptionImporter
 import com.dewijones92.totum.innertube.actions.HttpYouTubeActions
@@ -124,6 +126,7 @@ import com.dewijones92.totum.ui.common.toMediaItem
 import com.dewijones92.totum.video.AccountSubscriptions
 import com.dewijones92.totum.video.InnerTubePlayerStreams
 import com.dewijones92.totum.video.PlatformVideoCodecSupport
+import com.dewijones92.totum.video.PlayerBackedDownloadStrategy
 import com.dewijones92.totum.video.VideoPlaybackLauncher
 import com.dewijones92.totum.video.VideoResolver
 import com.dewijones92.totum.video.WatchHistorySync
@@ -464,11 +467,31 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
             // Videos resolve+merge through the engine (bundled ffmpeg) and drop
             // SponsorBlock segments; podcast enclosures are a plain HTTP fetch.
             strategy = RoutedDownloadStrategy(
-                video = EngineDownloadStrategy(
-                    engine = ytDlpEngine,
-                    sponsorBlockCategories = appPreferences.settings.value.skipCategories.mapTo(
-                        mutableSetOf()
-                    ) { it.id },
+                // yt-dlp first, because it handles everything and cuts SponsorBlock out of the
+                // file. Its one blind spot is anything YouTube only serves to an ACCOUNT —
+                // members-only uploads, which it is refused and the app is not — so a permanent
+                // refusal falls back to the app's own signed-in resolution.
+                video = FallbackDownloadStrategy(
+                    primary = EngineDownloadStrategy(
+                        engine = ytDlpEngine,
+                        sponsorBlockCategories = appPreferences.settings.value.skipCategories.mapTo(
+                            mutableSetOf()
+                        ) { it.id },
+                    ),
+                    secondary = PlayerBackedDownloadStrategy(
+                        // The SAME resolution playback uses, so anything watchable is fetchable.
+                        resolveAudioUrl = { item ->
+                            (item.handle as? PlayHandle.Video)?.let { handle ->
+                                videoResolver.resolve(handle.watchUrl, item.item.sourceId, asked = "download")
+                                    ?.audioOnlyUrl
+                            }
+                        },
+                        http = HttpDownloadStrategy(transferClient),
+                    ),
+                    // Only a refusal an account could fix is worth a second attempt. A transient
+                    // failure is already retried by the caller, and asking twice for a video that
+                    // has been deleted just doubles the cost of the same answer.
+                    shouldFallBack = { it.isPermanent },
                 ),
                 podcast = HttpDownloadStrategy(transferClient),
             ),

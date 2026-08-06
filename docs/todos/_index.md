@@ -50,6 +50,7 @@ to `shipped` and migrate it to `../features/` once it's a real feature on `main`
 | [download-races-playback](download-races-playback.md) | playback | high | done — downloads now yield to playback; the duplicate extraction itself remains |
 | [listen-mode-saves-data](listen-mode-saves-data.md) | playback | medium | done — YouTube always did; torrents stream audio-only via the Pi |
 | [downloaded-video-not-played-offline](downloaded-video-not-played-offline.md) | playback | high | fixed — one routing decision for both pillars |
+| [members-only-downloads](members-only-downloads.md) | downloads | high | shipped — yt-dlp falls back to the app's own signed-in fetch |
 | [torrents-through-the-unified-route](torrents-through-the-unified-route.md) | torrent | medium | answered + fixed; films no longer auto-fetched |
 | [metered-audio-switch](metered-audio-switch.md) | playback | high | shipped — proven with the radios toggled |
 | [prefetch-the-next-item](prefetch-the-next-item.md) | playback | medium | done — readiness and byte preload, Wi-Fi only |

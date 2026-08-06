@@ -48,62 +48,70 @@ public class SabrDataSourceFactory(
 
         override fun getUri() = delegate.uri
 
-        private fun sabrFor(uri: String): DataSource? {
-            val (videoId, itag) = SabrSessions.parse(uri) ?: return null
-            val session = SabrSessions.of(videoId) ?: run {
-                Diag.warn("sabr", "no session for $videoId — falling back, which will fail loudly")
-                return null
-            }
-            val format = listOfNotNull(session.audio, session.video).firstOrNull { it.itag == itag }
-                ?: run {
-                    Diag.warn("sabr", "session for $videoId has no itag $itag")
-                    return null
-                }
-            val kind = if (format == session.audio) SabrTrackKind.AUDIO else SabrTrackKind.VIDEO
-            Diag.log("sabr", "serving $videoId itag $itag as $kind")
-            return SabrDataSource(
-                SabrStream(
-                    url = session.streamingUrl,
-                    ustreamerConfig = session.ustreamerConfig,
-                    format = format,
-                    kind = kind,
-                    totalBytes = format.contentLength,
-                    durationMs = session.durationMs,
-                    transport = UrlConnectionTransport,
-                ),
-            )
+        private fun sabrFor(uri: String): DataSource? = sabrStreamFor(uri)?.let(::SabrDataSource)
+    }
+}
+
+/**
+ * The SABR stream behind a `sabr://` URL, or null when no registered session can serve it.
+ *
+ * Public because **downloading** wants the same bytes playback does: a members-only video is served
+ * to the signed-in app and refused to yt-dlp, and SABR is the only way to fetch past the first
+ * megabyte of an authenticated stream URL (measured 2026-07-31). One function, so a download and a
+ * play can never disagree about which stream a `sabr://` URL means.
+ */
+@UnstableApi
+public fun sabrStreamFor(uri: String): SabrStream? {
+    val (videoId, itag) = SabrSessions.parse(uri) ?: return null
+    val session = SabrSessions.of(videoId) ?: run {
+        Diag.warn("sabr", "no session for $videoId — falling back, which will fail loudly")
+        return null
+    }
+    val format = listOfNotNull(session.audio, session.video).firstOrNull { it.itag == itag } ?: run {
+        Diag.warn("sabr", "session for $videoId has no itag $itag")
+        return null
+    }
+    val kind = if (format == session.audio) SabrTrackKind.AUDIO else SabrTrackKind.VIDEO
+    Diag.log("sabr", "serving $videoId itag $itag as $kind")
+    return SabrStream(
+        url = session.streamingUrl,
+        ustreamerConfig = session.ustreamerConfig,
+        format = format,
+        kind = kind,
+        totalBytes = format.contentLength,
+        durationMs = session.durationMs,
+        transport = SabrPostTransport,
+    )
+}
+
+/**
+ * The SABR POST, on `HttpURLConnection`.
+ *
+ * Deliberately not OkHttp: `:core:playback` does not depend on it, and adding a client here
+ * to make one POST would widen the module for nothing. The Android UA matters — it is the
+ * client whose player response these URLs came from.
+ */
+private object SabrPostTransport : SabrTransport {
+    override suspend fun post(url: String, body: ByteArray): ByteArray {
+        val connection = (URL(url).openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"
+            doOutput = true
+            connectTimeout = TIMEOUT_MS
+            readTimeout = TIMEOUT_MS
+            setRequestProperty("Content-Type", "application/x-protobuf")
+            setRequestProperty("User-Agent", ANDROID_UA)
+        }
+        return try {
+            connection.outputStream.use { it.write(body) }
+            connection.inputStream.use { it.readBytes() }
+        } catch (e: IOException) {
+            Diag.warn("sabr", "request failed", e)
+            ByteArray(0)
+        } finally {
+            connection.disconnect()
         }
     }
 
-    /**
-     * The SABR POST, on `HttpURLConnection`.
-     *
-     * Deliberately not OkHttp: `:core:playback` does not depend on it, and adding a client here
-     * to make one POST would widen the module for nothing. The Android UA matters — it is the
-     * client whose player response these URLs came from.
-     */
-    private object UrlConnectionTransport : SabrTransport {
-        override suspend fun post(url: String, body: ByteArray): ByteArray {
-            val connection = (URL(url).openConnection() as HttpURLConnection).apply {
-                requestMethod = "POST"
-                doOutput = true
-                connectTimeout = TIMEOUT_MS
-                readTimeout = TIMEOUT_MS
-                setRequestProperty("Content-Type", "application/x-protobuf")
-                setRequestProperty("User-Agent", ANDROID_UA)
-            }
-            return try {
-                connection.outputStream.use { it.write(body) }
-                connection.inputStream.use { it.readBytes() }
-            } catch (e: IOException) {
-                Diag.warn("sabr", "request failed", e)
-                ByteArray(0)
-            } finally {
-                connection.disconnect()
-            }
-        }
-
-        private const val TIMEOUT_MS = 30_000
-        private const val ANDROID_UA = "com.google.android.youtube/20.10.38 (Linux; U; Android 14) gzip"
-    }
+    private const val TIMEOUT_MS = 30_000
+    private const val ANDROID_UA = "com.google.android.youtube/20.10.38 (Linux; U; Android 14) gzip"
 }
