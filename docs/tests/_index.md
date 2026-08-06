@@ -1,7 +1,7 @@
 ---
 title: Testing
 kind: reference
-updated: 2026-08-01
+updated: 2026-08-06
 ---
 
 # Testing
@@ -116,3 +116,26 @@ pieces meet** — here, `PlaybackQueueTest`, counting real extractions through a
 
 The habit that catches it: after writing a regression test, delete the fix and watch the test go
 red. If it stays green it is testing something else, however true that something is.
+
+## A test whose name is broader than its coverage hides the gap (2026-08-06)
+
+`OfflineSkipsUnavailableTest` had *"offline, a video is declined without resolving"* — true, and
+the reason the missing case was never noticed: read as a rule, it says videos cannot play offline,
+which is what the code did and precisely the bug. There was **no** test for a video that HAD been
+downloaded, and the whole offline feature is about downloaded things.
+
+So: **name a test for the case it actually covers**, and when a rule has an obvious other half,
+write both halves or neither. The renamed one now says *"a video **with no copy**"*, and the four
+tests beside it cover the copy. Nine tests across two tiers go red if the fix is reverted.
+
+Where the tiers landed for that fix, as a worked example of the pyramid:
+
+| Tier | Count | What only this tier can prove |
+|---|---|---|
+| Unit (`:core:domain` `PlayRouteTest`) | 17 | every combination of pillar × copy variant × offline × Listen, instantly |
+| Integration (`app` `OfflineSkipsUnavailableTest`) | 11 | the queue really consults the store and really advances past what it cannot play |
+| Instrumented (`OfflineQueuePlaybackTest`) | 3 | radios genuinely off, real Room, real Media3, on a device |
+| Instrumented + live (`LiveDownloadedVideoOfflineTest`) | 1 | yt-dlp fetching a real YouTube video, then playing that file offline |
+
+The live one runs only through the residential-egress tunnel, which is allowed to skip — so it
+adds proof but can never be the only proof. Both, not either.

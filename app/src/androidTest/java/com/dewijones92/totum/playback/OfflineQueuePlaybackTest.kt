@@ -1,7 +1,5 @@
 package com.dewijones92.totum.playback
 
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
 import androidx.test.ext.junit.rules.ActivityScenarioRule
 import androidx.test.platform.app.InstrumentationRegistry
 import com.dewijones92.totum.MainActivity
@@ -13,6 +11,9 @@ import com.dewijones92.totum.domain.MediaItemId
 import com.dewijones92.totum.domain.PlayHandle
 import com.dewijones92.totum.domain.PlayableItem
 import com.dewijones92.totum.domain.SourceId
+import com.dewijones92.totum.support.DeviceRadios.goOffline
+import com.dewijones92.totum.support.DeviceRadios.goOnline
+import com.dewijones92.totum.support.DeviceRadios.hasNetwork
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -41,11 +42,7 @@ import kotlin.concurrent.thread
  * device genuinely offline and play what was downloaded. Splitting them across tests would let the
  * offline half pass on a device that had never downloaded anything.
  *
- * **The radios go off, not a packet filter.** `iptables -j DROP` leaves Android reporting the
- * network as VALIDATED, so every connectivity-aware path — `NetworkCallback`, wait-for-online,
- * "retry when back" — carries on believing it is connected and is not exercised at all. That cost
- * a day on this app on 31 July: the filtered run looked like a successful reproduction while
- * leaving the code under test untouched. `svc wifi disable` is what makes the OS agree.
+ * The radios really go off (see [DeviceRadios], which explains why a packet filter will not do).
  *
  * **Two ways this test could pass while proving nothing**, both guarded:
  *
@@ -55,9 +52,7 @@ import kotlin.concurrent.thread
  *    a misleading name — so being offline is asserted through `ConnectivityManager`, the same
  *    source the app itself consults, before anything is played.
  *
- * Restoring the radios in [tearDown] is not politeness. Test-class order is not guaranteed, so a
- * leaked offline device would make every later test in the run fail for a reason nowhere near the
- * code that appears to be broken.
+ * Restoring the radios in [tearDown] is not politeness — see [DeviceRadios.goOnline].
  */
 class OfflineQueuePlaybackTest {
 
@@ -97,8 +92,7 @@ class OfflineQueuePlaybackTest {
     @After
     fun tearDown() {
         // FIRST, and unconditionally: a leaked offline device breaks every test that follows.
-        shell("svc wifi enable")
-        shell("svc data enable")
+        goOnline()
         runBlocking(Dispatchers.Main) {
             queue.clear()
             controller.player?.stop()
@@ -195,6 +189,56 @@ class OfflineQueuePlaybackTest {
             )
         }
 
+    /**
+     * The bug Dewi hit on 2026-08-06: a **video** queue entry whose copy was already downloaded,
+     * refused in airplane mode with the file on the disk. The two tests above could not have
+     * caught it — both queue podcast-handled items, and the missing lookup was on the video branch.
+     *
+     * The file is fetched through the podcast route on purpose, and this test is deliberately the
+     * DETERMINISTIC half: it needs no YouTube, so it runs on every emulator on every commit. The
+     * seam under test is downstream of how the bytes arrived — "offline, a copy exists, does the
+     * VIDEO branch find it" — and a real file with a real Room record proves that.
+     *
+     * The genuinely end-to-end version, where yt-dlp fetches a real video's audio and *that* is
+     * played offline, is [LiveDownloadedVideoOfflineTest]: CI can reach YouTube from the emulator
+     * through Dewi's home connection (`tools/ci/live-test-via-home.sh`), but that tunnel is allowed
+     * to be absent, so the always-on guard cannot depend on it. Both, not either.
+     *
+     * The watch URL is a genuine YouTube one and stays untouched: if this branch ever regresses to
+     * resolving, the test fails offline rather than passing quietly.
+     */
+    @Test
+    fun `a downloaded video plays from disk with the radios off`() = runBlocking(Dispatchers.Main) {
+        val forDownloading = hostedItem()
+        downloads.download(forDownloading, audioOnly = true)
+        val path = awaitDownloaded()
+        assertTrue("setup: the copy must exist before the offline half means anything", path != null)
+
+        goOffline()
+        assertEquals("the radios did not actually go off", false, hasNetwork())
+
+        // The SAME item id, queued as a video — which is how everything from a YouTube feed
+        // arrives, and what the auto-downloader fetches audio for.
+        queue.playNow(
+            PlayableItem(
+                item = forDownloading.item,
+                handle = PlayHandle.Video(HttpUrl.of("https://www.youtube.com/watch?v=aaaaaaaaaaa")),
+            ),
+        )
+        awaitPlaying()
+
+        assertTrue(
+            "a downloaded video must play from its file offline. It played from " +
+                "\"${lastSource()}\" — which offline can only mean the file it was NOT given",
+            lastSource()?.contains(path!!) == true,
+        )
+        assertTrue(
+            "offline playback of the downloaded video stalled at " +
+                "${controller.state.value?.positionMs}ms",
+            awaitPositionBeyond(PROGRESS_MS),
+        )
+    }
+
     /** The local path once the download reports itself finished, or null on timeout. */
     private suspend fun awaitDownloaded(): String? = withTimeoutOrNull(DOWNLOAD_TIMEOUT_MS) {
         var path: String? = null
@@ -203,29 +247,6 @@ class OfflineQueuePlaybackTest {
             path = (downloads.observe(ITEM_ID).first() as? DownloadState.Downloaded)?.localPath
         }
         path
-    }
-
-    private fun goOffline() {
-        shell("svc wifi disable")
-        shell("svc data disable")
-        // The callbacks are asynchronous; playing before the OS has settled would race the very
-        // state this test is about.
-        runBlocking {
-            withTimeoutOrNull(OFFLINE_TIMEOUT_MS) {
-                while (hasNetwork()) delay(POLL_MS)
-            }
-        }
-    }
-
-    private fun hasNetwork(): Boolean {
-        val manager = context.getSystemService(ConnectivityManager::class.java) ?: return false
-        val active = manager.activeNetwork ?: return false
-        val caps = manager.getNetworkCapabilities(active) ?: return false
-        return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
-    }
-
-    private fun shell(command: String) {
-        instrumentation.uiAutomation.executeShellCommand(command).close()
     }
 
     /** What the player was actually handed — the assertion that separates local from streamed. */
@@ -324,7 +345,6 @@ class OfflineQueuePlaybackTest {
         const val MEDIA_SECONDS = 30
         const val DOWNLOAD_TIMEOUT_MS = 60_000L
         const val START_TIMEOUT_MS = 30_000L
-        const val OFFLINE_TIMEOUT_MS = 15_000L
         const val PROGRESS_MS = 1_000L
         const val POLL_MS = 200L
         const val UNAVAILABLE_ID = "never-downloaded"

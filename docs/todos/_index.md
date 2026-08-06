@@ -1,7 +1,7 @@
 ---
 title: Backlog
 kind: index
-updated: 2026-08-02
+updated: 2026-08-06
 ---
 
 # Backlog
@@ -37,9 +37,9 @@ to `shipped` and migrate it to `../features/` once it's a real feature on `main`
 | [watch-history-not-recorded](watch-history-not-recorded.md) | video | high | done — fixed by an authenticated player call carrying a current signatureTimestamp |
 | [sabr-streaming](sabr-streaming.md) | video | medium | fallback shipped; QuickJS runtime open |
 | [feed-pagination](feed-pagination.md) | video | high | feeds + channel tabs shipped; search pending |
-| [queue-drag-reorder](queue-drag-reorder.md) | queue | high | requested |
-| [public-domain-film-tv](public-domain-film-tv.md) | search | medium | ready — decisions made, not started |
-| [age-restricted-videos](age-restricted-videos.md) | video | high | recipe proven e2e; n-solver left to build |
+| [queue-drag-reorder](queue-drag-reorder.md) | queue | high | shipped (auto-scroll); pickup + resilience open |
+| [public-domain-film-tv](public-domain-film-tv.md) | search | medium | Pi side built and proven; app side not started |
+| [age-restricted-videos](age-restricted-videos.md) | video | high | shipped — age-restricted videos play on-device |
 | [torrent-zero-config](torrent-zero-config.md) | torrent | high | requested |
 | [testing-depth](testing-depth.md) | tests | medium | refining |
 | [audio-video-switching](audio-video-switching.md) | playback | high | shipped (local-audio merge outstanding) |
@@ -49,7 +49,15 @@ to `shipped` and migrate it to `../features/` once it's a real feature on `main`
 | [playback-does-not-resume-after-network-loss](playback-does-not-resume-after-network-loss.md) | playback | high | done — StreamRecovery waits for a validated network, then resumes |
 | [download-races-playback](download-races-playback.md) | playback | high | done — downloads now yield to playback; the duplicate extraction itself remains |
 | [listen-mode-saves-data](listen-mode-saves-data.md) | playback | medium | true for YouTube; torrents measured feasible (8x saving), seeking is the blocker |
-| [buffer-ahead-gauge](buffer-ahead-gauge.md) | playback | medium | requested |
+| [downloaded-video-not-played-offline](downloaded-video-not-played-offline.md) | playback | high | fixed — one routing decision for both pillars |
+| [torrents-through-the-unified-route](torrents-through-the-unified-route.md) | torrent | medium | routing verified; torrent DOWNLOAD for offline unverified |
+| [metered-audio-switch](metered-audio-switch.md) | playback | high | shipped — proven with the radios toggled |
+| [prefetch-the-next-item](prefetch-the-next-item.md) | playback | medium | done — readiness and byte preload, Wi-Fi only |
+| [skip-silence-smoothness](skip-silence-smoothness.md) | playback | high | shipped — sample removal for audio, speed-up for video |
+| [offline-queue-e2e](offline-queue-e2e.md) | tests | high | done — in CI, and it found a real bug |
+| [buffering-defects-0.1.332](buffering-defects-0.1.332.md) | playback | high | all four fixed with tests |
+| [settings-only-change-when-asked](settings-only-change-when-asked.md) | settings | high | done — speed, boost and brightness hold |
+| [buffer-ahead-gauge](buffer-ahead-gauge.md) | playback | medium | shipped — seconds-ahead gauge on the scrub bar |
 
 All backlog items are Dewi requests. `refining` = spec written, decisions still open;
 `ready` = decisions made, implementation waits for Dewi's explicit go (his standing

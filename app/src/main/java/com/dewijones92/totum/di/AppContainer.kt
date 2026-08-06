@@ -61,7 +61,10 @@ import com.dewijones92.totum.diagnostics.CrashReporter
 import com.dewijones92.totum.diagnostics.DiagnosticsUploader
 import com.dewijones92.totum.diagnostics.installAndroidLogSink
 import com.dewijones92.totum.domain.DownloadState
+import com.dewijones92.totum.domain.LocalCopy
+import com.dewijones92.totum.domain.MediaItemId
 import com.dewijones92.totum.domain.MediaKind
+import com.dewijones92.totum.domain.OfflineReadiness
 import com.dewijones92.totum.domain.PlayHandle
 import com.dewijones92.totum.domain.PlayableItem
 import com.dewijones92.totum.domain.SourceId
@@ -131,6 +134,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import java.io.File
@@ -659,7 +664,20 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
             scope = applicationScope,
         ).start()
         DiagnosticsUploader(context, httpClient, applicationScope).uploadPending()
+        // Kept current so [diagnosticState] can answer "was it downloaded?" without blocking.
+        downloadManager.observeDownloads()
+            .onEach { latestDownloadStates = it }
+            .launchIn(applicationScope)
     }
+
+    /**
+     * The most recent download states, for diagnostics only.
+     *
+     * Volatile because it is written from the app scope and read on whichever thread is reporting
+     * — often one that has just crashed.
+     */
+    @Volatile
+    private var latestDownloadStates: Map<MediaItemId, DownloadState> = emptyMap()
 
     /**
      * What the app can say about itself when something goes wrong. Verbose on purpose
@@ -684,6 +702,32 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
             put("queue.size", queue.entries.size.toString())
             put("queue.currentIndex", queue.currentIndex.toString())
             put("queue.items", queue.entries.joinToString(" | ") { "${it.item.item.title}" })
+        }
+        runCatching {
+            // What is actually on this device, which is the first question any "it did not play
+            // offline" report asks and the one 0.1.346 could not answer: it carried the whole
+            // queue and every setting, and not one word about whether the file was there.
+            //
+            // From a cached snapshot, never a blocking read: a diagnostic must not be the thing
+            // that hangs, and this runs on whatever thread just crashed.
+            val states = latestDownloadStates
+            val entries = playbackQueue.state.value.entries
+            val readiness = OfflineReadiness.of(entries.map { it.item.item.id }) { id ->
+                states[id] ?: DownloadState.NotDownloaded
+            }
+            put("downloads.queueReady", readiness.ready.toString())
+            put("downloads.queueDownloading", readiness.downloading.toString())
+            put("downloads.queueWaiting", readiness.waiting.toString())
+            put("downloads.queueUnavailableOffline", readiness.unavailableOffline.toString())
+            put("downloads.onDisk", states.count { it.value is DownloadState.Downloaded }.toString())
+            // Per item, because a count cannot say whether the one that was TAPPED was there.
+            put(
+                "downloads.queueStates",
+                entries.joinToString(" | ") { entry ->
+                    val title = entry.item.item.title.take(DIAG_TITLE_CHARS)
+                    "$title=${states[entry.item.item.id].forDiagnostics()}"
+                },
+            )
         }
         runCatching {
             val settings = appPreferences.settings.value
@@ -732,8 +776,9 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
             // The same rule the video path uses, so Listen means one thing on both pillars.
             audioPreferred = ::audioPlaybackPreferred,
             // Asked per play, so an item downloaded after it was queued still plays from disk.
-            downloadedPath = { id ->
-                (downloadManager.observe(id).first() as? DownloadState.Downloaded)?.localPath
+            localCopy = { id ->
+                (downloadManager.observe(id).first() as? DownloadState.Downloaded)
+                    ?.let { LocalCopy(it.localPath, it.audioOnly) }
             },
             // Errs toward "there is a network" only when it can genuinely tell; NetworkStatus
             // itself errs the other way when unsure, which is the safe direction for data.
@@ -1053,3 +1098,24 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
 
 /** Enough of a URL to identify it in a report without filling the buffer. */
 private const val URL_LOG_CHARS = 60
+
+/** Enough of a title to recognise the item in a per-item report line. */
+private const val DIAG_TITLE_CHARS = 40
+
+/**
+ * One download state, short enough that ninety of them still fit in a report.
+ *
+ * A failure keeps a slice of its reason: "members-only" and "network timeout" are the difference
+ * between an item that will never be offline and one that will be in a minute.
+ */
+private fun DownloadState?.forDiagnostics(): String = when (this) {
+    null, DownloadState.NotDownloaded -> "-"
+    is DownloadState.Downloaded -> if (audioOnly) "audio" else "full"
+    is DownloadState.Downloading -> "fetching${fraction?.let { " ${(it * PERCENT).toInt()}%" } ?: ""}"
+    is DownloadState.Failed -> "failed(${reason.take(DIAG_FAILURE_CHARS)})"
+}
+
+/** As much of a failure as identifies it; the full text is in the download row. */
+private const val DIAG_FAILURE_CHARS = 30
+
+private const val PERCENT = 100

@@ -89,7 +89,7 @@ jobs:
             adb shell settings put global window_animation_scale 0
             adb shell settings put global transition_animation_scale 0
             adb shell settings put global animator_duration_scale 0
-            ./gradlew connectedDebugAndroidTest --no-daemon -Pandroid.testInstrumentationRunnerArguments.notClass=com.dewijones92.totum.sabr.SabrPlaybackTest
+            ./gradlew connectedDebugAndroidTest --no-daemon -Pandroid.testInstrumentationRunnerArguments.notClass=com.dewijones92.totum.sabr.SabrPlaybackTest,com.dewijones92.totum.playback.LiveDownloadedVideoOfflineTest
             tools/ci/live-test-via-home.sh
 
 

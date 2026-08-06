@@ -3,7 +3,7 @@ title: Offline queue
 kind: feature
 status: shipped
 area: downloads
-updated: 2026-08-02
+updated: 2026-08-06
 ---
 
 # Offline queue
@@ -17,9 +17,9 @@ it to work offline … I expect the gui / labels etc to be very very clear"*.
 ## What happens
 
 `QueueAutoDownloader` watches the queue and fetches the audio of every entry. Playback prefers
-the local file (`PlaybackQueue` → `playLocal`), so a downloaded item never touches the network.
-Nothing is deleted automatically: leaving the queue keeps the file, and it is removed from
-Library like any other download.
+the local file — decided by `routeNow` in `:core:domain`, **for both pillars** — so a downloaded
+item never touches the network. Nothing is deleted automatically: leaving the queue keeps the
+file, and it is removed from Library like any other download.
 
 **Audio only, video on request.** Small, quick, and it matches how a queue is used. A full video
 stays a deliberate per-item choice from the row menu.
@@ -40,6 +40,19 @@ untouched: a tap still starts immediately rather than queueing behind seventy ba
 
 **Nothing showed readiness.** A per-row headphones glyph was the only signal, so "is my queue
 ready?" could only be answered by scrolling 77 rows and counting.
+
+## And a fourth, found on a plane (2026-08-06)
+
+The whole feature did not work for **videos** — which is nearly everything in the queue. Playback
+asked the download store for a local copy on the podcast branch and never on the video branch, so
+a downloaded YouTube item was refused in airplane mode with its file on the disk. Fixed by giving
+both pillars one routing decision (`routeNow`); the full account, including the deliberate
+"an audio-only copy does not replace the picture while you are watching" rule, is in
+[`../todos/downloaded-video-not-played-offline.md`](../todos/downloaded-video-not-played-offline.md).
+
+Also worth knowing: an item YouTube serves but will not let yt-dlp download (members-only —
+Novara's `AD FREE` uploads) can play with signal and never offline. The app marks these
+`Online only` rather than pretending.
 
 ## What you see now
 
@@ -66,3 +79,8 @@ tidy is not the app's call.
   is what a person actually reads.
 - `QueueAutoDownloaderTest` — one download at a time, and that a never-settling download does not
   wedge the queue. Deleting the sequencing turns the first red.
+- `PlayRouteTest` + `OfflineSkipsUnavailableTest` — the routing decision itself, per pillar, per
+  copy variant, online and off. Reverting the 2026-08-06 fix turns 9 of them red.
+- `OfflineQueuePlaybackTest` and `LiveDownloadedVideoOfflineTest` (instrumented, radios genuinely
+  off) — a downloaded **video** plays from its file with no network; the live one downloads a real
+  YouTube video through yt-dlp first, via CI's residential egress.

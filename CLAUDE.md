@@ -121,8 +121,8 @@ when driven on the emulator. Verify real flows on a device, not just via tests.
   ffmpeg, then cuts SponsorBlock segments), `HttpDownloadStrategy` for podcast
   enclosures (a plain HTTP GET). A third pillar cannot be added without that
   `when` failing to compile. `DownloadState` in `:core:domain`; playback
-  prefers the local file via `play(..., localPath=)` (a downloaded video
-  needs no re-resolution). Interrupted downloads (a `Downloading` row at
+  prefers the local file wherever one exists — decided by `routeNow` below, for
+  both pillars, so a downloaded video needs no re-resolution. Interrupted downloads (a `Downloading` row at
   startup) are dropped — an absent record already means NotDownloaded.
   Strategy IO runs off the main thread (`flowOn(Dispatchers.IO)`). Verified
   offline in airplane mode; video merge verified on-device (AV1 4K + Opus →
@@ -135,6 +135,20 @@ when driven on the emulator. Verify real flows on a device, not just via tests.
   is why a downloaded video was on disk and invisible. `DownloadedMedia.offline`
   supplies the local handle, so an audio-only video plays as audio and a full
   one as `LocalVideo`.
+- **"How do I play this, right now?" is answered once**, by `routeNow` in
+  `:core:domain` (`PlayRoute.kt`), for both pillars: it takes any copy on disk,
+  whether there is a network and whether Listen mode is on, and returns one of
+  four routes (`VideoFile` | `AudioFile` | `VideoStream` | `AudioStream`) or a
+  `Refused` with its reason. `PlaybackQueue.route` is the only caller and does
+  nothing but carry it out. It exists because the question had **one branch per
+  pillar and the branches disagreed**: the podcast branch asked the download store
+  for a local copy and the video branch never did, so a downloaded YouTube item
+  was refused in airplane mode with its file on the disk (reported 2026-08-06).
+  The handle-to-disk swap is shared with `DownloadedMedia.offline`
+  (`playedFromDisk`), so the Library and the queue cannot drift apart again.
+  One deliberate asymmetry, Dewi's call: an **audio-only** copy of a video does
+  not stand in while you are *watching* (it would silently drop the picture) —
+  it does the moment you are listening or offline.
 - **"Is this a video?" is answered once**, by `MediaItem.pillar` in
   `:core:domain`, and "where do the bytes come from" once by
   `PlayableItem.fetchUrl`. Both used to exist twice with rules that disagreed
@@ -270,6 +284,29 @@ when driven on the emulator. Verify real flows on a device, not just via tests.
   The one real constraint is the report buffer: it holds a bounded number of events,
   so anything firing many times a second must be counted and logged periodically
   (see `SILENCE_LOG_EVERY`) rather than dropped. Counted, never silent.
+- **Every change must be provable in the wild from its logs and diagnostics alone —
+  this is a MUST, not a preference.** Dewi, 2026-08-06: *"we need to collect
+  logs+diags verbosely to make sure what we do works in the wild … this is a MUST!!!
+  and be able to be read very well after the fact"*. A feature is not done when it
+  passes tests; it is done when a report sent from his phone a week later can settle
+  **whether it actually worked there**. So when you ship anything, ask: *if this
+  silently misbehaves on his device, which line in the next report tells me?* If the
+  answer is "none", the instrumentation is part of the change, not a follow-up.
+  Three rules follow, each earned:
+  - **Log the inputs, not only the outcome.** A decision line that omits what it
+    decided from cannot be re-judged after the fact. "skipped it" was identical whether
+    a downloaded file existed or not — which is exactly how the offline-video bug
+    survived (2026-08-06). Now the line carries the copy, the network and the mode:
+    `route <id> -> … [handle=Video copy=audio-only offline=true listen=false]`.
+  - **A report must be able to answer the obvious next question.** Report 0.1.346
+    carried the whole 97-item queue and every setting, and not one word about what was
+    on the disk — so "was it downloaded?" was unanswerable and the diagnosis had to come
+    from reading code instead. State blocks are cheap; add the counters AND the per-item
+    detail (`downloads.queueStates`), because a total cannot say whether the item that
+    was *tapped* was there.
+  - **Write it to be read months later by someone with no context**: name the field
+    (`playing=`, `copy=`), spell the units, prefer a whole phrase over a flag, and never
+    let two different situations produce the same line.
 - Debug logging must be prefixed `dewidebug`. **Keep it committed** until Dewi says
   otherwise (his standing rule, which reverses the earlier strip-before-commit one):
   these lines are often useful again. Make a chatty one reasonable — log only the

@@ -18,16 +18,6 @@ public data class DownloadedMedia(
     /** Which pillar it came from — for labelling. The file may still be audio-only. */
     public val pillar: MediaKind get() = playable.handle.pillar
 
-    /**
-     * The same item played from disk rather than the network. A video fetched
-     * audio-only is an audio file, so it plays as one.
-     */
-    public val offline: PlayableItem
-        get() = playable.copy(
-            handle = if (audioOnly || pillar == MediaKind.PODCAST) {
-                PlayHandle.Podcast(localPath)
-            } else {
-                PlayHandle.LocalVideo(localPath)
-            },
-        )
+    /** This download as something playable — the swap lives in [playedFromDisk]. */
+    public val offline: PlayableItem get() = playable.playedFromDisk(LocalCopy(localPath, audioOnly))
 }

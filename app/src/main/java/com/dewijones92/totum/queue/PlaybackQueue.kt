@@ -7,10 +7,14 @@ import com.dewijones92.totum.data.queue.QueueSnapshot
 import com.dewijones92.totum.data.queue.QueueSnapshot.Companion.NOTHING_PLAYING
 import com.dewijones92.totum.data.queue.QueueStore
 import com.dewijones92.totum.data.queue.fake.InMemoryQueueStore
+import com.dewijones92.totum.domain.LocalCopy
 import com.dewijones92.totum.domain.MediaItemId
 import com.dewijones92.totum.domain.MediaKind
 import com.dewijones92.totum.domain.PlayHandle
+import com.dewijones92.totum.domain.PlayRoute
 import com.dewijones92.totum.domain.PlayableItem
+import com.dewijones92.totum.domain.Refusal
+import com.dewijones92.totum.domain.routeNow
 import com.dewijones92.totum.playback.PlaybackController
 import com.dewijones92.totum.video.VideoPlaybackLauncher
 import kotlinx.coroutines.CoroutineScope
@@ -67,14 +71,17 @@ class PlaybackQueue(
     /** Injected so the repeat guard is testable without waiting in real time. */
     private val clock: () -> Long = System::currentTimeMillis,
     /**
-     * The downloaded file for an item, if there is one — asked at play time.
+     * The downloaded copy of an item, if there is one — asked at play time, for every pillar.
      *
      * The queue cannot rely on handles for this: a handle is fixed when the item is queued, and the
      * auto-downloader finishes long afterwards. Consulting the store instead means "play the local
      * copy if we have one" is true for everything in the queue, which is what offline playback
      * actually requires.
+     *
+     * Carries the variant, not just the path: the automatic downloads are audio-only, and whether a
+     * copy holds a picture decides whether it can stand in for streaming (see [routeNow]).
      */
-    private val downloadedPath: suspend (MediaItemId) -> String? = { null },
+    private val localCopy: suspend (MediaItemId) -> LocalCopy? = { null },
     /**
      * Whether there is no usable network right now.
      *
@@ -403,55 +410,6 @@ class PlaybackQueue(
     }
 
     /**
-     * A podcast, a torrent, anything with one URL and maybe a file on disk.
-     *
-     * Split out of [route] when that grew past the complexity gate — the routing itself is a
-     * three-way choice, and all the nuance about local copies, audio-only streams and being
-     * offline belongs to this one branch.
-     */
-    private suspend fun routePodcast(
-        queued: PlayableItem,
-        handle: PlayHandle.Podcast,
-        startPositionMs: Long,
-    ): Boolean {
-        // ASKED FOR, never assumed from the handle. A queue entry's handle is a snapshot
-        // taken when it was queued, so an item downloaded AFTER it joined the queue — which
-        // is every item the auto-downloader fetches — still carried a null path and quietly
-        // streamed. On a plane that is the whole feature failing silently. Found by the
-        // offline test on 2026-08-03, not by a report, because the fallback made it
-        // invisible anywhere with a connection.
-        val localPath = handle.localPath ?: downloadedPath(queued.item.id)
-        // A podcast needs either a downloaded file or a stream URL; skip if neither.
-        return if (localPath == null && queued.item.mediaUrl == null) {
-            false
-        } else if (localPath == null && offline()) {
-            Diag.log(
-                "playback",
-                "${queued.item.id.value} is not downloaded and there is no network — skipping it",
-            )
-            false
-        } else {
-            if (handle.localPath == null && localPath != null) {
-                Diag.log("playback", "${queued.item.id.value} playing the downloaded copy at $localPath")
-            }
-            // Listen mode takes the audio-only stream when the item HAS one, which today
-            // means a torrent. A downloaded copy always wins over either: it is already
-            // on the device and costs nothing to play.
-            val audio = handle.audioUrl?.takeIf { audioPreferred() && localPath == null }
-            if (audio != null) {
-                Diag.log("playback", "${queued.item.id.value} playing as audio only")
-            }
-            controller.play(
-                audio?.let { queued.item.copy(mediaUrl = it) } ?: queued.item,
-                MediaKind.PODCAST,
-                localPath = localPath,
-                startPositionMs = startPositionMs,
-            )
-            true
-        }
-    }
-
-    /**
      * Replays whatever is current from [positionMs] — how an expired stream is recovered.
      *
      * Goes back through [play] rather than nudging the player, because for a video that
@@ -486,23 +444,64 @@ class PlaybackQueue(
         return route(queued, startPositionMs)
     }
 
-    private suspend fun route(queued: PlayableItem, startPositionMs: Long): Boolean =
-        when (val handle = queued.handle) {
-            is PlayHandle.Video ->
-                // A video is resolved over the network before a byte is played, so offline there is
-                // nothing to try. Said out loud, because "skipped" and "broken" look identical.
-                if (offline()) {
-                    Diag.log("playback", "${queued.item.id.value} needs the network and there is none — skipping it")
-                    false
-                } else {
-                    launcher.play(handle.watchUrl, queued.item.sourceId, startPositionMs)
-                }
-            is PlayHandle.LocalVideo -> {
-                launcher.playLocal(queued.item, handle.localPath)
+    /**
+     * Picks a route with [routeNow] and carries it out — the only place playback starts.
+     *
+     * Both pillars go through the one decision. They used to have one branch each, and the
+     * branches disagreed: the podcast side asked the download store for a local copy and the
+     * video side never did, so a downloaded YouTube item was refused in airplane mode with its
+     * file on the disk (Dewi, 2026-08-06). Whatever else changes, that asymmetry cannot come
+     * back without deleting this call.
+     */
+    private suspend fun route(queued: PlayableItem, startPositionMs: Long): Boolean {
+        val onDisk = localCopy(queued.item.id)
+        val offlineNow = offline()
+        val audioNow = audioPreferred()
+        val route = queued.routeNow(onDisk, offline = offlineNow, audioPreferred = audioNow)
+        // The decision AND its inputs, because a report can only ever answer the question it
+        // was given the numbers for. "Skipped" with no copy and "skipped" with a copy it chose
+        // not to use are the same line otherwise, and telling them apart is the whole diagnosis.
+        Diag.log(
+            "playback",
+            "route ${queued.item.id.value} -> ${route.describe()} " +
+                "[handle=${queued.handle.javaClass.simpleName} " +
+                "copy=${onDisk?.let { if (it.audioOnly) "audio-only" else "full" } ?: "none"} " +
+                "offline=$offlineNow listen=$audioNow]",
+        )
+        return when (route) {
+            is PlayRoute.VideoFile -> {
+                launcher.playLocal(route.playable.item, route.path)
                 true
             }
-            is PlayHandle.Podcast -> routePodcast(queued, handle, startPositionMs)
+            is PlayRoute.AudioFile -> {
+                controller.play(
+                    route.playable.item,
+                    MediaKind.PODCAST,
+                    localPath = route.path,
+                    startPositionMs = startPositionMs,
+                )
+                true
+            }
+            is PlayRoute.VideoStream -> launcher.play(route.watchUrl, route.playable.item.sourceId, startPositionMs)
+            is PlayRoute.AudioStream -> {
+                controller.play(route.playable.item, MediaKind.PODCAST, startPositionMs = startPositionMs)
+                true
+            }
+            is PlayRoute.Refused -> false
         }
+    }
+}
+
+/** How a route reads in the trail: what was chosen, and where the bytes come from. */
+private fun PlayRoute.describe(): String = when (this) {
+    is PlayRoute.VideoFile -> "the downloaded video at $path"
+    is PlayRoute.AudioFile -> "the downloaded audio at $path"
+    is PlayRoute.VideoStream -> "streaming the video from $watchUrl"
+    is PlayRoute.AudioStream -> if (viaAudioOnlyUrl) "streaming its audio-only version" else "streaming it"
+    is PlayRoute.Refused -> when (reason) {
+        Refusal.NothingToPlay -> "refused: there is nothing to play"
+        Refusal.NotOnThisDevice -> "refused: not downloaded and there is no network"
+    }
 }
 
 /**

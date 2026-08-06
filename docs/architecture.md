@@ -1,7 +1,7 @@
 ---
 title: Architecture — unified seams & modules
 kind: reference
-updated: 2026-08-01
+updated: 2026-08-06
 ---
 
 # Architecture
@@ -31,6 +31,7 @@ for a genuinely strong technical reason, which must be surfaced to Dewi.
 |---|---|---|
 | Media item | `MediaItem` | a podcast episode *is* a video — same type |
 | Playback | `PlaybackController` + one `MediaSession` + one mini/full player | anything with `mediaUrl` plays |
+| Play routing | `routeNow` in `:core:domain` → `VideoFile` \| `AudioFile` \| `VideoStream` \| `AudioStream` \| `Refused` | "disk or network, picture or not" is answered once for both pillars |
 | Search | `SearchSource` → sealed `SearchHit` (Podcast \| Video) | iTunes + `ytsearch` adapters |
 | Subscriptions freshness | `ContentRefresher` + `SeenItemsTracker` | podcast RSS + YouTube subs adapters |
 | Downloads | `DownloadManager` + `RoutedDownloadStrategy`, routed on `PlayHandle.pillar` | `EngineDownloadStrategy` (video) / `HttpDownloadStrategy` (enclosure) |

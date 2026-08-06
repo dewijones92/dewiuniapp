@@ -58,10 +58,13 @@ for TARGET in 192.168.0.1 192.168.0.19; do
 done
 echo "[live-test] LAN unreachable from the CI peer, as intended"
 
+# Both live tests, for the same reason: they need a residential IP. SabrPlaybackTest proves SABR
+# playback; LiveDownloadedVideoOfflineTest proves a real yt-dlp download plays with the radios off.
+#
 # :app only. A bare `connectedDebugAndroidTest` runs every module, and :core:database has no
 # class by this name, so the filter matches nothing there and the runner reports
 # `initializationError` — a real red build caused entirely by asking the wrong module.
-./gradlew :app:connectedDebugAndroidTest --no-daemon -Pandroid.testInstrumentationRunnerArguments.class=com.dewijones92.totum.sabr.SabrPlaybackTest
+./gradlew :app:connectedDebugAndroidTest --no-daemon -Pandroid.testInstrumentationRunnerArguments.class=com.dewijones92.totum.sabr.SabrPlaybackTest,com.dewijones92.totum.playback.LiveDownloadedVideoOfflineTest
 
 # Say whether it actually RAN or merely skipped. Without this the log shows "Finished 1 tests"
 # and "BUILD SUCCESSFUL" either way, so the one question this whole tunnel exists to answer —

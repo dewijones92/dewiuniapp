@@ -3,6 +3,7 @@ package com.dewijones92.totum.queue
 import com.dewijones92.totum.common.HttpUrl
 import com.dewijones92.totum.data.history.fake.InMemoryPlayHistoryStore
 import com.dewijones92.totum.data.sponsorblock.SkipSegmentSource
+import com.dewijones92.totum.domain.LocalCopy
 import com.dewijones92.totum.domain.MediaItem
 import com.dewijones92.totum.domain.MediaItemId
 import com.dewijones92.totum.domain.PlayHandle
@@ -42,7 +43,10 @@ class OfflineSkipsUnavailableTest {
     private val dispatcher = StandardTestDispatcher()
     private val controller = FakePlaybackController()
 
-    private fun queue(offline: Boolean) = PlaybackQueue(
+    /** What the download store would answer, per item id — the app asks it at play time. */
+    private val onDisk = mutableMapOf<MediaItemId, LocalCopy>()
+
+    private fun queue(offline: Boolean, audioPreferred: Boolean = false) = PlaybackQueue(
         controller = controller,
         launcher = VideoPlaybackLauncher(
             VideoResolver(FakeYtDlpEngine(), SkipSegmentSource { emptyList() }),
@@ -52,6 +56,8 @@ class OfflineSkipsUnavailableTest {
         ),
         scope = CoroutineScope(dispatcher),
         offline = { offline },
+        audioPreferred = { audioPreferred },
+        localCopy = { id -> onDisk[id] },
     )
 
     private fun streamOnly(id: String) = PlayableItem(
@@ -113,9 +119,13 @@ class OfflineSkipsUnavailableTest {
         assertEquals("/data/episode.mp3", controller.lastLocalPath)
     }
 
-    /** A video is resolved over the network before a byte plays, so there is nothing to try. */
+    /**
+     * A video with NO copy is resolved over the network before a byte plays, so there is nothing
+     * to try. Note the qualifier: this test used to be the only one about videos offline, and its
+     * unqualified name is part of why the missing case below went unnoticed for so long.
+     */
     @Test
-    fun `offline, a video is declined without resolving`() = runTest(dispatcher) {
+    fun `offline, a video with no copy is declined without resolving`() = runTest(dispatcher) {
         val queue = queue(offline = true)
 
         val played = queue.peek(video("aaaaaaaaaaa"))
@@ -123,6 +133,102 @@ class OfflineSkipsUnavailableTest {
 
         assertEquals(false, played)
         assertNull(controller.lastItem)
+    }
+
+    /**
+     * THE reported bug (Dewi, 2026-08-06): airplane mode, a Novara episode the queue had already
+     * downloaded, and nothing played. The queue asked the download store for a podcast and never
+     * for a video, so the file on the disk was invisible to the only branch that mattered.
+     */
+    @Test
+    fun `offline, a video whose audio was downloaded plays from the file`() = runTest(dispatcher) {
+        val item = video("aaaaaaaaaaa")
+        onDisk[item.item.id] = LocalCopy("/data/aaaaaaaaaaa.m4a", audioOnly = true)
+        val queue = queue(offline = true)
+
+        val played = queue.peek(item)
+        advanceUntilIdle()
+
+        assertEquals(true, played)
+        assertEquals("/data/aaaaaaaaaaa.m4a", controller.lastLocalPath)
+    }
+
+    /** Same for a full download: offline it plays with its picture, from disk. */
+    @Test
+    fun `offline, a fully downloaded video plays from the file`() = runTest(dispatcher) {
+        val item = video("aaaaaaaaaaa")
+        onDisk[item.item.id] = LocalCopy("/data/aaaaaaaaaaa.mkv", audioOnly = false)
+        val queue = queue(offline = true)
+
+        val played = queue.peek(item)
+        advanceUntilIdle()
+
+        assertEquals(true, played)
+        assertEquals("/data/aaaaaaaaaaa.mkv", controller.lastLocalPath)
+    }
+
+    /**
+     * And the queue reaches it by advancing, not only when asked for it directly — which is how
+     * it is actually used on a plane: press play once and let it run.
+     */
+    @Test
+    fun `offline, the queue advances onto a downloaded video`() = runTest(dispatcher) {
+        val downloadedVideo = video("aaaaaaaaaaa")
+        onDisk[downloadedVideo.item.id] = LocalCopy("/data/aaaaaaaaaaa.m4a", audioOnly = true)
+        val queue = queue(offline = true)
+        queue.enqueue(streamOnly("not-downloaded"))
+        queue.enqueue(downloadedVideo)
+        advanceUntilIdle()
+
+        queue.playNextInQueue()
+        advanceUntilIdle()
+
+        assertEquals(MediaItemId("aaaaaaaaaaa"), controller.lastItem?.id)
+        assertEquals("/data/aaaaaaaaaaa.m4a", controller.lastLocalPath)
+    }
+
+    /**
+     * Watching, online: the audio-only copy is NOT substituted, because that would take the
+     * picture away without being asked (Dewi's decision, 2026-08-06). It streams instead.
+     */
+    @Test
+    fun `online and watching, an audio-only copy does not replace the video`() = runTest(dispatcher) {
+        val item = video("aaaaaaaaaaa")
+        onDisk[item.item.id] = LocalCopy("/data/aaaaaaaaaaa.m4a", audioOnly = true)
+        val queue = queue(offline = false)
+
+        queue.peek(item)
+        advanceUntilIdle()
+
+        assertNull("it should have streamed, not played the audio-only file", controller.lastLocalPath)
+    }
+
+    /** Listening, online: the copy costs nothing to play, so it wins over the stream. */
+    @Test
+    fun `online and listening, an audio-only copy plays instead of streaming`() = runTest(dispatcher) {
+        val item = video("aaaaaaaaaaa")
+        onDisk[item.item.id] = LocalCopy("/data/aaaaaaaaaaa.m4a", audioOnly = true)
+        val queue = queue(offline = false, audioPreferred = true)
+
+        val played = queue.peek(item)
+        advanceUntilIdle()
+
+        assertEquals(true, played)
+        assertEquals("/data/aaaaaaaaaaa.m4a", controller.lastLocalPath)
+    }
+
+    /** The 2026-08-03 fix, kept: a podcast queued before its download finished still plays it. */
+    @Test
+    fun `offline, a podcast downloaded after queueing plays from the store copy`() = runTest(dispatcher) {
+        val item = streamOnly("episode")
+        onDisk[item.item.id] = LocalCopy("/data/episode.mp3")
+        val queue = queue(offline = true)
+
+        val played = queue.peek(item)
+        advanceUntilIdle()
+
+        assertEquals(true, played)
+        assertEquals("/data/episode.mp3", controller.lastLocalPath)
     }
 
     @Test

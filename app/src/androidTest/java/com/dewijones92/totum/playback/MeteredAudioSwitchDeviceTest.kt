@@ -11,6 +11,8 @@ import com.dewijones92.totum.domain.PlayHandle
 import com.dewijones92.totum.domain.PlayableItem
 import com.dewijones92.totum.domain.SourceId
 import com.dewijones92.totum.settings.PlaybackMode
+import com.dewijones92.totum.support.DeviceRadios.goOnline
+import com.dewijones92.totum.support.DeviceRadios.shell
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
@@ -64,8 +66,7 @@ class MeteredAudioSwitchDeviceTest {
         instrumentation.context.assets.open("clip.mp4").use { input ->
             clip.outputStream().use(input::copyTo)
         }
-        shell("svc wifi enable")
-        shell("svc data enable")
+        goOnline()
         runBlocking(Dispatchers.Main) {
             awaitControllerConnected()
             // Video mode, or there is no video to drop and the whole test is vacuous.
@@ -81,8 +82,7 @@ class MeteredAudioSwitchDeviceTest {
     fun tearDown() {
         // FIRST and unconditionally: a device left on mobile-only would change the meaning of every
         // test that runs after this one.
-        shell("svc wifi enable")
-        shell("svc data enable")
+        goOnline()
         runBlocking(Dispatchers.Main) {
             queue.clear()
             controller.player?.stop()
@@ -166,10 +166,6 @@ class MeteredAudioSwitchDeviceTest {
             true
         }
         assertEquals("the media controller never connected to the playback service", true, connected)
-    }
-
-    private fun shell(command: String) {
-        instrumentation.uiAutomation.executeShellCommand(command).close()
     }
 
     private companion object {
