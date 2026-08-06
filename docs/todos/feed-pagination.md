@@ -5,7 +5,7 @@ status: shipped
 area: video
 priority: high
 requested: 2026-07-25
-updated: 2026-07-27
+updated: 2026-08-06
 ---
 
 # Are we surfacing YouTube's recommendations — and missing any?
@@ -80,10 +80,15 @@ device: 45 items became 149 across six continuations. See
 
 Still on page one, and cheap on the same seam:
 
-- **search results**
 - a **playlist's** own screen and **related videos** — both currently drop their
   continuation explicitly (with a comment saying so), which is honest but incomplete
 - **podcast episode lists** — a no-op by nature (RSS returns the whole feed)
+
+> This list said "search results" until 2026-08-06, while the section below said search had
+> shipped the same week — a doc contradicting itself, and the backlog index believed the wrong
+> half. Search paging is real and wired: `SearchViewModel.loadMoreVideos` follows tokens with a
+> dedup and a stale-query guard, `SearchScreen` drives it through the same
+> `LoadMoreOnScrollToEnd` as the feeds, and `SearchViewModelTest` covers it.
 
 ## Search paginated too (2026-07-27)
 

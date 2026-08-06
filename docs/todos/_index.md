@@ -36,7 +36,7 @@ to `shipped` and migrate it to `../features/` once it's a real feature on `main`
 | [channel-groups](channel-groups.md) | video | high | shipped |
 | [watch-history-not-recorded](watch-history-not-recorded.md) | video | high | done — fixed by an authenticated player call carrying a current signatureTimestamp |
 | [sabr-streaming](sabr-streaming.md) | video | medium | fallback + QuickJS shipped; time-addressed seeking open |
-| [feed-pagination](feed-pagination.md) | video | high | feeds + channel tabs shipped; search pending |
+| [feed-pagination](feed-pagination.md) | video | high | shipped — feeds, channel tabs AND search; playlist/related still page one |
 | [queue-drag-reorder](queue-drag-reorder.md) | queue | high | shipped (auto-scroll); pickup + resilience open |
 | [public-domain-film-tv](public-domain-film-tv.md) | search | medium | **shipped** → [features/torrents.md](../features/torrents.md) |
 | [age-restricted-videos](age-restricted-videos.md) | video | high | shipped — age-restricted videos play on-device |
