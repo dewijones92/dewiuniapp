@@ -146,6 +146,18 @@ mode's remuxed torrent audio (real HLS, which a stand-in cannot serve honestly),
 the real Pi — CI's tunnel peer is firewalled to internet-only egress and the home services are behind
 a Google login the app cannot complete unattended yet.
 
+## A stand-in must BEHAVE, not merely claim (2026-08-06)
+
+`TorrentQueuePlaybackTest`'s fake home server advertised `Accept-Ranges: bytes` and then ignored
+every `Range` header, answering 200 with the whole file. It passed locally — the player opens at zero
+and never notices — and **failed in CI**, where the slower emulator rebuffered, asked for a range,
+got the whole file with a 200, and never started playing. A flake that passes here and fails there is
+the worst kind, because the natural response is to re-run it.
+
+The lesson is not "raise the timeout" (that was also needed: CI's emulator is far slower, so 60s):
+it is that a stand-in claiming a capability has to implement it, or it tests the app against a server
+that does not exist. It now serves real 206 responses with a `Content-Range`.
+
 ## A test whose name is broader than its coverage hides the gap (2026-08-06)
 
 `OfflineSkipsUnavailableTest` had *"offline, a video is declined without resolving"* — true, and

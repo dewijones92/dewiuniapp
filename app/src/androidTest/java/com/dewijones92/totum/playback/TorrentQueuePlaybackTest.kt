@@ -224,25 +224,35 @@ class TorrentQueuePlaybackTest {
         }
     }
 
+    /** One request, parsed: what was asked for, any body it carried, and any byte range. */
+    private data class Asked(val line: String, val body: String, val range: String?)
+
+    private fun read(client: Socket): Asked? {
+        val reader = client.getInputStream().bufferedReader()
+        val line = reader.readLine() ?: return null
+        var header = reader.readLine()
+        var length = 0
+        var range: String? = null
+        while (!header.isNullOrBlank()) {
+            if (header.startsWith("Content-Length:", ignoreCase = true)) {
+                length = header.substringAfter(":").trim().toIntOrNull() ?: 0
+            }
+            if (header.startsWith("Range:", ignoreCase = true)) range = header.substringAfter(":").trim()
+            header = reader.readLine()
+        }
+        val body = CharArray(length).also { if (length > 0) reader.read(it) }.concatToString()
+        return Asked(line, body, range)
+    }
+
     private fun respond(client: Socket) {
         client.use {
-            val reader = client.getInputStream().bufferedReader()
-            val requestLine = reader.readLine() ?: return
-            var line = reader.readLine()
-            var length = 0
-            while (!line.isNullOrBlank()) {
-                if (line.startsWith("Content-Length:", ignoreCase = true)) {
-                    length = line.substringAfter(":").trim().toIntOrNull() ?: 0
-                }
-                line = reader.readLine()
-            }
-            val body = CharArray(length).also { if (length > 0) reader.read(it) }.concatToString()
+            val asked = read(client) ?: return
             val out = client.getOutputStream()
             when {
-                "/prowlarr/api/v1/search" in requestLine -> out.json(PROWLARR_RESULT)
-                "/ts/torrents" in requestLine && "\"action\":\"add\"" in body -> out.json(ADDED)
-                "/ts/torrents" in requestLine -> out.json(FILE_LIST)
-                "/ts/stream/" in requestLine -> out.media(requestLine)
+                "/prowlarr/api/v1/search" in asked.line -> out.json(PROWLARR_RESULT)
+                "/ts/torrents" in asked.line && "\"action\":\"add\"" in asked.body -> out.json(ADDED)
+                "/ts/torrents" in asked.line -> out.json(FILE_LIST)
+                "/ts/stream/" in asked.line -> out.media(asked.line, asked.range)
                 else -> out.write("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n".toByteArray())
             }
             out.flush()
@@ -260,17 +270,31 @@ class TorrentQueuePlaybackTest {
     }
 
     /**
-     * Range-aware, because that is the whole reason the app can treat a torrent as an ordinary
-     * URL — and because ExoPlayer asks for ranges whether or not a test expects it to.
+     * Range-aware for real, which is the whole reason the app can treat a torrent as an ordinary
+     * URL — and it has to be, not merely claim to be.
+     *
+     * The first version advertised `Accept-Ranges: bytes` and then ignored every `Range` header,
+     * answering 200 with the whole file. Locally the player opens at zero and never notices; on
+     * CI's slower emulator a rebuffer asked for a range, got the whole file back with a 200, and
+     * playback never started — a flake that passed here and failed there, which is the worst kind.
      */
-    private fun OutputStream.media(requestLine: String) {
+    private fun OutputStream.media(requestLine: String, range: String?) {
+        val from = range?.substringAfter("bytes=", "")?.substringBefore('-')?.toLongOrNull() ?: 0L
+        val start = from.coerceIn(0, media.size.toLong()).toInt()
+        val body = media.copyOfRange(start, media.size)
+        val status = if (range == null) "200 OK" else "206 Partial Content"
+        val contentRange = if (range == null) {
+            ""
+        } else {
+            "Content-Range: bytes $start-${media.size - 1}/${media.size}\r\n"
+        }
         write(
             (
-                "HTTP/1.1 200 OK\r\nContent-Type: video/mp4\r\nAccept-Ranges: bytes\r\n" +
-                    "Content-Length: ${media.size}\r\n\r\n"
+                "HTTP/1.1 $status\r\nContent-Type: video/mp4\r\nAccept-Ranges: bytes\r\n" +
+                    contentRange + "Content-Length: ${body.size}\r\n\r\n"
                 ).toByteArray(),
         )
-        if (!requestLine.startsWith("HEAD")) write(media)
+        if (!requestLine.startsWith("HEAD")) write(body)
     }
 
     private fun lastSource(): String? =
@@ -307,7 +331,11 @@ class TorrentQueuePlaybackTest {
         /** What [TorrentPlayables] derives from the fixture's hash and file index. */
         val ITEM_ID = MediaItemId("torrent:0123456789abcdef0123456789abcdef01234567:1")
 
-        const val START_TIMEOUT_MS = 30_000L
+        /**
+         * Generous, because CI's emulator is far slower than a local one and this waits on real
+         * audio focus and a real decoder — the flake this test hit was a timeout, not a wrong answer.
+         */
+        const val START_TIMEOUT_MS = 60_000L
         const val DOWNLOAD_TIMEOUT_MS = 60_000L
         const val PROGRESS_MS = 1_000L
         const val POLL_MS = 200L
