@@ -60,13 +60,17 @@ echo "[live-test] LAN unreachable from the CI peer, as intended"
 
 # Every live test, for the same reason: they need a residential IP. SabrPlaybackTest proves SABR
 # playback; LiveDownloadedVideoOfflineTest proves a real yt-dlp download plays with the radios off;
+# LiveStreamPlaysToItsEndTest plays a real stream to its actual END, which the deterministic
+# version cannot: a generated WAV carries explicit sample sizes, so the extractor never reads to
+# the data source's end-of-input. See docs/todos/stalls-near-the-end-of-an-item.md.
+#
 # LiveSabrDownloadTest proves the app can FETCH a stream itself — the path that reaches the
 # members-only videos yt-dlp is refused.
 #
 # :app only. A bare `connectedDebugAndroidTest` runs every module, and :core:database has no
 # class by this name, so the filter matches nothing there and the runner reports
 # `initializationError` — a real red build caused entirely by asking the wrong module.
-./gradlew :app:connectedDebugAndroidTest --no-daemon -Pandroid.testInstrumentationRunnerArguments.class=com.dewijones92.totum.sabr.SabrPlaybackTest,com.dewijones92.totum.playback.LiveDownloadedVideoOfflineTest,com.dewijones92.totum.playback.LiveSabrDownloadTest
+./gradlew :app:connectedDebugAndroidTest --no-daemon -Pandroid.testInstrumentationRunnerArguments.class=com.dewijones92.totum.sabr.SabrPlaybackTest,com.dewijones92.totum.playback.LiveDownloadedVideoOfflineTest,com.dewijones92.totum.playback.LiveSabrDownloadTest,com.dewijones92.totum.playback.LiveStreamPlaysToItsEndTest
 
 # Say whether it actually RAN or merely skipped. Without this the log shows "Finished 1 tests"
 # and "BUILD SUCCESSFUL" either way, so the one question this whole tunnel exists to answer —

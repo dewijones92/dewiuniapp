@@ -156,6 +156,7 @@ The fix above is right and stays. Two defects in how it was *implemented* were f
    completion, no cancellation, no error, and everything it held retained.
 
 The arithmetic and the stopping rule now live in `ChunkedRead`, a pure state machine, because they
-are the part worth testing and the data source could not be tested at all without a device. See
-`../todos/stalls-near-the-end-of-an-item.md` for the evidence, and for what about the reported stall
-is still unproven.
+are the part worth testing and the data source could not be tested at all without a device. Both were found while investigating stalls at the end of an item, and neither turns out to cause
+them — reverting each and re-running the flow against a real YouTube stream still plays to the end.
+They are fixed on their own merits. See `../todos/stalls-near-the-end-of-an-item.md` for the evidence
+and for where the cause is now being looked for.

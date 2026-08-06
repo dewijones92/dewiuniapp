@@ -11,7 +11,7 @@ to `shipped` and migrate it to `../features/` once it's a real feature on `main`
 
 | Item | Area | Priority | Status |
 |---|---|---|---|
-| [stalls-near-the-end-of-an-item](stalls-near-the-end-of-an-item.md) | playback | high | two defects fixed; causal link unproven, instrumented for the next report |
+| [stalls-near-the-end-of-an-item](stalls-near-the-end-of-an-item.md) | playback | high | open — two defects fixed but disproven as the cause; instrumented for the next report |
 | [Explore channel content](../features/channel-browse.md) | channel | high | shipped |
 | [Upload dates everywhere](../features/upload-dates.md) | video/search | high | planned |
 | [background-audio-listen-mode](background-audio-listen-mode.md) | playback | high | shipped |

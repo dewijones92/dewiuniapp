@@ -1,7 +1,7 @@
 ---
 title: Buffers towards the end of the video
 kind: todo
-status: partly fixed — two proven defects closed, the causal link not yet proven
+status: two real defects closed; they are NOT the cause — cause still open, instrumented
 area: playback
 updated: 2026-08-06
 ---
@@ -78,21 +78,46 @@ the same video at itags 18 and 399. So it never released, on a heap already at 2
 keyed on the item id. The nomination resolving a *different format* from the one that plays is a
 separate waste, now logged and counted (`playback.preloadsWasted`) rather than silent.
 
-## What is NOT proven, said plainly
+## These two defects are NOT the cause — tested, twice
 
-**The causal link between defect 1 and Dewi's stalls is not established.** `StreamPlaysToItsEndTest`
-drives the whole flow — real queue, session, service and ExoPlayer, over HTTP with a `clen`
-parameter, resumed near the end — and **passes with both defects deliberately reinstated**. So it
-covers the flow but does not reproduce the reported failure.
+Stated plainly because the temptation to leave it implied is exactly how a wrong root cause gets
+believed.
 
-The likely reason is the media format. A WAV (and a plain MP4) carries explicit sample sizes, so the
-extractor stops at the last sample and never reads to the data source's end-of-input — the point at
-which defect 1 bites. The streams in the report carry `gir=yes`, which is the shape read box-by-box
-until the source signals end-of-input. Reproducing it therefore needs media of that kind, which this
-repository does not carry and deliberately does not ship.
+Both fixes were reverted and the flow re-run at two levels:
 
-So: two real defects are closed, with the arithmetic and the spin each proven to fail without their
-fix at two levels. Whether they were *the* cause of the end-of-item stalls is open.
+| Test | Media | With both defects reinstated |
+|---|---|---|
+| `StreamPlaysToItsEndTest` | generated WAV over localhost, resumed 3s from the end | **passes** |
+| `LiveStreamPlaysToItsEndTest` | a real YouTube stream, resumed 6s from the end | **passes** |
+
+The first was explainable: a WAV carries explicit sample sizes, so the extractor stops at the last
+sample and never reads to the data source's end-of-input, which is where the defect bit. That
+predicted the live one against real `gir=yes` streams would fail. **It did not.** So the format
+hypothesis is disproven too, and with it the claim that these defects caused the stalls.
+
+They are still real defects, each proven to fail without its fix at two levels — the arithmetic
+(`ChunkedReadTest`, 6 of 18 cases; `ChunkedDataSourceTest`, 2 of 6) and the unbounded loop
+(`ChunkedDataSourceTest`'s read cap tripping). They are fixed on their own merits. **The cause of the
+end-of-item stalls remains open.**
+
+## What the evidence still says about the cause
+
+Narrowed, but not closed:
+
+- The buffered position **stopped advancing about 35 seconds short of the duration** and never moved
+  again; the playhead simply caught up to it. Derived: at 19:41:29 the buffer held 80,484ms ahead of
+  position ~3,613,030ms, so it reached ~3,693,514ms of a 3,728,366ms item.
+- **The load control wanted to load.** At 80s buffered with `playbackSpeed` at 6.0 (skip-silence),
+  `DefaultLoadControl` scales its minimum to 180s, so `bufferedDurationUs` was below the minimum and
+  `prioritizeTimeOverSizeThresholds` (true by default) makes it load regardless of the byte ceiling.
+  So this is not the buffer budget refusing to fetch.
+- Which leaves two candidates, and they have opposite fixes: the extractor reported end-of-input
+  ~35s early and the player believes the item is fully fetched, or a loader is genuinely stuck. The
+  monotonically climbing `loadsOutstanding` with a seven-hour-old oldest load and zero load errors
+  points at the second, but that counter has been an accounting artefact before (0.1.306).
+- Worth suspecting next: `MergingMediaSource` takes the **minimum** buffered position of the video
+  and audio sources, so one stream ending or stalling early pins the merged figure while the other
+  is healthy. Nothing currently reports the two halves separately.
 
 ## What the next report will settle
 

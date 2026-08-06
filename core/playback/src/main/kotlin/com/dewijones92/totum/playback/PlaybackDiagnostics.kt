@@ -141,6 +141,10 @@ internal class PlaybackDiagnostics(
                 // (report 0.1.359) cannot say whether the stuck stream is the video, the audio or
                 // a subtitle — and those have different fixes. See PlaybackAnalytics.publishInFlight.
                 Diag.log("playback", "in flight: ${vitals["playback.loadsInFlight"] ?: "?"}")
+                // Per TRACK, because the player's single buffered position is the MINIMUM across a
+                // merged video+audio stream: one half stopping short pins it while the other is fine,
+                // and nothing could tell them apart. See PlaybackAnalytics.recordLoadedTo.
+                Diag.log("playback", "loaded to: ${vitals["playback.loadedTo"] ?: "?"}")
             }
             Player.STATE_READY -> {
                 val waited = endStall(recovered = true)

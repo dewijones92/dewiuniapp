@@ -98,6 +98,7 @@ internal class PlaybackAnalytics : AnalyticsListener {
         outstanding = (outstanding - 1).coerceAtLeast(0)
         Vitals.set("playback.loadsOutstanding", outstanding.toString())
         forget(loadEventInfo.loadTaskId)
+        recordLoadedTo(mediaLoadData)
         loads++
         bytes += loadEventInfo.bytesLoaded
         // Kilobytes, not megabytes: 0.1.295 reported "loadedMb 0" through five minutes of
@@ -221,6 +222,29 @@ internal class PlaybackAnalytics : AnalyticsListener {
         bitrateEstimate: Long,
     ) {
         Vitals.set("playback.bandwidthKbps", (bitrateEstimate / BITS_PER_KILOBIT).toString())
+    }
+
+    /**
+     * How far each track has actually been loaded, separately.
+     *
+     * The player reports ONE buffered position, and for a merged video+audio stream that is the
+     * **minimum** of the two — so one half stalling or ending early pins the figure while the other
+     * is perfectly healthy, and the two are indistinguishable from outside. The reported stall
+     * (0.1.359) had the buffer stop ~35 seconds short of the duration and never move again, and there
+     * was no way to tell which half stopped.
+     */
+    private val loadedTo = HashMap<String, Long>()
+
+    private fun recordLoadedTo(mediaLoadData: MediaLoadData) {
+        val end = mediaLoadData.mediaEndTimeMs
+        if (end == C.TIME_UNSET) return
+        val track = mediaLoadData.trackName()
+        if (end <= (loadedTo[track] ?: Long.MIN_VALUE)) return
+        loadedTo[track] = end
+        Vitals.set(
+            "playback.loadedTo",
+            loadedTo.entries.sortedBy { it.key }.joinToString(" | ") { "${it.key}=${it.value}ms" },
+        )
     }
 
     private fun forget(loadTaskId: Long) {
