@@ -311,6 +311,14 @@ when driven on the emulator. Verify real flows on a device, not just via tests.
   otherwise (his standing rule, which reverses the earlier strip-before-commit one):
   these lines are often useful again. Make a chatty one reasonable — log only the
   interesting case, or lower its frequency — rather than deleting it.
+- **Every flow that matters gets an e2e in CI.** Dewi, 2026-08-06: *"make sure you have e2e of
+  all these flows … in the ci/cd please"*. A flow with no e2e is one whose next regression is
+  found on a plane. Where a flow depends on something CI cannot reach (the Pi, live YouTube),
+  write **both**: a deterministic test against a stand-in that runs on every commit, and a live
+  one behind `tools/ci/live-test-via-home.sh` that is allowed to skip. Never let the skippable
+  one be the only coverage. Torrent tests use **copyright-free media only** — media this repo
+  generates, and public-domain titles — and never resolve a real magnet. The map of what is and
+  is not covered lives in `docs/tests/_index.md`, including what is deliberately uncovered.
 - **Own the repo.** Dewi's explicit steer (2026-07-25): *"feel empowered to make big
   moves e.g. refactoring — you own this repo"*. So take the structurally right option
   rather than the timid one: collapse duplicated types, rename for honesty, move code

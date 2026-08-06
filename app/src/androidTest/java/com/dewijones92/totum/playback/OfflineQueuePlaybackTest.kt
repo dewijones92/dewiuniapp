@@ -14,6 +14,7 @@ import com.dewijones92.totum.domain.SourceId
 import com.dewijones92.totum.support.DeviceRadios.goOffline
 import com.dewijones92.totum.support.DeviceRadios.goOnline
 import com.dewijones92.totum.support.DeviceRadios.hasNetwork
+import com.dewijones92.totum.support.SilentWav
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -25,11 +26,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
-import java.io.ByteArrayOutputStream
 import java.net.ServerSocket
 import java.net.Socket
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
 import kotlin.concurrent.thread
 
 /**
@@ -69,7 +67,7 @@ class OfflineQueuePlaybackTest {
     private val downloads get() = container.downloadManager
 
     private lateinit var server: ServerSocket
-    private val media = silentWav(seconds = MEDIA_SECONDS)
+    private val media = SilentWav.bytes(seconds = MEDIA_SECONDS)
 
     @Before
     fun startServerAndEmptyTheQueue() {
@@ -318,28 +316,6 @@ class OfflineQueuePlaybackTest {
         handle = PlayHandle.Podcast(),
     )
 
-    /** Silent 8-bit 8kHz PCM, generated so the repository carries no audio. */
-    private fun silentWav(seconds: Int): ByteArray {
-        val samples = SAMPLE_RATE * seconds
-        val header = ByteBuffer.allocate(WAV_HEADER_BYTES).order(ByteOrder.LITTLE_ENDIAN)
-        header.put("RIFF".toByteArray())
-        header.putInt(WAV_HEADER_BYTES - RIFF_PREAMBLE + samples)
-        header.put("WAVEfmt ".toByteArray())
-        header.putInt(FMT_CHUNK_BYTES)
-        header.putShort(PCM_FORMAT)
-        header.putShort(MONO)
-        header.putInt(SAMPLE_RATE)
-        header.putInt(SAMPLE_RATE)
-        header.putShort(BLOCK_ALIGN)
-        header.putShort(BITS_PER_SAMPLE)
-        header.put("data".toByteArray())
-        header.putInt(samples)
-        val out = ByteArrayOutputStream()
-        out.write(header.array())
-        out.write(ByteArray(samples) { SILENCE })
-        return out.toByteArray()
-    }
-
     private companion object {
         val ITEM_ID = MediaItemId("offline-episode")
         const val MEDIA_SECONDS = 30
@@ -354,14 +330,5 @@ class OfflineQueuePlaybackTest {
          * "try it anyway" fails here rather than merely feeling slow.
          */
         const val SKIP_TIMEOUT_MS = 20_000L
-        const val SAMPLE_RATE = 8_000
-        const val WAV_HEADER_BYTES = 44
-        const val RIFF_PREAMBLE = 8
-        const val FMT_CHUNK_BYTES = 16
-        const val PCM_FORMAT: Short = 1
-        const val MONO: Short = 1
-        const val BLOCK_ALIGN: Short = 1
-        const val BITS_PER_SAMPLE: Short = 8
-        const val SILENCE: Byte = -128
     }
 }

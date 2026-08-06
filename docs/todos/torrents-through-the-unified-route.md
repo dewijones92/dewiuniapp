@@ -3,7 +3,7 @@ title: Do torrents go through the unified play route too?
 kind: todo
 area: torrent
 priority: medium
-status: partly answered — routing yes and unit-tested; downloading a torrent for offline is UNVERIFIED
+status: mostly answered — routing and offline both proven by CI e2e; ONE real gap left (audioOnly ignored)
 updated: 2026-08-06
 ---
 
@@ -25,12 +25,37 @@ behaviour of that one decision:
 
 So the routing question is answered: yes, unified, and a regression fails a test.
 
-## What is NOT verified — the actual gap
+## Now proven in CI (2026-08-06)
 
-**Whether a torrent can be downloaded for offline at all.** Nothing has ever tested it end to end.
-On paper it should work: `PlayableItem.fetchUrl` gives the TorrServer stream URL,
-`RoutedDownloadStrategy` routes by `PlayHandle.pillar` → `Podcast` → `HttpDownloadStrategy` → a
-plain ranged GET. Three specific doubts, each of which would make it fail in a different way:
+`TorrentQueuePlaybackTest` (instrumented, every commit) drives the real `HttpHomeTorrentServer`,
+`TorrentSearchSource`, queue and player against a stand-in that speaks Prowlarr's and TorrServer's
+protocols — copyright-free media, public-domain titles, no swarm:
+
+- **search → prepare → queue → play** streams from the home server through the one unified route:
+  `route torrent:… -> streaming it [handle=Podcast copy=none offline=false listen=false]`.
+- **downloaded → radios off → plays from the file**: it works, which was doubt (1) below and the
+  thing nobody had ever checked. `route torrent:… -> the downloaded audio at /data/… [copy=full
+  offline=true]`.
+
+## The gap that is real, and was found by that test
+
+**Doubt (2) is CONFIRMED.** The download is requested with `audioOnly = true` and the trail records
+`copy=full`: `HttpDownloadStrategy` ignores the flag ("a podcast enclosure is the audio"), which is
+true of a podcast and false of a torrent. So a queued torrent fetches the **whole file, video
+included**, over the home upstream — the opposite of the 8x saving Listen mode measured, and it will
+fill a phone far faster than anyone expects.
+
+The fix belongs on the download side of the same seam: an audio-only request for a torrent should
+fetch the server's remuxed audio, not everything. Until then, automatic queue downloads of torrents
+cost ~7x more data and disk than intended.
+
+## Still unverified
+
+- **Listen mode's remuxed audio over the wire** (`/ts/audio/…/index.m3u8`). It is real HLS, and a
+  stand-in cannot serve a valid playlist plus segments without shipping media this repo will not
+  carry, so the CI tests watch rather than listen. URL construction and warm-up are unit-tested;
+  the stream itself is proven only against the real Pi.
+- The three original doubts about the real server, which a stand-in cannot answer:
 
 1. **TorrServer serves as fast as pieces arrive**, so a straight GET of a 1.7GB film is bounded by
    the swarm, not the link. `SETTLE_TIMEOUT_MS` is 10 minutes; a slow torrent would be abandoned
@@ -44,9 +69,8 @@ plain ranged GET. Three specific doubts, each of which would make it fail in a d
 
 ## What to do
 
-- Check (2) first: it is the one that would quietly burn data and disk. If confirmed, the fix is
-  for `routeNow`'s sibling — the download side — to know that an audio-only request for a torrent
-  means "fetch the remuxed audio", not "fetch everything".
-- Then an instrumented test in the shape of `OfflineQueuePlaybackTest`, against a local server
-  standing in for TorrServer, so the answer stops being on paper.
-- The Pi side is up and proven (`public-domain-film-tv.md`), so this is testable today.
+- **Fix the confirmed audioOnly gap** — the download side of the seam should route an audio-only
+  request for a torrent to the server's remuxed audio. Dewi's call on priority: it costs data and
+  disk today but breaks nothing.
+- A real-server check of the three doubts above, once `torrent-zero-config` makes an unattended
+  sign-in possible; that is also what would let a live CI test reach the Pi at all.
