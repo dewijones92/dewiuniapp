@@ -13,7 +13,7 @@ to `shipped` and migrate it to `../features/` once it's a real feature on `main`
 |---|---|---|---|
 | [stalls-near-the-end-of-an-item](stalls-near-the-end-of-an-item.md) | playback | high | open — two defects fixed but disproven as the cause; instrumented for the next report |
 | [Explore channel content](../features/channel-browse.md) | channel | high | shipped |
-| [Upload dates everywhere](../features/upload-dates.md) | video/search | high | planned |
+| [Views and dates everywhere](../features/upload-dates.md) | video/search/playback | high | shipped (incl. the video page, 2026-08-06) |
 | [background-audio-listen-mode](background-audio-listen-mode.md) | playback | high | shipped |
 | [fullscreen-video-stretch](fullscreen-video-stretch.md) | playback | high | shipped |
 | [long-press-context-menu](long-press-context-menu.md) | ui | medium | shipped (all feeds; go-to-channel split out) |

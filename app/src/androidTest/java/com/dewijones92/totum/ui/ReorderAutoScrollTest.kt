@@ -135,6 +135,9 @@ class ReorderAutoScrollTest {
 
         /** Three rows of travel, allowing one event of long-press slop either way. */
         val EXPECTED_MOVES = 2..4
+
+        /** The distance Dewi asked about by name. Well inside a 40-row list, and nowhere near an edge. */
+        const val LONG_DRAG_ROWS = 10
         const val LIST = "list"
 
         /** Comfortably past Compose's long-press threshold. */
@@ -187,6 +190,79 @@ class ReorderAutoScrollTest {
         assertTrue(
             "three rows of travel must be about three places, not eight: $moves",
             moves.size in EXPECTED_MOVES,
+        )
+    }
+
+    /**
+     * Ten places, in one continuous motion, landing on ten.
+     *
+     * Dewi, 2026-08-06: *"make sure the items in the queue dragging drag successfully????? in one
+     * motion 10 places?????"*.
+     *
+     * The three-row case above cannot answer this, and the difference is not pedantry: the swap
+     * arithmetic is an ACCUMULATOR, so any per-swap error — a stale row height, a remainder dropped
+     * on each step, an off-by-one in where the held row is considered to be — is invisible over
+     * three rows and glaring over ten. The bug this whole area had was exactly of that shape:
+     * measuring the row from the 24dp grip rather than the 64dp row made every gesture roughly four
+     * times too fast, which reads as "aim for ten and land on thirty".
+     *
+     * A tolerance of one place, and only one, for the long-press detector absorbing the first
+     * movement before deltas begin — the same slop the three-row case documents. Deliberately not
+     * wider: a range of two or three would stop this being a test of accuracy at all.
+     */
+    @Test
+    fun draggingTenRowsMovesExactlyTenPlaces() {
+        composeTestRule.mainClock.autoAdvance = false
+        setUpList()
+
+        composeTestRule.onNodeWithTag("grip-0").performTouchInput {
+            down(center)
+            advanceEventTime(LONG_PRESS_MS)
+            // Ten rows down. Stepped rather than one jump, because a real finger emits a stream of
+            // move events and a single teleport can hide an accumulator that only advances once
+            // per event — which would pass here and fail on a phone.
+            repeat(LONG_DRAG_ROWS) { step ->
+                moveTo(center + Offset(0f, ROW_HEIGHT * (step + 1) * density))
+            }
+        }
+        composeTestRule.mainClock.advanceTimeBy(TICK_MS)
+        composeTestRule.onNodeWithTag("grip-0").performTouchInput { up() }
+
+        assertTrue(
+            "ten rows of travel must be ten places, not $LONG_DRAG_ROWS-ish or thirty: " +
+                "${moves.size} moves $moves",
+            moves.size in (LONG_DRAG_ROWS - 1)..LONG_DRAG_ROWS,
+        )
+    }
+
+    /**
+     * And it must actually END UP ten places down, not merely report ten moves.
+     *
+     * A count of swaps is not the same claim as a final position: ten moves that oscillate back and
+     * forth would satisfy the test above and leave the item where it started. This checks the thing
+     * the person sees.
+     */
+    @Test
+    fun draggingTenRowsLeavesTheItemTenPlacesDown() {
+        composeTestRule.mainClock.autoAdvance = false
+        setUpList()
+
+        composeTestRule.onNodeWithTag("grip-0").performTouchInput {
+            down(center)
+            advanceEventTime(LONG_PRESS_MS)
+            repeat(LONG_DRAG_ROWS) { step ->
+                moveTo(center + Offset(0f, ROW_HEIGHT * (step + 1) * density))
+            }
+        }
+        composeTestRule.mainClock.advanceTimeBy(TICK_MS)
+        composeTestRule.onNodeWithTag("grip-0").performTouchInput { up() }
+
+        // Item 0 started at index 0; every move is one place, so its final index is the move count.
+        val landedAt = moves.lastOrNull()?.second ?: 0
+        assertTrue(
+            "the dragged item must finish about ten places down, and each move must be by one " +
+                "place: landed at $landedAt after ${moves.size} moves $moves",
+            landedAt == moves.size && landedAt in (LONG_DRAG_ROWS - 1)..LONG_DRAG_ROWS,
         )
     }
 

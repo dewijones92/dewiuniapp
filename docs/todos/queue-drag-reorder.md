@@ -3,8 +3,8 @@ title: Queue drag-and-drop, AntennaPod-grade
 kind: todo
 area: queue
 priority: high
-status: shipped (auto-scroll); pickup + resilience open
-updated: 2026-08-01
+status: shipped (auto-scroll, long-distance accuracy); pickup + resilience open
+updated: 2026-08-06
 ---
 
 # Queue drag-and-drop, AntennaPod-grade
@@ -43,6 +43,31 @@ moved because the list scrolled itself. With auto-scroll disabled the same gestu
 The swap arithmetic is covered separately on the JVM (`ReorderStateTest`, 7 cases) — it was
 already correct, and stayed correct; what was missing was anything calling it while the finger
 sat still. Testing the arithmetic alone would have proved nothing about this.
+
+## Proven 2026-08-06: ten places in one motion
+
+Dewi, 2026-08-06: *"make sure the items in the queue dragging drag successfully????? in one motion 10
+places?????"*.
+
+It already worked; what was missing was anything holding it to that. The three-row case could not,
+and the difference is not pedantry — **the swap arithmetic is an accumulator**, so a per-swap error
+(a stale row height, a remainder dropped each step, an off-by-one in where the held row is considered
+to be) is invisible over three rows and glaring over ten. The bug this area actually had was exactly
+that shape: measuring the row from the 24dp grip rather than the 64dp row made every gesture roughly
+four times too fast, which reads as *aim for ten and land on thirty*.
+
+Two tests, because they are two different claims:
+
+- `draggingTenRowsMovesExactlyTenPlaces` — ten rows of travel produces ten moves, tolerance of one
+  for the long-press detector absorbing the first movement. Deliberately not wider: a range of two
+  or three would stop it being a test of accuracy.
+- `draggingTenRowsLeavesTheItemTenPlacesDown` — and the item **ends up** ten places down. A count of
+  swaps is not the same claim as a final position; ten moves that oscillate would satisfy the first
+  test and leave the item where it started.
+
+The gesture is stepped rather than one jump, because a real finger emits a stream of move events and
+a single teleport would hide an accumulator that only advances once per event — which would pass in
+a test and fail on a phone.
 
 ### Still open
 

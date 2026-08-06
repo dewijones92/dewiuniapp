@@ -41,7 +41,7 @@ alone until they need more.
 | Go to channel / podcast from any row (`SourceLocator`) | ui | shipped | [../todos/go-to-channel-action.md](../todos/go-to-channel-action.md) |
 | Cast to TV (Chromecast) — best-effort | cast | shipped* | podcast/local only works; video casting fragile |
 | Explore channel content (InnerTube tabs: Videos/Shorts/Playlists) | channel | shipped | [channel-browse.md](channel-browse.md) |
-| Upload dates everywhere (all surfaces incl. search) | video/search | shipped | [upload-dates.md](upload-dates.md) |
+| Views and dates everywhere (every list, and the video page) | video/search/playback | shipped | [upload-dates.md](upload-dates.md) |
 | Crash + diagnostics reporting (verbose reports to the Pi) | infrastructure | shipped | [crash-reporting.md](crash-reporting.md) |
 | Row status (pillar / played / offline on every row) | ui | shipped | [row-status.md](row-status.md) |
 | Feed pagination (account feeds + channel tabs) | video | shipped | [feed-pagination.md](feed-pagination.md) |
