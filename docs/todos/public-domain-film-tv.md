@@ -3,11 +3,20 @@ title: Finding public-domain films and TV
 kind: todo
 area: search
 priority: medium
-status: BACKLOG — Pi side built and proven 2026-08-01; app side not started (Dewi, 2026-08-05)
-updated: 2026-08-01
+status: SHIPPED — Pi and app both; see ../features/torrents.md. This file keeps the reasoning
+updated: 2026-08-06
 ---
 
 # Finding public-domain films and TV
+
+> **Shipped.** Read [`../features/torrents.md`](../features/torrents.md) for what the feature
+> actually is. This file is kept for the decisions and the two reversals behind them, which are
+> worth more than the conclusion.
+>
+> **This file's status line was wrong until 2026-08-06** — it said "app side not started" when the
+> whole client, the zero-config host injection and the sign-in flow had all shipped. It sent this
+> session's opening recommendation to Dewi in the wrong direction. Re-read the code before trusting
+> a status.
 
 Dewi, 2026-08-01: wants the app to find classic public-domain shows and films — naming *The
 Beverly Hillbillies*, *The Andy Griffith Show* and *Dragnet* — and to download or stream them

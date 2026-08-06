@@ -38,9 +38,9 @@ to `shipped` and migrate it to `../features/` once it's a real feature on `main`
 | [sabr-streaming](sabr-streaming.md) | video | medium | fallback shipped; QuickJS runtime open |
 | [feed-pagination](feed-pagination.md) | video | high | feeds + channel tabs shipped; search pending |
 | [queue-drag-reorder](queue-drag-reorder.md) | queue | high | shipped (auto-scroll); pickup + resilience open |
-| [public-domain-film-tv](public-domain-film-tv.md) | search | medium | Pi side built and proven; app side not started |
+| [public-domain-film-tv](public-domain-film-tv.md) | search | medium | **shipped** → [features/torrents.md](../features/torrents.md) |
 | [age-restricted-videos](age-restricted-videos.md) | video | high | shipped — age-restricted videos play on-device |
-| [torrent-zero-config](torrent-zero-config.md) | torrent | high | requested |
+| [torrent-zero-config](torrent-zero-config.md) | torrent | high | **shipped** — host from a CI secret, sign-in one tap |
 | [testing-depth](testing-depth.md) | tests | medium | refining |
 | [audio-video-switching](audio-video-switching.md) | playback | high | shipped (local-audio merge outstanding) |
 | [notification-opens-app](notification-opens-app.md) | playback | high | shipped |
@@ -48,9 +48,9 @@ to `shipped` and migrate it to `../features/` once it's a real feature on `main`
 | [library-downloads-podcast-only](library-downloads-podcast-only.md) | downloads | medium | done |
 | [playback-does-not-resume-after-network-loss](playback-does-not-resume-after-network-loss.md) | playback | high | done — StreamRecovery waits for a validated network, then resumes |
 | [download-races-playback](download-races-playback.md) | playback | high | done — downloads now yield to playback; the duplicate extraction itself remains |
-| [listen-mode-saves-data](listen-mode-saves-data.md) | playback | medium | true for YouTube; torrents measured feasible (8x saving), seeking is the blocker |
+| [listen-mode-saves-data](listen-mode-saves-data.md) | playback | medium | done — YouTube always did; torrents stream audio-only via the Pi |
 | [downloaded-video-not-played-offline](downloaded-video-not-played-offline.md) | playback | high | fixed — one routing decision for both pillars |
-| [torrents-through-the-unified-route](torrents-through-the-unified-route.md) | torrent | medium | routing verified; torrent DOWNLOAD for offline unverified |
+| [torrents-through-the-unified-route](torrents-through-the-unified-route.md) | torrent | medium | answered + fixed; films no longer auto-fetched |
 | [metered-audio-switch](metered-audio-switch.md) | playback | high | shipped — proven with the radios toggled |
 | [prefetch-the-next-item](prefetch-the-next-item.md) | playback | medium | done — readiness and byte preload, Wi-Fi only |
 | [skip-silence-smoothness](skip-silence-smoothness.md) | playback | high | shipped — sample removal for audio, speed-up for video |

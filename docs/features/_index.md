@@ -1,7 +1,7 @@
 ---
 title: Features
 kind: index
-updated: 2026-08-02
+updated: 2026-08-06
 ---
 
 # Features
@@ -18,6 +18,7 @@ alone until they need more.
 | YouTube TV device-code OAuth | auth | shipped | — |
 | Unified search (iTunes + InnerTube search, yt-dlp fallback → `SearchHit`) | search | shipped | — |
 | Search history (recent queries, idle-state chips) | search | shipped | [search-history.md](search-history.md) |
+| Torrents: public-domain film & TV via the home server | torrent | shipped | [torrents.md](torrents.md) |
 | Downloads (video merge + SponsorBlock cut / podcast enclosure) | downloads | shipped | — |
 | Comments, related, like/dislike, Watch Later, subscribe | video | shipped | — |
 | Playlists (account) | video | shipped | — |

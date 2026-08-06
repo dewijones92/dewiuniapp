@@ -3,11 +3,20 @@ title: Torrents work out of the box
 kind: todo
 area: torrent
 priority: high
-status: requested — VERIFY: sign-in may already be shipped, not checked
-updated: 2026-08-01
+status: SHIPPED — host baked in from a CI secret, sign-in one tap; verified 2026-08-06
+updated: 2026-08-06
 ---
 
 # Torrents work out of the box
+
+> **Shipped, and the "VERIFY" in the old status line was the whole point** — it had been, and
+> nobody checked. Confirmed 2026-08-06: `app/build.gradle.kts` bakes `BuildConfig.HOME_SERVER` from
+> `local.properties` or `TOTUM_HOME_SERVER` (a GitHub secret set 2026-08-01, so released APKs carry
+> it), `AppPreferences` falls back to it when nothing is stored, and `MainActivity.handleAuthIntent`
+> takes the token AND the Prowlarr key from one `totum://auth` deep link. A fork with no secret
+> builds and runs fine, knowing nothing.
+>
+> Still owed from the same conversation: the full phone-to-screen run, which needs the real device.
 
 Dewi, 2026-08-01: *"make sure that the torrent ux works out the box … so i dont have to insert
 any config etc etc … we already have it gated to me dewijones92@gmail.com"*.
