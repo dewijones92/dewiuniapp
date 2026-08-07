@@ -1,9 +1,11 @@
 package com.dewijones92.totum.playback
 
+import androidx.media3.common.Player
 import androidx.test.ext.junit.rules.ActivityScenarioRule
 import androidx.test.platform.app.InstrumentationRegistry
 import com.dewijones92.totum.MainActivity
 import com.dewijones92.totum.TotumApplication
+import com.dewijones92.totum.common.Breadcrumbs
 import com.dewijones92.totum.data.search.SearchHit
 import com.dewijones92.totum.data.search.SearchOutcome
 import com.dewijones92.totum.data.search.SearchQuery
@@ -153,7 +155,7 @@ class TorrentQueuePlaybackTest {
             assertEquals("one playable file means one queue item", 1, items.size)
 
             queue.playNow(items.first())
-            assertTrue("the torrent never started playing", awaitPlaying())
+            assertTrue("the torrent never started playing. ${whyNotPlaying()}", awaitPlaying())
 
             assertTrue(
                 "a torrent must play from the server's stream URL, not something else. It played " +
@@ -315,6 +317,33 @@ class TorrentQueuePlaybackTest {
         true
     } ?: false
 
+    /**
+     * Why it is not playing, for the failure message.
+     *
+     * "the torrent never started playing" has now failed three CI runs in five and said nothing
+     * either time, on commits that could not have affected it — so there is no way to tell a
+     * refused audio focus from a dead socket from a player that errored. Guessing at a cure for a
+     * failure that will not describe itself is how the last two days went; this makes the next
+     * failure answer its own question, which is the same rule the app follows for reports.
+     */
+    private fun whyNotPlaying(): String {
+        val player = controller.player
+        val state = controller.state.value
+        return "player=" + when (player?.playbackState) {
+            Player.STATE_IDLE -> "IDLE"
+            Player.STATE_BUFFERING -> "BUFFERING"
+            Player.STATE_READY -> "READY"
+            Player.STATE_ENDED -> "ENDED"
+            else -> "no player"
+        } +
+            " playWhenReady=${player?.playWhenReady}" +
+            " error=${player?.playerError?.errorCodeName ?: "none"}" +
+            " item=${state?.itemId?.value ?: "nothing"}" +
+            " source=${lastSource() ?: "none"}" +
+            " queue=${queue.state.value.entries.size}" +
+            " trail=" + Breadcrumbs.snapshot().takeLast(TRAIL_LINES).map { crumb -> crumb.message }
+    }
+
     private suspend fun awaitPositionBeyond(target: Long): Boolean =
         withTimeoutOrNull(START_TIMEOUT_MS) {
             while ((positionMs() ?: 0) <= target) delay(POLL_MS)
@@ -339,6 +368,9 @@ class TorrentQueuePlaybackTest {
         const val DOWNLOAD_TIMEOUT_MS = 60_000L
         const val PROGRESS_MS = 1_000L
         const val POLL_MS = 200L
+
+        /** Enough of the trail to see what the player was asked to do and what it said back. */
+        const val TRAIL_LINES = 12
 
         /**
          * Shaped like the real thing, including the trap: `magnetUrl` is Prowlarr's download-proxy

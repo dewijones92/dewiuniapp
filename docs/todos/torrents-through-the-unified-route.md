@@ -84,3 +84,24 @@ says `3 ready offline · 2 to download by hand`.
   disk today but breaks nothing.
 - A real-server check of the three doubts above, once `torrent-zero-config` makes an unattended
   sign-in possible; that is also what would let a live CI test reach the Pi at all.
+
+## The CI-only flake, still open (2026-08-07)
+
+`TorrentQueuePlaybackTest > a torrent found by search plays through the same queue as everything
+else` has now failed **three CI runs in five**, always as *"the torrent never started playing"*, and
+always on commits that cannot have affected it (test files, docs, an unrelated database column). It
+has never failed locally, including five consecutive runs on the emulator here.
+
+**Not diagnosed, and deliberately not guessed at.** The 60-second timeout rules out simple slowness.
+The plausible causes have opposite fixes — audio focus refused to a backgrounded instrumentation app,
+the stand-in socket not accepting in time, a player error swallowed, or state left behind by whichever
+test ran before it — and the assertion said nothing that could tell them apart.
+
+So the first step taken was instrumentation, not a cure: the failure now reports the player's state,
+`playWhenReady`, any error code, the current item, the source URL, the queue length and the last
+twelve breadcrumbs. The next CI failure should say which of those it is.
+
+Worth noting the pattern this sits in: two other CI-only failures this week were read as flakes and
+were not — a drag test reporting "1 move" was a real one-place-only bug, and an intermittent metadata
+test was a real race in how the view count crossed the session. **The prior on "CI-only" here is
+currently a real defect, not noise.**
