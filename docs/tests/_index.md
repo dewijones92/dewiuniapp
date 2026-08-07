@@ -43,6 +43,8 @@ instead).
 | An item resumed near its end reaches its end | instrumented | `:app` `StreamPlaysToItsEndTest` — real player over a localhost ranged server |
 | The same against a real YouTube stream | instrumented, live | `:app` `LiveStreamPlaysToItsEndTest` — via `tools/ci/live-test-via-home.sh`, allowed to skip. **Neither of these reproduces the reported stall** — see below |
 | ViewModels, queue | JVM unit | `:app` |
+| Picking a colour from artwork | JVM unit | `:app` `ArtworkColourTest` — the traps that make naive versions produce mud |
+| The player keeping every control through a redesign | instrumented | `:app` `PlayerKeepsEveryControlTest` — written BEFORE the redesign, which is the whole point |
 | Search results streaming per section | JVM unit | `:app` `SearchStreamsPerSectionTest` — incl. the reported case, a slow torrent search not blocking YouTube |
 | What each search section state looks like | instrumented | `:app` `SearchSectionStatesTest` |
 | The line under every video title (`author · views · date`) | JVM unit | `:app` `MediaItemSubtitleTest` — testable at all only because `@Composable` came off the formatter |

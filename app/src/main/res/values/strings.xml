@@ -149,6 +149,8 @@
          and returns a protection status after roughly a minute of media, and the label
          promising only "no seeking" left the real limit to be discovered mid-video. -->
     <string name="sabr_playback">Fast start (beta — no seeking, stops after about a minute)</string>
+    <string name="playback_speed">Playback speed</string>
+    <string name="volume_boost">Volume boost</string>
     <string name="boost_off">Off</string>
     <string name="boost_low">Low</string>
     <string name="boost_medium">Med</string>

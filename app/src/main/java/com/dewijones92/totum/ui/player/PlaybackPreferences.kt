@@ -2,20 +2,29 @@ package com.dewijones92.totum.ui.player
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.PlaylistPlay
 import androidx.compose.material.icons.automirrored.outlined.VolumeUp
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.GraphicEq
 import androidx.compose.material.icons.outlined.Speed
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.dewijones92.totum.R
@@ -77,7 +86,9 @@ internal fun SpeedControl(speed: Float, onSetSpeed: (Float) -> Unit, modifier: M
     ) {
         Icon(
             Icons.Outlined.Speed,
-            contentDescription = null,
+            // Described, like the boost icon beside it: the buttons say "1×, 1.5×, 2×" and without
+            // this a screen reader gives no clue what they set.
+            contentDescription = stringResource(R.string.playback_speed),
             modifier = Modifier.size(20.dp),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -110,7 +121,10 @@ internal fun BoostControl(boost: VolumeBoost, onSetBoost: (VolumeBoost) -> Unit,
     ) {
         Icon(
             Icons.AutoMirrored.Outlined.VolumeUp,
-            contentDescription = null,
+            // Described rather than null: the four buttons beside it say "Off / Low / Med / High",
+            // so without this a screen reader announces four levels of nothing. Found while writing
+            // the control inventory, which could not name this control either.
+            contentDescription = stringResource(R.string.volume_boost),
             modifier = Modifier.size(20.dp),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -134,4 +148,74 @@ private fun VolumeBoost.labelRes(): Int = when (this) {
     VolumeBoost.LOW -> R.string.boost_low
     VolumeBoost.MEDIUM -> R.string.boost_medium
     VolumeBoost.HIGH -> R.string.boost_high
+}
+
+/**
+ * Icon, current value, tap for the options — the shape the sleep timer already had.
+ *
+ * Speed and volume boost each used to be a full-width row of every option laid out at once, which is
+ * two whole bands of the screen spent on settings that are changed rarely and read often. As a
+ * picker they show the CURRENT value in one compact button and put the rest one tap away, which is
+ * what lets five stacked control rows become a single strip.
+ *
+ * Shared rather than written twice, and shaped like `SleepTimerControl` on purpose: three controls
+ * side by side that behave differently would be worse than the rows they replaced.
+ */
+@Composable
+internal fun <T> CompactPicker(
+    icon: ImageVector,
+    label: String,
+    current: T,
+    options: List<T>,
+    optionLabel: @Composable (T) -> String,
+    onSelect: (T) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var open by remember { mutableStateOf(false) }
+    TextButton(onClick = { open = true }, modifier = modifier) {
+        Icon(icon, contentDescription = label, modifier = Modifier.size(20.dp))
+        Text(text = optionLabel(current), modifier = Modifier.padding(start = 6.dp))
+    }
+    DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+        options.forEach { option ->
+            DropdownMenuItem(
+                text = { Text(optionLabel(option)) },
+                leadingIcon = {
+                    if (option == current) Icon(Icons.Filled.Check, contentDescription = null)
+                },
+                onClick = {
+                    onSelect(option)
+                    open = false
+                },
+            )
+        }
+    }
+}
+
+/** Speed as a compact picker — see [CompactPicker]. */
+@Composable
+internal fun SpeedPicker(speed: Float, onSetSpeed: (Float) -> Unit, modifier: Modifier = Modifier) {
+    CompactPicker(
+        icon = Icons.Outlined.Speed,
+        label = stringResource(R.string.playback_speed),
+        current = speed,
+        options = PlaybackSpeeds,
+        optionLabel = { speedLabel(it) },
+        onSelect = onSetSpeed,
+        modifier = modifier,
+    )
+}
+
+/** Volume boost as a compact picker — see [CompactPicker]. */
+@Composable
+internal fun BoostPicker(boost: VolumeBoost, onSetBoost: (VolumeBoost) -> Unit, modifier: Modifier = Modifier) {
+    CompactPicker(
+        icon = Icons.AutoMirrored.Outlined.VolumeUp,
+        label = stringResource(R.string.volume_boost),
+        current = boost,
+        options = VolumeBoost.entries,
+        optionLabel = { stringResource(it.labelRes()) },
+        onSelect = onSetBoost,
+        modifier = modifier,
+    )
 }
