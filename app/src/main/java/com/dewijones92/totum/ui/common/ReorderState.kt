@@ -10,6 +10,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
@@ -86,12 +87,27 @@ class ReorderState internal constructor(
      * Attach to a row's grip to make it draggable. [index] is the row's index **in the data**,
      * which is what [onMove] receives.
      */
+    @Composable
     fun Modifier.dragHandle(index: Int, itemCount: Int): Modifier {
         this@ReorderState.itemCount = itemCount
-        var handleTop = 0f
+        // The index as of the LATEST composition, read only when a drag begins.
+        //
+        // The gesture must NOT be keyed on it. Every swap moves this row, so its index changes, so
+        // a `pointerInput(index, …)` is torn down and rebuilt — cancelling the drag in flight. The
+        // result is exactly one swap per touch, which is what Dewi reported on 0.1.359: *"i am only
+        // able to drag the items in the queue by 1 position"*. `itemCount` was a key for the same
+        // reason and is just as wrong: a download finishing while you drag would drop the item.
+        //
+        // Keyed on Unit instead, so the gesture outlives every recomposition of the row it started
+        // on, and the current index is read through a holder rather than captured.
+        val latestIndex = rememberUpdatedState(index)
+        // Remembered, not a local: the pointer-input lambda is created once now, so a plain `var`
+        // would leave it reading the first composition's copy while `onGloballyPositioned` wrote to
+        // the newest one, and auto-scroll would aim at where the grip used to be.
+        val handleTop = remember { mutableFloatStateOf(0f) }
         return this
-            .onGloballyPositioned { handleTop = it.positionInWindow().y }
-            .pointerInput(index, itemCount) {
+            .onGloballyPositioned { handleTop.floatValue = it.positionInWindow().y }
+            .pointerInput(Unit) {
                 // Drag starts on TOUCH, not after a long press.
                 //
                 // Two reasons, and the first is a bug Dewi hit: the row beneath carries
@@ -101,7 +117,7 @@ class ReorderState internal constructor(
                 // unambiguous control meant was only ever a cost.
                 detectDragGestures(
                     onDragStart = {
-                        draggingIndex = index
+                        draggingIndex = latestIndex.value
                         accumulated = 0f
                     },
                     onDragEnd = { reset() },
@@ -113,7 +129,7 @@ class ReorderState internal constructor(
                         applyDrag(delta.y)
                         // The finger in window space: where the grip is, plus where the touch
                         // sits within it. Edge detection only needs to be right to within a row.
-                        updateAutoScroll(handleTop + change.position.y)
+                        updateAutoScroll(handleTop.floatValue + change.position.y)
                     },
                 )
             }

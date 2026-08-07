@@ -45,6 +45,7 @@ instead).
 | Views + dates on a **page-2** feed video | JVM unit | `:app` `VideosPagingTest` — where "scrolled down" can actually break |
 | Views + dates crossing the media session | instrumented | `:app` `PlayerMetadataTest` — extras written but never read compile fine and deliver nothing |
 | Views + dates on a row 60 deep, the last row, and one scrolled back into view | instrumented | `:app` `ScrolledRowMetadataTest` |
+| A queue drag surviving its own swaps | instrumented | `:app` `ReorderAutoScrollTest` — needs composition to settle BETWEEN pointer events; a frozen clock (every other case there) cannot see it, which is why a one-place-only drag shipped |
 | A queue drag of ten places in one motion | JVM unit | `:app` `ReorderStateTest` — the accumulator over distance. Deliberately NOT a gesture: that version failed on CI twice on screen size and frame timing while passing locally |
 | Views + dates surviving the **database** | instrumented | `:core:database` `ItemFactsSurviveStorageTest` — queue and history; the boundary where they were dying |
 
@@ -168,6 +169,17 @@ the worst kind, because the natural response is to re-run it.
 The lesson is not "raise the timeout" (that was also needed: CI's emulator is far slower, so 60s):
 it is that a stand-in claiming a capability has to implement it, or it tests the app against a server
 that does not exist. It now serves real 206 responses with a `Content-Range`.
+
+## When an environment disagrees about a NUMBER, believe it (2026-08-07)
+
+CI reported exactly 1 move for a drag test where the local emulator reported 10. It was written off
+as frame timing and the test was moved to the JVM. Dewi then reported from his phone: *"i am only
+able to drag the items in the queue by 1 position"* — the same number. CI had found a real bug on
+the one configuration whose timing let a frame through mid-gesture, and it was overruled.
+
+A flake is a test that gives *different* answers to the same question. A test that reliably gives a
+different answer in another environment is describing that environment, and one of them is your
+users'. The cost here was shipping a broken dragger and writing a doc claiming it worked.
 
 ## A passing e2e is not the same as a reproduction (2026-08-06)
 

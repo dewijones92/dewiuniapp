@@ -143,6 +143,12 @@ class ReorderAutoScrollTest {
         const val HOLD_TICKS = 40
         const val TICK_MS = 16L
 
+        /** Far enough that "it only ever moves one" is unmistakable, short enough to stay on screen. */
+        const val SURVIVAL_ROWS = 5
+
+        /** A frame between moves, so recomposition happens mid-gesture as it does on a device. */
+        const val FRAME_MS = 32L
+
         /**
          * A generous upper bound on what fits on screen at [ROW_HEIGHT]dp — the point is to
          * assert the drag went FURTHER than the display allows, without depending on the exact
@@ -214,6 +220,66 @@ class ReorderAutoScrollTest {
      * a second lookup of a grip that has by then moved, so Compose scrolls the list to bring it
      * into view before it will touch it.
      */
+
+    /**
+     * A drag must survive the row it is dragging changing index — which is what every swap does.
+     *
+     * Dewi, 2026-08-07, on 0.1.359: *"i am only able to drag the items in the queue by 1 position"*.
+     * He was right and every test here said otherwise.
+     *
+     * The grip's `pointerInput` was keyed on `index`. The first swap moves the row, so its index
+     * changes, so the key changes, so Compose **tears down the pointer input and cancels the gesture
+     * in flight**. Exactly one swap per touch, forever.
+     *
+     * The reason no test caught it is the reason this one is written differently: every other case
+     * here sets `mainClock.autoAdvance = false` so it can hold a finger still and watch auto-scroll.
+     * A frozen clock means **no recomposition happens during the gesture**, so the index never
+     * changes as far as the composition is concerned and the pointer input is never restarted. The
+     * tests were structurally incapable of seeing this. CI saw it — a run reported exactly 1 move
+     * where the local emulator reported 10 — and I put it down to frame timing rather than believing
+     * it. It was the bug.
+     *
+     * So: the clock RUNS here, and the gesture is spread over real frames.
+     */
+    @Test
+    fun aDragSurvivesTheRowChangingIndexUnderIt() {
+        setUpList()
+
+        // A SEPARATE injection per row, with the composition allowed to settle between them. That
+        // gap is the whole point: inside one `performTouchInput` block every event is delivered
+        // before Compose recomposes, so the row's index never changes mid-gesture and the defect is
+        // invisible. On a device the queue recomposes constantly — a 500ms position ticker alone
+        // guarantees it — so the gap is the realistic case, not the artificial one.
+        val start = composeTestRule.onNodeWithTag("grip-0").fetchSemanticsNode().boundsInRoot.center
+        val step = ROW_HEIGHT * composeTestRule.density.density
+
+        composeTestRule.onNodeWithTag("grip-0").performTouchInput { down(start) }
+        repeat(SURVIVAL_ROWS) { i ->
+            composeTestRule.waitForIdle()
+            composeTestRule.onNodeWithTag(LIST).performTouchInput {
+                moveTo(Offset(start.x, start.y + step * (i + 1)))
+            }
+        }
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithTag(LIST).performTouchInput { up() }
+        composeTestRule.waitForIdle()
+
+        // SURVIVAL, not accuracy. The exact count is short of the rows injected because the drag
+        // detector's touch slop absorbs the opening movement, and pinning it would make this fragile
+        // about the one thing it is not testing -- how many places a given travel is worth is
+        // `ReorderStateTest`'s job, on the JVM, where there is no slop. What matters here is that a
+        // gesture keeps producing swaps after the first, which before the fix it could not.
+        assertTrue(
+            "the drag stopped after ${moves.size} move(s): $moves. A gesture must survive its own " +
+                "swaps -- the row's index changes with every one, and re-keying the pointer input " +
+                "on it cancels the drag after the first, which is exactly one place per touch",
+            moves.size >= SURVIVAL_ROWS - 2,
+        )
+        assertTrue(
+            "every move must be by a single place, and each must continue the last: $moves",
+            moves.zipWithNext().all { (a, b) -> b.first == a.second } && moves.all { it.second - it.first == 1 },
+        )
+    }
 
     // NOT tested here, honestly: a case driving the grip with `combinedClickable` also on the
     // row fails with "Failed to inject touch input" however it is arranged — three attempts,

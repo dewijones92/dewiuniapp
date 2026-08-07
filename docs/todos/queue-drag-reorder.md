@@ -3,7 +3,7 @@ title: Queue drag-and-drop, AntennaPod-grade
 kind: todo
 area: queue
 priority: high
-status: shipped (auto-scroll, long-distance accuracy); pickup + resilience open
+status: shipped (auto-scroll, long-distance accuracy, surviving its own swaps); pickup open
 updated: 2026-08-06
 ---
 
@@ -75,6 +75,39 @@ travelling further than the viewport (`draggingToTheBottomEdgeKeepsMovingPastThe
 traps found while trying and recorded in that file: asserting "the list did not scroll" does not work
 (`LazyColumn` re-anchors on the dragged item's key), and splitting a gesture to release the finger
 costs a second lookup of a grip that has moved, which makes Compose scroll to it.
+
+## Fixed 2026-08-07: it only ever moved ONE place
+
+Dewi, on 0.1.359: *"i am only able to drag the items in the queue by 1 position :("*. He was right,
+and every test here said otherwise.
+
+The grip's gesture was `pointerInput(index, itemCount)`. **Every swap changes the dragged row's
+index**, so the key changed, so Compose tore down the pointer input and cancelled the gesture in
+flight — exactly one swap per touch, forever. `itemCount` was a key for the same reason and just as
+wrong: a download finishing mid-drag would have dropped the item. Keyed on `Unit` now, with the
+current index read through `rememberUpdatedState` only when a drag begins, and `handleTop`
+remembered rather than a per-composition local (the gesture lambda is created once, so a plain
+`var` would have left auto-scroll aiming at where the grip used to be).
+
+### Why nothing caught it, which is the part worth keeping
+
+Every other test in `ReorderAutoScrollTest` sets `mainClock.autoAdvance = false` so it can hold a
+finger still and watch auto-scroll. **A frozen clock means no recomposition happens during the
+gesture**, so the index never changes as far as the composition is concerned and the pointer input
+is never restarted. The tests were structurally incapable of seeing this. Even running the clock is
+not enough: inside a single `performTouchInput` block every event is delivered before Compose
+recomposes. The reproduction needs the composition to *settle between* pointer events, which is the
+ordinary case on a device — the queue alone recomposes on a 500ms position ticker.
+
+**CI told me and I did not believe it.** A run reported exactly 1 move where the local emulator
+reported 10, and it was written off as frame timing. It was the bug, on the one configuration that
+happened to let a frame through. When an environment disagrees about a *count*, that is evidence,
+not noise.
+
+`aDragSurvivesTheRowChangingIndexUnderIt` now holds it: composition settles between each injected
+move, and it was watched failing (1 move) with the old key restored. It asserts SURVIVAL and
+single-step continuity, not an exact count — touch slop absorbs the opening movement, and how far a
+given travel is worth is `ReorderStateTest`'s job on the JVM.
 
 ### Still open
 
