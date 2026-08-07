@@ -41,7 +41,9 @@ fun MediaThumbnail(
     url: HttpUrl?,
     contentDescription: String?,
     modifier: Modifier = Modifier,
-    shape: Shape = RoundedCornerShape(8.dp),
+    // 12dp rather than 8: at the larger artwork size 8dp reads as an almost-square with the corners
+    // knocked off, where 12 reads as deliberate. Matches the cards and sheets elsewhere.
+    shape: Shape = RoundedCornerShape(12.dp),
     durationLabel: String? = null,
 ) {
     Box(

@@ -41,6 +41,7 @@ alone until they need more.
 | Go to channel / podcast from any row (`SourceLocator`) | ui | shipped | [../todos/go-to-channel-action.md](../todos/go-to-channel-action.md) |
 | Cast to TV (Chromecast) — best-effort | cast | shipped* | podcast/local only works; video casting fragile |
 | Explore channel content (InnerTube tabs: Videos/Shorts/Playlists) | channel | shipped | [channel-browse.md](channel-browse.md) |
+| One visual language across the app | ui | shipped | [visual-language.md](visual-language.md) |
 | The player screen, tinted by what is playing | player | shipped | [player-redesign.md](player-redesign.md) |
 | Managing downloads (cancel, retry, sort by size, see failures) | downloads | shipped | [download-management.md](download-management.md) |
 | Search results arrive per section (no longer blocked by torrent search) | search | shipped | [search-sections.md](search-sections.md) |

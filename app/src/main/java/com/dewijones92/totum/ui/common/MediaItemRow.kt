@@ -46,8 +46,15 @@ import com.dewijones92.totum.domain.PlayState
 // centre-crops into it cleanly.
 private const val TITLE_MAX_LINES = 2
 
-private val THUMBNAIL_WIDTH = 96.dp
-private val THUMBNAIL_HEIGHT = 54.dp
+/**
+ * 16:9, and bigger than it was.
+ *
+ * 96x54 was a correct aspect ratio at a size that made every thumbnail a stamp — the artwork is the
+ * fastest thing to recognise in a list and it was the smallest thing in the row. 120x68 is close to
+ * what YouTube and Pocket Casts use, and the ratio is kept exactly so nothing is cropped.
+ */
+private val THUMBNAIL_WIDTH = 120.dp
+private val THUMBNAIL_HEIGHT = 68.dp
 
 /**
  * One media item in a list — used identically for podcast episodes and any
@@ -131,10 +138,12 @@ fun MediaItemRow(
                 onClick = { if (item.mediaUrl != null) onPlay() },
                 onLongClick = if (hasMenu) ({ showSheet = true }) else null,
             )
-            .padding(16.dp),
+            // Tighter vertically than horizontally: 16dp all round made every row a third taller
+            // than its artwork needed, so a screenful held five items where it now holds seven.
+            .padding(horizontal = 16.dp, vertical = 10.dp),
     ) {
         ThumbnailWithProgress(item, playState)
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(14.dp))
         TitleAndSubtitle(item, subtitle, pillar, playState, downloadState, Modifier.weight(1f))
         if (hasMenu) {
             IconButton(onClick = { showSheet = true }) {
@@ -193,7 +202,9 @@ private fun TitleAndSubtitle(
         ItemBadges(item)
         Text(
             text = item.title,
-            style = MaterialTheme.typography.bodyLarge,
+            // titleSmall over bodyLarge: the title is the thing the eye lands on and it was set at
+            // the same weight as the subtitle under it, so a row had no hierarchy at all.
+            style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.onSurface,
             // Two lines keeps a list scannable; long podcast titles were running to
             // five, which made every row a paragraph.

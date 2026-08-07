@@ -2,6 +2,7 @@ package com.dewijones92.totum.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,6 +25,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -217,7 +219,23 @@ private fun TopLevelNavigationBar(selected: TopLevelDestination, onSelect: (TopL
                 onClick = { onSelect(destination) },
                 icon = {
                     val icon = if (isSelected) destination.selectedIcon else destination.unselectedIcon
-                    Icon(imageVector = icon, contentDescription = null)
+                    // A hair larger when selected — the filled/outlined swap alone is a small
+                    // signal, and animating the size makes which tab you are on readable at a
+                    // glance rather than something you have to look for.
+                    val scale by animateFloatAsState(
+                        targetValue = if (isSelected) SELECTED_ICON_SCALE else 1f,
+                        label = "nav-icon",
+                    )
+                    Icon(
+                        imageVector = icon,
+                        // Described, not null. The label below is decoration that a screen reader
+                        // may or may not reach; this is the tab's actual name.
+                        contentDescription = stringResource(destination.labelRes),
+                        modifier = Modifier.graphicsLayer {
+                            scaleX = scale
+                            scaleY = scale
+                        },
+                    )
                 },
                 label = { Text(stringResource(destination.labelRes)) },
             )
@@ -454,3 +472,6 @@ private fun FloatingVideo(state: PlaybackState?, player: androidx.media3.common.
         }
     }
 }
+
+/** Enough to notice, not enough to jump. */
+private const val SELECTED_ICON_SCALE = 1.15f
