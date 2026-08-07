@@ -67,6 +67,15 @@ public class PlaybackService : MediaSessionService() {
     @UnstableApi
     private val silenceSkipper = SilenceSkippingAudioProcessor()
 
+    /**
+     * The volume boost, in the chain rather than on the audio session.
+     *
+     * Replaces the platform `LoudnessEnhancer`, which was capped, could not compress, and had to be
+     * rebuilt on every audio-session change — see [BoostingAudioProcessor].
+     */
+    @UnstableApi
+    private val booster = BoostingAudioProcessor()
+
     /** The speed the user chose, restored when a silent stretch ends. */
     private var userSpeed = 1f
 
@@ -74,9 +83,6 @@ public class PlaybackService : MediaSessionService() {
     private var inSilence = false
 
     private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
-
-    /** Platform gain for quiet audio; null when off or unavailable on this device. */
-    private var loudness: android.media.audiofx.LoudnessEnhancer? = null
 
     /** Notices the user's own speed changes so a silent stretch restores the right rate. */
     private val speedWatcher = object : Player.Listener {
@@ -135,7 +141,11 @@ public class PlaybackService : MediaSessionService() {
                         // what lets the media clock learn that samples were removed, which is what
                         // NewPipe/PipePipe get for free by calling setSkipSilenceEnabled().
                         DefaultAudioSink.DefaultAudioProcessorChain(
-                            arrayOf(silenceDetector),
+                            // The booster goes AFTER the detector: the detector decides what counts
+                            // as silence, and it must judge the recording rather than the recording
+                            // plus 30dB, or a boosted noise floor would read as speech and
+                            // skip-silence would stop skipping anything.
+                            arrayOf(silenceDetector, booster),
                             silenceSkipper,
                             SonicAudioProcessor(),
                         ),
@@ -274,7 +284,14 @@ public class PlaybackService : MediaSessionService() {
                 return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
             }
             if (customCommand.customAction == ACTION_VOLUME_BOOST) {
-                applyVolumeBoost(args.getInt(EXTRA_VOLUME_BOOST_MILLIBELS, 0))
+                // By NAME, not by a gain figure: the level is what the boost means and the
+                // decibels are its current implementation, so sending the number would have to be
+                // kept in step with the enum by hand.
+                applyVolumeBoost(
+                    args.getString(EXTRA_VOLUME_BOOST_LEVEL)
+                        ?.let { name -> runCatching { VolumeBoost.valueOf(name) }.getOrNull() }
+                        ?: VolumeBoost.OFF,
+                )
                 return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
             }
             if (customCommand.customAction == ACTION_SKIP_SILENCE) {
@@ -364,20 +381,8 @@ public class PlaybackService : MediaSessionService() {
     }
 
     @UnstableApi
-    private fun applyVolumeBoost(millibels: Int) {
-        val sessionId = player?.audioSessionId ?: return
-        if (sessionId == C.AUDIO_SESSION_ID_UNSET) return
-        // Recreated on change: the enhancer is bound to a session, and a stale one
-        // after a session change would silently do nothing.
-        runCatching { loudness?.release() }
-        loudness = null
-        if (millibels <= 0) return
-        loudness = runCatching {
-            android.media.audiofx.LoudnessEnhancer(sessionId).apply {
-                setTargetGain(millibels)
-                enabled = true
-            }
-        }.onFailure { Diag.warn("playback", "volume boost unavailable", it) }.getOrNull()
+    private fun applyVolumeBoost(boost: VolumeBoost) {
+        booster.level = boost
     }
 
     /** Turns the user's intent off cleanly, restoring their speed if we were racing. */
@@ -491,7 +496,7 @@ internal const val EXTRA_PRELOAD_URI: String = "uri"
 /** The item a nomination is FOR; what the preloader releases on. See [NextItemPreloader]. */
 internal const val EXTRA_PRELOAD_ITEM_ID: String = "item_id"
 internal const val ACTION_VOLUME_BOOST: String = "com.dewijones92.totum.VOLUME_BOOST"
-internal const val EXTRA_VOLUME_BOOST_MILLIBELS: String = "gain_millibels"
+internal const val EXTRA_VOLUME_BOOST_LEVEL: String = "boost_level"
 internal const val EXTRA_SKIP_SILENCE_ENABLED: String = "enabled"
 
 /**

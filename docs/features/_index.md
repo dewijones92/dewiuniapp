@@ -1,7 +1,7 @@
 ---
 title: Features
 kind: index
-updated: 2026-08-06
+updated: 2026-08-07
 ---
 
 # Features
@@ -58,6 +58,7 @@ alone until they need more.
 | Loading feedback (global busy bar; "go to channel" 12.5s → 59ms) | ui | shipped | [loading-feedback.md](loading-feedback.md) |
 | Feed cache (the Videos tab opens with content, not a blank) | video | shipped | [feed-cache.md](feed-cache.md) |
 | Offline queue (audio fetched automatically, readiness in words) | downloads | shipped | [offline-queue.md](offline-queue.md) |
+| Volume boost strong enough for a quiet podcast (compressor + limiter, to +30dB) | playback | shipped | [loudness-boost.md](loudness-boost.md) |
 
 \* Cast: **tapping the button still crashed the app until 2026-07-28** — this footnote claimed
 otherwise for weeks, because the fix that was made (a themed context for the button) never

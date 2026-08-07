@@ -331,7 +331,7 @@ public class Media3PlaybackController(
         withController {
             it.sendCustomCommand(
                 SessionCommand(ACTION_VOLUME_BOOST, Bundle.EMPTY),
-                bundleOf(EXTRA_VOLUME_BOOST_MILLIBELS to boost.gainMillibels),
+                bundleOf(EXTRA_VOLUME_BOOST_LEVEL to boost.name),
             )
             _state.value = it.currentPlaybackState()
         }

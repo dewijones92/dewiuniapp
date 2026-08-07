@@ -5,8 +5,16 @@ status: shipped
 area: playback
 priority: medium
 requested: 2026-07-24
-updated: 2026-07-25
+updated: 2026-08-07
 ---
+
+> **Superseded 2026-08-07.** The `LoudnessEnhancer` described below was **not strong enough** and
+> has been replaced by our own compressor/limiter in the audio chain, to +30 dB. The reasoning —
+> and why turning a flat gain up would not have worked — is in
+> [`../features/loudness-boost.md`](../features/loudness-boost.md). Everything below is kept as
+> the record of the first attempt; the options table in particular is still an accurate map, and
+> the row it ended on ("custom Media3 `BaseAudioProcessor`", judged *highest cost*) is what we
+> now run.
 
 # Make quiet talkers audible
 

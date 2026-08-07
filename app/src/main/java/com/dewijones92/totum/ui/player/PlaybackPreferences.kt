@@ -148,6 +148,7 @@ private fun VolumeBoost.labelRes(): Int = when (this) {
     VolumeBoost.LOW -> R.string.boost_low
     VolumeBoost.MEDIUM -> R.string.boost_medium
     VolumeBoost.HIGH -> R.string.boost_high
+    VolumeBoost.MAX -> R.string.boost_max
 }
 
 /**
