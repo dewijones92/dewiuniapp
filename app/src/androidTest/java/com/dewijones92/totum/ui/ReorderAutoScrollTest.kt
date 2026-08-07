@@ -55,8 +55,8 @@ class ReorderAutoScrollTest {
 
     private val moves = mutableListOf<Pair<Int, Int>>()
 
-    /** The list both tests drive: a small grip inside a much taller row, as on the real queue. */
-    private fun setUpList() {
+    /** The list every test drives: a small grip inside a much taller row, as on the real queue. */
+    private fun setUpList(rowHeight: Float = ROW_HEIGHT, handleHeight: Float = HANDLE_HEIGHT) {
         composeTestRule.setContent {
             val order = remember { mutableStateListOf<Int>().apply { addAll(0 until ITEMS) } }
             val listState = rememberLazyListState()
@@ -76,7 +76,7 @@ class ReorderAutoScrollTest {
                         // so items reordered about four times faster than the finger moved.
                         Row(
                             modifier = Modifier
-                                .height(ROW_HEIGHT.dp)
+                                .height(rowHeight.dp)
                                 .fillMaxWidth()
                                 .reorderable(reorder, index)
                                 .testTag("row-$item"),
@@ -85,8 +85,8 @@ class ReorderAutoScrollTest {
                             Text(text = "Item $item", modifier = Modifier.weight(1f))
                             Box(
                                 Modifier
-                                    .height(HANDLE_HEIGHT.dp)
-                                    .width(HANDLE_HEIGHT.dp)
+                                    .height(handleHeight.dp)
+                                    .width(handleHeight.dp)
                                     .dragHandle(index, order.size)
                                     .testTag("grip-$item"),
                             )
@@ -138,6 +138,16 @@ class ReorderAutoScrollTest {
 
         /** The distance Dewi asked about by name. Well inside a 40-row list, and nowhere near an edge. */
         const val LONG_DRAG_ROWS = 10
+
+        /**
+         * Rows short enough that ten of them fit on any phone, so the drag cannot reach the edge
+         * zone and start auto-scrolling. The grip stays a third of the row, as on the real queue.
+         */
+        const val SHORT_ROW = 32f
+        const val SHORT_HANDLE = 12f
+
+        /** Mirrors `ReorderState`'s own edge zone, which is private to it. */
+        const val EDGE_ZONE_PX = 140f
         const val LIST = "list"
 
         /** Comfortably past Compose's long-press threshold. */
@@ -206,31 +216,24 @@ class ReorderAutoScrollTest {
      * measuring the row from the 24dp grip rather than the 64dp row made every gesture roughly four
      * times too fast, which reads as "aim for ten and land on thirty".
      *
-     * A tolerance of one place, and only one, for the long-press detector absorbing the first
-     * movement before deltas begin — the same slop the three-row case documents. Deliberately not
-     * wider: a range of two or three would stop this being a test of accuracy at all.
+     * **Short rows, deliberately.** Ten rows at the usual 64dp is 640dp of travel, which is taller
+     * than a phone: the finger runs off the bottom, gets clamped into the auto-scroll edge zone, and
+     * the list starts scrolling underneath it. That is correct behaviour and ruins this measurement
+     * — it produced exactly 30 moves on CI's emulator while passing on a taller one locally, which
+     * is a test that depends on the screen rather than on the code. At [SHORT_ROW]dp the whole drag
+     * fits anywhere, and the grip stays far smaller than its row so the original bug is still
+     * detectable: measured from the grip, this gesture would report about 27 moves.
      */
     @Test
     fun draggingTenRowsMovesExactlyTenPlaces() {
         composeTestRule.mainClock.autoAdvance = false
-        setUpList()
+        setUpList(rowHeight = SHORT_ROW, handleHeight = SHORT_HANDLE)
 
-        composeTestRule.onNodeWithTag("grip-0").performTouchInput {
-            down(center)
-            advanceEventTime(LONG_PRESS_MS)
-            // Ten rows down. Stepped rather than one jump, because a real finger emits a stream of
-            // move events and a single teleport can hide an accumulator that only advances once
-            // per event — which would pass here and fail on a phone.
-            repeat(LONG_DRAG_ROWS) { step ->
-                moveTo(center + Offset(0f, ROW_HEIGHT * (step + 1) * density))
-            }
-        }
-        composeTestRule.mainClock.advanceTimeBy(TICK_MS)
-        composeTestRule.onNodeWithTag("grip-0").performTouchInput { up() }
+        assertDragStaysClearOfTheEdge()
+        dragDownTenRows()
 
         assertTrue(
-            "ten rows of travel must be ten places, not $LONG_DRAG_ROWS-ish or thirty: " +
-                "${moves.size} moves $moves",
+            "ten rows of travel must be ten places, not thirty: ${moves.size} moves $moves",
             moves.size in (LONG_DRAG_ROWS - 1)..LONG_DRAG_ROWS,
         )
     }
@@ -245,17 +248,10 @@ class ReorderAutoScrollTest {
     @Test
     fun draggingTenRowsLeavesTheItemTenPlacesDown() {
         composeTestRule.mainClock.autoAdvance = false
-        setUpList()
+        setUpList(rowHeight = SHORT_ROW, handleHeight = SHORT_HANDLE)
 
-        composeTestRule.onNodeWithTag("grip-0").performTouchInput {
-            down(center)
-            advanceEventTime(LONG_PRESS_MS)
-            repeat(LONG_DRAG_ROWS) { step ->
-                moveTo(center + Offset(0f, ROW_HEIGHT * (step + 1) * density))
-            }
-        }
-        composeTestRule.mainClock.advanceTimeBy(TICK_MS)
-        composeTestRule.onNodeWithTag("grip-0").performTouchInput { up() }
+        assertDragStaysClearOfTheEdge()
+        dragDownTenRows()
 
         // Item 0 started at index 0; every move is one place, so its final index is the move count.
         val landedAt = moves.lastOrNull()?.second ?: 0
@@ -263,6 +259,59 @@ class ReorderAutoScrollTest {
             "the dragged item must finish about ten places down, and each move must be by one " +
                 "place: landed at $landedAt after ${moves.size} moves $moves",
             landedAt == moves.size && landedAt in (LONG_DRAG_ROWS - 1)..LONG_DRAG_ROWS,
+        )
+    }
+
+    /**
+     * One continuous gesture, ten rows down.
+     *
+     * Stepped rather than one jump, because a real finger emits a stream of move events and a single
+     * teleport can hide an accumulator that only advances once per event — which would pass here and
+     * fail on a phone.
+     */
+    private fun dragDownTenRows() {
+        // The WHOLE gesture in one block, `up()` included. The other tests here split it to let the
+        // clock advance mid-drag, but splitting costs a second lookup of `grip-0` — and by then that
+        // grip has moved ten rows, so Compose scrolls the list to bring it into view before it will
+        // touch it. That scroll is the test framework's, not the app's, and it made the guard below
+        // fire on a drag that had never gone near an edge.
+        composeTestRule.onNodeWithTag("grip-0").performTouchInput {
+            down(center)
+            advanceEventTime(LONG_PRESS_MS)
+            repeat(LONG_DRAG_ROWS) { step ->
+                moveTo(center + Offset(0f, SHORT_ROW * (step + 1) * density))
+            }
+            up()
+        }
+        composeTestRule.mainClock.advanceTimeBy(TICK_MS)
+    }
+
+    /**
+     * The premise of both measurements: the gesture stays clear of the auto-scroll edge zone.
+     *
+     * Auto-scroll feeds pixels into the same accumulator a real drag uses — by design, and it is what
+     * makes long drags possible at all. But a gesture that strays into the edge zone stops measuring
+     * the finger and starts measuring the clock, and the failure then looks like a swap-rate bug. On
+     * CI's emulator, which is shorter than the one here, ten rows at 64dp ran off the bottom and
+     * produced exactly 30 moves while passing locally — a test that depended on the screen.
+     *
+     * Checked as a PRECONDITION on the geometry rather than inferred afterwards. The obvious
+     * after-the-fact check — "did the list scroll?" — does not work: `LazyColumn` re-anchors on the
+     * dragged item's key, so `firstVisibleItemIndex` follows the item ten places down and reports a
+     * scroll on a drag that never went near an edge. That cost an hour; it is written down so it
+     * costs nobody else one.
+     */
+    private fun assertDragStaysClearOfTheEdge() {
+        val list = composeTestRule.onNodeWithTag(LIST).fetchSemanticsNode()
+        val grip = composeTestRule.onNodeWithTag("grip-0").fetchSemanticsNode()
+        val endY = grip.boundsInRoot.center.y + SHORT_ROW * LONG_DRAG_ROWS * composeTestRule.density.density
+        val edgeStartsAt = list.boundsInRoot.bottom - EDGE_ZONE_PX
+
+        assertTrue(
+            "this device is too short for a ${LONG_DRAG_ROWS}-row drag at ${SHORT_ROW}dp: the finger " +
+                "would finish at ${endY}px, inside the auto-scroll edge zone that starts at " +
+                "${edgeStartsAt}px. The measurement would be of the clock, not the gesture",
+            endY < edgeStartsAt,
         )
     }
 
