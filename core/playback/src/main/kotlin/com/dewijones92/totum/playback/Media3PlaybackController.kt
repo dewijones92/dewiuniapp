@@ -87,6 +87,21 @@ public class Media3PlaybackController(
     // language code but not the label or whether it's machine-generated, and those are
     // exactly what a menu needs to show.
     private var activeSubtitles: List<SubtitleTrack> = emptyList()
+
+    /**
+     * What the listing said — held here, like the segments and subtitles above and for the same
+     * reason: it does not reliably cross the session.
+     *
+     * It rode in `MediaMetadata.extras` first, which worked locally and then failed **intermittently**
+     * on CI: the view count came back null from the queue's play path in one run and not the next,
+     * on a commit that touched only test files. Extras are not dependably carried by a
+     * `MediaController`'s copy of an item, so a channel that appears to work is really a race — and
+     * the video page would have dropped the numbers a moment after showing them, on a device, with
+     * nothing to explain it. Every other per-item fact the UI needs is already held exactly this way.
+     */
+    private var activeViewsText: String? = null
+    private var activePublishedText: String? = null
+    private var activePublishedAt: Instant? = null
     private var subtitleLanguage: String? = null
     private var currentSourceId: SourceId? = null
     private var playGeneration = 0
@@ -216,18 +231,6 @@ public class Media3PlaybackController(
                     .setArtist(item.author)
                     .setDescription(item.description)
                     .setArtworkUri(item.thumbnailUrl?.value?.let(android.net.Uri::parse))
-                    // The listing's own facts, round-tripped so the video page can show what every
-                    // list shows. MediaMetadata has no field for either, hence extras — the same
-                    // channel the merged audio URL already uses.
-                    .setExtras(
-                        bundleOf(
-                            EXTRA_VIEWS_TEXT to item.viewsText,
-                            EXTRA_PUBLISHED_TEXT to item.publishedText,
-                            // Epoch millis, with -1 for absent: a Bundle cannot carry an Instant,
-                            // and a nullable Long would box for no gain.
-                            EXTRA_PUBLISHED_AT to (item.publishedAt?.toEpochMilli() ?: NO_INSTANT),
-                        ),
-                    )
                     // Round-trips the pillar through the session so the UI can label it.
                     .setMediaType(
                         when (kind) {
@@ -254,6 +257,9 @@ public class Media3PlaybackController(
                 activeSkipSegments = skipSegments
                 activeChapters = item.chapters
                 activeSubtitles = subtitles
+                activeViewsText = item.viewsText
+                activePublishedText = item.publishedText
+                activePublishedAt = item.publishedAt
                 currentSourceId = item.sourceId
                 ticksSinceSave = 0
                 controller.setMediaItem(media3Item, resumeMs)
@@ -430,12 +436,9 @@ public class Media3PlaybackController(
             title = current.mediaMetadata.title?.toString().orEmpty(),
             artist = current.mediaMetadata.artist?.toString(),
             artworkUrl = current.mediaMetadata.artworkUri?.toString(),
-            viewsText = current.mediaMetadata.extras?.getString(EXTRA_VIEWS_TEXT),
-            publishedText = current.mediaMetadata.extras?.getString(EXTRA_PUBLISHED_TEXT),
-            publishedAt = current.mediaMetadata.extras
-                ?.getLong(EXTRA_PUBLISHED_AT, NO_INSTANT)
-                ?.takeIf { it != NO_INSTANT }
-                ?.let(Instant::ofEpochMilli),
+            viewsText = activeViewsText,
+            publishedText = activePublishedText,
+            publishedAt = activePublishedAt,
             description = current.mediaMetadata.description?.toString(),
             kind = if (current.mediaMetadata.mediaType == MediaMetadata.MEDIA_TYPE_PODCAST_EPISODE) {
                 MediaKind.PODCAST
@@ -482,9 +485,6 @@ public class Media3PlaybackController(
 
         /** Room for a burst of ends without ever suspending the player's callback thread. */
         const val EVENT_BUFFER = 8
-
-        /** A Bundle cannot hold a null Long, so absence needs a value no real instant has. */
-        const val NO_INSTANT = -1L
     }
 }
 

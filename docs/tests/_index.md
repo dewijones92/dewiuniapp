@@ -172,6 +172,18 @@ The lesson is not "raise the timeout" (that was also needed: CI's emulator is fa
 it is that a stand-in claiming a capability has to implement it, or it tests the app against a server
 that does not exist. It now serves real 206 responses with a `Content-Range`.
 
+## An intermittent failure is a race, not a flake, until proven otherwise (2026-08-07)
+
+`PlayerMetadataTest` failed on CI, passed on the next run, then failed again on a commit that
+touched only test files and docs. The tempting reading is "flaky test". The real one was that the
+production channel was unsound: the view count rode in `MediaMetadata.extras`, which a
+`MediaController`'s copy of an item does not dependably carry, so whether the page showed the
+numbers came down to timing. On a device it would have shown them and then dropped them.
+
+Fixed by holding the values on the controller, as the skip segments and subtitles already were.
+Then run five times consecutively — because "it passed once after I changed something" is how a race
+gets declared fixed while still being a race.
+
 ## When an environment disagrees about a NUMBER, believe it (2026-08-07)
 
 CI reported exactly 1 move for a drag test where the local emulator reported 10. It was written off

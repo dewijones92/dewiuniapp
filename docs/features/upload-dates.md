@@ -69,10 +69,18 @@ Two changes, both single-seam:
   has to. `play` now takes the listing item rather than a bare URL; there was exactly one production
   caller, and it already held it.
 
-Then `PlaybackState` gained `viewsText`, `publishedText` and `publishedAt`, carried across the
-session in `MediaMetadata` **extras** (there is no field for either), and `FullPlayer` renders them
-through the same `mediaSubtitle` the rows use — with the author omitted, because the artist line is
-directly above.
+Then `PlaybackState` gained `viewsText`, `publishedText` and `publishedAt`, and `FullPlayer` renders
+them through the same `mediaSubtitle` the rows use — with the author omitted, because the artist line
+is directly above.
+
+They are **held on the controller**, exactly as the skip segments, chapters and subtitles already
+are, and for exactly the same reason: they do not reliably cross the session. The first version put
+them in `MediaMetadata.extras`, which worked locally and then failed *intermittently* on CI — the
+view count came back null from the queue's play path in one run and not the next, on a commit that
+touched only test files. A `MediaController`'s copy of an item does not dependably carry extras, so
+that channel was a race rather than a mechanism, and on a device the page would have shown the
+numbers and then dropped them with nothing to explain it. The pattern was already in the file; it
+should have been followed the first time.
 
 ## Coverage
 
@@ -81,7 +89,7 @@ directly above.
 | JVM unit | `MediaItemSubtitleTest` — the line's order, the date rule, absence, and that a counted and a quoted view figure render identically |
 | JVM unit | `WithStreamFromTest` — which facts a resolution may change, and which it may not |
 | JVM unit | `VideosPagingTest` — a **page-2** video keeps its views and date. This is where "scrolled down" can really break: one composable renders every row, so what differs about row 60 is where its data came from |
-| Instrumented | `PlayerMetadataTest` — the values come back out of the *real* session, including that absence stays absence. Verified failing when the extras key is changed |
+| Instrumented | `PlayerMetadataTest` — the values come back out of the *real* session, including that absence stays absence, and via the queue's own play path. Run five times over to confirm the earlier intermittency was gone rather than quiet |
 | Instrumented | `ScrolledRowMetadataTest` — a row at index 60 of 80, the last row, and a row scrolled back into view, each showing its own numbers and not another's |
 | Instrumented | `ItemFactsSurviveStorageTest` — the facts survive the **database**, on the queue and on history, and absence stays absence |
 
