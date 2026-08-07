@@ -86,6 +86,74 @@ class ReorderStateTest {
         assertEquals(TEN / 2, reorder.draggingIndex)
     }
 
+    // ---- the drag continues after the row it holds has moved -----------------------------------
+
+    /**
+     * The state half of the one-place-only bug.
+     *
+     * A drag is a sequence of events against a row whose index is changing under it — each swap
+     * moves it. The gesture layer was cancelling itself on that change (see
+     * `ReorderAutoScrollTest.aDragSurvivesTheRowChangingIndexUnderIt`); this pins the other half,
+     * that the arithmetic tracks the item rather than the position it started at. Without it, five
+     * events would move five DIFFERENT rows one place each.
+     */
+    @Test
+    fun `each event continues the same item from where the last one left it`() {
+        val reorder = state(startIndex = 3, count = 40)
+
+        repeat(TEN / 2) { reorder.applyDrag(ROW.toFloat()) }
+
+        assertEquals(
+            "every move must hand off to the next, which is one item travelling five places",
+            listOf(3 to 4, 4 to 5, 5 to 6, 6 to 7, 7 to 8),
+            moves,
+        )
+        assertEquals(8, reorder.draggingIndex)
+    }
+
+    @Test
+    fun `a drag reverses mid-gesture without losing its place`() {
+        val reorder = state(startIndex = 5, count = 40)
+
+        repeat(3) { reorder.applyDrag(ROW.toFloat()) }
+        repeat(2) { reorder.applyDrag(-ROW.toFloat()) }
+
+        assertEquals(listOf(5 to 6, 6 to 7, 7 to 8, 8 to 7, 7 to 6), moves)
+        assertEquals("three down and two back up is one place down", 6, reorder.draggingIndex)
+    }
+
+    /**
+     * The list growing under a drag must not end it.
+     *
+     * `itemCount` was the second key on the gesture, so a download finishing — which changes the
+     * queue's size — would have cancelled a drag in progress just as a swap did. Nothing else here
+     * would have noticed: the arithmetic simply reads the new count on the next event.
+     */
+    @Test
+    fun `the drag carries on when the list grows under it`() {
+        val reorder = state(startIndex = 8, count = 10)
+
+        reorder.applyDrag(ROW.toFloat())
+        reorder.itemCount = 40
+        repeat(3) { reorder.applyDrag(ROW.toFloat()) }
+
+        assertEquals("the extra rows must become reachable, not end the drag", 4, moves.size)
+        assertEquals(12, reorder.draggingIndex)
+    }
+
+    /** And shrinking must clamp rather than run off the new end. */
+    @Test
+    fun `the drag stops at the new end when the list shrinks under it`() {
+        val reorder = state(startIndex = 8, count = 40)
+
+        reorder.applyDrag(ROW.toFloat())
+        reorder.itemCount = 10
+        repeat(5) { reorder.applyDrag(ROW.toFloat()) }
+
+        assertEquals("index 9 is the last of ten", 9, reorder.draggingIndex)
+        assertEquals(listOf(8 to 9), moves)
+    }
+
     @Test
     fun `a drag shorter than a row moves nothing`() {
         val reorder = state(startIndex = 2, count = 10)

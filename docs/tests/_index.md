@@ -45,6 +45,8 @@ instead).
 | Views + dates on a **page-2** feed video | JVM unit | `:app` `VideosPagingTest` — where "scrolled down" can actually break |
 | Views + dates crossing the media session | instrumented | `:app` `PlayerMetadataTest` — extras written but never read compile fine and deliver nothing |
 | Views + dates on a row 60 deep, the last row, and one scrolled back into view | instrumented | `:app` `ScrolledRowMetadataTest` |
+| A queue drag continuing the same item across swaps, reversals, and the list resizing | JVM unit | `:app` `ReorderStateTest` |
+| A queue drag surviving the list changing SIZE under it | instrumented | `:app` `ReorderAutoScrollTest` — `itemCount` was the gesture's second key; watched failing at 0 moves |
 | A queue drag surviving its own swaps | instrumented | `:app` `ReorderAutoScrollTest` — needs composition to settle BETWEEN pointer events; a frozen clock (every other case there) cannot see it, which is why a one-place-only drag shipped |
 | A queue drag of ten places in one motion | JVM unit | `:app` `ReorderStateTest` — the accumulator over distance. Deliberately NOT a gesture: that version failed on CI twice on screen size and frame timing while passing locally |
 | Views + dates surviving the **database** | instrumented | `:core:database` `ItemFactsSurviveStorageTest` — queue and history; the boundary where they were dying |

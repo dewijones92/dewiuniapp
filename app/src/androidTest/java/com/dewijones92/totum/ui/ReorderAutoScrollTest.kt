@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Text
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -54,6 +55,52 @@ class ReorderAutoScrollTest {
     val composeTestRule = createComposeRule()
 
     private val moves = mutableListOf<Pair<Int, Int>>()
+
+    /** Rows added while a drag is in flight, so a test can change the list's size under it. */
+    private val appended = mutableIntStateOf(0)
+
+    /**
+     * The same list, but able to GROW under a drag — its own setup rather than a flag on the shared
+     * one. Threading the growth through [setUpList] changed what every other case composed and broke
+     * the auto-scroll test, which is a bad trade for saving a few lines.
+     */
+    private fun setUpGrowableList() {
+        composeTestRule.setContent {
+            val order = remember { mutableStateListOf<Int>().apply { addAll(0 until ITEMS) } }
+            val rows = order + List(appended.intValue) { ITEMS + it }
+            val listState = rememberLazyListState()
+            val reorder = rememberReorderState(listState) { from, to ->
+                moves += from to to
+                if (from in order.indices && to in order.indices) order.add(to, order.removeAt(from))
+            }
+            LazyColumn(
+                state = listState,
+                modifier = with(reorder) { Modifier.fillMaxSize().testTag(LIST).reorderContainer() },
+            ) {
+                itemsIndexed(rows, key = { _, item -> item }) { index, item ->
+                    with(reorder) {
+                        Row(
+                            modifier = Modifier
+                                .height(ROW_HEIGHT.dp)
+                                .fillMaxWidth()
+                                .reorderable(reorder, index)
+                                .testTag("row-$item"),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(text = "Item $item", modifier = Modifier.weight(1f))
+                            Box(
+                                Modifier
+                                    .height(HANDLE_HEIGHT.dp)
+                                    .width(HANDLE_HEIGHT.dp)
+                                    .dragHandle(index, rows.size)
+                                    .testTag("grip-$item"),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     /** The list every test drives: a small grip inside a much taller row, as on the real queue. */
     private fun setUpList(rowHeight: Float = ROW_HEIGHT, handleHeight: Float = HANDLE_HEIGHT) {
@@ -278,6 +325,44 @@ class ReorderAutoScrollTest {
         assertTrue(
             "every move must be by a single place, and each must continue the last: $moves",
             moves.zipWithNext().all { (a, b) -> b.first == a.second } && moves.all { it.second - it.first == 1 },
+        )
+    }
+
+    /**
+     * The other half of the same defect: the list CHANGING SIZE must not end a drag either.
+     *
+     * `itemCount` was the gesture's second key, so a download finishing, an item being auto-queued,
+     * or playback advancing — anything that changes the queue's length — would tear the pointer
+     * input down mid-drag exactly as a swap did. Dewi's queue auto-downloads while he uses it, so
+     * this is not a contrived case; it simply never had a name because the swap-cancelling half fired
+     * first every time.
+     *
+     * Driven by appending a row between pointer events, which is what those events do.
+     */
+    @Test
+    fun aDragSurvivesTheListGrowingUnderIt() {
+        setUpGrowableList()
+
+        val start = composeTestRule.onNodeWithTag("grip-0").fetchSemanticsNode().boundsInRoot.center
+        val step = ROW_HEIGHT * composeTestRule.density.density
+
+        composeTestRule.onNodeWithTag("grip-0").performTouchInput { down(start) }
+        repeat(SURVIVAL_ROWS) { i ->
+            composeTestRule.waitForIdle()
+            // The list gets longer under the finger, as an auto-download completing makes it.
+            composeTestRule.runOnUiThread { appended.intValue += 1 }
+            composeTestRule.waitForIdle()
+            composeTestRule.onNodeWithTag(LIST).performTouchInput {
+                moveTo(Offset(start.x, start.y + step * (i + 1)))
+            }
+        }
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithTag(LIST).performTouchInput { up() }
+        composeTestRule.waitForIdle()
+
+        assertTrue(
+            "the drag stopped after ${moves.size} move(s) once the list changed size: $moves",
+            moves.size >= SURVIVAL_ROWS - 2,
         )
     }
 

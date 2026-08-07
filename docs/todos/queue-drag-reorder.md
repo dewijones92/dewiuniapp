@@ -104,7 +104,22 @@ reported 10, and it was written off as frame timing. It was the bug, on the one 
 happened to let a frame through. When an environment disagrees about a *count*, that is evidence,
 not noise.
 
-`aDragSurvivesTheRowChangingIndexUnderIt` now holds it: composition settles between each injected
+### Covered at every level
+
+| Level | What it holds | Watched failing as |
+|---|---|---|
+| JVM unit | the drag continues the SAME item from where the last event left it, across five swaps | five different rows moving one place each |
+| JVM unit | it reverses mid-gesture without losing its place | — |
+| JVM unit | it carries on when the list grows under it, and clamps to the new end when it shrinks | — |
+| Instrumented | the gesture survives its own swaps | 1 move |
+| Instrumented | the gesture survives the list changing SIZE under it | 0 moves |
+
+The two instrumented cases cover the two keys the gesture used to carry, and each was watched
+failing with only that key restored — they catch different halves and neither substitutes for the
+other. The JVM cases hold the arithmetic that has to be right for either to mean anything; the
+gesture layer can only be tested on a device, and the arithmetic only sensibly off one.
+
+`aDragSurvivesTheRowChangingIndexUnderIt` holds the first: composition settles between each injected
 move, and it was watched failing (1 move) with the old key restored. It asserts SURVIVAL and
 single-step continuity, not an exact count — touch slop absorbs the opening movement, and how far a
 given travel is worth is `ReorderStateTest`'s job on the JVM.
