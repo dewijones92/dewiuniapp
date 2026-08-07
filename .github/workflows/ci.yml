@@ -4,6 +4,15 @@ on:
   push:
     branches: [main]
   pull_request:
+  # A hand-startable run, because a push event is not guaranteed to produce one.
+  #
+  # GitHub Actions had a major outage on 2026-08-06 (15:22 UTC). Five pushes to main landed during
+  # it and NO run was ever created for any of them — and when Actions came back it did not backfill
+  # them, so those commits would have gone unverified and unreleased for good. With only `push` as
+  # a trigger the sole recovery is an empty commit, which is a lie in the history about what
+  # changed. This makes the recovery honest: re-run the tip from the Actions tab, or
+  # `gh workflow run ci.yml --ref main`.
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
