@@ -46,6 +46,11 @@ public class RoomLocalPlaylistStore(private val dao: LocalPlaylistDao) : LocalPl
             thumbnailUrl = item.thumbnailUrl?.value,
             sourceId = item.sourceId.value,
             contentKind = item.contentKind.name,
+            // The listing's own facts, or they are lost the moment the row is written -- see
+            // PlaylistItemColumns.
+            viewsText = item.viewsText,
+            publishedText = item.publishedText,
+            publishedAtEpochMs = item.publishedAt?.toEpochMilli(),
             playbackType = type,
             handle = handle,
             mediaUrl = item.mediaUrl?.value,

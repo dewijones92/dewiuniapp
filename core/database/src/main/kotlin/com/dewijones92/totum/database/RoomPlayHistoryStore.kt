@@ -26,6 +26,11 @@ public class RoomPlayHistoryStore(
                 thumbnailUrl = item.item.thumbnailUrl?.value,
                 sourceId = item.item.sourceId.value,
                 contentKind = item.item.contentKind.name,
+                // The listing's own facts, or they are lost the moment the row is written -- see
+                // PlaylistItemColumns.
+                viewsText = item.item.viewsText,
+                publishedText = item.item.publishedText,
+                publishedAtEpochMs = item.item.publishedAt?.toEpochMilli(),
                 playbackType = type,
                 handle = handle,
                 mediaUrl = item.item.mediaUrl?.value,

@@ -31,6 +31,9 @@ public data class QueueEntity(
     override val playbackType: String,
     override val handle: String?,
     override val mediaUrl: String?,
+    override val viewsText: String? = null,
+    override val publishedText: String? = null,
+    override val publishedAtEpochMs: Long? = null,
 ) : PlaylistItemColumns
 
 @Dao

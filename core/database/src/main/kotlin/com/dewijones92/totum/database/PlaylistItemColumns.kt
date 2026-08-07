@@ -9,6 +9,7 @@ import com.dewijones92.totum.domain.PlayableItem
 import com.dewijones92.totum.domain.SourceId
 import com.dewijones92.totum.domain.persisted
 import com.dewijones92.totum.domain.playHandleFrom
+import java.time.Instant
 
 /**
  * The denormalized columns a [PlayableItem] persists as — shared by the local-playlist
@@ -25,6 +26,22 @@ internal interface PlaylistItemColumns {
     val playbackType: String
     val handle: String?
     val mediaUrl: String?
+
+    /**
+     * What the listing said about the item, which nothing else can reconstruct.
+     *
+     * A resolution knows the stream and nothing else — no view count, no publication date — so once
+     * a row loses these they are gone for good. They were being dropped here, silently, by the
+     * rebuild below setting `publishedAt = null` and there being no column for the other two: the
+     * facts survived the media session (`PlayerMetadataTest`) and then died in the database, so the
+     * video page showed them for an item tapped from a feed and showed nothing for the same item
+     * replayed from the queue. Caught by CI on 2026-08-07, having passed locally on timing.
+     *
+     * Epoch millis for the instant, because SQLite has no date type and a Long sorts correctly.
+     */
+    val viewsText: String?
+    val publishedText: String?
+    val publishedAtEpochMs: Long?
 }
 
 /** The one place the denormalized columns rebuild a [PlayableItem]; null if the handle is unusable. */
@@ -34,7 +51,9 @@ internal fun playlistItemFrom(columns: PlaylistItemColumns): PlayableItem? {
         id = MediaItemId(columns.itemId),
         sourceId = SourceId(columns.sourceId),
         title = columns.title,
-        publishedAt = null,
+        publishedAt = columns.publishedAtEpochMs?.let(Instant::ofEpochMilli),
+        publishedText = columns.publishedText,
+        viewsText = columns.viewsText,
         duration = null,
         author = columns.author,
         thumbnailUrl = columns.thumbnailUrl?.let(HttpUrl::parse),

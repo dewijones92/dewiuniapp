@@ -46,6 +46,9 @@ public data class LocalPlaylistItemEntity(
     override val handle: String?,
     /** A podcast's enclosure URL (its playable media); null for videos. */
     override val mediaUrl: String?,
+    override val viewsText: String? = null,
+    override val publishedText: String? = null,
+    override val publishedAtEpochMs: Long? = null,
 ) : PlaylistItemColumns
 
 /** Playlist + its item count, for the list screen. */

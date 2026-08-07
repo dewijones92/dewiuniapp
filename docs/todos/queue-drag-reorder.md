@@ -56,18 +56,25 @@ to be) is invisible over three rows and glaring over ten. The bug this area actu
 that shape: measuring the row from the 24dp grip rather than the 64dp row made every gesture roughly
 four times too fast, which reads as *aim for ten and land on thirty*.
 
-Two tests, because they are two different claims:
+Proven on the JVM (`ReorderStateTest`), and that placement is a deliberate retreat. It was written as
+a gesture first and failed on CI **twice**, both times for reasons that had nothing to do with the
+code: ten rows at 64dp is more travel than CI's emulator is tall, so the finger was clamped into the
+auto-scroll edge zone and the test measured the clock (exactly 30 moves — reading as the very bug it
+exists to catch); shortening the rows to fit then made the gesture too small for the injector's frame
+timing there (1 move). Both passed on the emulator here, both times. A test that reports a swap-rate
+bug because of the screen it ran on is worse than no test.
 
-- `draggingTenRowsMovesExactlyTenPlaces` — ten rows of travel produces ten moves, tolerance of one
-  for the long-press detector absorbing the first movement. Deliberately not wider: a range of two
-  or three would stop it being a test of accuracy.
-- `draggingTenRowsLeavesTheItemTenPlacesDown` — and the item **ends up** ten places down. A count of
-  swaps is not the same claim as a final position; ten moves that oscillate would satisfy the first
-  test and leave the item where it started.
+What needed proving is the **accumulator over distance**, and that is arithmetic:
 
-The gesture is stepped rather than one jump, because a real finger emits a stream of move events and
-a single teleport would hide an accumulator that only advances once per event — which would pass in
-a test and fail on a phone.
+- ten rows of stepped travel produce exactly ten moves, each by one place, finishing ten places down;
+- the same distance arriving as one event behaves identically;
+- half-row steps accumulate rather than being dropped or rounded — ten of them is five places.
+
+The gesture-to-swap wiring stays instrumented (`draggingThreeRowsMovesExactlyThreePlaces`), as does
+travelling further than the viewport (`draggingToTheBottomEdgeKeepsMovingPastTheVisibleRows`). Two
+traps found while trying and recorded in that file: asserting "the list did not scroll" does not work
+(`LazyColumn` re-anchors on the dragged item's key), and splitting a gesture to release the finger
+costs a second lookup of a grip that has moved, which makes Compose scroll to it.
 
 ### Still open
 

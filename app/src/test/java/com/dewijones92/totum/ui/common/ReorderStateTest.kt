@@ -17,12 +17,74 @@ class ReorderStateTest {
 
     private val moves = mutableListOf<Pair<Int, Int>>()
 
-    private fun state(startIndex: Int, count: Int, rowHeight: Int = 100) =
+    /** The distance Dewi asked about by name, and the row height these cases use. */
+    private companion object {
+        const val TEN = 10
+        const val ROW = 100
+    }
+
+    private fun state(startIndex: Int, count: Int, rowHeight: Int = ROW) =
         ReorderState({ from, to -> moves += from to to }, LazyListState(), TestScope()).apply {
             this.rowHeight = rowHeight
             this.itemCount = count
             this.draggingIndex = startIndex
         }
+
+    /**
+     * Ten places in one continuous motion, which is what Dewi asked about by name (2026-08-06):
+     * *"make sure the items in the queue dragging drag successfully????? in one motion 10
+     * places?????"*.
+     *
+     * Here rather than as a gesture, and that is a deliberate retreat. The instrumented version
+     * failed on CI twice for reasons that had nothing to do with the code: ten rows at 64dp is more
+     * travel than CI's emulator is tall, so the finger was clamped into the auto-scroll edge zone
+     * and the test measured the clock (30 moves); shortening the rows then made the gesture too
+     * small for the injector's frame timing there (1 move). Both passed locally. A test that
+     * reports a swap-rate bug because of the screen it ran on is worse than no test.
+     *
+     * What actually needed proving is the ACCUMULATOR over distance — any per-swap error is
+     * invisible over three rows and glaring over ten — and that is arithmetic, which belongs here.
+     * The gesture-to-swap wiring stays covered instrumented by `draggingThreeRowsMovesExactlyThree
+     * Places`, and long-distance travel by `draggingToTheBottomEdgeKeepsMovingPastTheVisibleRows`.
+     */
+    @Test
+    fun `ten rows of continuous travel move exactly ten places`() {
+        val reorder = state(startIndex = 0, count = 40)
+
+        // Stepped, as a real finger arrives: one row of travel per event.
+        repeat(TEN) { reorder.applyDrag(ROW.toFloat()) }
+
+        assertEquals("ten rows must be ten moves, not thirty", TEN, moves.size)
+        assertEquals("and each move must be by exactly one place", (0 until TEN).map { it to it + 1 }, moves)
+        assertEquals("the item must finish ten places down", TEN, reorder.draggingIndex)
+    }
+
+    /** The same distance arriving as ONE event must not behave differently from ten. */
+    @Test
+    fun `ten rows arriving in a single event still move ten places`() {
+        val reorder = state(startIndex = 0, count = 40)
+
+        reorder.applyDrag(ROW.toFloat() * TEN)
+
+        assertEquals(TEN, moves.size)
+        assertEquals(TEN, reorder.draggingIndex)
+    }
+
+    /**
+     * And the remainder is not thrown away between events.
+     *
+     * Ten drags of half a row is five rows of travel. An accumulator that reset per event would
+     * report nothing at all; one that rounded each event up would report ten.
+     */
+    @Test
+    fun `half-row steps accumulate rather than being dropped or rounded`() {
+        val reorder = state(startIndex = 0, count = 40)
+
+        repeat(TEN) { reorder.applyDrag(ROW / 2f) }
+
+        assertEquals("five rows of travel is five places", TEN / 2, moves.size)
+        assertEquals(TEN / 2, reorder.draggingIndex)
+    }
 
     @Test
     fun `a drag shorter than a row moves nothing`() {

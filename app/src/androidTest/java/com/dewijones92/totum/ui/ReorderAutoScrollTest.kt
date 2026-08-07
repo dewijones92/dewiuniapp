@@ -136,18 +136,6 @@ class ReorderAutoScrollTest {
         /** Three rows of travel, allowing one event of long-press slop either way. */
         val EXPECTED_MOVES = 2..4
 
-        /** The distance Dewi asked about by name. Well inside a 40-row list, and nowhere near an edge. */
-        const val LONG_DRAG_ROWS = 10
-
-        /**
-         * Rows short enough that ten of them fit on any phone, so the drag cannot reach the edge
-         * zone and start auto-scrolling. The grip stays a third of the row, as on the real queue.
-         */
-        const val SHORT_ROW = 32f
-        const val SHORT_HANDLE = 12f
-
-        /** Mirrors `ReorderState`'s own edge zone, which is private to it. */
-        const val EDGE_ZONE_PX = 140f
         const val LIST = "list"
 
         /** Comfortably past Compose's long-press threshold. */
@@ -204,116 +192,28 @@ class ReorderAutoScrollTest {
     }
 
     /**
-     * Ten places, in one continuous motion, landing on ten.
+     * NOT here: the ten-places-in-one-motion claim.
      *
-     * Dewi, 2026-08-06: *"make sure the items in the queue dragging drag successfully????? in one
-     * motion 10 places?????"*.
+     * It lived here and failed on CI twice for reasons that had nothing to do with the code. Ten
+     * rows at 64dp is more travel than CI's emulator is tall, so the finger was clamped into the
+     * auto-scroll edge zone and the measurement became one of the clock — exactly 30 moves, reading
+     * as the swap-rate bug this file exists to catch. Shortening the rows to fit then made the
+     * gesture too small for the injector's frame timing there, and it reported 1 move. Both passed
+     * on the emulator here, both times.
      *
-     * The three-row case above cannot answer this, and the difference is not pedantry: the swap
-     * arithmetic is an ACCUMULATOR, so any per-swap error — a stale row height, a remainder dropped
-     * on each step, an off-by-one in where the held row is considered to be — is invisible over
-     * three rows and glaring over ten. The bug this whole area had was exactly of that shape:
-     * measuring the row from the 24dp grip rather than the 64dp row made every gesture roughly four
-     * times too fast, which reads as "aim for ten and land on thirty".
+     * A test that reports a swap-rate bug because of the screen it ran on is worse than no test, so
+     * the claim moved to `ReorderStateTest` on the JVM, where the accumulator can be driven directly
+     * over ten rows with no device in the way. What is genuinely instrumented-only stays here: that
+     * a real gesture turns into swaps at the right rate (three rows, below) and that a drag can
+     * travel further than the viewport (auto-scroll, above).
      *
-     * **Short rows, deliberately.** Ten rows at the usual 64dp is 640dp of travel, which is taller
-     * than a phone: the finger runs off the bottom, gets clamped into the auto-scroll edge zone, and
-     * the list starts scrolling underneath it. That is correct behaviour and ruins this measurement
-     * — it produced exactly 30 moves on CI's emulator while passing on a taller one locally, which
-     * is a test that depends on the screen rather than on the code. At [SHORT_ROW]dp the whole drag
-     * fits anywhere, and the grip stays far smaller than its row so the original bug is still
-     * detectable: measured from the grip, this gesture would report about 27 moves.
+     * Two other things learned while trying, worth keeping so nobody re-derives them. Asserting
+     * "the list did not scroll" does not work — `LazyColumn` re-anchors on the dragged item's key,
+     * so `firstVisibleItemIndex` follows the item and reports a scroll on a drag that never neared
+     * an edge. And splitting a gesture to release the finger in a second `performTouchInput` costs
+     * a second lookup of a grip that has by then moved, so Compose scrolls the list to bring it
+     * into view before it will touch it.
      */
-    @Test
-    fun draggingTenRowsMovesExactlyTenPlaces() {
-        composeTestRule.mainClock.autoAdvance = false
-        setUpList(rowHeight = SHORT_ROW, handleHeight = SHORT_HANDLE)
-
-        assertDragStaysClearOfTheEdge()
-        dragDownTenRows()
-
-        assertTrue(
-            "ten rows of travel must be ten places, not thirty: ${moves.size} moves $moves",
-            moves.size in (LONG_DRAG_ROWS - 1)..LONG_DRAG_ROWS,
-        )
-    }
-
-    /**
-     * And it must actually END UP ten places down, not merely report ten moves.
-     *
-     * A count of swaps is not the same claim as a final position: ten moves that oscillate back and
-     * forth would satisfy the test above and leave the item where it started. This checks the thing
-     * the person sees.
-     */
-    @Test
-    fun draggingTenRowsLeavesTheItemTenPlacesDown() {
-        composeTestRule.mainClock.autoAdvance = false
-        setUpList(rowHeight = SHORT_ROW, handleHeight = SHORT_HANDLE)
-
-        assertDragStaysClearOfTheEdge()
-        dragDownTenRows()
-
-        // Item 0 started at index 0; every move is one place, so its final index is the move count.
-        val landedAt = moves.lastOrNull()?.second ?: 0
-        assertTrue(
-            "the dragged item must finish about ten places down, and each move must be by one " +
-                "place: landed at $landedAt after ${moves.size} moves $moves",
-            landedAt == moves.size && landedAt in (LONG_DRAG_ROWS - 1)..LONG_DRAG_ROWS,
-        )
-    }
-
-    /**
-     * One continuous gesture, ten rows down.
-     *
-     * Stepped rather than one jump, because a real finger emits a stream of move events and a single
-     * teleport can hide an accumulator that only advances once per event — which would pass here and
-     * fail on a phone.
-     */
-    private fun dragDownTenRows() {
-        // The WHOLE gesture in one block, `up()` included. The other tests here split it to let the
-        // clock advance mid-drag, but splitting costs a second lookup of `grip-0` — and by then that
-        // grip has moved ten rows, so Compose scrolls the list to bring it into view before it will
-        // touch it. That scroll is the test framework's, not the app's, and it made the guard below
-        // fire on a drag that had never gone near an edge.
-        composeTestRule.onNodeWithTag("grip-0").performTouchInput {
-            down(center)
-            advanceEventTime(LONG_PRESS_MS)
-            repeat(LONG_DRAG_ROWS) { step ->
-                moveTo(center + Offset(0f, SHORT_ROW * (step + 1) * density))
-            }
-            up()
-        }
-        composeTestRule.mainClock.advanceTimeBy(TICK_MS)
-    }
-
-    /**
-     * The premise of both measurements: the gesture stays clear of the auto-scroll edge zone.
-     *
-     * Auto-scroll feeds pixels into the same accumulator a real drag uses — by design, and it is what
-     * makes long drags possible at all. But a gesture that strays into the edge zone stops measuring
-     * the finger and starts measuring the clock, and the failure then looks like a swap-rate bug. On
-     * CI's emulator, which is shorter than the one here, ten rows at 64dp ran off the bottom and
-     * produced exactly 30 moves while passing locally — a test that depended on the screen.
-     *
-     * Checked as a PRECONDITION on the geometry rather than inferred afterwards. The obvious
-     * after-the-fact check — "did the list scroll?" — does not work: `LazyColumn` re-anchors on the
-     * dragged item's key, so `firstVisibleItemIndex` follows the item ten places down and reports a
-     * scroll on a drag that never went near an edge. That cost an hour; it is written down so it
-     * costs nobody else one.
-     */
-    private fun assertDragStaysClearOfTheEdge() {
-        val list = composeTestRule.onNodeWithTag(LIST).fetchSemanticsNode()
-        val grip = composeTestRule.onNodeWithTag("grip-0").fetchSemanticsNode()
-        val endY = grip.boundsInRoot.center.y + SHORT_ROW * LONG_DRAG_ROWS * composeTestRule.density.density
-        val edgeStartsAt = list.boundsInRoot.bottom - EDGE_ZONE_PX
-
-        assertTrue(
-            "this device is too short for a ${LONG_DRAG_ROWS}-row drag at ${SHORT_ROW}dp: the finger " +
-                "would finish at ${endY}px, inside the auto-scroll edge zone that starts at " +
-                "${edgeStartsAt}px. The measurement would be of the clock, not the gesture",
-            endY < edgeStartsAt,
-        )
-    }
 
     // NOT tested here, honestly: a case driving the grip with `combinedClickable` also on the
     // row fails with "Failed to inject touch input" however it is arranged — three attempts,

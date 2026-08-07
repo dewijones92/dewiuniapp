@@ -3,7 +3,7 @@ title: Views and dates everywhere — including the video page
 kind: feature
 status: shipped
 area: video/search/playback
-updated: 2026-08-06
+updated: 2026-08-07
 ---
 
 # Views and dates everywhere
@@ -83,6 +83,32 @@ directly above.
 | JVM unit | `VideosPagingTest` — a **page-2** video keeps its views and date. This is where "scrolled down" can really break: one composable renders every row, so what differs about row 60 is where its data came from |
 | Instrumented | `PlayerMetadataTest` — the values come back out of the *real* session, including that absence stays absence. Verified failing when the extras key is changed |
 | Instrumented | `ScrolledRowMetadataTest` — a row at index 60 of 80, the last row, and a row scrolled back into view, each showing its own numbers and not another's |
+| Instrumented | `ItemFactsSurviveStorageTest` — the facts survive the **database**, on the queue and on history, and absence stays absence |
+
+## And then they died in the database (2026-08-07)
+
+The above shipped and CI failed on `playing from the queue carries the listing facts too` — a test
+that had passed locally, on timing. It was right and the feature was half-broken.
+
+`PlaylistItemColumns` is the denormalized shape a `PlayableItem` persists as, shared by the queue,
+play history, downloads and local playlists. It had no column for a view count or a relative date,
+and its shared rebuild set `publishedAt = null`. So the facts survived the media session and then
+died on the way to disk: the video page showed them for an item tapped from a feed and showed
+nothing for the same item replayed from the queue — which is the ordinary case, and the only case
+after a restart.
+
+Exactly the same shape of defect as the resolver one above, in a second place, and found the same
+way: by a round-trip test rather than by reading the code. Fixed by migration **v17 → v18**, three
+nullable columns on each of the four tables, no backfill possible — nothing can reconstruct them.
+
+`DownloadsMigrationTest` had to change with it: it ran only the v13 → v14 step and then compared
+the result against a table Room builds fresh at the *current* version, quietly assuming no later
+migration would touch `downloads` again. It now runs every migration from v13 upward, which is the
+upgrade a real v13 install actually takes.
+
+**The lesson, since it has now cost twice:** a fact that only a listing knows dies at every rebuild
+boundary — resolution, persistence, and the session — and each boundary needs its own round-trip
+test. Two of the three were only found because something else failed.
 
 ## Superseded
 

@@ -41,8 +41,19 @@ class DownloadsMigrationTest {
             .writableDatabase
     }
 
+    /**
+     * Every migration from v13 upward, in order — the upgrade a real v13 install actually takes.
+     *
+     * It used to run only the v13 → v14 step and then compare the result against a table Room
+     * builds fresh at the CURRENT version, which quietly assumed no later migration would ever
+     * touch `downloads` again. v18 did (it adds the view count and publication date to every table
+     * that stores an item) and the comparison failed, correctly, on a chain that was never run.
+     */
     private fun migrate(db: SupportSQLiteDatabase) {
-        TotumDatabase.MIGRATIONS.single { it.startVersion == V13 }.migrate(db)
+        TotumDatabase.MIGRATIONS
+            .filter { it.startVersion >= V13 }
+            .sortedBy { it.startVersion }
+            .forEach { it.migrate(db) }
     }
 
     private fun SupportSQLiteDatabase.rows(sql: String): List<List<String?>> =

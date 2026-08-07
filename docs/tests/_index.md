@@ -45,7 +45,8 @@ instead).
 | Views + dates on a **page-2** feed video | JVM unit | `:app` `VideosPagingTest` — where "scrolled down" can actually break |
 | Views + dates crossing the media session | instrumented | `:app` `PlayerMetadataTest` — extras written but never read compile fine and deliver nothing |
 | Views + dates on a row 60 deep, the last row, and one scrolled back into view | instrumented | `:app` `ScrolledRowMetadataTest` |
-| A queue drag of ten places in one motion | instrumented | `:app` `ReorderAutoScrollTest` — the count AND the final position |
+| A queue drag of ten places in one motion | JVM unit | `:app` `ReorderStateTest` — the accumulator over distance. Deliberately NOT a gesture: that version failed on CI twice on screen size and frame timing while passing locally |
+| Views + dates surviving the **database** | instrumented | `:core:database` `ItemFactsSurviveStorageTest` — queue and history; the boundary where they were dying |
 
 ## Verification reflexes (learned the hard way)
 

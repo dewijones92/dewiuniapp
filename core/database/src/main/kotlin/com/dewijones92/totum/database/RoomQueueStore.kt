@@ -39,6 +39,11 @@ public class RoomQueueStore(private val dao: QueueDao) : QueueStore {
                     thumbnailUrl = media.thumbnailUrl?.value,
                     sourceId = media.sourceId.value,
                     contentKind = media.contentKind.name,
+                    // The listing's own facts, or they are lost the moment the row is written -- see
+                    // PlaylistItemColumns.
+                    viewsText = media.viewsText,
+                    publishedText = media.publishedText,
+                    publishedAtEpochMs = media.publishedAt?.toEpochMilli(),
                     playbackType = type,
                     handle = handle,
                     mediaUrl = media.mediaUrl?.value,

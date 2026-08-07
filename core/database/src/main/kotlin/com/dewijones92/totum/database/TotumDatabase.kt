@@ -21,7 +21,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         SourceGroupMemberEntity::class,
         CachedFeedItemEntity::class,
     ],
-    version = 17,
+    version = 18,
     exportSchema = false,
 )
 public abstract class TotumDatabase : RoomDatabase() {
@@ -67,7 +67,34 @@ public abstract class TotumDatabase : RoomDatabase() {
                 MIGRATION_14_15,
                 MIGRATION_15_16,
                 MIGRATION_16_17,
+                MIGRATION_17_18,
             )
+
+        /**
+         * v18: what the listing said — the view count and the publication date — kept on every
+         * table that stores an item.
+         *
+         * They were surviving the media session and then dying in the database: the shared rebuild
+         * set `publishedAt = null` and there was no column for the other two, so the video page
+         * showed them for an item tapped from a feed and showed nothing for the same item replayed
+         * from the queue. Nothing else can reconstruct them — a resolution knows the stream and
+         * nothing about either.
+         *
+         * Purely additive and nullable, so there is nothing to backfill and nothing to get wrong:
+         * rows written before this simply have no view count, which is the truth about them.
+         */
+        private val MIGRATION_17_18 = object : Migration(17, 18) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Every table on the PlaylistItemColumns contract. Named individually rather than
+                // looped, so adding a fifth table to that contract and forgetting it here is a
+                // compile error in the entity rather than a silent gap in the migration.
+                listOf("queue_items", "play_history", "downloads", "local_playlist_items").forEach { table ->
+                    db.execSQL("ALTER TABLE $table ADD COLUMN viewsText TEXT")
+                    db.execSQL("ALTER TABLE $table ADD COLUMN publishedText TEXT")
+                    db.execSQL("ALTER TABLE $table ADD COLUMN publishedAtEpochMs INTEGER")
+                }
+            }
+        }
 
         /**
          * v17: the last-known contents of each video feed, so the app opens with something on
