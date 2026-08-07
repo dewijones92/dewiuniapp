@@ -40,6 +40,8 @@ instead).
 | An item resumed near its end reaches its end | instrumented | `:app` `StreamPlaysToItsEndTest` — real player over a localhost ranged server |
 | The same against a real YouTube stream | instrumented, live | `:app` `LiveStreamPlaysToItsEndTest` — via `tools/ci/live-test-via-home.sh`, allowed to skip. **Neither of these reproduces the reported stall** — see below |
 | ViewModels, queue | JVM unit | `:app` |
+| Search results streaming per section | JVM unit | `:app` `SearchStreamsPerSectionTest` — incl. the reported case, a slow torrent search not blocking YouTube |
+| What each search section state looks like | instrumented | `:app` `SearchSectionStatesTest` |
 | The line under every video title (`author · views · date`) | JVM unit | `:app` `MediaItemSubtitleTest` — testable at all only because `@Composable` came off the formatter |
 | What a resolution may change about an item | JVM unit | `:core:domain` `WithStreamFromTest` — the rule that stops views/dates being destroyed at play time |
 | Views + dates on a **page-2** feed video | JVM unit | `:app` `VideosPagingTest` — where "scrolled down" can actually break |

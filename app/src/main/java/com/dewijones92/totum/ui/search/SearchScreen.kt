@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -47,6 +46,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dewijones92.totum.R
 import com.dewijones92.totum.data.search.SearchHit
+import com.dewijones92.totum.data.search.map
 import com.dewijones92.totum.di.AppContainer
 import com.dewijones92.totum.di.fake.FakeAppContainer
 import com.dewijones92.totum.domain.MediaItem
@@ -258,34 +258,22 @@ private fun ResultsList(
     LoadMoreOnScrollToEnd(
         listState,
         enabled = results.canLoadMore && !results.loadingMore,
-        shownCount = results.videos.items.size,
+        shownCount = results.videos.itemsOrNull?.items?.size ?: 0,
         loadMore = onLoadMoreVideos,
     )
     LazyColumn(state = listState, modifier = modifier.fillMaxSize()) {
         torrentSection(results, onPlayTorrent)
-        if (results.podcasts.isNotEmpty() || results.podcastsFailed) {
-            item { SectionHeader(stringResource(R.string.destination_podcasts)) }
-        }
-        if (results.podcastsFailed) {
-            item { SectionError() }
-        }
-        items(results.podcasts.size) { index ->
-            val hit = results.podcasts[index]
+        hitSection({ stringResource(R.string.destination_podcasts) }, results.podcasts) { hit: SearchHit.Podcast ->
             PodcastHitRow(
                 hit = hit,
                 subscribed = hit.feedUrl.value in state.subscribedFeeds,
                 onSubscribe = { onSubscribe(hit) },
             )
         }
-
-        if (results.videos.items.isNotEmpty() || results.videosFailed) {
-            item { SectionHeader(stringResource(R.string.destination_videos)) }
-        }
-        if (results.videosFailed) {
-            item { SectionError() }
-        }
-        items(results.videos.items.size) { index ->
-            val hit = results.videos.items[index]
+        hitSection(
+            { stringResource(R.string.destination_videos) },
+            results.videos.map { page -> page.items },
+        ) { hit: SearchHit.Video ->
             VideoHitRow(
                 hit = hit,
                 resolving = state.resolving == hit.watchUrl.value,
@@ -314,25 +302,6 @@ private fun ResultsList(
             }
         }
     }
-}
-
-@Composable
-private fun SectionHeader(title: String, modifier: Modifier = Modifier) {
-    Text(
-        text = title,
-        style = MaterialTheme.typography.titleMedium,
-        modifier = modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-    )
-}
-
-@Composable
-private fun SectionError(modifier: Modifier = Modifier) {
-    Text(
-        text = stringResource(R.string.search_section_failed),
-        color = MaterialTheme.colorScheme.error,
-        style = MaterialTheme.typography.bodySmall,
-        modifier = modifier.padding(horizontal = 16.dp),
-    )
 }
 
 @Composable
@@ -438,7 +407,7 @@ private fun SearchScreenPreview() {
  * playable inside it, which for a season pack is the whole season.
  */
 @Composable
-private fun TorrentHitRow(
+internal fun TorrentHitRow(
     hit: SearchHit.Torrent,
     onPlay: () -> Unit,
     modifier: Modifier = Modifier,
@@ -455,38 +424,4 @@ private fun TorrentHitRow(
         },
         modifier = modifier.clickable(onClick = onPlay),
     )
-}
-
-/** A plain explanatory line for a section that could not load, in the section's own words. */
-@Composable
-private fun SectionMessage(text: String, modifier: Modifier = Modifier) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-    )
-}
-
-/**
- * The home-server section, first in the list.
- *
- * First because it is the section a torrent search was FOR — putting it below podcasts and
- * videos would mean scrolling past both to reach the thing being looked for.
- */
-private fun LazyListScope.torrentSection(
-    results: Results.Loaded,
-    onPlayTorrent: (SearchHit.Torrent) -> Unit,
-) {
-    if (results.torrents.isEmpty() && !results.torrentsFailed) return
-    item { SectionHeader(stringResource(R.string.search_section_torrents)) }
-    if (results.torrentsFailed) {
-        // Named rather than a generic error: the home server is only reachable at home or on
-        // wg-home, so "cannot reach it" is usually a fact about where you are, not a fault.
-        item { SectionMessage(stringResource(R.string.search_torrents_unreachable)) }
-    }
-    items(results.torrents.size) { index ->
-        val hit = results.torrents[index]
-        TorrentHitRow(hit = hit, onPlay = { onPlayTorrent(hit) })
-    }
 }

@@ -13,7 +13,9 @@ import com.dewijones92.totum.data.search.SearchHistoryStore
 import com.dewijones92.totum.data.search.SearchHit
 import com.dewijones92.totum.data.search.SearchOutcome
 import com.dewijones92.totum.data.search.SearchQuery
+import com.dewijones92.totum.data.search.SearchSection
 import com.dewijones92.totum.data.search.SearchSource
+import com.dewijones92.totum.data.search.asSection
 import com.dewijones92.totum.data.torrent.HomeTorrentServer
 import com.dewijones92.totum.data.torrent.TorrentEpisodes
 import com.dewijones92.totum.data.torrent.TorrentPlayables
@@ -27,19 +29,21 @@ import com.dewijones92.totum.ui.common.TrackedViewModel
 import com.dewijones92.totum.ui.common.toMediaItem
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.transformLatest
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * The two halves of the home-server feature, together because neither is useful alone: search
@@ -83,20 +87,26 @@ class SearchViewModel(
         data object Idle : Results
         data object Searching : Results
 
-        /** Sections are independent: one backend failing doesn't hide the other. */
+        /**
+         * Sections are independent — in failure and, since 2026-08-07, in TIME.
+         *
+         * Each arrives on its own: whichever source answers first is on screen while the others are
+         * still out. Before this the screen waited for all three, so every search cost as much as
+         * the torrent search, which goes through Prowlarr and FlareSolverr and is seconds at best.
+         */
         data class Loaded(
-            val podcasts: List<SearchHit.Podcast>,
+            val podcasts: SearchSection<List<SearchHit.Podcast>>,
             /** Carries its own continuation, so the section knows whether more exists. */
-            val videos: Page<SearchHit.Video>,
-            /** Empty when no home server is set up, which is not a failure. */
-            val torrents: List<SearchHit.Torrent>,
-            val podcastsFailed: Boolean,
-            val videosFailed: Boolean,
-            /** Distinct from empty: the Pi is only reachable at home or on wg-home. */
-            val torrentsFailed: Boolean,
+            val videos: SearchSection<Page<SearchHit.Video>>,
+            /** [SearchSection.Absent] when no home server is set up, which is not a failure. */
+            val torrents: SearchSection<List<SearchHit.Torrent>>,
             val loadingMore: Boolean = false,
         ) : Results {
-            val canLoadMore: Boolean get() = videos.hasMore
+            val canLoadMore: Boolean get() = videos.itemsOrNull?.hasMore == true
+
+            /** True while any section is still out — drives the one thin bar at the top. */
+            val stillSearching: Boolean
+                get() = podcasts.isSearching || videos.isSearching || torrents.isSearching
         }
     }
 
@@ -127,7 +137,7 @@ class SearchViewModel(
                 emit(Results.Searching)
                 val query = SearchQuery(raw)
                 activeQuery = query
-                emit(runSearch(query))
+                emitAll(searchStream(query))
             }
         }
 
@@ -180,20 +190,93 @@ class SearchViewModel(
         viewModelScope.launch { history.clear() }
     }
 
-    private suspend fun runSearch(query: SearchQuery): Results = coroutineScope {
-        val podcasts = async { podcastSearch.search(query, RESULTS_PER_SECTION, after = null) }
-        val videos = async { videoSearch.search(query, RESULTS_PER_SECTION, after = null) }
-        // Independent of the others, like every section: the home server being unreachable must
-        // not hide YouTube results, and a YouTube failure must not hide torrents.
-        val torrents = async { this@SearchViewModel.torrents?.search?.search(query, RESULTS_PER_SECTION, null) }
-        toLoaded(podcasts.await(), videos.await(), torrents.await()).also {
-            Diag.log(
-                "search",
-                "\"${query.value}\" -> ${it.podcasts.size} podcasts, " +
-                    "${it.videos.items.size} videos, ${it.torrents.size} torrents " +
-                    "(more=${it.canLoadMore})",
+    /**
+     * Every source at once, emitting again each time one of them answers.
+     *
+     * The previous version also ran them concurrently and then awaited all three, which threw the
+     * concurrency away: the screen showed nothing until the slowest finished. Here the first emission
+     * is "all three still looking" and each source updates only its own slot, so YouTube results are
+     * on screen while the home server is still being asked.
+     *
+     * `channelFlow` because the emissions come from three sibling coroutines; it closes when they
+     * have all finished, and `transformLatest` upstream cancels the whole thing when the query
+     * changes — so a search nobody is waiting for stops making requests.
+     */
+    private fun searchStream(query: SearchQuery): Flow<Results> = channelFlow {
+        val startedAt = System.currentTimeMillis()
+        val state = MutableStateFlow(
+            Results.Loaded(
+                podcasts = SearchSection.Searching,
+                videos = SearchSection.Searching,
+                // Absent, not Searching: with no home server there is no section to wait for.
+                torrents = if (torrents == null) SearchSection.Absent else SearchSection.Searching,
+            ),
+        )
+        launch { state.collect { send(it) } }
+
+        /**
+         * One source, timed and logged, updating only its own slot.
+         *
+         * Bounded because a section that spins forever is worse than one that says it failed: the
+         * home server is only reachable at home or on the VPN, and off it the request does not fail
+         * fast, it hangs.
+         */
+        suspend fun <T> section(
+            name: String,
+            run: suspend () -> SearchOutcome?,
+            into: (Results.Loaded, SearchSection<T>) -> Results.Loaded,
+            select: (SearchOutcome.Success) -> T,
+        ) {
+            val outcome = withTimeoutOrNull(SECTION_TIMEOUT_MILLIS) { run() }
+            val took = System.currentTimeMillis() - startedAt
+            val result: SearchSection<T> = when (outcome) {
+                null -> SearchSection.Failed("it did not answer within ${SECTION_TIMEOUT_MILLIS}ms")
+                else -> outcome.asSection(select)
+            }
+            // Per section and with its own timing, because "search was slow" could never say WHICH
+            // source was slow — the one question that mattered, and the reason this exists at all.
+            Diag.log("search", "\"${query.value}\" $name after ${took}ms -> ${result.describe()}")
+            state.update { into(it, result) }
+        }
+
+        launch {
+            section<List<SearchHit.Podcast>>(
+                name = "podcasts",
+                run = { podcastSearch.search(query, RESULTS_PER_SECTION, after = null) },
+                into = { loaded, s -> loaded.copy(podcasts = s) },
+                select = { it.page.items.filterIsInstance<SearchHit.Podcast>() },
             )
         }
+        launch {
+            section<Page<SearchHit.Video>>(
+                name = "videos",
+                run = { videoSearch.search(query, RESULTS_PER_SECTION, after = null) },
+                into = { loaded, s -> loaded.copy(videos = s) },
+                select = { it.page.videosOnly() },
+            )
+        }
+        if (torrents != null) {
+            launch {
+                section<List<SearchHit.Torrent>>(
+                    name = "torrents",
+                    run = { torrents.search.search(query, RESULTS_PER_SECTION, null) },
+                    into = { loaded, s -> loaded.copy(torrents = s) },
+                    select = { it.page.items.filterIsInstance<SearchHit.Torrent>() },
+                )
+            }
+        }
+    }
+
+    /** A section in one phrase, for the trail: what it is and how much it found. */
+    private fun SearchSection<*>.describe(): String = when (this) {
+        is SearchSection.Found -> when (val found = items) {
+            is Page<*> -> "${found.items.size} (more=${found.hasMore})"
+            is Collection<*> -> "${found.size}"
+            else -> "found"
+        }
+        is SearchSection.Failed -> "FAILED: $detail"
+        SearchSection.Searching -> "still searching"
+        SearchSection.Absent -> "absent"
     }
 
     fun subscribe(hit: SearchHit.Podcast) {
@@ -213,21 +296,6 @@ class SearchViewModel(
             playAttempt.value = if (played) PlayAttempt() else PlayAttempt(failed = true)
         }
     }
-
-    private fun toLoaded(
-        podcasts: SearchOutcome,
-        videos: SearchOutcome,
-        torrents: SearchOutcome?,
-    ) = Results.Loaded(
-        podcasts = (podcasts as? SearchOutcome.Success)
-            ?.page?.items?.filterIsInstance<SearchHit.Podcast>().orEmpty(),
-        videos = (videos as? SearchOutcome.Success)?.page?.videosOnly() ?: Page.empty(),
-        torrents = (torrents as? SearchOutcome.Success)
-            ?.page?.items?.filterIsInstance<SearchHit.Torrent>().orEmpty(),
-        podcastsFailed = podcasts is SearchOutcome.Failure,
-        videosFailed = videos is SearchOutcome.Failure,
-        torrentsFailed = torrents is SearchOutcome.Failure,
-    )
 
     /**
      * Adds a torrent to the home server and queues everything playable in it.
@@ -272,7 +340,8 @@ class SearchViewModel(
     fun loadMoreVideos() {
         val current = results.value as? Results.Loaded ?: return
         if (current.loadingMore) return
-        val token = current.videos.next ?: return
+        val shown = current.videos.itemsOrNull ?: return
+        val token = shown.next ?: return
         val query = activeQuery ?: return
         results.value = current.copy(loadingMore = true)
         viewModelScope.launch {
@@ -283,13 +352,14 @@ class SearchViewModel(
             if (activeQuery != query) return@launch
             results.value = when (outcome) {
                 is SearchOutcome.Success -> {
-                    val grown = latest.videos.append(outcome.page.videosOnly()) { it.watchUrl.value }
+                    val onScreen = latest.videos.itemsOrNull ?: return@launch
+                    val grown = onScreen.append(outcome.page.videosOnly()) { it.watchUrl.value }
                     Diag.log(
                         "search",
                         "next page -> ${outcome.page.items.size} returned, " +
                             "${grown.items.size} total (more=${grown.hasMore})",
                     )
-                    latest.copy(videos = grown, loadingMore = false)
+                    latest.copy(videos = SearchSection.Found(grown), loadingMore = false)
                 }
                 is SearchOutcome.Failure -> {
                     Diag.warn("search", "next page failed: ${outcome.detail}")
@@ -306,6 +376,15 @@ class SearchViewModel(
         private const val STOP_TIMEOUT_MILLIS = 5_000L
         private const val RESULTS_PER_SECTION = 8
         private const val DEBOUNCE_MILLIS = 300L
+
+        /**
+         * How long one section may take before it is reported as not having answered.
+         *
+         * Generous, because a slow answer is still worth having and the other sections are already
+         * on screen by then — this is only to stop a section spinning for ever. The home server is
+         * reachable only at home or on the VPN, and off it the request does not fail fast, it hangs.
+         */
+        private const val SECTION_TIMEOUT_MILLIS = 20_000L
         private const val MIN_QUERY_LENGTH = 2
 
         /** Ad-hoc plays from search don't belong to a subscribed source yet. */

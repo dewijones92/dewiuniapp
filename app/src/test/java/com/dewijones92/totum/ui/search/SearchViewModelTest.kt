@@ -8,6 +8,7 @@ import com.dewijones92.totum.data.podcast.fake.FakePodcastRepository
 import com.dewijones92.totum.data.queue.fake.InMemoryQueueStore
 import com.dewijones92.totum.data.search.SearchHit
 import com.dewijones92.totum.data.search.SearchOutcome
+import com.dewijones92.totum.data.search.SearchSection
 import com.dewijones92.totum.data.search.SearchSource
 import com.dewijones92.totum.data.search.YtDlpVideoSearchSource
 import com.dewijones92.totum.data.search.fake.InMemorySearchHistoryStore
@@ -80,6 +81,10 @@ class SearchViewModelTest {
         history = InMemorySearchHistoryStore(),
     )
 
+    /** The video titles currently on screen — one accessor, so the section's shape lives in one place. */
+    private fun shownVideoTitles(model: SearchViewModel): List<String>? =
+        (model.uiState.value.results as? Results.Loaded)?.videos?.itemsOrNull?.items?.map { it.title }
+
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
@@ -100,9 +105,9 @@ class SearchViewModelTest {
         advanceUntilIdle()
 
         val results = viewModel.uiState.value.results as Results.Loaded
-        assertEquals(listOf(podcastHit), results.podcasts)
-        assertEquals(1, results.videos.items.size)
-        assertEquals("Sample result", results.videos.items[0].title)
+        assertEquals(listOf(podcastHit), results.podcasts.itemsOrNull)
+        assertEquals(1, results.videos.itemsOrNull!!.items.size)
+        assertEquals("Sample result", results.videos.itemsOrNull!!.items[0].title)
     }
 
     @Test
@@ -120,8 +125,8 @@ class SearchViewModelTest {
         viewModel.onQueryChange("time")
         advanceUntilIdle()
         val results = viewModel.uiState.value.results as Results.Loaded
-        assertEquals(listOf(podcastHit), results.podcasts)
-        assertEquals(1, results.videos.items.size)
+        assertEquals(listOf(podcastHit), results.podcasts.itemsOrNull)
+        assertEquals(1, results.videos.itemsOrNull!!.items.size)
     }
 
     /** A source that hands out numbered pages, so paging can be driven to exhaustion. */
@@ -155,13 +160,13 @@ class SearchViewModelTest {
         backgroundScope.launch { viewModel.uiState.collect {} }
         viewModel.search("time")
         advanceUntilIdle()
-        assertEquals(listOf("one"), (viewModel.uiState.value.results as Results.Loaded).videos.items.map { it.title })
+        assertEquals(listOf("one"), shownVideoTitles(viewModel))
 
         viewModel.loadMoreVideos()
         advanceUntilIdle()
 
         val results = viewModel.uiState.value.results as Results.Loaded
-        assertEquals(listOf("one", "two"), results.videos.items.map { it.title })
+        assertEquals(listOf("one", "two"), results.videos.itemsOrNull!!.items.map { it.title })
         assertFalse("the last page must end the scroll", results.canLoadMore)
     }
 
@@ -183,7 +188,7 @@ class SearchViewModelTest {
         advanceUntilIdle()
 
         val results = viewModel.uiState.value.results as Results.Loaded
-        assertEquals(listOf("one", "two"), results.videos.items.map { it.title })
+        assertEquals(listOf("one", "two"), results.videos.itemsOrNull!!.items.map { it.title })
     }
 
     @Test
@@ -199,7 +204,7 @@ class SearchViewModelTest {
         // Asking anyway is a no-op rather than an error or a duplicate fetch.
         viewModel.loadMoreVideos()
         advanceUntilIdle()
-        assertEquals(listOf("only"), (viewModel.uiState.value.results as Results.Loaded).videos.items.map { it.title })
+        assertEquals(listOf("only"), shownVideoTitles(viewModel))
     }
 
     @Test
@@ -212,8 +217,8 @@ class SearchViewModelTest {
         advanceUntilIdle()
 
         val results = viewModel.uiState.value.results as Results.Loaded
-        assertTrue(results.podcastsFailed)
-        assertEquals(1, results.videos.items.size)
+        assertTrue("only the podcast section should be marked failed", results.podcasts is SearchSection.Failed)
+        assertEquals(1, results.videos.itemsOrNull!!.items.size)
     }
 
     @Test
