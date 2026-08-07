@@ -61,7 +61,7 @@ class DefaultDownloadManagerTest {
 
     @Test
     fun `already-downloaded item is not re-downloaded`() = runTest {
-        store.put(item.asPlayable(), DownloadState.Downloaded("/somewhere.media"))
+        store.put(item.asPlayable(), DownloadState.Downloaded("/somewhere.media"), audioOnly = false)
         var called = false
         val strategy = DownloadStrategy { _, _, _ ->
             called = true
@@ -75,7 +75,7 @@ class DefaultDownloadManagerTest {
 
     @Test
     fun `interrupted downloads are cleared on construction`() = runTest {
-        store.put(item.asPlayable(), DownloadState.Downloading(500, 1000))
+        store.put(item.asPlayable(), DownloadState.Downloading(500, 1000), audioOnly = false)
 
         // Unconfined so the manager's init cleanup runs eagerly at construction.
         manager(DownloadStrategy { _, _, _ -> flowOf() }, CoroutineScope(UnconfinedTestDispatcher(testScheduler)))
@@ -87,7 +87,7 @@ class DefaultDownloadManagerTest {
     @Test
     fun `delete removes the file and record`() = runTest {
         val file = tempFolder.newFile("dl.media").apply { writeText("data") }
-        store.put(item.asPlayable(), DownloadState.Downloaded(file.absolutePath))
+        store.put(item.asPlayable(), DownloadState.Downloaded(file.absolutePath), audioOnly = false)
 
         manager(DownloadStrategy { _, _, _ -> flowOf() }, backgroundScope).delete(item.id)
 
@@ -136,7 +136,8 @@ class DefaultDownloadManagerTest {
     }
 }
 
-private class InMemoryDownloadStore : DownloadStore {
+/** Shared by the download tests in this package; the real one is Room, which needs a device. */
+internal class InMemoryDownloadStore : DownloadStore {
     private val states = MutableStateFlow<Map<MediaItemId, PlayableAndState>>(emptyMap())
 
     override fun observeAll(): Flow<Map<MediaItemId, DownloadState>> =
@@ -150,8 +151,14 @@ private class InMemoryDownloadStore : DownloadStore {
         }
     }
 
-    override suspend fun put(item: PlayableItem, state: DownloadState) =
-        states.update { it + (item.item.id to PlayableAndState(item, state)) }
+    override suspend fun put(item: PlayableItem, state: DownloadState, audioOnly: Boolean) =
+        states.update { it + (item.item.id to PlayableAndState(item, state, audioOnly)) }
+
+    override fun observeRecords(): Flow<List<DownloadRecord>> =
+        states.map { rows -> rows.values.map { DownloadRecord(it.item, it.state) } }
+
+    override suspend fun request(id: MediaItemId): DownloadRequest? =
+        states.value[id]?.let { DownloadRequest(it.item, it.audioOnly) }
 
     override suspend fun get(id: MediaItemId): DownloadState =
         states.value[id]?.state ?: DownloadState.NotDownloaded
@@ -159,4 +166,8 @@ private class InMemoryDownloadStore : DownloadStore {
     override suspend fun remove(id: MediaItemId) { states.update { it - id } }
 }
 
-private data class PlayableAndState(val item: PlayableItem, val state: DownloadState)
+private data class PlayableAndState(
+    val item: PlayableItem,
+    val state: DownloadState,
+    val audioOnly: Boolean = false,
+)

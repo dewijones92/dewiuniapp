@@ -24,6 +24,15 @@ public interface DownloadManager {
      */
     public fun observeDownloaded(): Flow<List<DownloadedMedia>>
 
+    /**
+     * Every download, with the item it is about, in whatever state it is in.
+     *
+     * The one stream a management screen needs: running, failed and finished all come from it, so
+     * its sections cannot disagree with each other — and a row that is not finished can still show
+     * a title, which [observeDownloads] could never do.
+     */
+    public fun observeRecords(): Flow<List<DownloadRecord>>
+
     /** State of a single item (defaults to NotDownloaded). */
     public fun observe(id: MediaItemId): Flow<DownloadState>
 
@@ -50,6 +59,28 @@ public interface DownloadManager {
      */
     public suspend fun download(item: MediaItem, audioOnly: Boolean = false): Unit =
         download(item.asPlayable(), audioOnly)
+
+    /**
+     * Stops a download that is still running and forgets it, partial file included.
+     *
+     * Distinct from [delete], which is about a file you HAVE. There was no way to stop one in
+     * flight at all (Dewi, 2026-08-07) — a video started by accident held the connection and the
+     * disk until it finished, and on a phone that is minutes and hundreds of megabytes.
+     *
+     * Cancelling something not running is a no-op rather than an error: by the time a tap arrives
+     * the download may have finished, and that race must not throw.
+     */
+    public suspend fun cancel(id: MediaItemId)
+
+    /**
+     * Starts a failed download over.
+     *
+     * Its own method rather than "call download again", because a caller looking at a failed row
+     * holds a [DownloadedMedia]-shaped thing, not the [PlayableItem] the original request had —
+     * and the record already remembers what was asked for, including whether it was audio only.
+     * Re-deriving that at the call site is how a retry silently fetches the wrong thing.
+     */
+    public suspend fun retry(id: MediaItemId)
 
     /** Removes the local file and forgets the download. */
     public suspend fun delete(id: MediaItemId)

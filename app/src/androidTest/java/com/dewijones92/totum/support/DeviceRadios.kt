@@ -40,12 +40,31 @@ object DeviceRadios {
     }
 
     /**
-     * Both radios back on. Not politeness: test-class order is not guaranteed, so a leaked offline
-     * device makes every later test fail for a reason nowhere near the code that looks broken.
+     * Both radios back on, **waiting until the OS agrees** — the mirror of [goOffline].
+     *
+     * The wait is the whole point and it was missing, which made this the asymmetry that mattered.
+     * Turning the radios off blocked until the OS stopped reporting a validated network; turning
+     * them back on returned immediately, so the next test began while Android still believed it was
+     * offline. `PlayRoute` then correctly refused to stream — *"not downloaded and there is no
+     * network"* — and the failure surfaced as "the torrent never started playing", nowhere near the
+     * test that had actually left the device that way.
+     *
+     * It failed four CI runs in a row and never once here: re-validating a network is slower on a
+     * cold emulator, so locally the race was simply won every time. Diagnosed 2026-08-07 from the
+     * trail the failure now prints, which named the refusal outright.
      */
     fun goOnline() {
         shell("svc wifi enable")
         shell("svc data enable")
+        runBlocking {
+            val back = withTimeoutOrNull(ONLINE_TIMEOUT_MS) { while (!hasNetwork()) delay(POLL_MS) }
+            // Said out loud rather than left silent: if the network never comes back, EVERY later
+            // test fails for a reason that has nothing to do with them, and this line is the only
+            // place that would know why.
+            if (back == null) {
+                println("DeviceRadios: network did not come back within ${ONLINE_TIMEOUT_MS}ms")
+            }
+        }
     }
 
     /** What the app itself consults, so a test can assert the device really is offline. */
@@ -58,5 +77,8 @@ object DeviceRadios {
     }
 
     private const val OFFLINE_TIMEOUT_MS = 15_000L
+
+    /** Longer than going off: a cold emulator can take a while to re-validate a network. */
+    private const val ONLINE_TIMEOUT_MS = 30_000L
     private const val POLL_MS = 200L
 }

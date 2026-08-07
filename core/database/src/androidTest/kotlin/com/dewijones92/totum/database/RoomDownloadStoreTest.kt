@@ -62,10 +62,10 @@ class RoomDownloadStoreTest {
 
     @Test
     fun statesRoundTripThroughEachStage() = runTest {
-        store.put(episode, DownloadState.Downloading(500, 1000))
+        store.put(episode, DownloadState.Downloading(500, 1000), audioOnly = false)
         assertEquals(DownloadState.Downloading(500, 1000), store.get(id))
 
-        store.put(episode, DownloadState.Downloaded("/data/ep1.media"))
+        store.put(episode, DownloadState.Downloaded("/data/ep1.media"), audioOnly = false)
         assertEquals(DownloadState.Downloaded("/data/ep1.media"), store.get(id))
         assertEquals(mapOf(id to DownloadState.Downloaded("/data/ep1.media")), store.observeAll().first())
 
@@ -75,15 +75,15 @@ class RoomDownloadStoreTest {
 
     @Test
     fun failureIsPersisted() = runTest {
-        store.put(episode, DownloadState.Failed("HTTP 500"))
+        store.put(episode, DownloadState.Failed("HTTP 500"), audioOnly = false)
         assertEquals(DownloadState.Failed("HTTP 500"), store.get(id))
     }
 
     /** The gap this closes: a download used to be an id and nothing else. */
     @Test
     fun aFinishedDownloadKeepsTheItemAndItsPillar() = runTest {
-        store.put(video, DownloadState.Downloaded("/data/vid.media", audioOnly = true))
-        store.put(episode, DownloadState.Downloaded("/data/ep1.media"))
+        store.put(video, DownloadState.Downloaded("/data/vid.media", audioOnly = true), audioOnly = true)
+        store.put(episode, DownloadState.Downloaded("/data/ep1.media"), audioOnly = false)
 
         val byId = store.observeDownloaded().first().associateBy { it.item.id.value }
 
@@ -97,8 +97,8 @@ class RoomDownloadStoreTest {
 
     @Test
     fun unfinishedDownloadsAreNotListedAsOffline() = runTest {
-        store.put(episode, DownloadState.Downloading(1, 2))
-        store.put(video, DownloadState.Failed("nope"))
+        store.put(episode, DownloadState.Downloading(1, 2), audioOnly = false)
+        store.put(video, DownloadState.Failed("nope"), audioOnly = false)
 
         assertEquals(emptyList<String>(), store.observeDownloaded().first().map { it.item.id.value })
     }

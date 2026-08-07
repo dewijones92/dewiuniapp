@@ -69,6 +69,30 @@ fun SectionHeaderWithSort(
     sort: MediaSort,
     onSetSort: (MediaSort) -> Unit,
     modifier: Modifier = Modifier,
+) = SectionHeaderWithSortOptions(
+    title = title,
+    options = MediaSort.entries,
+    current = sort,
+    label = { it.labelRes },
+    onSelect = onSetSort,
+    modifier = modifier,
+)
+
+/**
+ * The same header, for a list whose sort options are not [MediaSort].
+ *
+ * Generic because downloads can be ordered by things a [MediaItem] knows nothing about — file size,
+ * most obviously — so they carry their own option type. One control either way, so the menu looks
+ * and behaves identically wherever it appears.
+ */
+@Composable
+fun <T> SectionHeaderWithSortOptions(
+    title: String,
+    options: List<T>,
+    current: T,
+    label: (T) -> Int,
+    onSelect: (T) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -81,13 +105,19 @@ fun SectionHeaderWithSort(
             style = MaterialTheme.typography.titleMedium,
             modifier = Modifier.weight(1f),
         )
-        SortControl(current = sort, onSelect = onSetSort)
+        SortControl(options = options, current = current, label = label, onSelect = onSelect)
     }
 }
 
-/** A compact sort menu: a sort icon that opens the [MediaSort] options. */
+/** A compact sort menu: a sort icon that opens the given options. */
 @Composable
-fun SortControl(current: MediaSort, onSelect: (MediaSort) -> Unit, modifier: Modifier = Modifier) {
+fun <T> SortControl(
+    options: List<T>,
+    current: T,
+    label: (T) -> Int,
+    onSelect: (T) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     var expanded by remember { mutableStateOf(false) }
     IconButton(onClick = { expanded = true }, modifier = modifier) {
         Icon(
@@ -96,9 +126,9 @@ fun SortControl(current: MediaSort, onSelect: (MediaSort) -> Unit, modifier: Mod
         )
     }
     DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-        MediaSort.entries.forEach { option ->
+        options.forEach { option ->
             DropdownMenuItem(
-                text = { Text(stringResource(option.labelRes)) },
+                text = { Text(stringResource(label(option))) },
                 leadingIcon = {
                     if (option == current) {
                         Icon(Icons.Filled.Check, contentDescription = null)

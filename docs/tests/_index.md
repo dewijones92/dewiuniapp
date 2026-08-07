@@ -29,6 +29,9 @@ instead).
 | Search (sources, history), content refresher | JVM unit | `:core:data` |
 | Local playlists, play history | JVM unit | `:core:data` (in-memory store contracts) |
 | Downloads (routed/engine/http strategies) | JVM unit | `:core:data` |
+| Cancelling and retrying a download | JVM unit | `:core:data` `CancelAndRetryTest` — incl. delete-in-flight, which used to write itself back |
+| Download sort orders incl. by size | JVM unit | `:app` `DownloadSortTest` — caught a companion-init bug that put a null in the menu |
+| The Library's download management | JVM unit + instrumented | `:app` `DownloadManagementTest`, `DownloadRowStatesTest` |
 | Pillar inference, `fetchUrl`, `DownloadedMedia.offline` | JVM unit | `:core:domain` — the rules that used to exist twice |
 | Download-record migration (v13→v14 backfill + table shape) | instrumented | `:core:database` — real files must survive it |
 | InnerTube parsers (feeds/related/comments/search/…) | JVM unit | `:lib:innertube`, against captured fixtures |

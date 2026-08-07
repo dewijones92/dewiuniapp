@@ -8,10 +8,10 @@ import com.dewijones92.totum.data.download.DownloadManager
 import com.dewijones92.totum.di.AppContainer
 import com.dewijones92.totum.domain.DownloadState
 import com.dewijones92.totum.domain.DownloadedMedia
+import com.dewijones92.totum.domain.MediaItem
 import com.dewijones92.totum.domain.MediaItemId
 import com.dewijones92.totum.domain.StorageUsage
 import com.dewijones92.totum.queue.PlaybackQueue
-import com.dewijones92.totum.ui.common.MediaSort
 import com.dewijones92.totum.ui.common.TrackedViewModel
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -46,10 +46,10 @@ class LibraryViewModel(
         val item get() = media.item
     }
 
-    private val sort = MutableStateFlow(MediaSort.DEFAULT)
-    val sortOrder: StateFlow<MediaSort> = sort.asStateFlow()
+    private val sort = MutableStateFlow(DownloadSort.DEFAULT)
+    val sortOrder: StateFlow<DownloadSort> = sort.asStateFlow()
 
-    fun setSort(order: MediaSort) {
+    fun setSort(order: DownloadSort) {
         sort.value = order
     }
 
@@ -62,16 +62,47 @@ class LibraryViewModel(
      * from anywhere else had no home at all, and "is it doing something?" is the question this
      * screen exists to answer.
      */
-    val inProgress: StateFlow<List<InProgress>> = downloads.observeDownloads()
-        .map { states ->
-            states.mapNotNull { (id, state) ->
-                (state as? DownloadState.Downloading)?.let { InProgress(id, it) }
+    /**
+     * Every download row, whatever state it is in — the one stream the three sections come from.
+     *
+     * Shared rather than three separate queries so the sections cannot disagree, and because it is
+     * the only stream that carries the ITEM for a row that has not finished. Without it an
+     * in-progress row had no title to show and printed the raw media id instead.
+     */
+    private val records = downloads.observeRecords()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), emptyList())
+
+    val inProgress: StateFlow<List<InProgress>> = records
+        .map { rows ->
+            rows.mapNotNull { row ->
+                (row.state as? DownloadState.Downloading)?.let { InProgress(row.item.item, it) }
             }.sortedByDescending { it.state.fraction ?: 0f }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), emptyList())
 
     /** One download in flight: which item, and how far it has got. */
-    data class InProgress(val id: MediaItemId, val state: DownloadState.Downloading)
+    data class InProgress(val item: MediaItem, val state: DownloadState.Downloading) {
+        val id: MediaItemId get() = item.id
+    }
+
+    /**
+     * A download that stopped without finishing, and why.
+     *
+     * These had nowhere to be shown at all: the Library listed finished downloads and in-flight
+     * ones, so a failure simply vanished from the UI while its row sat in the database. Someone
+     * waiting for an episode on a plane would find no episode and no explanation.
+     */
+    data class Failed(val item: MediaItem, val reason: String) {
+        val id: MediaItemId get() = item.id
+    }
+
+    val failed: StateFlow<List<Failed>> = records
+        .map { rows ->
+            rows.mapNotNull { row ->
+                (row.state as? DownloadState.Failed)?.let { Failed(row.item.item, it.reason) }
+            }.sortedBy { it.item.title.lowercase() }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), emptyList())
 
     val downloaded: StateFlow<List<Entry>> = combine(
         downloads.observeDownloaded(),
@@ -80,7 +111,10 @@ class LibraryViewModel(
         // Sized off the main thread: this stats a file per download, which is cheap but
         // is still disk IO and there is no reason for it to be on the frame path.
         withContext(io) {
-            order.sortedBy(items) { it.item }.map { Entry(it, fileSize(it.localPath)) }
+            // Sized FIRST, then ordered: a sort by size cannot work on a list that does not know
+            // its sizes yet, and doing it the other way round silently produced source order.
+            val sized = items.map { Entry(it, fileSize(it.localPath)) }
+            order.sortedBy(sized, item = { it.item }, size = { it.sizeBytes })
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), emptyList())
 
@@ -99,6 +133,33 @@ class LibraryViewModel(
 
     fun delete(entry: Entry) {
         viewModelScope.launch { downloads.delete(entry.item.id) }
+    }
+
+    /** Stops one download that is still running, dropping its partial file. */
+    fun cancel(id: MediaItemId) {
+        viewModelScope.launch { downloads.cancel(id) }
+    }
+
+    /**
+     * Stops everything in flight.
+     *
+     * A snapshot rather than a loop over the live list: cancelling mutates the very flow being
+     * iterated, and on a queue that auto-downloads it would otherwise be a race between this and
+     * the next item starting.
+     */
+    fun cancelAll() {
+        val running = inProgress.value.map { it.id }
+        viewModelScope.launch { running.forEach { downloads.cancel(it) } }
+    }
+
+    /** Starts a failed download over, fetching the variant originally asked for. */
+    fun retry(id: MediaItemId) {
+        viewModelScope.launch { downloads.retry(id) }
+    }
+
+    /** Forgets a failed download without retrying it. */
+    fun dismiss(id: MediaItemId) {
+        viewModelScope.launch { downloads.delete(id) }
     }
 
     companion object {

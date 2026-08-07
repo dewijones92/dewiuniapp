@@ -2,6 +2,7 @@ package com.dewijones92.totum.data.download.fake
 
 import com.dewijones92.totum.data.download.DownloadEvent
 import com.dewijones92.totum.data.download.DownloadManager
+import com.dewijones92.totum.data.download.DownloadRecord
 import com.dewijones92.totum.domain.DownloadState
 import com.dewijones92.totum.domain.DownloadedMedia
 import com.dewijones92.totum.domain.MediaItem
@@ -14,6 +15,9 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 
 /** In-memory [DownloadManager] for tests and previews; downloads complete instantly. */
+// The count is DownloadManager's surface plus the hooks a test drives it with; a fake exists to be
+// poked at, and hiding those behind fewer methods would only make the tests harder to read.
+@Suppress("TooManyFunctions")
 public class FakeDownloadManager : DownloadManager {
 
     private val downloads = MutableStateFlow<Map<MediaItemId, DownloadState>>(emptyMap())
@@ -53,6 +57,19 @@ public class FakeDownloadManager : DownloadManager {
 
     override fun observeDownloaded(): Flow<List<DownloadedMedia>> = completed
 
+    /** Items the fake knows about, so a record can name what it is about. */
+    private val known = mutableMapOf<MediaItemId, PlayableItem>()
+
+    override fun observeRecords(): Flow<List<DownloadRecord>> =
+        downloads.map { states ->
+            states.mapNotNull { (id, state) -> known[id]?.let { DownloadRecord(it, state) } }
+        }
+
+    /** Registers an item so [observeRecords] can name it, without pretending it downloaded. */
+    public fun know(item: PlayableItem) {
+        known[item.item.id] = item
+    }
+
     override fun observe(id: MediaItemId): Flow<DownloadState> =
         downloads.map { it[id] ?: DownloadState.NotDownloaded }
 
@@ -65,6 +82,7 @@ public class FakeDownloadManager : DownloadManager {
         val path = "/fake/${media.id.value}.media"
         requested.add(media.id to audioOnly)
         lastItem = item
+        known[media.id] = item
         downloads.update { it + (media.id to DownloadState.Downloaded(path, audioOnly = audioOnly)) }
         completed.update { it.filterNot { done -> done.item.id == media.id } + DownloadedMedia(item, path, audioOnly) }
         _events.tryEmit(DownloadEvent(media, DownloadState.Downloaded(path, audioOnly)))
@@ -72,6 +90,30 @@ public class FakeDownloadManager : DownloadManager {
 
     /** Every item asked for, in order, with the variant requested — for assertions. */
     public val requested: MutableList<Pair<MediaItemId, Boolean>> = mutableListOf()
+
+    /** Every id a caller asked to stop, in order — so a test can assert the tap reached the seam. */
+    public val cancelled: MutableList<MediaItemId> = mutableListOf()
+
+    /** Every id a caller asked to start over. */
+    public val retried: MutableList<MediaItemId> = mutableListOf()
+
+    override suspend fun cancel(id: MediaItemId) {
+        cancelled += id
+        downloads.update { it - id }
+        completed.update { done -> done.filterNot { it.item.id == id } }
+    }
+
+    /**
+     * Re-runs whatever was last asked for on this id.
+     *
+     * The fake keeps the request rather than looking one up, which is the same promise the real
+     * one makes: a retry fetches the variant originally wanted, not the default.
+     */
+    override suspend fun retry(id: MediaItemId) {
+        retried += id
+        val item = lastItem?.takeIf { it.item.id == id } ?: return
+        download(item, requested.lastOrNull { it.first == id }?.second ?: false)
+    }
 
     override suspend fun delete(id: MediaItemId) {
         downloads.update { it - id }

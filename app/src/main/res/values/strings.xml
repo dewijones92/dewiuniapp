@@ -93,6 +93,12 @@
     <string name="sleep_timer">Sleep timer</string>
 
     <string name="sort_label">Sort</string>
+    <string name="sort_largest">Largest first</string>
+    <string name="sort_smallest">Smallest first</string>
+    <string name="downloads_cancel">Cancel download</string>
+    <string name="downloads_retry">Try again</string>
+    <string name="downloads_failed_section">Didn\'t finish</string>
+    <string name="downloads_cancel_all">Cancel all</string>
     <string name="sort_newest">Newest first</string>
     <string name="sort_oldest">Oldest first</string>
     <string name="sort_title">Title (A–Z)</string>

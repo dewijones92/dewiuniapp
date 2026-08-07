@@ -7,18 +7,22 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.CollectionsBookmark
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -38,6 +42,7 @@ import com.dewijones92.totum.R
 import com.dewijones92.totum.di.AppContainer
 import com.dewijones92.totum.di.fake.FakeAppContainer
 import com.dewijones92.totum.domain.DownloadState
+import com.dewijones92.totum.domain.MediaItemId
 import com.dewijones92.totum.domain.PlaylistId
 import com.dewijones92.totum.domain.StorageUsage
 import com.dewijones92.totum.domain.formatBytes
@@ -46,8 +51,7 @@ import com.dewijones92.totum.ui.account.AccountScreen
 import com.dewijones92.totum.ui.common.BuildInfoFooter
 import com.dewijones92.totum.ui.common.LocalItemActions
 import com.dewijones92.totum.ui.common.MediaItemRow
-import com.dewijones92.totum.ui.common.MediaSort
-import com.dewijones92.totum.ui.common.SectionHeaderWithSort
+import com.dewijones92.totum.ui.common.SectionHeaderWithSortOptions
 import com.dewijones92.totum.ui.common.TrackPlace
 import com.dewijones92.totum.ui.common.mediaItemSubtitle
 import com.dewijones92.totum.ui.history.PlayHistoryScreen
@@ -102,6 +106,7 @@ private fun LibraryHome(
     val viewModel: LibraryViewModel = viewModel(factory = LibraryViewModel.factory(container))
     val downloaded by viewModel.downloaded.collectAsStateWithLifecycle()
     val inProgress by viewModel.inProgress.collectAsStateWithLifecycle()
+    val failed by viewModel.failed.collectAsStateWithLifecycle()
     val storage by viewModel.storage.collectAsStateWithLifecycle()
     val sort by viewModel.sortOrder.collectAsStateWithLifecycle()
     val addToPlaylist = rememberPlaylistAdder(container)
@@ -109,6 +114,11 @@ private fun LibraryHome(
     LibraryContent(
         downloaded = downloaded,
         inProgress = inProgress,
+        failed = failed,
+        onCancel = viewModel::cancel,
+        onCancelAll = viewModel::cancelAll,
+        onRetry = viewModel::retry,
+        onDismiss = viewModel::dismiss,
         storage = storage,
         sort = sort,
         onOpenPlaylists = onOpenPlaylists,
@@ -127,15 +137,20 @@ internal fun LibraryContent(
     downloaded: List<LibraryViewModel.Entry>,
     /** Downloads running right now — shown above the finished ones, newest progress first. */
     inProgress: List<LibraryViewModel.InProgress>,
+    failed: List<LibraryViewModel.Failed>,
     storage: StorageUsage,
-    sort: MediaSort,
+    sort: DownloadSort,
     onOpenPlaylists: () -> Unit,
     onOpenHistory: () -> Unit,
     onOpenAccount: () -> Unit,
     onPlay: (LibraryViewModel.Entry) -> Unit,
     onDelete: (LibraryViewModel.Entry) -> Unit,
+    onCancel: (MediaItemId) -> Unit,
+    onCancelAll: () -> Unit,
+    onRetry: (MediaItemId) -> Unit,
+    onDismiss: (MediaItemId) -> Unit,
     onAddToPlaylist: (LibraryViewModel.Entry) -> Unit,
-    onSetSort: (MediaSort) -> Unit,
+    onSetSort: (DownloadSort) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val actions = LocalItemActions.current
@@ -147,31 +162,18 @@ internal fun LibraryContent(
             // In-progress FIRST, and outside the empty check: a fresh install with everything
             // still downloading would otherwise show "nothing downloaded yet" while the phone
             // was busily downloading, which is the most misleading thing this screen could say.
-            if (inProgress.isNotEmpty()) {
-                item {
-                    Text(
-                        text = pluralStringResource(
-                            R.plurals.library_downloading_now,
-                            inProgress.size,
-                            inProgress.size,
-                        ),
-                        style = MaterialTheme.typography.titleSmall,
-                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 4.dp),
-                    )
-                }
-                items(inProgress, key = { "downloading-${it.id.value}" }) { active ->
-                    DownloadingRow(active)
-                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-                }
-            }
-            if (downloaded.isEmpty() && inProgress.isEmpty()) {
+            runningSection(inProgress, onCancel, onCancelAll)
+            failedSection(failed, onRetry, onDismiss)
+            if (downloaded.isEmpty() && inProgress.isEmpty() && failed.isEmpty()) {
                 item { DownloadsEmpty() }
             } else if (downloaded.isNotEmpty()) {
                 item {
-                    SectionHeaderWithSort(
+                    SectionHeaderWithSortOptions(
                         title = stringResource(R.string.library_downloads),
-                        sort = sort,
-                        onSetSort = onSetSort,
+                        options = DownloadSort.ALL,
+                        current = sort,
+                        label = { it.labelRes },
+                        onSelect = onSetSort,
                     )
                 }
                 item { StorageSummary(storage) }
@@ -284,20 +286,56 @@ private fun LibraryScreenPreview() {
 }
 
 /**
- * One download in flight: a bar you can watch, and a percentage you can read.
+ * A download that stopped without finishing, with the reason and a way to act on it.
  *
- * Deliberately BOTH. A bar alone cannot be read out or compared between two rows, and a
- * percentage alone gives no sense of movement — and the whole complaint was that nothing on
- * screen said anything was happening. Indeterminate when the server sends no length, rather than
- * a bar frozen at zero pretending to be stuck.
+ * These had nowhere to be shown: the Library listed finished and in-flight downloads, so a failure
+ * disappeared from the UI entirely while its row sat in the database. Someone expecting an episode
+ * on a plane would find no episode and no explanation.
  */
 @Composable
-private fun DownloadingRow(active: LibraryViewModel.InProgress) {
+private fun FailedRow(entry: LibraryViewModel.Failed, onRetry: () -> Unit, onDismiss: () -> Unit) {
+    Column(modifier = Modifier.padding(start = 16.dp, end = 4.dp, top = 12.dp, bottom = 12.dp)) {
+        Text(
+            text = entry.item.title,
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            // The reason verbatim. A generic "download failed" would hide the difference between
+            // "members only", "no space" and "the home server was not there", which are the three
+            // things worth telling apart.
+            text = entry.reason,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 2.dp),
+        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = onRetry) { Text(stringResource(R.string.downloads_retry)) }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.playlist_delete)) }
+        }
+    }
+}
+
+/**
+ * One download in flight: a bar you can watch, a percentage you can read, and a way to stop it.
+ *
+ * The bar and the percentage are deliberately BOTH. A bar alone cannot be read out or compared
+ * between two rows, and a percentage alone gives no sense of movement — and the whole complaint
+ * was that nothing on screen said anything was happening. Indeterminate when the server sends no
+ * length, rather than a bar frozen at zero pretending to be stuck.
+ */
+@Composable
+private fun DownloadingRow(active: LibraryViewModel.InProgress, onCancel: () -> Unit) {
     val fraction = active.state.fraction
-    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+    Column(modifier = Modifier.padding(start = 16.dp, end = 4.dp, top = 12.dp, bottom = 12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = active.id.value,
+                // The TITLE. This printed `active.id.value` — a raw media id like "chxbS3N3Llc" —
+                // because the progress stream carried states without the items they were about.
+                text = active.item.title,
                 style = MaterialTheme.typography.bodyMedium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -310,6 +348,12 @@ private fun DownloadingRow(active: LibraryViewModel.InProgress) {
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.primary,
             )
+            IconButton(onClick = onCancel) {
+                Icon(
+                    imageVector = Icons.Filled.Close,
+                    contentDescription = stringResource(R.string.downloads_cancel),
+                )
+            }
         }
         if (fraction != null) {
             LinearProgressIndicator(
@@ -324,3 +368,66 @@ private fun DownloadingRow(active: LibraryViewModel.InProgress) {
 
 /** Fractions are 0..1; people read percentages. */
 private const val PERCENT = 100
+
+/**
+ * What is being fetched right now, with a way to stop it.
+ *
+ * Its own function because [LibraryContent] grew past what one function should hold once downloads
+ * became manageable rather than merely visible — and because each section is now a separate idea.
+ */
+internal fun LazyListScope.runningSection(
+    inProgress: List<LibraryViewModel.InProgress>,
+    onCancel: (MediaItemId) -> Unit,
+    onCancelAll: () -> Unit,
+) {
+    if (inProgress.isNotEmpty()) {
+        item {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 16.dp),
+            ) {
+                Text(
+                    text = pluralStringResource(
+                        R.plurals.library_downloading_now,
+                        inProgress.size,
+                        inProgress.size,
+                    ),
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.weight(1f),
+                )
+                // Only offered when there is more than one, because with a single download
+                // running it is the same action as the button on the row itself.
+                if (inProgress.size > 1) {
+                    TextButton(onClick = onCancelAll) {
+                        Text(stringResource(R.string.downloads_cancel_all))
+                    }
+                }
+            }
+        }
+        items(inProgress, key = { "downloading-${it.id.value}" }) { active ->
+            DownloadingRow(active, onCancel = { onCancel(active.id) })
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+        }
+    }
+}
+
+/** What did not finish, and why — see [FailedRow]. */
+internal fun LazyListScope.failedSection(
+    failed: List<LibraryViewModel.Failed>,
+    onRetry: (MediaItemId) -> Unit,
+    onDismiss: (MediaItemId) -> Unit,
+) {
+    if (failed.isNotEmpty()) {
+        item {
+            Text(
+                text = stringResource(R.string.downloads_failed_section),
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 4.dp),
+            )
+        }
+        items(failed, key = { "failed-${it.id.value}" }) { entry ->
+            FailedRow(entry, onRetry = { onRetry(entry.id) }, onDismiss = { onDismiss(entry.id) })
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+        }
+    }
+}
