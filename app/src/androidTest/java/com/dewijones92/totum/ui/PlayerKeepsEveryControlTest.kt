@@ -72,7 +72,7 @@ class PlayerKeepsEveryControlTest {
         speed = 1.5f,
         hasVideo = true,
         chapters = listOf(Chapter(0.seconds, "Intro"), Chapter(10.minutes, "The wealth gap")),
-        volumeBoost = VolumeBoost.HIGH,
+        volumeBoost = VolumeBoost.AUTO,
         skipSilence = true,
     )
 

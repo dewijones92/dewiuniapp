@@ -2,52 +2,109 @@ package com.dewijones92.totum.playback
 
 import kotlin.math.abs
 import kotlin.math.exp
-import kotlin.math.min
+import kotlin.math.ln
 
 /**
- * Makes quiet speech audible: gain, compression and limiting on 16-bit PCM.
+ * Brings quiet audio up to a comfortable level, and cannot clip while doing it.
  *
- * Dewi, 2026-08-07: *"there is already some sort of volume booster in the app but it isnt strong
- * enough, can we do a stronger one, so I can hear quiet podcasts"*.
+ * Dewi, 2026-08-08, on the first version: *"the volume booster setting thing in the app causes
+ * distortion … i dont want distortion, i want it to allow me to hear things like quiet podcasts well
+ * … compression?? or sumin????"*, at MEDIUM and above, on earphones.
  *
- * **Why the old one could not be made stronger by turning it up.** It was a platform
- * `LoudnessEnhancer` applying one flat gain, capped here at +12 dB. A flat gain has two problems that
- * more of it makes worse: it clips, so past a point extra gain buys distortion rather than volume;
- * and it cannot help the quiet *passages within* an episode, because it treats a shouted intro and a
- * mumbled answer identically. A podcast recorded 20 dB quiet needs more than 12, and the parts you
- * actually cannot hear are the quietest parts of an already-quiet recording.
+ * ## Why the first version distorted, and why a hard cap was never the answer
  *
- * **What makes speech audible is compression, not gain.** Follow the signal's envelope, and pull the
- * gain back only when a peak would otherwise clip. Quiet passages then get the full lift while loud
- * ones stay where they are, which is both louder *and* more even — the thing every broadcaster does
- * to speech. Limiting is what lets the makeup gain go to +30 dB without the result being a fuzz.
+ * He asked the right question — *"wont a hard DB cap prevent distortion?"* — and the answer is the
+ * whole design. **A ceiling is not a wall the sound bounces off, it is a knife.** Everything above it
+ * is sliced flat, and those flat tops are frequencies that were never in the recording. Hard-capping
+ * IS distorting; the two are one event described twice.
  *
- * Three details that separate this from a naive limiter, each of which sounds bad if skipped:
+ * What avoids it is turning the gain down *before* the loud part is multiplied, so nothing ever
+ * reaches the ceiling and the waveform keeps its shape. The first version did turn the gain down —
+ * but it moved down at the same rate it moved up, over 30 ms. So a laugh after a quiet passage was
+ * multiplied by the full boost for tens of milliseconds before the gain caught up, and all of it was
+ * sliced: measured at **5428 samples (123 ms) at MAX and 2844 (64 ms) at MEDIUM**, per transient.
  *
- * - **The gain is smoothed, not switched.** Recomputing it per sample and applying it immediately
- *   modulates the waveform at audio rate, which is heard as distortion rather than as level control.
- * - **Hiss is not amplified.** +30 dB on room noise between sentences is horrible, so below
- *   [NOISE_FLOOR] the gain tapers away. Silence stays silent.
- * - **One envelope for all channels.** Per-channel gain would move a stereo image around as one side
- *   happened to peak.
+ * The fix is an asymmetry, and it is the entire trick of a limiter: [applied] falls **instantly** and
+ * recovers **slowly**. Because the fall is clamped per sample to `CEILING / |sample|`, the output is
+ * bounded by construction — `|sample| * (CEILING / |sample|) = CEILING` — so nothing can reach full
+ * scale, and [clippedSamples] is expected to stay at zero forever. It is reported anyway, because a
+ * number that should always be zero is the cheapest possible alarm.
+ *
+ * That per-sample clamp does not itself modulate the waveform: the gain can only *rise* at the slow
+ * rate, so it settles just under the recent peak's requirement and sits there rather than following
+ * the wave up and down.
+ *
+ * ## Auto, rather than a number you pick
+ *
+ * Dewi, 2026-08-08, choosing between fixed levels and automatic: *"Auto — make everything the same
+ * loudness"*. So there is no makeup gain to set. It measures how loud the item actually is and
+ * applies exactly the difference needed to reach [TARGET_LEVEL] — a quiet podcast comes up a long
+ * way, a normal one barely moves, and nothing is over-driven because nothing is asked for more than
+ * it needs. Picking a number by ear per item was itself the cause of the squashing.
+ *
+ * Two deliberate bounds:
+ *
+ * - **It never turns anything down** ([MIN_GAIN] is 1). Quieter-than-expected is a surprise nobody
+ *   asked for, and the ask was to hear quiet things.
+ * - **It never applies more than [MAX_GAIN]**, +20 dB. Dewi's call over keeping the old +30:
+ *   *"trade some maximum loudness for naturalness"*. Past about this point even a clean limiter
+ *   leaves everything the same loudness, which sounds processed rather than loud.
  *
  * Pure arithmetic on a `ShortArray`, deliberately: no Android, no platform effect, so it behaves the
  * same on every device and — the part that matters here — the maths can be proven on the JVM.
  */
-internal class LoudnessBoost(sampleRate: Int) {
+internal class LoudnessBoost(private val sampleRate: Int) {
 
-    /** How hard to push. Set from the UI; changing it mid-stream is smoothed like everything else. */
+    /** Whether to do anything at all. Changing it mid-stream is picked up on the next sample. */
     var level: VolumeBoost = VolumeBoost.OFF
 
-    /** Follows the signal's amplitude, 0..1. */
-    private var envelope = 0f
+    /** A slow average of the audio's level, ignoring silence — what "how loud is this item" means. */
+    private var loudness = 0f
 
-    /** The gain actually being applied, moved gradually towards its target. */
+    /** Recent peak: rises instantly, decays slowly. Sets the level below which audio is a pause. */
+    private var recentPeak = 0f
+
+    /** The gain actually being applied: drifts up towards what is wanted, drops instantly to survive. */
     private var applied = 1f
 
-    private val attack = coefficientFor(ATTACK_MS, sampleRate)
-    private val release = coefficientFor(RELEASE_MS, sampleRate)
-    private val gainGlide = coefficientFor(GAIN_GLIDE_MS, sampleRate)
+    /** Samples of real audio seen so far, so the estimate can settle quickly at the start. */
+    private var warmupSamples = 0L
+
+    /**
+     * Samples that hit the rail. Expected to be zero for the life of the app: the per-sample clamp
+     * makes exceeding the ceiling arithmetically impossible, so anything here is a broken assumption
+     * rather than loud audio, and is worth a line in a report from Dewi's phone.
+     */
+    var clippedSamples: Long = 0L
+        private set
+
+    /** The gain in effect, for diagnostics. */
+    val currentGain: Float get() = applied
+
+    /** The measured level of the item, for diagnostics. */
+    val measuredLoudness: Float get() = loudness
+
+    /**
+     * The level below which audio counts as a pause rather than as content.
+     *
+     * **Relative to the recent peak, not an absolute number**, and that is not a refinement — a fixed
+     * floor got this exactly backwards. Set high enough to reject tape hiss it also rejected genuinely
+     * quiet speech, which is the audio this whole feature exists to rescue: a recording peaking at
+     * -46 dBFS sat entirely underneath a -45 dBFS floor and was measured as *nothing*, so it received
+     * no boost whatsoever. Set low enough to admit that speech, it admitted the hiss too. There is no
+     * absolute number that separates them, because the difference between quiet speech and loud hiss
+     * is not a level — it is a level *relative to the rest of the recording*.
+     *
+     * So the gate follows the content, 20 dB below its recent peak. The absolute part only rejects
+     * digital silence and dither, where there is genuinely nothing to measure.
+     */
+    private fun gateFor(peak: Float): Float = maxOf(SILENCE_FLOOR, peak * RELATIVE_GATE)
+
+    private val gainRise = coefficientFor(GAIN_RISE_MS, sampleRate)
+    private val peakDecay = 1f - coefficientFor(PEAK_DECAY_MS, sampleRate)
+    private val loudnessSettle = coefficientFor(LOUDNESS_SETTLE_MS, sampleRate)
+    private val loudnessWarmup = coefficientFor(LOUDNESS_WARMUP_MS, sampleRate)
+    private val warmupLimit = sampleRate.toLong() * WARMUP_SECONDS
 
     /**
      * Boosts [count] samples of [samples] in place.
@@ -56,7 +113,6 @@ internal class LoudnessBoost(sampleRate: Int) {
      * per few milliseconds of audio for the whole of playback.
      */
     fun process(samples: ShortArray, count: Int) {
-        val makeup = level.makeupGain
         // OFF is bit-exact passthrough, not a gain of one: a multiply-and-round on every sample of
         // every stream forever, to change nothing, is worth skipping.
         if (level == VolumeBoost.OFF) return
@@ -65,43 +121,56 @@ internal class LoudnessBoost(sampleRate: Int) {
             val sample = samples[i] / FULL_SCALE
             val magnitude = abs(sample)
 
-            // Peak follower: fast up so a transient is caught before it clips, slow down so the gain
-            // does not lurch back between syllables.
-            envelope += (magnitude - envelope) * if (magnitude > envelope) attack else release
+            // Track the recent peak, up at once and down slowly, so a pause is measured against the
+            // speech either side of it rather than against a fixed number.
+            recentPeak = if (magnitude > recentPeak) magnitude else recentPeak * peakDecay
 
-            // What gain would keep this envelope under the ceiling — never more than the makeup.
-            val safe = if (envelope > EPSILON) min(makeup, CEILING / envelope) else makeup
-            // ...and taper it away for anything at hiss level, so the gaps between sentences do not
-            // come up as a roar.
-            val target = safe * floorTaper(envelope)
+            if (magnitude > gateFor(recentPeak)) {
+                // Only real audio counts. Silence between sentences would otherwise drag the estimate
+                // down and wind the gain up, so every pause would end in a blast.
+                // The first couple of seconds settle fast, or an episode would start unboosted and
+                // audibly swell — the estimate has to be roughly right by the time speech begins.
+                val rate = if (warmupSamples < warmupLimit) loudnessWarmup else loudnessSettle
+                loudness += (magnitude - loudness) * rate
+                warmupSamples++
+            }
 
-            applied += (target - applied) * gainGlide
+            // Exactly the gain that brings this item to a comfortable level, and no more.
+            val wanted = if (loudness > EPSILON) {
+                (TARGET_LEVEL / loudness).coerceIn(MIN_GAIN, MAX_GAIN)
+            } else {
+                MIN_GAIN
+            }
+
+            // Drift towards it — slowly, so a change of level is never heard as the gain moving...
+            applied += (wanted - applied) * gainRise
+            // ...but come down AT ONCE if this very sample would otherwise breach the ceiling. This
+            // is the asymmetry that makes clipping impossible; the slow rise above is its release.
+            if (magnitude > EPSILON) {
+                val highestSafe = CEILING / magnitude
+                if (applied > highestSafe) applied = highestSafe
+            }
+
             samples[i] = clamp(sample * applied)
         }
     }
 
     /**
-     * 1 for real signal, falling steeply to 0 for anything at or below the noise floor.
-     *
-     * A curve rather than a gate: something that opened and shut would chop the start of every quiet
-     * word, which is exactly the audio this exists to rescue.
+     * Never expected to do anything — see [clippedSamples]. Kept as the belt to the clamp's braces,
+     * because the alternative to clamping a stray value is wrapping it, which inverts the waveform
+     * and is heard as a crack rather than as loudness.
      */
-    private fun floorTaper(envelope: Float): Float {
-        val ratio = (envelope / NOISE_FLOOR).coerceIn(0f, 1f)
-        // CUBED, not proportional. A proportional taper still let hiss through at a quarter of the
-        // makeup gain, which at +30 dB measured as an ELEVENFOLD lift of the noise floor — audibly a
-        // roar between sentences, and the first thing that would have made this unusable. Cubing it
-        // turns the region below the floor into a gentle downward expander instead: noise comes out
-        // slightly quieter than it went in, while anything at speech level is already clamped to 1
-        // and gets the full lift.
-        return ratio * ratio * ratio
-    }
-
     private fun clamp(value: Float): Short {
         val scaled = value * FULL_SCALE
         return when {
-            scaled >= MAX_SAMPLE -> Short.MAX_VALUE
-            scaled <= MIN_SAMPLE -> Short.MIN_VALUE
+            scaled >= MAX_SAMPLE -> {
+                clippedSamples++
+                Short.MAX_VALUE
+            }
+            scaled <= MIN_SAMPLE -> {
+                clippedSamples++
+                Short.MIN_VALUE
+            }
             else -> scaled.toInt().toShort()
         }
     }
@@ -118,28 +187,60 @@ internal class LoudnessBoost(sampleRate: Int) {
             return 1f - exp(-1f / (milliseconds / MILLIS_PER_SECOND * sampleRate))
         }
 
-        /** Fast enough to catch a transient before it clips. */
-        private const val ATTACK_MS = 5f
+        /** The gain in decibels, for logs and tests — the unit the ear thinks in. */
+        fun decibels(gain: Float): Float =
+            if (gain <= 0f) 0f else DECIBELS_PER_DECADE * ln(gain) / LN_10
 
-        /** Slow enough not to pump between syllables; short enough to follow a change of speaker. */
-        private const val RELEASE_MS = 300f
+        /**
+         * The average level to aim for, as a fraction of full scale.
+         *
+         * Speech averaging around a tenth of full scale is comfortably loud without living against
+         * the ceiling, which leaves the limiter room to catch peaks without ever engaging hard.
+         */
+        private const val TARGET_LEVEL = 0.1f
 
-        /** The gain itself glides, so level control is never heard as distortion. */
-        private const val GAIN_GLIDE_MS = 30f
+        /** Never quieter than the recording: turning things down is a surprise nobody asked for. */
+        private const val MIN_GAIN = 1f
+
+        /** +20 dB. Dewi's call, trading the old +30 for audio that does not sound crushed. */
+        private const val MAX_GAIN = 10f
+
+        /** Slow: this is the limiter's release, and the rate the automatic gain drifts. */
+        private const val GAIN_RISE_MS = 400f
+
+        /** How fast the item's level estimate follows the audio once it has settled. */
+        private const val LOUDNESS_SETTLE_MS = 2_000f
+
+        /** ...and at the very start, where waiting two seconds would be an audible swell. */
+        private const val LOUDNESS_WARMUP_MS = 150f
+        private const val WARMUP_SECONDS = 2
 
         /** Just under full scale, so rounding cannot take a limited peak over it. */
         private const val CEILING = 0.95f
 
+        /** 20 dB below the recent peak — see [gateFor] for why this cannot be an absolute level. */
+        private const val RELATIVE_GATE = 0.1f
+
         /**
-         * Roughly -45 dBFS. Above this is signal worth lifting; below it is room noise, tape hiss and
-         * the gaps between sentences, which at +30 dB would be unbearable.
+         * About -66 dBFS: digital silence and dither, where there is nothing to measure at all.
+         *
+         * Only the *measurement* ignores what is below the gate — the gain is not tapered away down
+         * there any more. That taper existed to stop a fixed +30 dB turning hiss into a roar, and it
+         * chopped the quiet ends of words. Automatic gain removes the need for it: the lift applied
+         * is proportionate to the item, so its noise floor rises with its speech, exactly as it
+         * would if you simply turned the volume up.
          */
-        private const val NOISE_FLOOR = 0.0056f
+        private const val SILENCE_FLOOR = 0.0005f
+
+        /** How long a pause can be before it starts counting as content. */
+        private const val PEAK_DECAY_MS = 2_000f
 
         private const val FULL_SCALE = 32_768f
         private const val MAX_SAMPLE = 32_767f
         private const val MIN_SAMPLE = -32_768f
         private const val MILLIS_PER_SECOND = 1_000f
         private const val EPSILON = 1e-6f
+        private const val DECIBELS_PER_DECADE = 20f
+        private const val LN_10 = 2.302_585f
     }
 }

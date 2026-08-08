@@ -17,9 +17,9 @@ public class SharedPrefsVolumeBoostStore(context: Context) : VolumeBoostStore {
     private val prefs = context.getSharedPreferences("totum_volume_boost", Context.MODE_PRIVATE)
 
     override suspend fun boost(): VolumeBoost = withContext(Dispatchers.IO) {
-        prefs.getString(KEY_BOOST, null)
-            ?.let { name -> runCatching { VolumeBoost.valueOf(name) }.getOrNull() }
-            ?: VolumeBoost.OFF
+        // Via fromStoredName, so a level saved before the switch to automatic (LOW … MAX) keeps the
+        // boost ON rather than silently reverting to OFF on upgrade.
+        VolumeBoost.fromStoredName(prefs.getString(KEY_BOOST, null))
     }
 
     override suspend fun save(boost: VolumeBoost): Unit = withContext(Dispatchers.IO) {

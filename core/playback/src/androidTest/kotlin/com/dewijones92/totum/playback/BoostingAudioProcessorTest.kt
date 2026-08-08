@@ -77,7 +77,7 @@ class BoostingAudioProcessorTest {
     fun `a quiet buffer comes out much louder`() {
         val quiet = tone(QUIET)
 
-        val out = run(quiet, VolumeBoost.MAX)
+        val out = run(quiet, VolumeBoost.AUTO)
 
         assertEquals("no samples may be lost or invented", quiet.size, out.size)
         assertTrue(
@@ -93,9 +93,12 @@ class BoostingAudioProcessorTest {
      */
     @Test
     fun `the samples are read little-endian rather than turned into noise`() {
-        val input = tone(MID)
+        // SOFT, not QUIET: at 1% of full scale every sample sits below WELL_AWAY and there is
+        // nothing left to compare, and not MID either, where the automatic gain is 1 and the
+        // samples would pass through barely touched.
+        val input = tone(SOFT)
 
-        val out = run(input, VolumeBoost.LOW)
+        val out = run(input, VolumeBoost.AUTO)
 
         // Sign agreement: a byte-swapped read scrambles the waveform, so signs would match about half
         // the time. A correct read keeps them almost always in step.
@@ -132,14 +135,14 @@ class BoostingAudioProcessorTest {
     fun `a format that is not 16-bit pcm is left alone`() {
         val input = tone(MID)
 
-        val out = run(input, VolumeBoost.MAX, encoding = C.ENCODING_PCM_FLOAT)
+        val out = run(input, VolumeBoost.AUTO, encoding = C.ENCODING_PCM_FLOAT)
 
         assertEquals(input.toList(), out.toList())
     }
 
     @Test
     fun `an empty buffer is handled without complaint`() {
-        val out = run(ShortArray(0), VolumeBoost.MAX)
+        val out = run(ShortArray(0), VolumeBoost.AUTO)
 
         assertEquals(0, out.size)
     }
@@ -158,7 +161,7 @@ class BoostingAudioProcessorTest {
         processor.queueInput(first.asBuffer())
         val unboosted = processor.output.toShorts().rms()
 
-        processor.level = VolumeBoost.MAX
+        processor.level = VolumeBoost.AUTO
         val second = tone(QUIET)
         processor.queueInput(second.asBuffer())
         val boosted = processor.output.toShorts().rms()
@@ -170,11 +173,16 @@ class BoostingAudioProcessorTest {
         const val FULL_SCALE = 32_767f
         const val TONE_HZ = 200f
         const val QUIET = 0.01f
+
+        /** Softly recorded: quiet enough to be given real gain, loud enough to compare sample-wise. */
+        const val SOFT = 0.05f
         const val MID = 0.2f
 
         /** Samples to skip before measuring, so the gain has finished gliding up. */
         const val SETTLED = 22_050
-        const val MIN_LIFT = 10.0
+
+        /** The automatic gain caps at 10x, so a quiet buffer should be getting most of it. */
+        const val MIN_LIFT = 8.0
 
         /** Far enough from zero that a sign change is a real inversion rather than a rounded crossing. */
         const val WELL_AWAY = 1_000

@@ -31,17 +31,17 @@ class GlobalVolumeBoostTest {
     fun `a chosen level applies to everything afterwards`() = runTest {
         val store = InMemoryBoostStore()
 
-        store.save(VolumeBoost.HIGH)
+        store.save(VolumeBoost.AUTO)
 
-        assertEquals(VolumeBoost.HIGH, store.boost())
-        assertEquals("and again, for the next item from anywhere", VolumeBoost.HIGH, store.boost())
+        assertEquals(VolumeBoost.AUTO, store.boost())
+        assertEquals("and again, for the next item from anywhere", VolumeBoost.AUTO, store.boost())
     }
 
     @Test
     fun `turning it back off is remembered like any other choice`() = runTest {
         val store = InMemoryBoostStore()
 
-        store.save(VolumeBoost.HIGH)
+        store.save(VolumeBoost.AUTO)
         store.save(VolumeBoost.OFF)
 
         assertEquals(VolumeBoost.OFF, store.boost())
@@ -49,7 +49,7 @@ class GlobalVolumeBoostTest {
 
     @Test
     fun `the no-op store always reports off`() = runTest {
-        NoOpVolumeBoostStore.save(VolumeBoost.HIGH)
+        NoOpVolumeBoostStore.save(VolumeBoost.AUTO)
 
         assertEquals(VolumeBoost.OFF, NoOpVolumeBoostStore.boost())
     }

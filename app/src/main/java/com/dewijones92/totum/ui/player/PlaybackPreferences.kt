@@ -121,9 +121,9 @@ internal fun BoostControl(boost: VolumeBoost, onSetBoost: (VolumeBoost) -> Unit,
     ) {
         Icon(
             Icons.AutoMirrored.Outlined.VolumeUp,
-            // Described rather than null: the four buttons beside it say "Off / Low / Med / High",
-            // so without this a screen reader announces four levels of nothing. Found while writing
-            // the control inventory, which could not name this control either.
+            // Described rather than null: the buttons beside it say "Off / Auto", so without this a
+            // screen reader announces two settings of nothing. Found while writing the control
+            // inventory, which could not name this control either.
             contentDescription = stringResource(R.string.volume_boost),
             modifier = Modifier.size(20.dp),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -145,10 +145,7 @@ internal fun BoostControl(boost: VolumeBoost, onSetBoost: (VolumeBoost) -> Unit,
 
 private fun VolumeBoost.labelRes(): Int = when (this) {
     VolumeBoost.OFF -> R.string.boost_off
-    VolumeBoost.LOW -> R.string.boost_low
-    VolumeBoost.MEDIUM -> R.string.boost_medium
-    VolumeBoost.HIGH -> R.string.boost_high
-    VolumeBoost.MAX -> R.string.boost_max
+    VolumeBoost.AUTO -> R.string.boost_auto
 }
 
 /**

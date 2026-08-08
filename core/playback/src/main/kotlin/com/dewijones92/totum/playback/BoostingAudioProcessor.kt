@@ -7,6 +7,7 @@ import androidx.media3.common.util.UnstableApi
 import com.dewijones92.totum.common.Diag
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import kotlin.math.abs
 
 /**
  * Puts [LoudnessBoost] in the sink's processing chain, so the boost is part of playback itself.
@@ -31,16 +32,22 @@ internal class BoostingAudioProcessor : BaseAudioProcessor() {
 
     private var boost: LoudnessBoost? = null
     private var samples = ShortArray(0)
+    private var samplesSinceReport = 0L
+    private var reportedGainDb = Float.NaN
+    private var reportedClipped = 0L
+    private var samplesPerReport = 0L
 
     /** Set from the session command; takes effect on the next buffer, glided rather than switched. */
     var level: VolumeBoost = VolumeBoost.OFF
         set(value) {
             field = value
             boost?.level = value
-            Diag.log("boost", "level -> $value (${value.decibels}dB makeup)")
+            Diag.log("boost", "level -> $value")
         }
 
     override fun onConfigure(inputAudioFormat: AudioProcessor.AudioFormat): AudioProcessor.AudioFormat {
+        samplesPerReport = inputAudioFormat.sampleRate.toLong() * SECONDS_PER_REPORT
+        reportedGainDb = Float.NaN
         // Rebuilt per configuration because the smoothing coefficients depend on the sample rate —
         // a boost tuned at 44.1kHz would attack twice as slowly at 22.05.
         boost = if (inputAudioFormat.encoding == ENCODING_16BIT) {
@@ -72,6 +79,7 @@ internal class BoostingAudioProcessor : BaseAudioProcessor() {
         val shorts = inputBuffer.order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
         shorts.get(samples, 0, count)
         active.process(samples, count)
+        report(active, count)
 
         val output = replaceOutputBuffer(remaining).order(ByteOrder.LITTLE_ENDIAN)
         output.asShortBuffer().put(samples, 0, count)
@@ -81,14 +89,55 @@ internal class BoostingAudioProcessor : BaseAudioProcessor() {
         inputBuffer.position(inputBuffer.limit())
     }
 
+    /**
+     * What the boost is actually doing, in a report sent from Dewi's phone a week later.
+     *
+     * Dewi's standing rule: a change is done when a report can settle whether it worked *there*. The
+     * question this has to answer is the one he raised by ear — *"causes distortion"* — so it carries
+     * the two numbers that decide it: the gain being applied, and how many samples hit the rail.
+     * `clipped=0` is the claim this design makes, so a non-zero is the whole diagnosis in one word.
+     *
+     * Rate-limited by CHANGE rather than by clock: the gain settles within seconds and then sits
+     * still, so a well-behaved hour of listening costs a handful of lines. Logging every interval
+     * regardless would fill a bounded report buffer with the news that nothing happened — which has
+     * cost real evidence in this app before (see `SILENCE_LOG_EVERY`).
+     */
+    private fun report(active: LoudnessBoost, count: Int) {
+        samplesSinceReport += count
+        if (samplesSinceReport < samplesPerReport) return
+        samplesSinceReport = 0
+
+        val gainDb = LoudnessBoost.decibels(active.currentGain)
+        val clipped = active.clippedSamples
+        val moved = reportedGainDb.isNaN() || abs(gainDb - reportedGainDb) >= REPORT_WHEN_DB_MOVES
+        if (!moved && clipped == reportedClipped) return
+        reportedGainDb = gainDb
+        reportedClipped = clipped
+
+        val line = "auto gain ${"%.1f".format(gainDb)}dB " +
+            "(level ${"%.4f".format(active.measuredLoudness)}) clipped=$clipped"
+        // Clipping is impossible by construction, so a non-zero count is a broken assumption, not
+        // loud audio — it gets a warning rather than a note.
+        if (clipped > 0) Diag.warn("boost", line) else Diag.log("boost", line)
+    }
+
     override fun onReset() {
         boost = null
         samples = ShortArray(0)
+        samplesSinceReport = 0
+        reportedGainDb = Float.NaN
+        reportedClipped = 0
     }
 
     private companion object {
         /** `C.ENCODING_PCM_16BIT`, named locally so this file needs no Media3 constant import. */
         const val ENCODING_16BIT = 2
         const val BYTES_PER_SAMPLE = 2
+
+        /** How often the gain is even considered for reporting. */
+        const val SECONDS_PER_REPORT = 15
+
+        /** ...and how far it must have moved to be worth a line. Below this, nothing has changed. */
+        const val REPORT_WHEN_DB_MOVES = 2f
     }
 }

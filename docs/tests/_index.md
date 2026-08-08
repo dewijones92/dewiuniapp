@@ -157,7 +157,7 @@ flow with no e2e is a flow whose next regression is found by Dewi on a plane.
 | The app fetching a stream ITSELF (SABR) → radios off → plays from that file | `LiveSabrDownloadTest` | residential-egress tunnel |
 | SABR playback against live YouTube | `SabrPlaybackTest` | residential-egress tunnel |
 | Auto-advance, stall recovery, metered switch, silence strategy | `AutoAdvanceLoopTest`, `StalledStreamRecoveryTest`, `MeteredAudioSwitchDeviceTest`, `SilenceStrategyDeviceTest` | every commit |
-| A quiet podcast is actually made loud (and a loud one is not clipped) | `LoudnessBoostTest` (JVM maths), `BoostingAudioProcessorTest` (Media3 buffers) | every commit |
+| A quiet podcast is made loud with ZERO samples clipped, incl. across transients | `LoudnessBoostTest` (JVM maths), `BoostingAudioProcessorTest` (Media3 buffers) | every commit |
 | Screen brightness set by swipe survives going fullscreen and coming back | `BrightnessSurvivesFullscreenTest` | every commit |
 
 **Nothing copyrighted is ever fetched.** The torrent tests use a stand-in that speaks Prowlarr's and
@@ -169,6 +169,30 @@ peer is contacted, no swarm exists.
 mode's remuxed torrent audio (real HLS, which a stand-in cannot serve honestly), and anything about
 the real Pi — CI's tunnel peer is firewalled to internet-only egress and the home services are behind
 a Google login the app cannot complete unattended yet.
+
+## A constant input cannot test anything that only happens during a CHANGE (2026-08-08)
+
+The volume boost shipped with **eleven** JVM tests and a distortion bug Dewi heard within the hour.
+Every one of those tests fed it a **constant tone**, so the gain had always finished settling before
+anything was measured — and the defect only existed while the level was *changing*. Real speech is
+quiet and then somebody laughs; not one test played that.
+
+Three things to take from it, all cheap:
+
+- **Test the transition, not the steady state.** Any component with memory — a gain, a buffer, a
+  cache, a retry counter, a smoothing filter — behaves differently while it is catching up than once
+  it has caught up, and the interesting failures live in the catching up. `quiet → sudden loud` found
+  it in one line.
+- **A threshold in an assertion is a claim about what is acceptable; make it what you actually
+  mean.** The clipping test permitted 5% of samples pinned to the rail. The real clipping came to 3%,
+  so it passed. There was never a good reason to accept *any* — the assertion should have been zero
+  from the start, and once the design guaranteed zero, zero is exactly what it asserts.
+- **The fix produced a second bug the same tests would have missed.** Replacing the fixed levels with
+  an automatic one introduced an absolute noise floor, which made the *quietest* recordings measure
+  as silence and get **no** boost — the whole point of the feature, inverted. It was caught only by a
+  test that swept several input levels and asserted the relationship between them
+  (`the quieter the recording, the more gain it gets` → `[1.0, 6.7, 1.9, 1.0]`). **Where behaviour
+  should vary with an input, test the trend across several values**, not one value in isolation.
 
 ## Some bugs live in the ORDER, not in any function (2026-08-08)
 
