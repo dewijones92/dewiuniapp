@@ -23,7 +23,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -105,7 +104,6 @@ internal fun VideoStageWithControls(
     // Slide over the picture for brightness (left) / volume (right) — fullscreen only, so
     // windowed the same drag still minimises the player. See videoAdjustmentGestures.
     val gestures = rememberVideoGestures()
-    DisposableEffect(gestures) { onDispose { gestures.release() } }
     Box(
         modifier = sizing
             .background(Color.Black)

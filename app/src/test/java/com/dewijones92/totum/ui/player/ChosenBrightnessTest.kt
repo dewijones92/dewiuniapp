@@ -61,4 +61,82 @@ class ChosenBrightnessTest {
         ChosenBrightness.choose(-5f)
         assertEquals("and never back to the follow-the-system sentinel", 0f, ChosenBrightness.value, 0f)
     }
+
+    // ---- the window is released by the LAST stage, not the first --------------------------------
+
+    /**
+     * Dewi, 2026-08-08: *"the brightness … is turned down when I go into full screen video"*.
+     *
+     * Going fullscreen swaps one subtree for another, so for a moment two stages exist: the incoming
+     * one has been composed and the outgoing one has not yet been disposed. Whichever order those
+     * two run in, the window must still be showing the chosen brightness at the end — that
+     * order-independence IS the fix, because Compose ran them in the order that lost it.
+     */
+    @Test
+    fun `the brightness survives a stage swap, whichever way round it happens`() {
+        ChosenBrightness.choose(0.87f)
+        ChosenBrightness.stageAppeared()
+
+        // New stage composes before the old one is disposed — the real Compose order, and the bug.
+        assertEquals(0.87f, ChosenBrightness.stageAppeared(), 0f)
+        assertEquals(
+            "the outgoing stage must not take the override with it",
+            0.87f,
+            ChosenBrightness.stageDisappeared(),
+            0f
+        )
+
+        // ...and the other way round, which is what a different Compose version might do.
+        assertEquals(FOLLOW_SYSTEM_FOR_A_MOMENT, ChosenBrightness.stageDisappeared(), 0f)
+        assertEquals(0.87f, ChosenBrightness.stageAppeared(), 0f)
+    }
+
+    /** The reason the release exists: nothing on screen wants it, so the app stops overriding. */
+    @Test
+    fun `the last stage to go releases the window`() {
+        ChosenBrightness.choose(0.87f)
+        ChosenBrightness.stageAppeared()
+
+        assertEquals(ChosenBrightness.FOLLOW_SYSTEM, ChosenBrightness.stageDisappeared(), 0f)
+        assertEquals("but the choice itself is kept for the sitting", 0.87f, ChosenBrightness.value, 0f)
+    }
+
+    @Test
+    fun `with no choice made a stage does not override anything`() {
+        assertEquals(ChosenBrightness.FOLLOW_SYSTEM, ChosenBrightness.stageAppeared(), 0f)
+    }
+
+    /**
+     * An unbalanced release must not strand the count below zero: every later stage would then
+     * appear to be "not the first" and the brightness could never be applied again — a silent,
+     * permanent failure far worse than one stray release.
+     */
+    @Test
+    fun `an unbalanced release cannot strand the count below zero`() {
+        ChosenBrightness.choose(0.87f)
+        repeat(3) { ChosenBrightness.stageDisappeared() }
+
+        assertEquals(0, ChosenBrightness.stagesOnScreen)
+        assertEquals("a stage appearing afterwards must still work", 0.87f, ChosenBrightness.stageAppeared(), 0f)
+    }
+
+    /** A brightness chosen while stages are on screen applies to them immediately. */
+    @Test
+    fun `choosing while a stage is on screen takes effect at once`() {
+        ChosenBrightness.stageAppeared()
+        assertEquals(ChosenBrightness.FOLLOW_SYSTEM, ChosenBrightness.windowBrightness, 0f)
+
+        ChosenBrightness.choose(0.4f)
+
+        assertEquals(0.4f, ChosenBrightness.windowBrightness, 0f)
+    }
+
+    private companion object {
+        /**
+         * Between the old stage going and the new one arriving there is genuinely no video on
+         * screen, so following the system is the correct answer for that instant. It is never seen:
+         * both calls land in the same frame, and the window shows whatever was set last.
+         */
+        const val FOLLOW_SYSTEM_FOR_A_MOMENT = -1f
+    }
 }

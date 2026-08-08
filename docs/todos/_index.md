@@ -1,7 +1,7 @@
 ---
 title: Backlog
 kind: index
-updated: 2026-08-06
+updated: 2026-08-08
 ---
 
 # Backlog
@@ -58,7 +58,7 @@ to `shipped` and migrate it to `../features/` once it's a real feature on `main`
 | [skip-silence-smoothness](skip-silence-smoothness.md) | playback | high | shipped — sample removal for audio, speed-up for video |
 | [offline-queue-e2e](offline-queue-e2e.md) | tests | high | done — in CI, and it found a real bug |
 | [buffering-defects-0.1.332](buffering-defects-0.1.332.md) | playback | high | all four fixed with tests |
-| [settings-only-change-when-asked](settings-only-change-when-asked.md) | settings | high | done — speed, boost and brightness hold |
+| [settings-only-change-when-asked](settings-only-change-when-asked.md) | settings | high | done — speed, boost and brightness hold, incl. across a fullscreen toggle (fixed 2026-08-08) |
 | [buffer-ahead-gauge](buffer-ahead-gauge.md) | playback | medium | shipped — seconds-ahead gauge on the scrub bar |
 
 All backlog items are Dewi requests. `refining` = spec written, decisions still open;

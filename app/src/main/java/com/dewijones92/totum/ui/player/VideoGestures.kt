@@ -4,9 +4,9 @@ import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
 import android.media.AudioManager
-import android.view.WindowManager
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -90,38 +90,51 @@ internal class VideoGestureState(
         }
     }
 
-    /**
-     * Restores the WINDOW to the system brightness. Called when the video goes away: a window left
-     * dimmed would silently darken the rest of the app.
-     *
-     * The user's CHOICE is deliberately not forgotten — see [ChosenBrightness]. This used to reset
-     * it too, so a brightness set by gesture was lost at every track change, which is the app
-     * changing a setting nobody touched.
-     */
-    fun release() {
-        activity?.applyBrightness(WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE)
+    /** A stage appeared: the window shows a brightness chosen earlier this session, if there is one. */
+    fun attach() {
+        val applied = ChosenBrightness.stageAppeared()
+        Diag.log("gesture", "stage on screen (${ChosenBrightness.stagesOnScreen}), window brightness $applied")
+        activity?.applyBrightness(applied)
     }
 
-    /** Re-applies a brightness chosen earlier this session, when a video appears again. */
-    fun restoreChosenBrightness() {
-        if (ChosenBrightness.isSet) activity?.applyBrightness(ChosenBrightness.value)
+    /**
+     * A stage went away. The override survives while any other stage is still on screen — see
+     * [ChosenBrightness] for why that ordering matters — and is released once the last one goes,
+     * because a window left dimmed would silently darken the rest of the app.
+     *
+     * The user's CHOICE is deliberately not forgotten either way. This used to reset it, so a
+     * brightness set by gesture was lost at every track change: the app changing a setting nobody
+     * touched.
+     */
+    fun detach() {
+        val applied = ChosenBrightness.stageDisappeared()
+        Diag.log("gesture", "stage gone (${ChosenBrightness.stagesOnScreen} left), window brightness $applied")
+        activity?.applyBrightness(applied)
     }
 
     private companion object {
-        /** Negative means "follow the system", which is also Android's own convention. */
-        const val INITIAL_BRIGHTNESS = -1f
         const val DEFAULT_BRIGHTNESS = 0.5f
     }
 }
 
+/**
+ * The gesture state, plus the window brightness for as long as this stage is on screen.
+ *
+ * Both halves in one call deliberately: the attach and the detach are a pair, and a caller that
+ * remembered the state without registering it would leave the count short and silently lose the
+ * user's brightness at the next transition.
+ */
 @Composable
 internal fun rememberVideoGestures(): VideoGestureState {
     val context = LocalContext.current
     val activity = context.findActivity()
     val audio = context.getSystemService<AudioManager>()
-    return remember(activity, audio) {
-        VideoGestureState(activity, audio).also { it.restoreChosenBrightness() }
+    val state = remember(activity, audio) { VideoGestureState(activity, audio) }
+    DisposableEffect(state) {
+        state.attach()
+        onDispose { state.detach() }
     }
+    return state
 }
 
 /**
